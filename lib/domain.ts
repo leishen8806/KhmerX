@@ -3,11 +3,11 @@ export type Status='registered'|'kyc_pending'|'needs_info'|'kyc_approved'|'decis
 export type Bot={id:string;label:string;username:string;enabled:boolean;envKey:string};
 export type Entry={id:string;loanId:string;kind:string;cents:number;debit:string;credit:string;at:string};
 export type Event={id:string;loanId:string;action:string;role:Role;note:string;at:string};
-export type Loan={id:string;customerId?:string;phoneMasked?:string;name:string;botId:string;amount:number;fee:number;status:Status;createdAt:string;dueAt?:string;signedAt?:string;signature?:string;contract?:string;paid:number;wallet:number;note:string;demoDays:number;kyc:{income:number;contacts:string[];document:string}};
+export type Loan={id:string;customerId?:string;kycCaseId?:string;kycRevision?:number;phoneMasked?:string;name:string;botId:string;amount:number;fee:number;status:Status;createdAt:string;dueAt?:string;signedAt?:string;signature?:string;contract?:string;paid:number;wallet:number;note:string;demoDays:number;kyc:{income:number;contacts:string[];document:string}};
 export type State={loans:Loan[];bots:Bot[];events:Event[];entries:Entry[];notifications:{id:string;loanId:string;botId:string;text:string;at:string;status:string}[];requests:string[]};
 export const statusNames:Record<Status,string>={registered:'已注册 · 待 KYC',kyc_pending:'待资料审核',needs_info:'待补件',kyc_approved:'资料通过',decision_pending:'待机构审批',approved:'待签约',rejected:'申请未通过',signed:'待放款',active:'还款中',closed:'已结清'};
 export const initialState=():State=>({loans:[],bots:[{id:'bot-1',label:'PayEase 主机器人',username:'',enabled:true,envKey:'TELEGRAM_BOT_TOKEN_1'},{id:'bot-2',label:'PayEase 第二机器人',username:'',enabled:true,envKey:'TELEGRAM_BOT_TOKEN_2'}],events:[],entries:[],notifications:[],requests:[]});
-export const roles:Record<string,Role>={create:'mini',submit_kyc:'mini',resubmit:'mini',apply:'mini',sign:'mini',withdraw:'mini',repay:'mini',review:'ops',supplement:'ops',approve:'lender',reject:'lender',disburse:'lender',overdue:'ops',bot_save:'ops',bot_add:'ops'};
+export const roles:Record<string,Role>={create:'mini',confirm_kyc:'mini',submit_kyc:'mini',resubmit:'mini',apply:'mini',sign:'mini',withdraw:'mini',repay:'mini',review:'ops',supplement:'ops',approve:'lender',reject:'lender',disburse:'lender',overdue:'ops',bot_save:'ops',bot_add:'ops'};
 export function applyAction(input:State,p:any,now=new Date().toISOString()):State{
  if(!p||typeof p!=='object'||!roles[p.action]||roles[p.action]!==p.role)throw Error('此操作不属于当前演示角色');
  if(typeof p.requestId!=='string'||p.requestId.length<8||p.requestId.length>100)throw Error('请求编号无效');
@@ -39,6 +39,7 @@ export function applyAction(input:State,p:any,now=new Date().toISOString()):Stat
   const note=text(p.note);
   const journal=(kind:string,cents:number,debit:string,credit:string)=>s.entries.push({id:id(),loanId:l.id,kind,cents,debit,credit,at:now});
   switch(p.action){
+   case 'confirm_kyc':needs(['registered','kyc_pending','needs_info']);if(!l.customerId)throw Error('仅适用于 H5 客户');l.status='kyc_pending';l.note='等待确认人工审核结果';break;
    case 'submit_kyc':needs(['registered']);if(p.consent!==true)throw Error('请确认测试 KYC 资料授权');l.status='kyc_pending';l.note='测试 KYC 已提交审核';break;
    case 'review':needs(['kyc_pending']);l.status='kyc_approved';l.note='资料审核通过，可以申请贷款';break;
    case 'supplement':needs(['kyc_pending']);if(!note)throw Error('请填写补件原因');l.status='needs_info';l.note=note;break;
@@ -75,6 +76,6 @@ export function customerAction(state:State,input:any,customer:{id:string;phoneMa
  if(typeof input.requestId!=='string'||input.requestId.length<8||input.requestId.length>100)throw Error('请求编号无效');
  const p={...input,role:'mini',requestId:customer.id.slice(0,16)+':'+input.requestId.slice(0,80)};
  const next=applyAction(state,p);if(next===state)return state;
- if(p.action==='create'){next.loans[0].customerId=customer.id;next.loans[0].phoneMasked=customer.phoneMasked}
+ if(p.action==='create'){next.loans[0].customerId=customer.id;next.loans[0].phoneMasked=customer.phoneMasked;next.loans[0].kyc={income:0,contacts:[],document:'身份资料单独提交并由授权人员人工审核'};next.loans[0].note='注册完成，请填写身份资料并等待人工审核'}
  return next;
 }
