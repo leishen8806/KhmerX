@@ -18,9 +18,9 @@ export const fields:Field[]=[
  {id:'district',label:'区 / 县 / 市',section:'identity',required:true,source:'B9:F10 / 附件七'},
  {id:'address',label:'详细住址',section:'identity',required:true,source:'B9:F10'},
  ...[1,2,3].flatMap(n=>[
+  {id:`contact${n}Relation`,label:`联系人 ${n} 关系`,section:'contacts' as Section,required:n<3,options:opts(['父母','配偶','亲属','朋友','村长','公司主管']),source:'D14:D19'},
   {id:`contact${n}Name`,label:`联系人 ${n} 姓名`,section:'contacts' as Section,required:n<3,source:`B${12+n*2}:F${13+n*2}`},
-  {id:`contact${n}Phone`,label:`联系人 ${n} 电话（含国家区号）`,section:'contacts' as Section,required:n<3,kind:'phone' as const,source:`B${13+n*2}:F${13+n*2}`},
-  {id:`contact${n}Relation`,label:`联系人 ${n} 关系`,section:'contacts' as Section,required:n<3,options:opts(['父母','配偶','亲属','朋友','村长','公司主管']),source:'D14:D19'}]),
+  {id:`contact${n}Phone`,label:`联系人 ${n} 电话（含国家区号）`,section:'contacts' as Section,required:n<3,kind:'phone' as const,source:`B${13+n*2}:F${13+n*2}`}]),
  {id:'workType',label:'工作类型',section:'employment',required:true,options:choices.workType,source:'B20:F20 / 附件五'},
  {id:'company',label:'公司 / 商店名称',section:'employment',required:true,source:'B21:F21'},
  {id:'industry',label:'行业',section:'employment',required:true,options:choices.industry,source:'B22:F22 / 附件三'},
@@ -52,10 +52,12 @@ export type FileRef={id:string;slot:Slot;name:string;type:string;size:number;sha
 export type Profile={values:Record<string,string>;files:Partial<Record<Slot,FileRef>>;consent:boolean;declarationVersion:string;location?:{lat:number;lon:number;accuracy:number;capturedAt:string}};
 export const emptyProfile=():Profile=>({values:{},files:{},consent:false,declarationVersion:'kyc-review-consent-v1'});
 export class KycError extends Error{status:number;constructor(message:string,status=400){super(message);this.status=status}}
+function duplicateRelations(profile:Profile){const relations=[1,2,3].map(n=>profile.values[`contact${n}Relation`]).filter(Boolean);return new Set(relations).size!==relations.length}
 export function cleanProfile(raw:any):Profile{
  if(!raw||typeof raw!=='object'||!raw.values||typeof raw.values!=='object')throw new KycError('资料格式无效');
  const out=emptyProfile();
  for(const f of fields){const v=raw.values[f.id];if(v!==undefined&&typeof v!=='string')throw new KycError(f.label+'格式无效');let text=(v||'').trim();if(text.length>240)throw new KycError(f.label+'过长');if(f.kind==='phone')text=text.replace(/[\s()-]/g,'');if(text&&f.options&&!f.options.some(x=>x.value===text))throw new KycError(f.label+'选项无效');if(text&&f.kind==='phone'&&!/^\+[1-9]\d{7,14}$/.test(text))throw new KycError(f.label+'需使用国际号码格式');out.values[f.id]=text;}
+ if(duplicateRelations(out))throw new KycError('紧急联系人关系不能重复，请为每位联系人选择不同关系');
  const district=out.values.district;if(district&&!regions.find(r=>r.value===out.values.province)?.districts.some(d=>d.value===district))throw new KycError('区县与省份不匹配');
  for(const slot of slots){const ref=raw.files?.[slot.id];if(ref){if(typeof ref.id!=='string'||!/^[a-f0-9-]{36}$/.test(ref.id))throw new KycError('附件编号无效');out.files[slot.id]={id:ref.id,slot:slot.id,name:'',type:'',size:0,sha256:''};}}
  out.consent=raw.consent===true;
@@ -68,6 +70,7 @@ export function missing(profile:Profile):string[]{
  if(!profile.consent)problems.push('资料提交与人工审核授权');
  for(const n of [3])if(['Name','Phone','Relation'].some(k=>profile.values[`contact${n}${k}`])&&!['Name','Phone','Relation'].every(k=>profile.values[`contact${n}${k}`]))problems.push(`联系人 ${n} 请完整填写姓名、电话和关系，或全部留空`);
  if(Boolean(profile.values.supervisorName)!==Boolean(profile.values.supervisorPhone))problems.push('上司姓名与电话需一并填写');
+ if(duplicateRelations(profile))problems.push('紧急联系人关系不能重复');
  const phones=[1,2,3].map(n=>profile.values[`contact${n}Phone`]).filter(Boolean);if(new Set(phones).size!==phones.length)problems.push('紧急联系人电话不能重复');
  return problems;
 }

@@ -28,3 +28,5 @@
 @media(max-width:560px){.kyc-shell{padding:0 16px 32px}.kyc-header{padding:18px 0}.kyc-header .brand small{display:none}.kyc-heading{flex-direction:column}.kyc-fields,.kyc-documents{grid-template-columns:1fr}.kyc-steps button{flex:1 1 40%;font-size:13px}.kyc-form{padding:16px}.kyc-review-decision{padding:16px}.kyc-actions button{flex:1 1 40%}.kyc-heading h1{font-size:24px}}
 
 @media(max-width:760px){.top .top-actions .h5-entry{position:static;padding:4px}.top .top-actions{flex-wrap:wrap;gap:4px}.top{height:auto;min-height:72px;padding:8px 0}}
+
+.kyc-contact-relation{grid-column:1 / -1}
