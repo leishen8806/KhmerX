@@ -58,7 +58,7 @@ export function applyAction(input:State,p:any,now=new Date().toISOString()):Stat
    case 'overdue':needs(['active']);if(![0,3,4,16].includes(Number(p.days)))throw Error('请选择有效的测试逾期天数');l.demoDays=Number(p.days);l.note='已设置测试逾期情景 '+l.demoDays+' 天';break;
    default:throw Error('未知操作');
   }
-  s.events.unshift({id:id(),loanId:l.id,action:p.action,role:p.role,note:l.note+(note?' · '+note:''),at:now});
+  s.events.unshift({id:id(),loanId:l.id,action:p.action,role:p.role,note:l.note+(note&&note!==l.note?' · '+note:''),at:now});
   s.notifications.unshift({id:id(),loanId:l.id,botId:l.botId,text:l.note,at:now,status:'模拟已记录 · 未发送 Telegram'});
  }
  s.requests.push(p.requestId);return s;
