@@ -1,5 +1,6 @@
-import json,uuid,urllib.request,urllib.error,http.cookies
-BASE='http://localhost:5173'
+import os,json,uuid,urllib.request,urllib.error,http.cookies
+BASE=os.environ.get('H5_TEST_URL','http://localhost:5174')
+assert urllib.parse.urlparse(BASE).hostname in ['localhost','127.0.0.1']
 class Client:
  def __init__(self):self.cookies={'__sites_local_auth':'1'}
  def request(self,path,body=None,origin=BASE,owner=True):
@@ -35,15 +36,15 @@ assert a.request('/api/h5/auth/verify',dict(challengeId=c['challengeId'],code=ba
 assert a.request('/api/h5/auth/verify',dict(challengeId=c['challengeId'],code=c['demoCode']))[0]==200
 assert a.request('/api/h5/auth/verify',dict(challengeId=c['challengeId'],code=c['demoCode']))[0]==409
 assert a.request('/api/state',owner=False)[0]==401
-assert a.act('approve',loanId='fabricated')[0]==400
+assert a.act('approve',loanId='fabricated')[0]==404
 status,s=a.act('create',name='H5 隔离验收 A',amount=3000,botId='bot-1',consent=True);assert status==200,(status,s)
 loan_a=s['state']['loans'][0]['id']
 b=Client();b.login('+12025550191')
 assert all(l['id']!=loan_a for l in b.request('/api/h5/state')[1]['state']['loans'])
-assert b.act('submit_kyc',loanId=loan_a,consent=True)[0]==400
-assert a.act('submit_kyc',loanId=loan_a,consent=True)[0]==200
+assert b.act('submit_kyc',loanId=loan_a,consent=True)[0]==404
+assert a.act('submit_kyc',loanId=loan_a,consent=True)[0]==409
 staff=a.request('/api/state')[1]['state'];assert any(l['id']==loan_a and l['phoneMasked'] for l in staff['loans'])
 assert a.request('/api/h5/auth/logout',{})[0]==200
 assert a.request('/api/h5/state')[0]==401
 assert b.request('/api/h5/auth/logout',{})[0]==200
-print('PASS: auth gate, CSRF, consent, cooldown, invalid OTP, valid session, replay, customer isolation, staff queue, logout')
+print('PASS: auth gate, CSRF, consent, cooldown, invalid OTP, valid session, replay, customer isolation, KYC gate, staff queue, logout')
