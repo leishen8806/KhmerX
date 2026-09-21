@@ -1,4 +1,5 @@
 // Opt-in localhost integration test. Creates only fictional QA records and a 1px PNG.
+import {LOAN_TERMS_VERSION} from '../lib/agreements/loan-terms.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {fields,slots,regions,sections,emptyProfile} from '../lib/kyc/core.ts';
@@ -18,7 +19,7 @@ test('local KYC: draft → submit → supplement → resubmit → approval → l
  assert.equal((await act('confirm_kyc')).status,409);
  assert.equal((await staff('/api/state',{action:'review',role:'ops',loanId,requestId:crypto.randomUUID()})).status,400);
  assert.equal((await a('/api/kyc',{action:'submit',revision:record.revision,profile:emptyProfile()})).status,400);
- const p=profile();for(const slot of slots.filter(s=>s.required)){const up=await a('/api/kyc/files',png,{headers:{'X-KYC-Slot':slot.id,'X-KYC-Consent':'true'}});assert.equal(up.status,200,JSON.stringify(up.d));p.files[slot.id]=up.d}
+ const p=profile();for(const slot of slots.filter(s=>s.required)){const up=await a('/api/kyc/files',png,{headers:{'X-KYC-Slot':slot.id,'X-KYC-Consent':'true','X-KYC-Agreement-Version':LOAN_TERMS_VERSION}});assert.equal(up.status,200,JSON.stringify(up.d));p.files[slot.id]=up.d}
  assert.equal((await b('/api/kyc/files?id='+p.files.idFront.id)).status,404);
  assert.equal((await staff('/api/kyc/files?id='+p.files.idFront.id+'&review=1')).status,200);
  const bad=profile();bad.files=p.files;const bCase=(await b('/api/kyc')).d;assert.equal((await b('/api/kyc',{action:'save',revision:bCase.revision,profile:bad})).status,404);
@@ -26,7 +27,7 @@ test('local KYC: draft → submit → supplement → resubmit → approval → l
  assert.equal((await a('/api/kyc')).d.profile.values.surname,'SYNTHETIC KYC QA');
  assert.equal((await a('/api/kyc',{action:'save',revision:record.revision-1,profile:p})).status,409);
  saved=await a('/api/kyc',{action:'submit',revision:record.revision,profile:p});assert.equal(saved.status,200);record=saved.d;
- assert.equal((await a('/api/kyc/files',png,{headers:{'X-KYC-Slot':'selfie','X-KYC-Consent':'true'}})).status,409);
+ assert.equal((await a('/api/kyc/files',png,{headers:{'X-KYC-Slot':'selfie','X-KYC-Consent':'true','X-KYC-Agreement-Version':LOAN_TERMS_VERSION}})).status,409);
  assert.equal((await staff('/api/kyc/review',{id:record.id,revision:record.revision,decision:'approved',reason:'QA',checklist:{}})).status,400);
  let decision=await staff('/api/kyc/review',{id:record.id,revision:record.revision,decision:'needs_info',reason:'QA 补件：补充详细地址',checklist:{}});assert.equal(decision.status,200);record=decision.d;
  p.values.address='SYNTHETIC KYC QA address revised';record=(await a('/api/kyc',{action:'submit',revision:record.revision,profile:p})).d;assert.equal(record.status,'submitted');
@@ -42,7 +43,7 @@ test('local KYC: draft → submit → supplement → resubmit → approval → l
  assert.equal((await staff('/api/state',{action:'disburse',role:'lender',loanId,requestId:crypto.randomUUID()})).status,200);
  assert.equal((await act('withdraw')).status,200);r=await act('repay',{cents:5200});assert.equal(r.status,200);assert.equal(r.d.state.loans.find(l=>l.id===loanId).status,'closed');
  // A second case exercises the manual rejection branch.
- const q=profile();for(const slot of slots.filter(s=>s.required)){q.files[slot.id]=(await b('/api/kyc/files',png,{headers:{'X-KYC-Slot':slot.id,'X-KYC-Consent':'true'}})).d}
+ const q=profile();for(const slot of slots.filter(s=>s.required)){q.files[slot.id]=(await b('/api/kyc/files',png,{headers:{'X-KYC-Slot':slot.id,'X-KYC-Consent':'true','X-KYC-Agreement-Version':LOAN_TERMS_VERSION}})).d}
  const submitted=(await b('/api/kyc',{action:'submit',revision:bCase.revision,profile:q})).d;assert.equal(submitted.status,'submitted');
  const rejected=await staff('/api/kyc/review',{id:submitted.id,revision:submitted.revision,decision:'rejected',reason:'合成材料拒绝分支验收',checklist:{}});assert.equal(rejected.status,200);assert.equal(rejected.d.status,'rejected');
  console.log('Synthetic QA case',approved.id.slice(0,8),'revision',approved.revision,'and rejection branch verified');

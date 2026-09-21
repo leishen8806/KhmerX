@@ -1,10 +1,12 @@
+import loanTerms from '../agreements/loan-terms-zh.json' with {type:'json'};
+const LOAN_TERMS_VERSION=loanTerms.version;
 import source from './options.json' with {type:'json'};
 export const RULE_VERSION=source.version;
 export const choices=source.options;
 export const regions=source.regions;
 export type KycStatus='draft'|'submitted'|'needs_info'|'approved'|'rejected';
 export const statusLabels:Record<KycStatus,string>={draft:'草稿',submitted:'待人工审核',needs_info:'待补件',approved:'人工资料审核通过',rejected:'资料审核未通过'};
-export const sections=[{id:'identity',label:'个人与身份资料'},{id:'contacts',label:'紧急联系人'},{id:'employment',label:'工作与资产'},{id:'bank',label:'收款账户资料'},{id:'consent',label:'授权与签名'}] as const;
+export const sections=[{id:'identity',label:'个人与身份资料'},{id:'contacts',label:'紧急联系人'},{id:'employment',label:'工作与资产'},{id:'bank',label:'收款账户资料'},{id:'consent',label:'协议与签名'}] as const;
 export type Section=typeof sections[number]['id'];
 export type Field={id:string;label:string;section:Section;required?:boolean;options?:{value:string;label:string}[];kind?:'phone'|'select';source:string};
 const opts=(values:string[])=>values.map(x=>({value:x,label:x}));
@@ -50,7 +52,7 @@ export const slots=[
 export type Slot=typeof slots[number]['id'];
 export type FileRef={id:string;slot:Slot;name:string;type:string;size:number;sha256:string};
 export type Profile={values:Record<string,string>;files:Partial<Record<Slot,FileRef>>;consent:boolean;declarationVersion:string;location?:{lat:number;lon:number;accuracy:number;capturedAt:string}};
-export const emptyProfile=():Profile=>({values:{},files:{},consent:false,declarationVersion:'kyc-review-consent-v1'});
+export const emptyProfile=():Profile=>({values:{},files:{},consent:false,declarationVersion:LOAN_TERMS_VERSION});
 export class KycError extends Error{status:number;constructor(message:string,status=400){super(message);this.status=status}}
 function duplicateRelations(profile:Profile){const relations=[1,2,3].map(n=>profile.values[`contact${n}Relation`]).filter(Boolean);return new Set(relations).size!==relations.length}
 export function cleanProfile(raw:any):Profile{
@@ -60,6 +62,7 @@ export function cleanProfile(raw:any):Profile{
  if(duplicateRelations(out))throw new KycError('紧急联系人关系不能重复，请为每位联系人选择不同关系');
  const district=out.values.district;if(district&&!regions.find(r=>r.value===out.values.province)?.districts.some(d=>d.value===district))throw new KycError('区县与省份不匹配');
  for(const slot of slots){const ref=raw.files?.[slot.id];if(ref){if(typeof ref.id!=='string'||!/^[a-f0-9-]{36}$/.test(ref.id))throw new KycError('附件编号无效');out.files[slot.id]={id:ref.id,slot:slot.id,name:'',type:'',size:0,sha256:''};}}
+ if(raw.consent===true&&raw.declarationVersion!==LOAN_TERMS_VERSION)throw new KycError('请重新阅读并确认当前借款协议');
  out.consent=raw.consent===true;
  if(raw.location){const {lat,lon,accuracy,capturedAt}=raw.location;if(!Number.isFinite(lat)||lat< -90||lat>90||!Number.isFinite(lon)||lon< -180||lon>180||!Number.isFinite(accuracy)||accuracy<0||typeof capturedAt!=='string'||!Number.isFinite(Date.parse(capturedAt)))throw new KycError('定位格式无效');out.location={lat,lon,accuracy,capturedAt};}
  return out;
@@ -67,7 +70,7 @@ export function cleanProfile(raw:any):Profile{
 export function missing(profile:Profile):string[]{
  const problems=fields.filter(f=>f.required&&!profile.values[f.id]).map(f=>f.label);
  for(const slot of slots)if(slot.required&&!profile.files[slot.id])problems.push(slot.label);
- if(!profile.consent)problems.push('资料提交与人工审核授权');
+ if(!profile.consent||profile.declarationVersion!==LOAN_TERMS_VERSION)problems.push('阅读并同意当前借款协议');
  for(const n of [3])if(['Name','Phone','Relation'].some(k=>profile.values[`contact${n}${k}`])&&!['Name','Phone','Relation'].every(k=>profile.values[`contact${n}${k}`]))problems.push(`联系人 ${n} 请完整填写姓名、电话和关系，或全部留空`);
  if(Boolean(profile.values.supervisorName)!==Boolean(profile.values.supervisorPhone))problems.push('上司姓名与电话需一并填写');
  if(duplicateRelations(profile))problems.push('紧急联系人关系不能重复');
@@ -83,7 +86,7 @@ export function completeness(p:Profile,verifiedPhone:boolean){
  for(const n of [1,2,3])for(const part of ['Name','Phone'])add(`联系人 ${n} ${part==='Name'?'姓名':'电话'}`,5,!!p.values[`contact${n}${part}`],`F${(part==='Name'?12:13)+n*2}`,n===3);
  for(const key of ['workType','company','industry','position','income','tenure','supervisorName','supervisorPhone']){const f=fields.find(f=>f.id===key)!;add(f.label,5,!!p.values[key],f.source,key.startsWith('supervisor'))}
  for(const slot of slots)add(slot.label,slot.points,!!p.files[slot.id],slot.source,!slot.required);
- add('资料授权',5,p.consent,'F45');add('Telegram 手机号验证',5,verifiedPhone,'F47');add('Telegram 账号验证（未接入）',5,false,'F48');add('自主授权定位（设备报告，非核验）',5,!!p.location,'F49');
+ add('协议 / 授权确认',5,p.consent,'F45');add('Telegram 手机号验证',5,verifiedPhone,'F47');add('Telegram 账号验证（未接入）',5,false,'F48');add('自主授权定位（设备报告，非核验）',5,!!p.location,'F49');
  return {base:rows.filter(r=>!r.additional).reduce((s,r)=>s+r.points,0),baseMaximum:120,additional:rows.filter(r=>r.additional).reduce((s,r)=>s+r.points,0),additionalMaximum:85,rows};
 }
 export function validateReview(status:KycStatus,decision:string,checklist:Record<string,boolean>,reason:string,profile:Profile){
