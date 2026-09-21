@@ -1,0 +1,35 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {DatabaseSync} from 'node:sqlite';
+import {readFileSync} from 'node:fs';
+import {sendCode,verifyCode,getSession,revokeSession,pendingChallenge,normalizePhone,randomToken,AuthError} from '../lib/h5-auth-core.ts';
+import {initialState,customerAction,customerState,applyAction} from '../lib/domain.ts';
+function fixture(mode='demo',transport=async()=>{throw Error('Unexpected network call')}){
+ const sql=new DatabaseSync(':memory:');sql.exec(readFileSync(new URL('../drizzle/0001_real_legion.sql',import.meta.url),'utf8'));
+ const db={
+  prepare(query){
+   return {bind(...args){
+    return {
+     async first(){return sql.prepare(query).get(...args)??null},
+     async run(){return {meta:{changes:Number(sql.prepare(query).run(...args).changes)}}}
+    };
+   }};
+  }
+ };
+
+ let t=1800000000000;const r={db,config:{mode,secret:'synthetic-test-secret-at-least-32-characters',gatewayToken:mode==='telegram'?'test-token':undefined},now:()=>t,transport};
+ return {r,sql,tick:(seconds)=>{t+=seconds*1000},owner:'workspace-A',browser:randomToken()};
+}
+const send=(f,phone='+12025550123',browser=f.browser)=>sendCode(f.r,f.owner,browser,{phone,consent:true});
+const verify=(f,c,code=c.demoCode,browser=f.browser)=>verifyCode(f.r,f.owner,browser,{challengeId:c.challengeId,code});
+test('demo validates consent and fictional phones; stores neither raw phone nor raw OTP',async()=>{const f=fixture();await assert.rejects(sendCode(f.r,f.owner,f.browser,{phone:'+12025550123',consent:false}));await assert.rejects(send(f,'+85512345678'));assert.equal(normalizePhone('+1 (202) 555-0123','demo'),'+12025550123');const c=await send(f);assert.match(c.demoCode,/^\d{6}$/);const dump=JSON.stringify(f.sql.prepare('SELECT * FROM h5_challenges').all());assert(!dump.includes('+12025550123'));assert(!dump.includes('"code_hash":"'+c.demoCode+'"'));assert.equal((await pendingChallenge(f.r,f.owner,f.browser)).challengeId,c.challengeId)});
+test('valid OTP creates expiring session, binds owner, rejects reuse and logout revokes',async()=>{const f=fixture(),c=await send(f),v=await verify(f,c);assert.equal((await getSession(f.r,f.owner,v.token)).mode,'demo');assert.equal(await getSession(f.r,'another-owner',v.token),null);assert(!JSON.stringify(f.sql.prepare('SELECT * FROM h5_sessions').all()).includes(v.token));await assert.rejects(verify(f,c));await revokeSession(f.r,f.owner,v.token);assert.equal(await getSession(f.r,f.owner,v.token),null)});
+test('challenge cannot be verified in another browser or workspace',async()=>{const f=fixture(),c=await send(f);await assert.rejects(verify(f,c,c.demoCode,randomToken()));await assert.rejects(verifyCode(f.r,'workspace-B',f.browser,{challengeId:c.challengeId,code:c.demoCode}));assert.equal((await verify(f,c)).session.mode,'demo')});
+test('five incorrect attempts lock out correct code',async()=>{const f=fixture(),c=await send(f),wrong=c.demoCode==='000000'?'111111':'000000';for(let i=0;i<5;i++)await assert.rejects(verify(f,c,wrong));await assert.rejects(verify(f,c));assert.equal(f.sql.prepare('SELECT attempts FROM h5_challenges').get().attempts,5)});
+test('challenge and session expiry and auth mode changes fail closed',async()=>{const f=fixture(),c=await send(f);f.tick(301);await assert.rejects(verify(f,c));const c2=await send(f),v=await verify(f,c2);f.r.config.mode='telegram';f.r.config.gatewayToken='fake';assert.equal(await getSession(f.r,f.owner,v.token),null);f.r.config.mode='demo';f.tick(86401);assert.equal(await getSession(f.r,f.owner,v.token),null)});
+test('server resend cooldown and rolling phone limit; replacement invalidates old challenge',async()=>{const f=fixture(),c=await send(f);await assert.rejects(send(f),e=>e instanceof AuthError&&e.status===429);f.tick(60);const next=await send(f);await assert.rejects(verify(f,c));assert((await verify(f,next)).token);for(let i=0;i<3;i++){f.tick(60);await send(f)}f.tick(60);await assert.rejects(send(f),e=>e.status===429)});
+test('concurrent correct verification consumes once and creates one session',async()=>{const f=fixture(),c=await send(f);const results=await Promise.allSettled([verify(f,c),verify(f,c)]);assert.equal(results.filter(r=>r.status==='fulfilled').length,1);assert.equal(f.sql.prepare('SELECT COUNT(*) AS n FROM h5_sessions').get().n,1)});
+test('official transport generates OTP at Telegram and requires matching code_valid response',async()=>{const calls=[];const f=fixture('telegram',async(url,init)=>{calls.push({url,body:JSON.parse(init.body)});return Response.json({ok:true,result:{request_id:'provider-1',phone_number:'+85512345678',verification_status:{status:'code_valid'}}})});const c=await send(f,'+85512345678');assert(!('demoCode' in c));assert.equal(calls[0].url,'https://gatewayapi.telegram.org/sendVerificationMessage');assert.deepEqual(calls[0].body,{phone_number:'+85512345678',code_length:6,ttl:300});assert.equal((await verify(f,c,'123456')).session.mode,'telegram');assert.equal(calls[1].body.request_id,'provider-1');assert.equal(calls[1].body.code,'123456')});
+test('provider failures never fall back to demo or produce sessions',async()=>{const f=fixture('telegram',async()=>Response.json({ok:false,error:'BALANCE_NOT_ENOUGH'}));await assert.rejects(send(f,'+85512345678'),e=>e.status===503);assert.equal(f.sql.prepare('SELECT COUNT(*) AS n FROM h5_sessions').get().n,0);f.r.config.gatewayToken=undefined;await assert.rejects(send(f,'+85512345678'),e=>e.status===503)});
+test('provider code invalid and mismatched request IDs fail closed',async()=>{let verification=false;const f=fixture('telegram',async()=>Response.json({ok:true,result:{request_id:verification?'other-request':'provider-1',phone_number:'+85512345678',verification_status:{status:'code_valid'}}}));const c=await send(f,'+85512345678');verification=true;await assert.rejects(verify(f,c,'123456'));assert.equal(f.sql.prepare('SELECT COUNT(*) AS n FROM h5_sessions').get().n,0)});
+test('customer can only see and mutate own loans; cannot elevate role or spoof customer identity',()=>{const a={id:'a'.repeat(64),phoneMasked:'+120 •••• 0123'},b={id:'b'.repeat(64),phoneMasked:'+120 •••• 0145'};const create={action:'create',role:'mini',requestId:randomToken(),name:'Synthetic A',amount:5000,botId:'bot-1',consent:true,customerId:b.id};let s=customerAction(initialState(),create,a);const loan=s.loans[0];assert.equal(loan.customerId,a.id);assert.equal(customerState(s,b.id).loans.length,0);assert.throws(()=>customerAction(s,{action:'submit_kyc',loanId:loan.id,consent:true,requestId:randomToken()},b));assert.throws(()=>customerAction(s,{action:'approve',loanId:loan.id,role:'lender',requestId:randomToken()},a));s=customerAction(s,{action:'submit_kyc',loanId:loan.id,consent:true,requestId:randomToken()},a);s=applyAction(s,{action:'review',role:'ops',loanId:loan.id,requestId:randomToken()});assert.equal(customerState(s,a.id).loans[0].status,'kyc_approved');assert.equal(customerState(s,a.id).requests.length,0)});
