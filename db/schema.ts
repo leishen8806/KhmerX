@@ -1,2 +1,7 @@
-import {integer,sqliteTable,text} from 'drizzle-orm/sqlite-core';
+import {index,integer,sqliteTable,text} from 'drizzle-orm/sqlite-core';
 export const workspaces=sqliteTable('demo_workspaces',{owner:text('owner').primaryKey(),revision:integer('revision').notNull().default(0),payload:text('payload').notNull()});
+export const h5Challenges=sqliteTable('h5_challenges',{
+ id:text('id').primaryKey(),owner:text('owner').notNull(),phoneKey:text('phone_key').notNull(),phoneMask:text('phone_mask').notNull(),mode:text('mode').notNull(),codeHash:text('code_hash'),providerRequest:text('provider_request'),browserHash:text('browser_hash').notNull(),createdAt:integer('created_at').notNull(),expiresAt:integer('expires_at').notNull(),attempts:integer('attempts').notNull().default(0),consumed:integer('consumed').notNull().default(0),status:text('status').notNull(),lockedUntil:integer('locked_until').notNull().default(0)
+},t=>[index('h5_challenges_owner_browser').on(t.owner,t.browserHash,t.createdAt),index('h5_challenges_owner_phone').on(t.owner,t.phoneKey),index('h5_challenges_owner_expiry').on(t.owner,t.expiresAt)]);
+export const h5Sessions=sqliteTable('h5_sessions',{tokenHash:text('token_hash').primaryKey(),owner:text('owner').notNull(),customerId:text('customer_id').notNull(),phoneMask:text('phone_mask').notNull(),mode:text('mode').notNull(),expiresAt:integer('expires_at').notNull()},t=>[index('h5_sessions_owner_expiry').on(t.owner,t.expiresAt)]);
+export const h5Limits=sqliteTable('h5_limits',{key:text('key').primaryKey(),windowStart:integer('window_start').notNull(),count:integer('count').notNull(),nextAllowed:integer('next_allowed').notNull()});
