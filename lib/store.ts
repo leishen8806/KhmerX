@@ -28,7 +28,7 @@ export async function mutate(owner:string,p:any,customer?:{id:string;phoneMasked
    }
   }
   const next=customer?customerAction(state,p,customer):applyAction(state,p);
-  if(next===state)return {state,revision};if(p.action==='create'&&owner.startsWith('t_')){const bill=calculateBill(next.loans[0].amount,await pricingFor(owner),crypto.randomUUID());next.loans[0].billing=bill;next.loans[0].fee=bill.total-bill.principal;}if(customer)await ensureAssignment(owner,customer.id);
+  if(next===state)return {state,revision};if(p.action==='create'&&owner.startsWith('t_')){const termDays=p.termDays??14;if(![14,28].includes(termDays))throw new KycError('请选择 14 天或 28 天贷款期限');const bill=calculateBill(next.loans[0].amount,{...await pricingFor(owner),termDays},crypto.randomUUID());next.loans[0].billing=bill;next.loans[0].fee=bill.total-bill.principal;}if(customer)await ensureAssignment(owner,customer.id);
   if(approvedCase){
    const updated=next.loans.find(l=>l.id===p.loanId)!;
    if(p.action==='approve'){const data=await payload(approvedCase);if(!data.signedLoan||data.signedLoan.loanId!==updated.id||data.signedLoan.principal!==updated.amount||data.signedLoan.fee!==updated.fee||(updated.billing&&data.signedLoan.billing?.quoteId!==updated.billing.quoteId))throw new KycError('请先完成当前申请的手写签名合同');updated.status='signed';updated.signedAt=data.signedLoan.signedAt;updated.signature='已保存的手写签名';updated.contract=JSON.stringify(data.signedLoan);updated.note='审批通过，手写签名合同已生成，等待放款'}

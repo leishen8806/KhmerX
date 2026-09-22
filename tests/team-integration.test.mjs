@@ -96,3 +96,9 @@ test('postloan roles, tenant/department isolation, task notes and settlement',as
  user=owner;await store.mutate(A,{action:'repay',loanId,cents:l.amount+l.fee-l.paid,requestId:crypto.randomUUID()},{id:l.customerId,phoneMasked:'TEST'});assert.equal((await post.postloanData()).tasks[0].status,'closed');
  assert.equal(await post.jobAuthorized(new Request('https://test/api/jobs/postloan')),false);env.POSTLOAN_JOB_SECRET='secret-test-'.repeat(4);assert.equal(await post.jobAuthorized(new Request('https://test/api/jobs/postloan',{headers:{authorization:'Bearer '+env.POSTLOAN_JOB_SECRET}})),true);assert.equal(await post.jobAuthorized(new Request('https://test/api/jobs/postloan',{headers:{authorization:'Bearer wrong'}})),false);
 });
+
+test('customer selects 14 or 28 days; authoritative bills ignore spoofed pricing and reject other terms',async()=>{
+ selected=A;user=owner;
+ for(const termDays of [14,28]){const c={id:'term-customer-'+termDays,phoneMasked:'TEST'},created=await store.mutate(A,{action:'create',name:'TERM QA',amount:10000,botId:'bot-1',consent:true,termDays,billing:{termDays:1,interest:0},requestId:crypto.randomUUID()},c),l=created.state.loans[0];assert.equal(l.billing.termDays,termDays);assert.equal(l.billing.interest,termDays===14?69:138);assert.equal(l.billing.service,1000);assert.equal(l.billing.net,9000);assert.equal(l.billing.total,termDays===14?10069:10138)}
+ for(const termDays of [0,7,15,365,'28',null]){if(termDays===null)continue;await assert.rejects(store.mutate(A,{action:'create',name:'BAD TERM',amount:10000,botId:'bot-1',consent:true,termDays,requestId:crypto.randomUUID()},{id:'invalid-term',phoneMasked:'TEST'}))}
+});
