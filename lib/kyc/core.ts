@@ -33,7 +33,7 @@ export const fields:Field[]=[
  {id:'supervisorPhone',label:'部门上司电话（含国家区号）',section:'employment',kind:'phone',source:'B27:F27'},
  {id:'vehicle',label:'车辆类型',section:'employment',options:opts(['摩托车','嘟嘟车','汽车','无']),source:'B29:F32'},
  {id:'housing',label:'住房类型',section:'employment',options:opts(['租房','个人房产','无']),source:'B36:F38'},
- {id:'bankName',label:'银行名称',section:'bank',required:true,source:'B41:F41'},
+ {id:'bankName',label:'选择银行',section:'bank',required:true,options:opts(['ABA Bank','ACLEDA Bank','Wing']),source:'B41:F41'},
  {id:'bankAccount',label:'银行账号',section:'bank',required:true,source:'B42:F42'},
  {id:'bankHolder',label:'账户姓名',section:'bank',required:true,source:'B43:F43'},
 ];
