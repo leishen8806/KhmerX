@@ -1,4 +1,5 @@
-import {ensureAssignment,assignment} from '@/lib/team/server';
+import {calculateBill} from './pricing';
+import {ensureAssignment,assignment,pricingFor} from '@/lib/team/server';
 import {env} from 'cloudflare:workers';
 import {initialState,applyAction,type State} from './domain';
 import {customerAction} from './domain';
@@ -27,10 +28,10 @@ export async function mutate(owner:string,p:any,customer?:{id:string;phoneMasked
    }
   }
   const next=customer?customerAction(state,p,customer):applyAction(state,p);
-  if(next===state)return {state,revision};if(customer)await ensureAssignment(owner,customer.id);
+  if(next===state)return {state,revision};if(p.action==='create'&&owner.startsWith('t_')){const bill=calculateBill(next.loans[0].amount,await pricingFor(owner),crypto.randomUUID());next.loans[0].billing=bill;next.loans[0].fee=bill.total-bill.principal;}if(customer)await ensureAssignment(owner,customer.id);
   if(approvedCase){
    const updated=next.loans.find(l=>l.id===p.loanId)!;
-   if(p.action==='approve'){const data=await payload(approvedCase);if(!data.signedLoan||data.signedLoan.loanId!==updated.id||data.signedLoan.principal!==updated.amount||data.signedLoan.fee!==updated.fee)throw new KycError('请先完成当前申请的手写签名合同');updated.status='signed';updated.signedAt=data.signedLoan.signedAt;updated.signature='已保存的手写签名';updated.contract=JSON.stringify(data.signedLoan);updated.note='审批通过，手写签名合同已生成，等待放款'}
+   if(p.action==='approve'){const data=await payload(approvedCase);if(!data.signedLoan||data.signedLoan.loanId!==updated.id||data.signedLoan.principal!==updated.amount||data.signedLoan.fee!==updated.fee||(updated.billing&&data.signedLoan.billing?.quoteId!==updated.billing.quoteId))throw new KycError('请先完成当前申请的手写签名合同');updated.status='signed';updated.signedAt=data.signedLoan.signedAt;updated.signature='已保存的手写签名';updated.contract=JSON.stringify(data.signedLoan);updated.note='审批通过，手写签名合同已生成，等待放款'}
    updated.kycCaseId=approvedCase.id;updated.kycRevision=approvedCase.revision;
    if(['confirm_kyc','submit_kyc','resubmit'].includes(p.action)){
     updated.status='kyc_approved';updated.note='人工资料审核通过，可以申请测试贷款（资料版本 '+approvedCase.revision+'）';
