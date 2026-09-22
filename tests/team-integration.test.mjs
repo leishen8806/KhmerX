@@ -79,3 +79,20 @@ test('company fee settings are admin-only, isolated, versioned; existing bills r
  const l=created.state.loans[0];assert.equal(l.billing.net,9000);assert.equal(l.billing.total,10069);assert.equal(l.billing.interestTiming,'repayment');
  assert.deepEqual((await store.readState(A)).state.loans.find(l=>l.id===savedLoan.id).billing,savedLoan.billing);
 });
+
+test('postloan roles, tenant/department isolation, task notes and settlement',async()=>{
+ const post=await mod('@/lib/postloan/server');selected=A;user=owner;await post.ensurePostDepartment(A);await post.ensurePostDepartment(B);
+ const pd='postloan:'+A,pb='postloan:'+B;
+ await assert.rejects(team.manage({action:'create_member',role:'collector',email:'badcol@example.test',unitId:dept}));
+ const ca=await member(A,'collector','collector-a@example.test',pd),cb=await member(A,'collector','collector-b@example.test',pd),cm=await member(A,'collection_admin','collection-manager@example.test',pd),bc=await member(B,'collector','collector-other-company@example.test',pb);
+ const now=new Date().toISOString(),r=await store.readState(A),l=r.state.loans.find(l=>l.id===loanId);l.dueAt=now;sql.prepare('UPDATE demo_workspaces SET payload=? WHERE owner=?').run(JSON.stringify(r.state),A);
+ await post.runCompany(A,now);selected=A;user=owner;const d=await post.postloanData();assert.equal(d.tasks.length,1);const t=d.tasks[0],assignee=t.assigneeId===sql.prepare('SELECT id FROM team_members WHERE email=?').get(ca.email).id?ca:cb,other=assignee===ca?cb:ca;
+ selected=B;user=bc;assert.equal((await post.postloanData()).tasks.length,0);await assert.rejects(post.postloanAction({action:'note',taskId:t.id,note:'cross tenant'}));
+ selected=A;user=other;assert.equal((await post.postloanData()).tasks.length,0);await assert.rejects(post.postloanAction({action:'note',taskId:t.id,note:'not assigned'}));
+ user=assignee;assert.equal((await post.postloanData()).tasks.length,1);await assert.rejects(team.guardKyc(A,'customer-1'));const p={action:'note',taskId:t.id,version:t.updatedAt,requestId:crypto.randomUUID(),outcome:'contacted',note:'Synthetic customer contacted'};await post.postloanAction(p);await post.postloanAction(p);assert.equal((await post.postloanData()).tasks[0].records.filter(r=>r.note.includes('Synthetic customer')).length,1);
+ await assert.rejects(post.postloanAction({...p,requestId:crypto.randomUUID(),version:'stale'}));await assert.rejects(post.postloanAction({...p,action:'reassign',requestId:crypto.randomUUID(),assigneeId:'bad'}));
+ user=cm;const task=(await post.postloanData()).tasks[0];await post.postloanAction({action:'reassign',taskId:t.id,version:task.updatedAt,requestId:crypto.randomUUID(),assigneeId:sql.prepare('SELECT id FROM team_members WHERE email=?').get(other.email).id,note:'balance work'});
+ user=assignee;assert.equal((await post.postloanData()).tasks.length,0);user=reviewer1;await assert.rejects(post.postloanData());
+ user=owner;await store.mutate(A,{action:'repay',loanId,cents:l.amount+l.fee-l.paid,requestId:crypto.randomUUID()},{id:l.customerId,phoneMasked:'TEST'});assert.equal((await post.postloanData()).tasks[0].status,'closed');
+ assert.equal(await post.jobAuthorized(new Request('https://test/api/jobs/postloan')),false);env.POSTLOAN_JOB_SECRET='secret-test-'.repeat(4);assert.equal(await post.jobAuthorized(new Request('https://test/api/jobs/postloan',{headers:{authorization:'Bearer '+env.POSTLOAN_JOB_SECRET}})),true);assert.equal(await post.jobAuthorized(new Request('https://test/api/jobs/postloan',{headers:{authorization:'Bearer wrong'}})),false);
+});

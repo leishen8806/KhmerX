@@ -1,3 +1,5 @@
+import type {Postloan} from './postloan/core';
+import {syncSettlements} from './postloan/core.ts';
 import type {Bill} from './pricing';
 export type Role='mini'|'ops'|'lender';
 export type Status='registered'|'kyc_pending'|'needs_info'|'kyc_approved'|'decision_pending'|'approved'|'rejected'|'signed'|'active'|'closed';
@@ -5,7 +7,7 @@ export type Bot={id:string;label:string;username:string;enabled:boolean;envKey:s
 export type Entry={id:string;loanId:string;kind:string;cents:number;debit:string;credit:string;at:string};
 export type Event={id:string;loanId:string;action:string;role:Role;note:string;at:string};
 export type Loan={billing?:Bill;billConfirmedAt?:string;approvalActor?:string;approvalCheckedBy?:string;fundingActor?:string;fundingCheckedBy?:string;id:string;customerId?:string;kycCaseId?:string;kycRevision?:number;phoneMasked?:string;name:string;botId:string;amount:number;fee:number;status:Status;createdAt:string;dueAt?:string;signedAt?:string;signature?:string;contract?:string;paid:number;wallet:number;note:string;demoDays:number;kyc:{income:number;contacts:string[];document:string}};
-export type State={loans:Loan[];bots:Bot[];events:Event[];entries:Entry[];notifications:{id:string;loanId:string;botId:string;text:string;at:string;status:string}[];requests:string[]};
+export type State={postloan?:Postloan;loans:Loan[];bots:Bot[];events:Event[];entries:Entry[];notifications:{id:string;loanId:string;botId:string;text:string;at:string;status:string}[];requests:string[]};
 export const statusNames:Record<Status,string>={registered:'已注册 · 待 KYC',kyc_pending:'待资料审核',needs_info:'待补件',kyc_approved:'资料通过',decision_pending:'待机构审批',approved:'待签约',rejected:'申请未通过',signed:'待放款',active:'还款中',closed:'已结清'};
 export const initialState=():State=>({loans:[],bots:[{id:'bot-1',label:'PayEase 主机器人',username:'',enabled:true,envKey:'TELEGRAM_BOT_TOKEN_1'},{id:'bot-2',label:'PayEase 第二机器人',username:'',enabled:true,envKey:'TELEGRAM_BOT_TOKEN_2'}],events:[],entries:[],notifications:[],requests:[]});
 export const roles:Record<string,Role>={create:'mini',confirm_kyc:'mini',submit_kyc:'mini',resubmit:'mini',apply:'mini',sign:'mini',withdraw:'mini',repay:'mini',review:'ops',supplement:'ops',approve:'lender',reject:'lender',disburse:'lender',overdue:'ops',bot_save:'ops',bot_add:'ops'};
@@ -63,13 +65,13 @@ export function applyAction(input:State,p:any,now=new Date().toISOString()):Stat
   s.events.unshift({id:id(),loanId:l.id,action:p.action,role:p.role,note:l.note+(note&&note!==l.note?' · '+note:''),at:now});
   s.notifications.unshift({id:id(),loanId:l.id,botId:l.botId,text:l.note,at:now,status:'模拟已记录 · 未发送 Telegram'});
  }
- s.requests.push(p.requestId);return s;
+ syncSettlements(s,now);s.requests.push(p.requestId);return s;
 }
 export function summary(s:State){return {applications:s.loans.length,active:s.loans.filter(l=>l.status==='active').length,closed:s.loans.filter(l=>l.status==='closed').length,disbursed:s.entries.filter(e=>e.kind==='测试放款').reduce((n,e)=>n+e.cents,0),repaid:s.entries.filter(e=>e.kind==='测试还款').reduce((n,e)=>n+e.cents,0)}}
 
 export function customerState(state:State,customerId:string):State{
  const loans=state.loans.filter(l=>l.customerId===customerId),ids=new Set(loans.map(l=>l.id));
- return {...state,loans,bots:state.bots.filter(b=>b.enabled).map(b=>({...b,envKey:''})),events:state.events.filter(e=>ids.has(e.loanId)),entries:state.entries.filter(e=>ids.has(e.loanId)),notifications:state.notifications.filter(e=>ids.has(e.loanId)),requests:[]};
+ return {...state,postloan:undefined,loans,bots:state.bots.filter(b=>b.enabled).map(b=>({...b,envKey:''})),events:state.events.filter(e=>ids.has(e.loanId)),entries:state.entries.filter(e=>ids.has(e.loanId)),notifications:state.notifications.filter(e=>ids.has(e.loanId)),requests:[]};
 }
 export function customerAction(state:State,input:any,customer:{id:string;phoneMasked:string}):State{
  if(!input||roles[input.action]!=='mini'||input.role&&input.role!=='mini')throw Error('客户会话无权执行此操作');
