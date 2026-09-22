@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {calculateBill,defaultPricing,validatePricing} from '../lib/pricing.ts';
+import {calculateBill,defaultPricing,validatePricing,normalizePricing} from '../lib/pricing.ts';
 import {initialState,applyAction} from '../lib/domain.ts';
-test('14-day upfront annual interest: 100 principal, 10 deduction, 0.69 interest, 89.31 net, 100 due',()=>{const b=calculateBill(10000,defaultPricing,'a');assert.deepEqual([b.deduction,b.interest,b.net,b.total],[1000,69,8931,10000]);});
+test('14-day upfront annual interest: 100 principal, 10 deduction, 0.69 interest, 89.31 net, 100 due',()=>{const b=calculateBill(10000,defaultPricing,'a');assert.deepEqual([b.service,b.deduction,b.interest,b.net,b.total],[1000,0,69,8931,10000]);});
 test('14-day deferred annual interest: 90 net, 100.69 due',()=>{const b=calculateBill(10000,{...defaultPricing,interestTiming:'repayment'},'b');assert.deepEqual([b.net,b.total,b.interest],[9000,10069,69]);});
-test('annual interest follows configured days; services charged once at chosen time',()=>{const p={...defaultPricing,termDays:7,serviceBps:1000};assert.equal(calculateBill(10000,p,'c').total,11000);const b=calculateBill(10000,{...p,serviceTiming:'upfront'},'d');assert.deepEqual([b.interest,b.net,b.total],[35,7965,10000]);});
+test('service fee is deducted once and never added to repayment',()=>{for(const interestTiming of ['upfront','repayment']){const b=calculateBill(10000,{...defaultPricing,termDays:7,interestTiming},'service');assert.equal(b.service,1000);assert.equal(b.deduction,0);assert.equal(b.net,interestTiming==='upfront'?8965:9000);assert.equal(b.total,interestTiming==='upfront'?10000:10035)}assert.throws(()=>validatePricing({...defaultPricing,deductionBps:1000}));assert.throws(()=>validatePricing({...defaultPricing,serviceTiming:'repayment'}));});
+test('old company configuration maps deduction to one service fee without adding old extra fee',()=>{const old={...defaultPricing,feeModel:undefined,deductionBps:1000,serviceBps:1000,serviceTiming:'repayment'};const p=normalizePricing(old);assert.equal(p.serviceBps,1000);assert.equal(p.deductionBps,0);assert.equal(p.serviceTiming,'upfront');assert.equal(old.deductionBps,1000);assert.equal(calculateBill(10000,p,'legacy-config').net,8931)});
 test('round each whole-period fee once to cents and reject nonpositive net',()=>{const b=calculateBill(3001,{...defaultPricing,annualInterestBps:1812,termDays:3},'e');assert.equal(b.interest,4);for(const p of [{...defaultPricing,termDays:365,annualInterestBps:10000},{...defaultPricing,deductionBps:-1},{...defaultPricing,termDays:1.5},{...defaultPricing,annualInterestBps:NaN}])assert.throws(()=>validatePricing(p));});
 test('both plans require matching explicit bill confirmation, fund net and settle exact total',()=>{
  for(const interestTiming of ['upfront','repayment']){
