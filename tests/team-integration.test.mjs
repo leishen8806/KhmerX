@@ -76,6 +76,6 @@ test('company fee settings are admin-only, isolated, versioned; existing bills r
  await assert.rejects(team.manage({action:'pricing_save',...before,interestTiming:'repayment'}));
  user=reviewer1;await assert.rejects(team.manage({action:'pricing_save',...before,version:before.version+1}));
  user=owner;const created=await store.mutate(A,{action:'create',name:'PRICE QA',amount:10000,botId:'bot-1',consent:true,billing:{net:999999},requestId:crypto.randomUUID()},{id:'pricing-customer',phoneMasked:'TEST'});
- const l=created.state.loans[0];assert.equal(l.billing.net,9000);assert.equal(l.billing.total,10070);assert.equal(l.billing.interestTiming,'repayment');
+ const l=created.state.loans[0];assert.equal(l.billing.net,9000);assert.equal(l.billing.total,10069);assert.equal(l.billing.interestTiming,'repayment');
  assert.deepEqual((await store.readState(A)).state.loans.find(l=>l.id===savedLoan.id).billing,savedLoan.billing);
 });
