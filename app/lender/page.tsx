@@ -1,4 +1,6 @@
+import {selectedCompany} from '@/lib/team/server';
+import {redirect} from 'next/navigation';
 import Workspace from '../workspace';
 import {requireChatGPTUser} from '../chatgpt-auth';
 export const dynamic='force-dynamic';
-export default async function Page(){await requireChatGPTUser('/lender');return <Workspace initialRole="lender"/>}
+export default async function Page(){await requireChatGPTUser('/lender');if(await selectedCompany())redirect('/team');return <Workspace initialRole="lender"/>}

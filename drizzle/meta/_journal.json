@@ -22,6 +22,34 @@
       "when": 1789986552893,
       "tag": "0002_green_glorian",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1790060190010,
+      "tag": "0003_sticky_blonde_phantom",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1790060447709,
+      "tag": "0004_lying_kinsey_walden",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1790060660435,
+      "tag": "0005_team_scope_guards",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1790061401951,
+      "tag": "0006_light_thunderbolts",
+      "breakpoints": true
     }
   ]
 }

@@ -1,3 +1,4 @@
+import {selectedCompany} from '@/lib/team/server';
 import {env} from 'cloudflare:workers';
 import {getChatGPTUser} from '@/app/chatgpt-auth';
 import {readState} from '@/lib/store';
@@ -6,6 +7,7 @@ export async function POST(request:Request){
  const u=await getChatGPTUser();if(!u)return Response.json({error:'请先登录'},{status:401});
  const origin=request.headers.get('origin');if(origin&&origin!==new URL(request.url).origin)return Response.json({error:'不允许跨站操作'},{status:403});
  try{
+  if(await selectedCompany())return Response.json({connected:false,message:'公司机器人凭据尚未配置，不能使用演示空间凭据'});
   const p=await request.json() as {botId:string;initData?:string};const {state}=await readState(u.userId);const bot=state.bots.find(b=>b.id===p.botId&&b.enabled);
   if(!bot)throw Error('机器人未启用');const token=(env as unknown as Record<string,string>)[bot.envKey];
   if(!token)return Response.json({connected:false,message:'未配置 '+bot.envKey+'。请在部署环境中安全配置 token，勿填入名称或用户名。'});
