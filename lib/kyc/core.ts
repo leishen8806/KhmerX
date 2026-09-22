@@ -52,6 +52,10 @@ export const slots=[
 export type Slot=typeof slots[number]['id'];
 export type FileRef={id:string;slot:Slot;name:string;type:string;size:number;sha256:string};
 export type Profile={values:Record<string,string>;files:Partial<Record<Slot,FileRef>>;consent:boolean;declarationVersion:string;location?:{lat:number;lon:number;accuracy:number;capturedAt:string}};
+export const vehicleSlots:Slot[]=['vehicleInvoice','vehicleContract','vehiclePhoto'];
+export function hasVehicle(p:Profile){return ['摩托车','嘟嘟车','汽车'].includes(p.values.vehicle)}
+export function slotVisible(id:Slot,p:Profile){if(vehicleSlots.includes(id))return hasVehicle(p);if(id==='rentContract')return p.values.housing==='租房';if(id==='propertyCertificate')return p.values.housing==='个人房产';return true}
+export function slotRequired(id:Slot,p:Profile){return slots.some(s=>s.id===id&&s.required)||(['rentContract','propertyCertificate'].includes(id)&&slotVisible(id,p))}
 export const emptyProfile=():Profile=>({values:{},files:{},consent:false,declarationVersion:LOAN_TERMS_VERSION});
 export class KycError extends Error{status:number;constructor(message:string,status=400){super(message);this.status=status}}
 function duplicateRelations(profile:Profile){const relations=[1,2,3].map(n=>profile.values[`contact${n}Relation`]).filter(Boolean);return new Set(relations).size!==relations.length}
@@ -61,7 +65,8 @@ export function cleanProfile(raw:any):Profile{
  for(const f of fields){const v=raw.values[f.id];if(v!==undefined&&typeof v!=='string')throw new KycError(f.label+'格式无效');let text=(v||'').trim();if(text.length>240)throw new KycError(f.label+'过长');if(f.kind==='phone')text=text.replace(/[\s()-]/g,'');if(text&&f.options&&!f.options.some(x=>x.value===text))throw new KycError(f.label+'选项无效');if(text&&f.kind==='phone'&&!/^\+[1-9]\d{7,14}$/.test(text))throw new KycError(f.label+'需使用国际号码格式');out.values[f.id]=text;}
  if(duplicateRelations(out))throw new KycError('紧急联系人关系不能重复，请为每位联系人选择不同关系');
  const district=out.values.district;if(district&&!regions.find(r=>r.value===out.values.province)?.districts.some(d=>d.value===district))throw new KycError('区县与省份不匹配');
- for(const slot of slots){const ref=raw.files?.[slot.id];if(ref){if(typeof ref.id!=='string'||!/^[a-f0-9-]{36}$/.test(ref.id))throw new KycError('附件编号无效');out.files[slot.id]={id:ref.id,slot:slot.id,name:'',type:'',size:0,sha256:''};}}
+ for(const slot of slots){if(!slotVisible(slot.id,out))continue;const ref=raw.files?.[slot.id];if(ref){if(typeof ref.id!=='string'||!/^[a-f0-9-]{36}$/.test(ref.id))throw new KycError('附件编号无效');out.files[slot.id]={id:ref.id,slot:slot.id,name:'',type:'',size:0,sha256:''};}}
+ if(vehicleSlots.filter(id=>out.files[id]).length>1)throw new KycError('车辆材料只需一份，请选择购车发票、购车合同或车辆照片中的一种');
  if(raw.consent===true&&raw.declarationVersion!==LOAN_TERMS_VERSION)throw new KycError('请重新阅读并确认当前借款协议');
  out.consent=raw.consent===true;
  if(raw.location){const {lat,lon,accuracy,capturedAt}=raw.location;if(!Number.isFinite(lat)||lat< -90||lat>90||!Number.isFinite(lon)||lon< -180||lon>180||!Number.isFinite(accuracy)||accuracy<0||typeof capturedAt!=='string'||!Number.isFinite(Date.parse(capturedAt)))throw new KycError('定位格式无效');out.location={lat,lon,accuracy,capturedAt};}
@@ -69,7 +74,8 @@ export function cleanProfile(raw:any):Profile{
 }
 export function missing(profile:Profile):string[]{
  const problems=fields.filter(f=>f.required&&!profile.values[f.id]).map(f=>f.label);
- for(const slot of slots)if(slot.required&&!profile.files[slot.id])problems.push(slot.label);
+ for(const slot of slots)if(slotRequired(slot.id,profile)&&!profile.files[slot.id])problems.push(slot.label);
+ if(hasVehicle(profile)&&vehicleSlots.filter(id=>profile.files[id]).length!==1)problems.push('车辆材料请选择并上传一份：购车发票、购车合同或车辆照片');
  if(!profile.consent||profile.declarationVersion!==LOAN_TERMS_VERSION)problems.push('阅读并同意当前借款协议');
  for(const n of [3])if(['Name','Phone','Relation'].some(k=>profile.values[`contact${n}${k}`])&&!['Name','Phone','Relation'].every(k=>profile.values[`contact${n}${k}`]))problems.push(`联系人 ${n} 请完整填写姓名、电话和关系，或全部留空`);
  if(Boolean(profile.values.supervisorName)!==Boolean(profile.values.supervisorPhone))problems.push('上司姓名与电话需一并填写');
@@ -85,7 +91,7 @@ export function completeness(p:Profile,verifiedPhone:boolean){
  add('完整住址',5,!!p.values.province&&!!p.values.district&&!!p.values.address,'F9:F10');
  for(const n of [1,2,3])for(const part of ['Name','Phone'])add(`联系人 ${n} ${part==='Name'?'姓名':'电话'}`,5,!!p.values[`contact${n}${part}`],`F${(part==='Name'?12:13)+n*2}`,n===3);
  for(const key of ['workType','company','industry','position','income','tenure','supervisorName','supervisorPhone']){const f=fields.find(f=>f.id===key)!;add(f.label,5,!!p.values[key],f.source,key.startsWith('supervisor'))}
- for(const slot of slots)add(slot.label,slot.points,!!p.files[slot.id],slot.source,!slot.required);
+ for(const slot of slots)add(slot.label,slot.points,slotVisible(slot.id,p)&&!!p.files[slot.id],slot.source,!slot.required);
  add('协议 / 授权确认',5,p.consent,'F45');add('Telegram 手机号验证',5,verifiedPhone,'F47');add('Telegram 账号验证（未接入）',5,false,'F48');add('自主授权定位（设备报告，非核验）',5,!!p.location,'F49');
  return {base:rows.filter(r=>!r.additional).reduce((s,r)=>s+r.points,0),baseMaximum:120,additional:rows.filter(r=>r.additional).reduce((s,r)=>s+r.points,0),additionalMaximum:85,rows};
 }
