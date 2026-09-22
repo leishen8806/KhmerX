@@ -1,11 +1,11 @@
 import {env} from 'cloudflare:workers';
 import {headers} from 'next/headers';
 import {getChatGPTUser} from '@/app/chatgpt-auth';
-import {AuthError,digest,randomToken} from '@/lib/h5-auth-core';
+import {AuthError} from '@/lib/h5-auth-core';
 import {canSee,roleLabels,type Member,type Assignment,type TeamRole} from './policy';
 export const TEAM_COOKIE='payease_company';
 export const db=()=>{if(!env.DB)throw new AuthError('公司数据库暂不可用',503);return env.DB};
-export async function identity(){const u=await getChatGPTUser();if(!u)throw new AuthError('请使用自己的账号登录',401);return u}
+export async function identity(){const u=await getChatGPTUser();if(!u)throw new AuthError('请使用自己的账号登录',401);await db().prepare(`UPDATE team_members SET user_id=?,version=version+1 WHERE lower(email)=? AND user_id LIKE 'pending:%' AND active=1 AND NOT EXISTS (SELECT 1 FROM team_members existing WHERE existing.tenant_id=team_members.tenant_id AND existing.user_id=?)`).bind(u.userId,u.email.toLowerCase(),u.userId).run();return u}
 export async function selectedCompany(){const h=await headers(),v=h.get('cookie')?.split(';').map(v=>v.trim()).find(v=>v.startsWith(TEAM_COOKIE+'='))?.slice(TEAM_COOKIE.length+1);if(!v)return null;if(!/^t_[a-f0-9-]{36}$/.test(v))throw new AuthError('公司工作区无效',403);const t=await db().prepare('SELECT * FROM team_companies WHERE id=? AND active=1').bind(v).first<any>();if(!t)throw new AuthError('公司已停用或不可访问',403);return t}
 export async function staff(){const t=await selectedCompany();if(!t)return null;const u=await identity(),m=await db().prepare('SELECT * FROM team_members WHERE tenant_id=? AND user_id=? AND active=1').bind(t.id,u.userId).first<Member>();if(!m)throw new AuthError('当前账号没有此公司的员工权限，请前往公司工作区',403);return {tenant:t,member:m,user:u}}
 export async function assignments(tenant:string){return (await db().prepare('SELECT * FROM team_assignments WHERE tenant_id=?').bind(tenant).all<Assignment>()).results}
@@ -19,11 +19,33 @@ export async function teamData(){const u=await identity(),t=await selectedCompan
 const txt=(v:any,max=80)=>typeof v==='string'?v.trim().slice(0,max):'';
 export async function manage(p:any){const u=await identity();
  if(p.action==='create_company'){await platformAdmin();const name=txt(p.name),slug=txt(p.slug,40);if(!name||! /^[a-z0-9][a-z0-9-]{2,39}$/.test(slug))throw new AuthError('请填写公司名称及 3–40 位小写字母/数字入口代码');const id='t_'+crypto.randomUUID(),dept=crypto.randomUUID();await db().batch([db().prepare('INSERT INTO team_companies (id,name,slug,active,default_department) VALUES (?,?,?,1,?)').bind(id,name,slug,dept),db().prepare('INSERT INTO team_units (id,tenant_id,name,kind) VALUES (?,?,?,?)').bind(dept,id,'运营一部','department'),db().prepare('INSERT INTO team_members (id,tenant_id,user_id,email,role,active,version) VALUES (?,?,?,?,?,1,0)').bind(crypto.randomUUID(),id,u.userId,u.email.toLowerCase(),'admin'),audit(id,u.userId,'create_company',{name})]);return {companyId:id}}
- if(p.action==='accept_invite'){const token=txt(p.token,100),hash=await digest(token),i=await db().prepare('SELECT * FROM team_invites WHERE token_hash=? AND email=? AND expires_at>? AND used=0').bind(hash,u.email.toLowerCase(),Date.now()).first<any>();if(!i)throw new AuthError('邀请无效、已过期或不属于当前登录邮箱',403);await db().batch([db().prepare('INSERT INTO team_members (id,tenant_id,user_id,email,role,unit_id,active,version) SELECT ?,tenant_id,?,email,role,unit_id,1,0 FROM team_invites WHERE token_hash=? AND used=0 AND expires_at>? AND EXISTS (SELECT 1 FROM team_members m WHERE m.id=team_invites.issuer AND m.active=1 AND m.role=\'admin\')').bind(crypto.randomUUID(),u.userId,hash,Date.now()),db().prepare('UPDATE team_invites SET used=1 WHERE token_hash=? AND EXISTS (SELECT 1 FROM team_members WHERE tenant_id=? AND user_id=?)').bind(hash,i.tenant_id,u.userId),audit(i.tenant_id,u.userId,'accept_invite',{role:i.role})]);const m=await db().prepare('SELECT id FROM team_members WHERE tenant_id=? AND user_id=? AND active=1').bind(i.tenant_id,u.userId).first();if(!m)throw new AuthError('邀请已失效',403);return {companyId:i.tenant_id}}
  const s=await staff();if(!s||s.member.role!=='admin')throw new AuthError('仅当前公司管理员可管理组织',403);const tenant=s.tenant.id;
  if(p.action==='assignment_mode'){const dept=p.departmentId||s.tenant.default_department;if(!await db().prepare("SELECT id FROM team_units WHERE tenant_id=? AND id=? AND kind='department'").bind(tenant,dept).first())throw new AuthError('默认部门无效');await db().batch([db().prepare('UPDATE team_companies SET auto_assign=?,default_department=? WHERE id=?').bind(p.enabled?1:0,dept,tenant),audit(tenant,u.userId,'assignment_mode',{enabled:!!p.enabled,department:dept})]);return {ok:true}}
  if(p.action==='add_unit'){if(!['department','institution'].includes(p.kind)||!txt(p.name))throw new AuthError('机构或部门信息无效');const id=crypto.randomUUID();await db().batch([db().prepare('INSERT INTO team_units (id,tenant_id,name,kind) VALUES (?,?,?,?)').bind(id,tenant,txt(p.name),p.kind),audit(tenant,u.userId,'add_unit',{id,name:txt(p.name),kind:p.kind})]);return {ok:true}}
- if(p.action==='invite'){const role=p.role as TeamRole,email=txt(p.email,254).toLowerCase();if(!roleLabels[role]||role==='admin'||!/^\S+@\S+\.\S+$/.test(email))throw new AuthError('请选择岗位及有效邮箱');if(email===u.email.toLowerCase())throw new AuthError('请邀请独立员工账号，管理员不能给自己授予业务岗位');const kind=['ops','kyc','dept_admin'].includes(role)?'department':'institution';let unit=null;if(role!=='audit'){unit=await db().prepare('SELECT id FROM team_units WHERE tenant_id=? AND id=? AND kind=?').bind(tenant,p.unitId||'',kind).first<any>();if(!unit)throw new AuthError('请选择当前公司的对应部门或机构')}const token=randomToken();await db().batch([db().prepare('INSERT INTO team_invites (token_hash,tenant_id,email,role,unit_id,issuer,expires_at,used) VALUES (?,?,?,?,?,?,?,0)').bind(await digest(token),tenant,email,role,unit?.id||null,s.member.id,Date.now()+86400000),audit(tenant,u.userId,'invite',{email,role,unit:unit?.id})]);return {token,email,expiresIn:'24 小时'}}
- if(p.action==='revoke'){const m=await db().prepare('SELECT * FROM team_members WHERE id=? AND tenant_id=?').bind(p.memberId,tenant).first<Member>();if(!m||m.role==='admin')throw new AuthError('不可停用此账号');await db().batch([db().prepare('UPDATE team_members SET active=0,version=version+1 WHERE id=? AND tenant_id=?').bind(m.id,tenant),audit(tenant,u.userId,'revoke',{member:m.id})]);return {ok:true}}
+ if(p.action==='create_member'||p.action==='update_member'){
+  const role=p.role as TeamRole,email=txt(p.email,254).toLowerCase();
+  if(!Object.hasOwn(roleLabels,role))throw new AuthError('请选择有效岗位');
+  let unitId:string|null=null;
+  if(!['admin','audit'].includes(role)){const kind=['ops','kyc','dept_admin'].includes(role)?'department':'institution';const unit=await db().prepare('SELECT id FROM team_units WHERE tenant_id=? AND id=? AND kind=?').bind(tenant,p.unitId||'',kind).first<any>();if(!unit)throw new AuthError('请选择当前公司的对应部门或机构');unitId=unit.id}
+  const actorGuard="EXISTS (SELECT 1 FROM team_members actor WHERE actor.id=? AND actor.tenant_id=? AND actor.role='admin' AND actor.active=1 AND actor.version=?)";
+  const actorArgs=[s.member.id,tenant,s.member.version];
+  if(p.action==='create_member'){
+   if(!/^\S+@\S+\.\S+$/.test(email))throw new AuthError('请填写有效的员工登录邮箱');
+   if(await db().prepare('SELECT id FROM team_members WHERE tenant_id=? AND lower(email)=?').bind(tenant,email).first())throw new AuthError('该员工已存在，请直接修改其权限');
+   const id=crypto.randomUUID();const results=await db().batch([db().prepare(`INSERT INTO team_members (id,tenant_id,user_id,email,role,unit_id,active,version) SELECT ?,?,?,?,?,?,1,0 WHERE ${actorGuard}`).bind(id,tenant,'pending:'+crypto.randomUUID(),email,role,unitId,...actorArgs),db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) SELECT ?,?,?,?,?,? WHERE changes()=1').bind(crypto.randomUUID(),tenant,u.userId,'create_member',JSON.stringify({member:id,email,role,unitId}),new Date().toISOString())]);if(!results[0].meta.changes)throw new AuthError('管理权限已变化，请刷新',409);return {ok:true}
+  }
+  const m=await db().prepare('SELECT * FROM team_members WHERE id=? AND tenant_id=?').bind(p.memberId,tenant).first<Member>();
+  if(!m||m.id===s.member.id)throw new AuthError('不能修改自己的管理权限');
+  if(p.version!==m.version)throw new AuthError('员工权限已变化，请刷新后重试',409);
+  if(typeof p.active!=='boolean'||!txt(p.reason,300))throw new AuthError('请设置启停状态并填写变更原因');
+  const active=p.active?1:0;
+  const guard=`id=? AND tenant_id=? AND version=? AND ${actorGuard}`;
+  const args=[m.id,tenant,m.version,...actorArgs];
+  const statements=[];
+  if(!active||role!==m.role||unitId!==m.unit_id)statements.push(db().prepare(`UPDATE team_assignments SET reviewer_id=NULL,version=version+1 WHERE tenant_id=? AND reviewer_id=? AND EXISTS (SELECT 1 FROM team_members WHERE ${guard})`).bind(tenant,m.id,...args));
+  statements.push(db().prepare(`UPDATE team_members SET role=?,unit_id=?,active=?,version=version+1 WHERE ${guard}`).bind(role,unitId,active,...args));
+  statements.push(db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) SELECT ?,?,?,?,?,? WHERE changes()=1').bind(crypto.randomUUID(),tenant,u.userId,'update_member',JSON.stringify({member:m.id,before:{role:m.role,unitId:m.unit_id,active:m.active},after:{role,unitId,active},reason:txt(p.reason,300)}),new Date().toISOString()));
+  const results=await db().batch(statements);if(!results[results.length-2].meta.changes)throw new AuthError('管理权限或员工资料已变化，请刷新',409);return {ok:true}
+ }
  throw new AuthError('操作无效');
 }

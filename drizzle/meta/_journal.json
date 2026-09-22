@@ -50,6 +50,13 @@
       "when": 1790061401951,
       "tag": "0006_light_thunderbolts",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1790062465885,
+      "tag": "0007_mature_captain_america",
+      "breakpoints": true
     }
   ]
 }
