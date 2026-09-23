@@ -7,6 +7,7 @@ import vm from 'node:vm';
 import fs from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
+import {createHmac} from 'node:crypto';
 const root=path.resolve('.');
 const sql=new DatabaseSync(':memory:');sql.exec('PRAGMA foreign_keys=ON');
 for(const f of fs.readdirSync('drizzle').filter(f=>f.endsWith('.sql')).sort())sql.exec(fs.readFileSync('drizzle/'+f,'utf8'));
@@ -19,7 +20,7 @@ const DB={
  async batch(statements){sql.exec('BEGIN');try{const out=[];for(const s of statements)out.push(await s.run());sql.exec('COMMIT');return out}catch(e){sql.exec('ROLLBACK');throw e}}
 };
 const blobs=new Map();const env={DB,BUCKET:{async put(k,v){blobs.set(k,v)},async get(k){const v=blobs.get(k);return v?{async arrayBuffer(){return v.buffer.slice(v.byteOffset,v.byteOffset+v.byteLength)}}:null},async delete(k){blobs.delete(k)}},KYC_DATA_SECRET:'synthetic-only-'.repeat(5),KYC_REVIEWER_EMAILS:'owner@example.test',PAYEASE_AUTH_SECRET:'synthetic-auth-'.repeat(5),PAYEASE_AUTH_MODE:'demo'};
-let user={userId:'owner',email:'owner@example.test'},selected='';const context=vm.createContext({console,crypto,TextEncoder,TextDecoder,Headers,Request,Response,URL,Uint8Array,ArrayBuffer,Buffer,Date,structuredClone,atob,btoa,setTimeout,clearTimeout});
+let user={userId:'owner',email:'owner@example.test'},selected='';const context=vm.createContext({console,crypto,TextEncoder,TextDecoder,Headers,Request,Response,URL,URLSearchParams,AbortSignal,Uint8Array,ArrayBuffer,Buffer,Date,structuredClone,atob,btoa,setTimeout,clearTimeout});
 const cache=new Map();
 function synth(id,values){const m=new vm.SyntheticModule(Object.keys(values),function(){for(const [k,v] of Object.entries(values))this.setExport(k,v)},{context,identifier:id});cache.set(id,m);return m}
 synth('cloudflare:workers',{env});synth('next/headers',{headers:async()=>new Headers({cookie:selected?'payease_company='+selected:''})});synth(path.join(root,'app/chatgpt-auth.ts'),{getChatGPTUser:async()=>user});
@@ -101,4 +102,17 @@ test('customer selects 14 or 28 days; authoritative bills ignore spoofed pricing
  selected=A;user=owner;
  for(const termDays of [14,28]){const c={id:'term-customer-'+termDays,phoneMasked:'TEST'},created=await store.mutate(A,{action:'create',name:'TERM QA',amount:10000,botId:'bot-1',consent:true,termDays,billing:{termDays:1,interest:0},requestId:crypto.randomUUID()},c),l=created.state.loans[0];assert.equal(l.billing.termDays,termDays);assert.equal(l.billing.interest,termDays===14?69:138);assert.equal(l.billing.service,1000);assert.equal(l.billing.net,9000);assert.equal(l.billing.total,termDays===14?10069:10138)}
  for(const termDays of [0,7,15,365,'28',null]){if(termDays===null)continue;await assert.rejects(store.mutate(A,{action:'create',name:'BAD TERM',amount:10000,botId:'bot-1',consent:true,termDays,requestId:crypto.randomUUID()},{id:'invalid-term',phoneMasked:'TEST'}))}
+});
+
+test('Telegram signed subscription, tenant isolation, one-time delivery and unsubscribe',async()=>{
+ const notify=await mod('@/lib/notifications/server'),post=await mod('@/lib/postloan/server'),ncore=await mod('@/lib/notifications/core');selected=A;user=owner;
+ const token='synthetic-token',customerId='term-customer-14',botId='bot-1';env[ncore.tokenKey(A,botId)]=token;
+ const fields={auth_date:String(Math.floor(Date.now()/1000)),user:JSON.stringify({id:123456,first_name:'Synthetic'})};const text=Object.entries(fields).sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>k+'='+v).join('\n'),secret=createHmac('sha256','WebAppData').update(token).digest(),hash=createHmac('sha256',secret).update(text).digest('hex'),initData=new URLSearchParams({...fields,hash}).toString();
+ await assert.rejects(notify.bindNotifications(A,customerId,{action:'subscribe',botId,consent:false,initData}));await assert.rejects(notify.bindNotifications(A,customerId,{action:'subscribe',botId,consent:true,initData:initData+'bad'}));
+ await notify.bindNotifications(A,customerId,{action:'subscribe',botId,consent:true,initData});assert((await notify.notificationSettings(A,customerId)).channels.find(b=>b.id===botId).bound);await assert.rejects(notify.bindNotifications(A,'different-customer',{action:'subscribe',botId,consent:true,initData}));
+ const current=await store.readState(A),l=current.state.loans.find(l=>l.customerId===customerId);l.status='active';l.dueAt=new Date(Date.now()+3*86400000).toISOString();sql.prepare('UPDATE demo_workspaces SET payload=? WHERE owner=?').run(JSON.stringify(current.state),A);await post.runCompany(A);
+ let calls=0;context.fetch=async(url,init)=>{calls++;assert.equal(JSON.parse(init.body).chat_id,123456);return Response.json({ok:true,result:{message_id:11,chat:{id:123456}}})};
+ await notify.dispatchCompany(B);assert.equal(calls,0);await notify.dispatchCompany(A);await notify.dispatchCompany(A);assert.equal(calls,1);assert.equal(sql.prepare("SELECT COUNT(*) AS n FROM telegram_outbox WHERE owner=? AND status='sent'").get(A).n,1);
+ await notify.bindNotifications(A,customerId,{action:'unsubscribe',botId});assert.equal((await notify.notificationSettings(A,customerId)).channels.find(b=>b.id===botId).bound,false);
+ user=reviewer1;await assert.rejects(notify.notificationAdmin());user=owner;
 });

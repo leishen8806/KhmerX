@@ -1,3 +1,4 @@
+import {dispatchCompany} from '@/lib/notifications/server';
 import {env} from 'cloudflare:workers';
 import {db,staff} from '@/lib/team/server';
 import {AuthError} from '@/lib/h5-auth-core';
@@ -12,7 +13,7 @@ export async function runCompany(tenant:string,now=new Date().toISOString(),job=
  const r=await db().prepare('UPDATE demo_workspaces SET payload=?,revision=revision+1 WHERE owner=? AND revision=? AND EXISTS (SELECT 1 FROM team_companies WHERE id=? AND active=1)').bind(JSON.stringify(next),tenant,row.revision,tenant).run();if(r.meta.changes)return {tasks:next.postloan!.tasks.length}}
  throw new AuthError('贷后检查遇到并发更新，请重试',409)
 }
-export async function runAllCompanies(now=new Date().toISOString()){const companies=(await db().prepare('SELECT id FROM team_companies WHERE active=1').bind().all<{id:string}>()).results;const failed:string[]=[];for(const c of companies)try{await runCompany(c.id,now,true)}catch{failed.push(c.id)}return {ok:failed.length===0,companies:companies.length,failed:failed.length,checkedAt:now}}
+export async function runAllCompanies(now=new Date().toISOString()){const companies=(await db().prepare('SELECT id FROM team_companies WHERE active=1').bind().all<{id:string}>()).results;const failed:string[]=[];for(const c of companies)try{await runCompany(c.id,now,true);await dispatchCompany(c.id,now)}catch{failed.push(c.id)}return {ok:failed.length===0,companies:companies.length,failed:failed.length,checkedAt:now}}
 export async function jobAuthorized(request:Request){const key=(env as any).POSTLOAN_JOB_SECRET;if(typeof key!=='string'||key.length<32)return false;const sent=request.headers.get('authorization')||'';const digest=async(s:string)=>new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)));const [a,b]=await Promise.all([digest(sent),digest('Bearer '+key)]);let d=0;for(let i=0;i<a.length;i++)d|=a[i]^b[i];return d===0}
 export async function postloanData(){const s=await staff();if(!s||!['admin','audit','collection_admin','collector'].includes(s.member.role))throw new AuthError('没有贷后工作台权限',403);
  const row=await db().prepare('SELECT payload FROM demo_workspaces WHERE owner=?').bind(s.tenant.id).first<{payload:string}>(),state:State=row?JSON.parse(row.payload):initialState();const {members,units}=await roster(s.tenant.id);

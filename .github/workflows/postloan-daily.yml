@@ -1,0 +1,27 @@
+name: PayEase daily post-loan check
+on:
+  schedule:
+    - cron: '0 2 * * *' # 09:00 Asia/Phnom_Penh; GitHub schedules can be delayed.
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: payease-postloan
+  cancel-in-progress: false
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check due loans and deliver reminders
+        env:
+          PAYEASE_SITE_URL: https://khmerx-payease-demo.zhangdaowang3.chatgpt.site
+          POSTLOAN_JOB_SECRET: ${{ secrets.POSTLOAN_JOB_SECRET }}
+          SITES_DISPATCH_TOKEN: ${{ secrets.SITES_DISPATCH_TOKEN }}
+        run: node scripts/run-postloan-job.mjs

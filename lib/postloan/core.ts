@@ -18,7 +18,7 @@ export function runPostloan(input:State,members:Member[],departmentIds:string[],
  for(const l of s.loans){if(l.status!=='active'||!l.dueAt||!l.customerId||outstanding(l)<=0)continue;const due=localDay(l.dueAt),days=dayGap(due,today);
   // Catch up a missed T-3 run once, while still before due date. No stale reminders after settlement.
   const reminderId='postloan-reminder:'+l.id+':'+due;
-  if(days>0&&days<=3&&!s.notifications.some(n=>n.id===reminderId))s.notifications.unshift({id:reminderId,loanId:l.id,botId:l.botId,text:`还款提醒：您的贷款将于 ${due} 到期，当前待还 $${(outstanding(l)/100).toFixed(2)}，请及时查看账单并还款。`,at:now,status:'站内提醒已生成 · Telegram 未接入'});
+  if(days>0&&days<=3&&!s.notifications.some(n=>n.id===reminderId))s.notifications.unshift({id:reminderId,loanId:l.id,botId:l.botId,text:`还款提醒：您的贷款将于 ${due} 到期，当前待还 $${(outstanding(l)/100).toFixed(2)}，请及时查看账单并还款。`,at:now,status:'站内提醒已生成 · Telegram 按客户订阅单独投递'});
   if(days>0)continue;
   let t=s.postloan.tasks.find(t=>t.loanId===l.id);
   if(!t){const dept=[...departmentIds].sort((a,b)=>s.postloan!.tasks.filter(t=>t.departmentId===a&&t.status!=='closed').length-s.postloan!.tasks.filter(t=>t.departmentId===b&&t.status!=='closed').length||a.localeCompare(b))[0];if(!dept)continue;t={id:l.id,loanId:l.id,departmentId:dept,assigneeId:null,stage:days<0?'overdue':'due',status:'open',dueDate:due,overdueDays:Math.max(0,-days),balance:outstanding(l),createdAt:now,updatedAt:now,records:[]};s.postloan.tasks.push(t);record(t,now,'created',days<0?'补建逾期跟进任务':'到期日生成还款跟进任务')}
