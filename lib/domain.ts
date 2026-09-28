@@ -3,7 +3,7 @@ import {syncSettlements} from './postloan/core.ts';
 import type {Bill} from './pricing';
 export type Role='mini'|'ops'|'lender';
 export type Status='registered'|'kyc_pending'|'needs_info'|'kyc_approved'|'decision_pending'|'approved'|'rejected'|'signed'|'active'|'closed';
-export type Bot={phoneVerification?:boolean;passwordSetup?:boolean;id:string;label:string;username:string;enabled:boolean;envKey:string};
+export type Bot={tokenConfigured?:boolean;telegramId?:string;phoneVerification?:boolean;passwordSetup?:boolean;id:string;label:string;username:string;enabled:boolean;envKey:string};
 export type Entry={id:string;loanId:string;kind:string;cents:number;debit:string;credit:string;at:string};
 export type Event={id:string;loanId:string;action:string;role:Role;note:string;at:string};
 export type Loan={billing?:Bill;billConfirmedAt?:string;approvalActor?:string;approvalCheckedBy?:string;fundingActor?:string;fundingCheckedBy?:string;id:string;customerId?:string;kycCaseId?:string;kycRevision?:number;phoneMasked?:string;name:string;botId:string;amount:number;fee:number;status:Status;createdAt:string;dueAt?:string;signedAt?:string;signature?:string;contract?:string;paid:number;wallet:number;note:string;demoDays:number;kyc:{income:number;contacts:string[];document:string}};

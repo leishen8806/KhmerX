@@ -8,7 +8,10 @@ import {findCase,payload,reviewer,KycError} from './kyc/server';
 function db(){if(!env.DB)throw Error('测试数据库暂不可用');return env.DB}
 export async function readState(owner:string):Promise<{state:State;revision:number}>{
  const row=await db().prepare('SELECT revision,payload FROM demo_workspaces WHERE owner=?').bind(owner).first<{revision:number;payload:string}>();
- return row?{state:JSON.parse(row.payload),revision:row.revision}:{state:initialState(),revision:0};
+ const result=row?{state:JSON.parse(row.payload) as State,revision:row.revision}:{state:initialState(),revision:0};
+ const credentials=(await db().prepare('SELECT bot_id,telegram_id,label,username FROM telegram_bot_credentials WHERE owner=?').bind(owner).all<{bot_id:string;telegram_id:string;label:string;username:string}>()).results;
+ for(const bot of result.state.bots){const saved=credentials.find(c=>c.bot_id===bot.id);bot.tokenConfigured=!!saved;if(saved){bot.label=saved.label;bot.username=saved.username;bot.telegramId=saved.telegram_id}}
+ return result;
 }
 export async function mutate(owner:string,p:any,customer?:{id:string;phoneMasked:string}){
  await db().prepare('INSERT OR IGNORE INTO demo_workspaces (owner,revision,payload) VALUES (?,0,?)').bind(owner,JSON.stringify(initialState())).run();

@@ -156,3 +156,25 @@ test('signature requires confirmed fees; unsigned applications cannot reach loan
  selected=A;user=owner;await approvedCustomer('signing-order-test');const c={id:'signing-order-test',phoneMasked:'test'},created=await store.mutate(A,{action:'create',name:'Order test',amount:5000,consent:true,requestId:crypto.randomUUID()},c),loan=created.state.loans[0],row=await kyc.initialize(A,c.id,false),data=await kyc.payload(row),p=structuredClone(data.profile);p.consent=true;p.files.signature={id:'not-uploaded'};await assert.rejects(kyc.signedContract(row,p,data),/确认.*费用/);
  await store.mutate(A,{action:'confirm_bill',loanId:loan.id,billConfirmed:true,quoteId:loan.billing.quoteId,requestId:crypto.randomUUID()},c);await assert.rejects(store.mutate(A,{action:'apply',loanId:loan.id,billConfirmed:true,quoteId:loan.billing.quoteId,requestId:crypto.randomUUID()},c),/手写签约/);assert.equal((await store.readState(A)).state.loans.find(l=>l.id===loan.id).status,'kyc_approved');
 });
+
+
+test('company bot Token: verified metadata, encrypted isolation, rotation and permission checks',async()=>{
+ const bots=await mod('@/lib/bot-credentials');selected=A;user=owner;
+ const token='987654321:'+ 'a'.repeat(35), rotated='987654321:'+ 'b'.repeat(35);
+ context.fetch=async()=>Response.json({ok:true,result:{id:987654321,is_bot:true,first_name:'Synthetic bot',username:'synthetic_bot'}});
+ await assert.rejects(bots.configureBot({botId:'bot-1',token}),/已有机器人凭据/);const ncore=await mod('@/lib/notifications/core');env[ncore.tokenKey(A,'bot-1')]=token;
+ const result=await bots.configureBot({botId:'bot-1',token});assert.equal(result.username,'synthetic_bot');assert(!JSON.stringify(result).includes(token));
+ assert.equal(await bots.channelToken(A,'bot-1'),token);assert.equal(await bots.channelToken(B,'bot-1'),'');
+ const stored=sql.prepare('SELECT * FROM telegram_bot_credentials WHERE owner=?').get(A);assert(!JSON.stringify(stored).includes(token));
+ const state=(await store.readState(A)).state;assert.equal(state.bots[0].label,'Synthetic bot');assert.equal(state.bots[0].tokenConfigured,true);assert(!JSON.stringify(state).includes(token));
+ assert(!JSON.stringify(sql.prepare('SELECT * FROM team_audit').all()).includes(token));
+ user=reviewer1;await assert.rejects(bots.configureBot({botId:'bot-1',token}),/管理员/);
+ selected=B;user=owner;await assert.rejects(bots.configureBot({botId:'bot-1',token}),/其他业务渠道/);
+ selected=A;await bots.configureBot({botId:'bot-1',token:rotated});assert.equal(await bots.channelToken(A,'bot-1'),rotated);
+ context.fetch=async()=>Response.json({ok:true,result:{id:987654322,is_bot:true,first_name:'Another',username:'another_bot'}});
+ await assert.rejects(bots.configureBot({botId:'bot-1',token:'987654322:'+ 'c'.repeat(35)}),/新增渠道/);assert.equal(await bots.channelToken(A,'bot-1'),rotated);
+ context.fetch=async()=>{throw Error('https://api.telegram.org/bot'+token)};
+ await assert.rejects(bots.configureBot({botId:'bot-1',token}),e=>!e.message.includes(token)&&e.message.includes('校验失败'));
+ context.fetch=async()=>{const actor=sql.prepare("SELECT * FROM team_members WHERE tenant_id=? AND user_id='owner'").get(A);sql.prepare('UPDATE team_members SET version=version+1 WHERE id=?').run(actor.id);return Response.json({ok:true,result:{id:987654321,is_bot:true,first_name:'Changed',username:'changed_bot'}})};
+ await assert.rejects(bots.configureBot({botId:'bot-1',token}),/权限已变化/);assert.equal(await bots.channelToken(A,'bot-1'),rotated);
+});
