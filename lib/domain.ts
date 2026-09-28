@@ -39,7 +39,7 @@ export function applyAction(input:State,p:any,now=new Date().toISOString()):Stat
   if(s.loans.length>=100)throw Error('测试空间最多保存 100 笔申请');
   p={...p,botId:businessBot(s)?.id};if(!p.botId)throw Error('暂无可用业务机器人，请联系管理员');
   const amount=Number(p.amount);if(![3000,5000,10000].includes(amount))throw Error('请选择 30、50 或 100 USD 测试额度');
-  const name=text(p.name,50);if(name.length<2)throw Error('请填写测试姓名');
+  const name=text(p.name,50).toUpperCase();if(name.length<2)throw Error('请填写测试姓名');
   if(p.consent!==true)throw Error('请先确认测试资料授权');
   const loan:Loan={id:id(),name,botId:p.botId,amount,fee:200,status:'registered',createdAt:now,paid:0,wallet:0,note:'注册完成，请继续提交测试 KYC',demoDays:0,kyc:{income:30000,contacts:['演示亲属 · TEST-001','演示朋友 · TEST-002'],document:'示例身份证与收入证明（合成测试资料）'}};
   s.loans.unshift(loan);s.events.unshift({id:id(),loanId:loan.id,action:'create',role:'mini',note:'测试用户注册完成',at:now});
