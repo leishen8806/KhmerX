@@ -251,3 +251,48 @@ test('registered account keeps the same KYC and linked orders across sessions an
  await assert.rejects(store.mutate(A,{action:'repay',loanId,amount:1,requestId:crypto.randomUUID()},{id:other.session.customerId,phoneMasked:other.session.phoneMasked}));
  selected=B;await assert.rejects(f.kycFollowups(row.id));selected=A;
 });
+
+test('service routing validates company, fills missing assignments and honors automatic switch',async()=>{
+ const service=await mod('@/lib/team/servicing');selected=A;user=owner;
+ await team.manage({action:'add_unit',kind:'institution',name:'Repayment service'});
+ await team.manage({action:'add_unit',kind:'postloan',name:'Collection service'});
+ const repay=sql.prepare("SELECT id FROM team_units WHERE tenant_id=? AND name='Repayment service'").get(A).id,collection=sql.prepare("SELECT id FROM team_units WHERE tenant_id=? AND name='Collection service'").get(A).id;
+ const p={fundingId:inst,repaymentId:repay,collectionId:collection,enabled:true,version:-1};
+ selected=B;await assert.rejects(service.servicingSave(p));selected=A;user=reviewer2;await assert.rejects(service.servicingSave(p));user=owner;
+ await service.servicingSave(p);const a=await team.assignment(A,'customer-1');assert.equal(a.funding_institution_id,inst);assert.equal(a.repayment_institution_id,repay);assert.equal(a.collection_unit_id,collection);
+ await assert.rejects(service.servicingSave(p),/配置已变化/);
+ const foreign=sql.prepare('SELECT default_department FROM team_companies WHERE id=?').get(B).default_department;
+ assert.throws(()=>sql.prepare('UPDATE team_assignments SET collection_unit_id=? WHERE tenant_id=?').run(foreign,A),/scope/);
+ await service.servicingSave({...p,enabled:false,version:0});await team.ensureAssignment(A,'routing-off');assert.equal((await team.assignment(A,'routing-off')).funding_institution_id,null);
+ await service.servicingSave({...p,enabled:true,version:1});assert.equal((await team.assignment(A,'routing-off')).funding_institution_id,inst);
+});
+
+test('Admin funding and repayment require prior approval, enforce isolation and deduplicate receipts; settlement closes collection',async()=>{
+ selected=A;user=owner;const customerId='admin-funds-customer';await approvedCustomer(customerId);
+ const c={id:customerId,phoneMasked:'SYNTHETIC'},created=await store.mutate(A,{action:'create',name:'SYNTHETIC ADMIN FUNDS',amount:5000,consent:true,requestId:crypto.randomUUID()},c),l=created.state.loans[0];
+ const fund={action:'admin_disburse',loanId:l.id,note:'Synthetic admin funding evidence',requestId:crypto.randomUUID()};
+ await assert.rejects(flow.staffAction(fund),/贷款初审/);
+ await store.mutate(A,{action:'confirm_bill',loanId:l.id,billConfirmed:true,quoteId:l.billing.quoteId,requestId:crypto.randomUUID()},c);
+ const bytes=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jX1sAAAAASUVORK5CYII=','base64'));
+ await signing.saveLoanSignature(A,c.id,l.id,bytes);
+ await store.mutate(A,{action:'apply',loanId:l.id,billConfirmed:true,quoteId:l.billing.quoteId,requestId:crypto.randomUUID()},c);
+ sql.prepare('UPDATE team_assignments SET institution_id=? WHERE tenant_id=? AND customer_id=?').run(inst,A,c.id);
+ user=lender;await flow.staffAction({action:'approve',loanId:l.id,requestId:crypto.randomUUID()});
+ user=checker;await flow.staffAction({action:'approval_check',loanId:l.id,requestId:crypto.randomUUID()});
+ user=reviewer2;await assert.rejects(flow.staffAction(fund));user=owner;selected=B;await assert.rejects(flow.staffAction(fund));selected=A;
+ await assert.rejects(flow.staffAction({...fund,note:''}),/操作依据/);
+ await flow.staffAction(fund);await flow.staffAction(fund);
+ let saved=(await store.readState(A)).state;assert.equal(saved.loans.find(x=>x.id===l.id).status,'active');assert.equal(saved.entries.filter(e=>e.loanId===l.id&&e.kind==='测试放款').length,1);
+ const receipt={action:'admin_repay',loanId:l.id,cents:1000,reference:'UAT-RECEIPT-001',note:'Synthetic receipt checked',requestId:crypto.randomUUID()};
+ await flow.staffAction(receipt);await flow.staffAction({...receipt,requestId:crypto.randomUUID()});
+ saved=(await store.readState(A)).state;assert.equal(saved.loans.find(x=>x.id===l.id).paid,1000);
+ await assert.rejects(flow.staffAction({...receipt,cents:1001,requestId:crypto.randomUUID()}),/流水号/);
+ await assert.rejects(flow.staffAction({...receipt,cents:999999,reference:'UAT-TOO-MUCH',requestId:crypto.randomUUID()}),/还款金额/);
+ const post=await mod('@/lib/postloan/server'),target=saved.loans.find(x=>x.id===l.id);
+ await post.runCompany(A,new Date(Date.parse(target.dueAt)+86400000).toISOString());
+ let task=(await post.postloanData()).tasks.find(t=>t.loanId===l.id);assert(task);assert.equal(task.departmentId,(await team.assignment(A,c.id)).collection_unit_id);
+ await post.postloanAction({action:'note',taskId:task.id,version:task.updatedAt,requestId:crypto.randomUUID(),outcome:'contacted',note:'Synthetic Admin collection followup'});
+ await flow.staffAction({...receipt,cents:target.amount+target.fee-1000,reference:'UAT-RECEIPT-002',requestId:crypto.randomUUID()});
+ task=(await post.postloanData()).tasks.find(t=>t.loanId===l.id);assert.equal(task.status,'closed');assert.equal(task.balance,0);
+ assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM team_repayment_receipts WHERE tenant_id=? AND loan_id=?').get(A,l.id).n,2);
+});

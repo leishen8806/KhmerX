@@ -15,3 +15,10 @@ test('partial repayment keeps task and full repayment closes in same transaction
 test('missed promise becomes follow-up, no automatic financial penalty',()=>{let s=runPostloan(state(loan('1')),members,['dept'],at);Object.assign(s.postloan.tasks[0],{status:'promised',promiseDate:'2026-10-10'});s=runPostloan(s,members,['dept'],'2026-10-11T02:00:00Z');assert.equal(s.postloan.tasks[0].status,'following');assert.equal(s.loans[0].fee,69)});
 test('customer payload never reveals staff notes and assignment',()=>{const s=runPostloan(state(loan('1'),loan('2')),members,['dept'],at),view=customerState(s,'1');assert.equal(view.postloan,undefined);assert.equal(view.loans.length,1)});
 test('collector sees own assignments only; manager sees own department; disabled denied',()=>{const t=runPostloan(state(loan('1')),members,['dept'],at).postloan.tasks[0];assert(mayViewTask(members[0],t));assert(!mayViewTask(members[1],t));assert(!mayViewTask({...members[0],active:0},t));assert(mayViewTask({...members[0],role:'collection_admin'},t));assert(!mayViewTask({...members[0],role:'collection_admin',unit_id:'other'},t));assert(!mayViewTask({...members[0],role:'kyc'},t))});
+test('configured collection department and auto-assignment switch are respected',()=>{
+ const r={enabled:true,departments:{one:'service'}},staff=[...members,{...members[0],id:'service-agent',unit_id:'service'}];
+ const s=runPostloan(state(loan('one')),staff,['dept','service'],at,r);
+ assert.equal(s.postloan.tasks[0].departmentId,'service');assert.equal(s.postloan.tasks[0].assigneeId,'service-agent');
+ const off=runPostloan(state(loan('one')),staff,['dept','service'],at,{...r,enabled:false});
+ assert.equal(off.postloan.tasks[0].assigneeId,null);
+});
