@@ -7,17 +7,22 @@ export type Bot={id:string;label:string;username:string;enabled:boolean;envKey:s
 export type Entry={id:string;loanId:string;kind:string;cents:number;debit:string;credit:string;at:string};
 export type Event={id:string;loanId:string;action:string;role:Role;note:string;at:string};
 export type Loan={billing?:Bill;billConfirmedAt?:string;approvalActor?:string;approvalCheckedBy?:string;fundingActor?:string;fundingCheckedBy?:string;id:string;customerId?:string;kycCaseId?:string;kycRevision?:number;phoneMasked?:string;name:string;botId:string;amount:number;fee:number;status:Status;createdAt:string;dueAt?:string;signedAt?:string;signature?:string;contract?:string;paid:number;wallet:number;note:string;demoDays:number;kyc:{income:number;contacts:string[];document:string}};
-export type State={postloan?:Postloan;loans:Loan[];bots:Bot[];events:Event[];entries:Entry[];notifications:{id:string;loanId:string;botId:string;text:string;at:string;status:string}[];requests:string[]};
+export type State={activeBotId?:string;postloan?:Postloan;loans:Loan[];bots:Bot[];events:Event[];entries:Entry[];notifications:{id:string;loanId:string;botId:string;text:string;at:string;status:string}[];requests:string[]};
+export function businessBot(s:State){return s.activeBotId?s.bots.find(b=>b.id===s.activeBotId&&b.enabled):s.bots.find(b=>b.enabled)}
 export const statusNames:Record<Status,string>={registered:'已注册 · 待 KYC',kyc_pending:'待资料审核',needs_info:'待补件',kyc_approved:'资料通过',decision_pending:'待机构审批',approved:'待签约',rejected:'申请未通过',signed:'待放款',active:'还款中',closed:'已结清'};
 export const initialState=():State=>({loans:[],bots:[{id:'bot-1',label:'PayEase 主机器人',username:'',enabled:true,envKey:'TELEGRAM_BOT_TOKEN_1'},{id:'bot-2',label:'PayEase 第二机器人',username:'',enabled:true,envKey:'TELEGRAM_BOT_TOKEN_2'}],events:[],entries:[],notifications:[],requests:[]});
-export const roles:Record<string,Role>={create:'mini',confirm_kyc:'mini',submit_kyc:'mini',resubmit:'mini',apply:'mini',sign:'mini',withdraw:'mini',repay:'mini',review:'ops',supplement:'ops',approve:'lender',reject:'lender',disburse:'lender',overdue:'ops',bot_save:'ops',bot_add:'ops'};
+export const roles:Record<string,Role>={create:'mini',confirm_kyc:'mini',submit_kyc:'mini',resubmit:'mini',apply:'mini',sign:'mini',withdraw:'mini',repay:'mini',review:'ops',supplement:'ops',approve:'lender',reject:'lender',disburse:'lender',overdue:'ops',bot_save:'ops',bot_add:'ops',bot_switch:'ops'};
 export function applyAction(input:State,p:any,now=new Date().toISOString()):State{
  if(!p||typeof p!=='object'||!roles[p.action]||roles[p.action]!==p.role)throw Error('此操作不属于当前演示角色');
  if(typeof p.requestId!=='string'||p.requestId.length<8||p.requestId.length>100)throw Error('请求编号无效');
  if(input.requests.includes(p.requestId))return input;
  const s:State=structuredClone(input); const id=()=>crypto.randomUUID();
  const text=(v:unknown,max=120)=>typeof v==='string'?v.trim().slice(0,max):'';
- if(p.action==='bot_add'){
+ if(p.action==='bot_switch'){
+  const bot=s.bots.find(b=>b.id===p.botId&&b.enabled);if(!bot)throw Error('请选择已启用的机器人');
+  if(p.previousBotId!==businessBot(s)?.id)throw Error('业务渠道已变化，请刷新后重试');
+  const previous=businessBot(s);s.activeBotId=bot.id;s.events.unshift({id:id(),loanId:'渠道',action:p.action,role:p.role,note:'业务机器人从 '+(previous?.label||'未设置')+' 切换为 '+bot.label+'；仅用于新申请',at:now});
+ }else if(p.action==='bot_add'){
   if(s.bots.length>=10)throw Error('测试空间最多配置 10 个机器人');
   const n=s.bots.length+1;s.bots.push({id:'bot-'+n,label:'PayEase 机器人 '+n,username:'',enabled:true,envKey:'TELEGRAM_BOT_TOKEN_'+n});
   s.events.unshift({id:id(),loanId:'渠道',action:'bot_add',role:'ops',note:'新增机器人渠道 '+n,at:now});
@@ -26,11 +31,12 @@ export function applyAction(input:State,p:any,now=new Date().toISOString()):Stat
   const label=text(p.label,50);if(!label)throw Error('请填写机器人名称');
   const username=text(p.username,40).replace(/^@/,''); if(username&&!/^[A-Za-z0-9_]{5,32}bot$/i.test(username))throw Error('机器人用户名须为有效的 bot 用户名');
   if(username&&s.bots.some(b=>b.id!==bot.id&&b.username.toLowerCase()===username.toLowerCase()))throw Error('两个机器人必须使用不同用户名');
+  if(!p.enabled&&businessBot(s)?.id===bot.id)throw Error('请先切换业务机器人，再停用当前渠道');
   bot.label=label;bot.username=username;bot.enabled=p.enabled===true;
   s.events.unshift({id:id(),loanId:'渠道',action:p.action,role:p.role,note:label+' 配置已更新',at:now});
  }else if(p.action==='create'){
   if(s.loans.length>=100)throw Error('测试空间最多保存 100 笔申请');
-  if(!s.bots.some(b=>b.id===p.botId&&b.enabled))throw Error('该机器人渠道未启用');
+  p={...p,botId:businessBot(s)?.id};if(!p.botId)throw Error('暂无可用业务机器人，请联系管理员');
   const amount=Number(p.amount);if(![3000,5000,10000].includes(amount))throw Error('请选择 30、50 或 100 USD 测试额度');
   const name=text(p.name,50);if(name.length<2)throw Error('请填写测试姓名');
   if(p.consent!==true)throw Error('请先确认测试资料授权');

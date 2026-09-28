@@ -116,3 +116,11 @@ test('Telegram signed subscription, tenant isolation, one-time delivery and unsu
  await notify.bindNotifications(A,customerId,{action:'unsubscribe',botId});assert.equal((await notify.notificationSettings(A,customerId)).channels.find(b=>b.id===botId).bound,false);
  user=reviewer1;await assert.rejects(notify.notificationAdmin());user=owner;
 });
+
+ test('business bot switch is admin-only, company-isolated, and overrides customer-supplied channels',async()=>{
+ selected=A;user=reviewer1;await assert.rejects(flow.staffAction({action:'bot_switch',botId:'bot-2',previousBotId:'bot-1',requestId:crypto.randomUUID()}));
+ user=owner;const before=await store.readState(A),existing=before.state.loans.map(l=>[l.id,l.botId]);await flow.staffAction({action:'bot_switch',botId:'bot-2',previousBotId:'bot-1',requestId:crypto.randomUUID()});
+ assert.equal((await store.readState(A)).state.activeBotId,'bot-2');assert.equal((await store.readState(B)).state.activeBotId,undefined);assert.deepEqual((await store.readState(A)).state.loans.map(l=>[l.id,l.botId]),existing);
+ await assert.rejects(flow.staffAction({action:'bot_switch',botId:'bot-1',previousBotId:'bot-1',requestId:crypto.randomUUID()}));
+ const result=await store.mutate(A,{action:'create',name:'Channel test',amount:5000,botId:'forged-channel',consent:true,requestId:crypto.randomUUID()},{id:'channel-customer',phoneMasked:'test'});assert.equal(result.state.loans[0].botId,'bot-2');
+ });

@@ -11,6 +11,6 @@ export function canSee(m:Member,a:Assignment|undefined,kind:'summary'|'kyc'='sum
  if(['lender','checker','finance','finance_checker'].includes(m.role))return kind==='summary'&&!!a.institution_id&&m.unit_id===a.institution_id;
  return false;
 }
-export const actionRoles:Record<string,TeamRole[]>={approve:['lender'],reject:['lender'],approval_check:['checker'],disburse_request:['finance'],disburse:['finance_checker'],overdue:['ops'],bot_save:['admin'],bot_add:['admin']};
+export const actionRoles:Record<string,TeamRole[]>={approve:['lender'],reject:['lender'],approval_check:['checker'],disburse_request:['finance'],disburse:['finance_checker'],overdue:['ops'],bot_save:['admin'],bot_add:['admin'],bot_switch:['admin']};
 export function allowAction(m:Member,a:Assignment|undefined,action:string){return !!m.active&&!!actionRoles[action]?.includes(m.role)&&(action.startsWith('bot_')||canSee(m,a));}
 export function requireDifferent(actor:string,other:string|undefined){if(!other||actor===other)throw Error('必须由另一位员工复核，不能复核本人操作');}
