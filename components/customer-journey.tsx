@@ -13,11 +13,14 @@ export function kycPresentation(status:string){
  return states[status]||{title:'查看身份资料状态',description:'请打开身份资料页面，查看最新审核结果。',action:'查看身份资料'};
 }
 
+export const loanSteps=['贷款申请','贷款结算账单','用户确认签约','贷款审批状态','放款'];
+export function loanPhase(loan?:Loan){return !loan?0:['active','closed'].includes(loan.status)?5:loan.status==='signed'?4:['decision_pending','rejected','approved'].includes(loan.status)?3:!loan.billConfirmedAt?1:2}
+export function LoanSteps({phase}:{phase:number}){return <ol className="loan-stepbar" aria-label="申请贷款步骤">{loanSteps.map((s,i)=><li key={s} className={i<phase?'complete':i===phase?'current':''} aria-current={i===phase?'step':undefined}><span>{i<phase?<Check size={14}/>:i+1}</span><small>{s}</small></li>)}</ol>}
 export function CustomerJourney({kycStatus,loan}:{kycStatus:string;loan?:Loan}){
  const approved=kycStatus==='approved';
  const funded=!!loan&&['active','closed'].includes(loan.status);
- const phase=!loan?(approved?0:-1):funded?5:loan.status==='signed'?4:['decision_pending','rejected','approved'].includes(loan.status)?3:!loan.billConfirmedAt?1:2;
- const steps=['贷款申请','测算费用','用户确认签约','贷款审批','放款'];
+ const phase=!loan&&!approved?-1:loanPhase(loan);
+ const steps=loanSteps;
  const hints=['选择金额与期限','核对到账与应还金额','阅读协议并手写签名','等待机构审批结果','审批通过后安排放款'];
  return <><div className="section-heading"><div><p className="eyebrow">YOUR PROGRESS</p><h2>借款进度</h2></div><span className="pill">{funded?'已放款':phase<0?'待认证':`${Math.min(phase+1,5)} / 5`}</span></div>
  <a className={'customer-kyc-link'+(approved?' verified':'')} href="/kyc"><ShieldCheck size={22}/><div><strong>{approved?'身份资料已通过':'身份资料审核'}</strong><small>{approved?'已满足申请条件':kycPresentation(kycStatus).title}</small></div><ArrowRight size={16}/></a>
