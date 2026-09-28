@@ -138,3 +138,16 @@ test('channel registration switches are isolated, account-bound and enforced by 
  assert.equal((await policy.registrationPolicy({db:DB},A,d.session.customerId)).phoneVerification,false);assert.equal((await policy.registrationPolicy({db:DB},A)).phoneVerification,true);assert.equal((await policy.registrationPolicy({db:DB},B)).passwordSetup,true);
  user=reviewer1;await assert.rejects(flow.staffAction({action:'bot_save',botId:'bot-2',label:'Forbidden',username:'',enabled:true,passwordSetup:true,requestId:crypto.randomUUID()}));
 });
+
+test('enabled registration requirements block customer and KYC access until fulfilled; disabled requirements do not',async()=>{
+ selected=A;user=owner;const auth=await mod('@/lib/h5-auth-core'),access=await mod('@/lib/h5-auth');const runtime={db:DB,config:{mode:'demo',secret:env.PAYEASE_AUTH_SECRET}};
+ const a=await auth.registerPhone(runtime,A,'c'.repeat(64),{phone:'+12025550188'},'bot-1'),request=new Request('http://localhost/api/h5/state',{headers:{cookie:'payease_h5_session='+a.token}});
+ const config=async(phoneVerification,passwordSetup)=>flow.staffAction({action:'bot_save',botId:'bot-1',label:'Main',username:'',enabled:true,phoneVerification,passwordSetup,requestId:crypto.randomUUID()});
+ await config(true,true);await assert.rejects(access.customer(request),/手机号验证/);await assert.rejects(kyc.context(request),/手机号验证/);
+ await config(false,true);await assert.rejects(access.customer(request),/设置密码/);
+ await config(false,false);assert.equal((await access.customer(request)).session.phoneVerified,false);
+ await config(true,false);await assert.rejects(access.customer(request),/手机号验证/);
+ const challenge=await auth.sendCode(runtime,A,'c'.repeat(64),{phone:'+12025550188',consent:true}),verified=await auth.verifyCode(runtime,A,'c'.repeat(64),{challengeId:challenge.challengeId,code:challenge.demoCode},a.session.customerId);
+ const verifiedRequest=new Request('http://localhost/api/h5/state',{headers:{cookie:'payease_h5_session='+verified.token}});assert.equal((await kyc.context(verifiedRequest)).verified,false);
+ await config(true,true);await assert.rejects(access.customer(verifiedRequest),/设置密码/);await auth.setPassword(runtime,A,verified.token,{password:'Synthetic-required-password-123'});assert.equal((await access.customer(verifiedRequest)).session.hasPassword,true);
+});

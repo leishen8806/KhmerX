@@ -1,3 +1,4 @@
+import {requireRegistrationComplete} from '@/lib/registration-policy';
 import {selectedCompany} from '@/lib/team/server';
 import {env} from 'cloudflare:workers';
 import {getChatGPTUser} from '@/app/chatgpt-auth';
@@ -12,4 +13,4 @@ export async function owner(){const user=await getChatGPTUser();if(!user)throw n
 export function sameOrigin(request:Request){if(request.headers.get('origin')!==new URL(request.url).origin)throw new AuthError('不允许跨站操作',403);if(!request.headers.get('content-type')?.startsWith('application/json'))throw new AuthError('请求格式无效',415)}
 export async function input(request:Request){sameOrigin(request);const raw=await request.text();if(raw.length>4096)throw new AuthError('请求过大',413);try{const value=JSON.parse(raw);if(!value||typeof value!=='object'||Array.isArray(value))throw Error();return value}catch{throw new AuthError('请求格式无效')}}
 export function browser(request:Request){const token=cookieValue(request,BROWSER_COOKIE);if(!token)throw new AuthError('登录页面已失效，请刷新后重试',401);return token}
-export async function customer(request:Request){const ownerId=await owner(),r=runtime(),session=await getSession(r,ownerId,cookieValue(request,SESSION_COOKIE));if(!session)throw new AuthError('客户登录已失效，请重新验证手机号',401);return {ownerId,r,session}}
+export async function customer(request:Request){const ownerId=await owner(),r=runtime(),session=await getSession(r,ownerId,cookieValue(request,SESSION_COOKIE));if(!session)throw new AuthError('客户登录已失效，请重新验证手机号',401);await requireRegistrationComplete(r,ownerId,session);return {ownerId,r,session}}

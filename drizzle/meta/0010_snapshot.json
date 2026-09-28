@@ -1,12 +1,20 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "882e4a81-9796-4d13-b2c1-de30d7ffbe9f",
+  "id": "9b81f019-1aa5-4069-b5e2-73c4962f28c1",
   "prevId": "a99a605a-f71a-41de-8249-81869f3c8f00",
   "tables": {
     "h5_accounts": {
       "name": "h5_accounts",
       "columns": {
+        "verification_completed": {
+          "name": "verification_completed",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
         "channel_id": {
           "name": "channel_id",
           "type": "text",

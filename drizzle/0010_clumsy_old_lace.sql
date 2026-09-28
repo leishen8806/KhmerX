@@ -1,4 +1,5 @@
 CREATE TABLE `h5_accounts` (
+	`verification_completed` integer DEFAULT 0 NOT NULL,
 	`channel_id` text,
 	`customer_id` text PRIMARY KEY NOT NULL,
 	`owner` text NOT NULL,
