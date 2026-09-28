@@ -17,5 +17,5 @@ export async function kycFollowups(id:string,p?:any){
   if(!result.meta.changes&&!await db().prepare('SELECT id FROM team_audit WHERE id=?').bind('kyc-followup:'+s.tenant.id+':'+id+':'+s.member.id+':'+p.requestId).first())throw new AuthError('权限或分单已变化，请刷新后重试',409);
  }
  const rows=(await db().prepare("SELECT id,actor,detail,created_at FROM team_audit WHERE tenant_id=? AND action='kyc_followup' AND json_extract(detail,'$.caseId')=? ORDER BY created_at DESC,id DESC LIMIT 100").bind(s.tenant.id,id).all<any>()).results;
- return {order:k,canNote,canReview:s.member.role==='kyc'&&a?.reviewer_id===s.member.id,records:rows.map(({detail,...r}:any)=>({...r,...JSON.parse(detail)}))};
+ return {order:k,canNote,canReview:s.member.role==='admin'||(s.member.role==='kyc'&&a?.reviewer_id===s.member.id),records:rows.map(({detail,...r}:any)=>({...r,...JSON.parse(detail)}))};
 }

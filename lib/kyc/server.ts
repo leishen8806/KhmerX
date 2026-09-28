@@ -19,7 +19,7 @@ export async function encryptBytes(bytes:Uint8Array,context:string){const iv=cry
 export async function decryptBytes(bytes:Uint8Array,context:string){return new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv:bytes.slice(0,12),additionalData:encoder.encode(context)},await key(),bytes.slice(12)))}
 async function seal(value:unknown,context:string){const b=await encryptBytes(encoder.encode(JSON.stringify(value)),context);return btoa(String.fromCharCode(...b))}
 async function unseal<T>(value:string,context:string){const b=Uint8Array.from(atob(value),c=>c.charCodeAt(0));return JSON.parse(new TextDecoder().decode(await decryptBytes(b,context))) as T}
-export async function reviewer(){const team=await staff();if(team){if(!['kyc','audit'].includes(team.member.role))throw new KycError('当前岗位没有 KYC 材料查看权限',403);return {...team.user,userId:team.tenant.id,actorId:team.user.userId,team}}const u=await getChatGPTUser();if(!u)throw new KycError('请先登录工作区',401);const allowed=(settings().KYC_REVIEWER_EMAILS||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);if(!allowed.includes(u.email.toLowerCase()))throw new KycError('当前账号未获 KYC 审核授权',403);return {...u,actorId:u.userId,team:null}}
+export async function reviewer(){const team=await staff();if(team){if(!['admin','kyc','audit'].includes(team.member.role))throw new KycError('当前岗位没有 KYC 材料查看权限',403);return {...team.user,userId:team.tenant.id,actorId:team.user.userId,team}}const u=await getChatGPTUser();if(!u)throw new KycError('请先登录工作区',401);const allowed=(settings().KYC_REVIEWER_EMAILS||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);if(!allowed.includes(u.email.toLowerCase()))throw new KycError('当前账号未获 KYC 审核授权',403);return {...u,actorId:u.userId,team:null}}
 export async function context(request:Request){const c=await customer(request);return {owner:c.ownerId,customerId:c.session.customerId,verified:c.session.phoneVerified===true}}
 export function origin(request:Request){if(request.headers.get('origin')!==new URL(request.url).origin)throw new KycError('不允许跨站操作',403)}
 export async function boundedBody(request:Request,max:number){if(Number(request.headers.get('content-length')||0)>max)throw new KycError('上传内容过大',413);const reader=request.body?.getReader();if(!reader)return new Uint8Array();const chunks:Uint8Array[]=[];let size=0;while(true){const r=await reader.read();if(r.done)break;size+=r.value.length;if(size>max){await reader.cancel();throw new KycError('上传内容过大',413)}chunks.push(r.value)}const out=new Uint8Array(size);let offset=0;for(const c of chunks){out.set(c,offset);offset+=c.length}return out}
@@ -35,7 +35,7 @@ export async function resolveFiles(owner:string,customerId:string,profile:Profil
 export async function transition(row:CaseRow,status:KycStatus,data:CasePayload,action:string,actor:string){
  const team=action.startsWith('review:')?await staff():null;const now=new Date().toISOString(),cipher=await seal(data,'case:'+row.id),historyId=crypto.randomUUID();
  const results=await db().batch([
- db().prepare('UPDATE kyc_cases SET revision=revision+1,status=?,payload=?,updated_at=? WHERE id=? AND owner=? AND revision=? AND (? IS NULL OR EXISTS (SELECT 1 FROM team_members m JOIN team_assignments a ON a.tenant_id=m.tenant_id AND a.department_id=m.unit_id WHERE m.id=? AND m.active=1 AND m.version=? AND m.role=\'kyc\' AND a.reviewer_id=m.id AND a.customer_id=kyc_cases.customer_id AND a.tenant_id=kyc_cases.owner))').bind(status,cipher,now,row.id,row.owner,row.revision,team?.member.id||null,team?.member.id||null,team?.member.version??0),
+ db().prepare('UPDATE kyc_cases SET revision=revision+1,status=?,payload=?,updated_at=? WHERE id=? AND owner=? AND revision=? AND (? IS NULL OR EXISTS (SELECT 1 FROM team_members m JOIN team_assignments a ON a.tenant_id=m.tenant_id WHERE m.id=? AND m.active=1 AND m.version=? AND (m.role=\'admin\' OR (m.role=\'kyc\' AND a.department_id=m.unit_id AND a.reviewer_id=m.id)) AND a.customer_id=kyc_cases.customer_id AND a.tenant_id=kyc_cases.owner))').bind(status,cipher,now,row.id,row.owner,row.revision,team?.member.id||null,team?.member.id||null,team?.member.version??0),
  db().prepare('INSERT INTO kyc_history (id,case_id,revision,owner,action,actor,snapshot,created_at) SELECT ?,id,revision,owner,?,?,payload,? FROM kyc_cases WHERE id=? AND revision=? AND payload=?').bind(historyId,action,actor,now,row.id,row.revision+1,cipher)]);
  if(results[0].meta.changes!==1)throw new KycError('资料已被其他操作更新，请重新加载后核对',409);
  return {...row,revision:row.revision+1,status,payload:cipher,updated_at:now};
@@ -55,6 +55,7 @@ export async function save(request:Request){const c=await context(request),p=awa
 export async function decide(request:Request){
  const u=await reviewer(),p=await body(request),row=await getCase(u.userId,String(p.id));
  if(u.team)await guardKyc(u.userId,row.customer_id,true);
+ if(u.team?.member.role==='admin'&&(p.action==='amend'||p.decision!=='approved'))throw new KycError('Admin 当前仅可确认审核通过',403);
  if(row.revision!==p.revision)throw new KycError('资料已更新，请重新读取后审核',409);
  const data=await payload(row),reason=typeof p.reason==='string'?p.reason.trim():'';
  if(p.action==='amend'){

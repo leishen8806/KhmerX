@@ -40,7 +40,7 @@ await team.ensureAssignment(A,'customer-1');await team.ensureAssignment(A,'custo
 test('automatic assignment balances active reviewers and assigns institution',async()=>{const a=await team.assignment(A,'customer-1'),b=await team.assignment(A,'customer-2');assert(a.reviewer_id);assert.notEqual(a.reviewer_id,b.reviewer_id);assert.equal(a.institution_id,inst)});
 test('database rejects cross-company units, staff and assignment references',()=>{const bdept=sql.prepare('SELECT default_department FROM team_companies WHERE id=?').get(B).default_department;assert.throws(()=>sql.prepare('UPDATE team_assignments SET department_id=? WHERE tenant_id=?').run(bdept,A),/tenant scope/);assert.throws(()=>sql.prepare('UPDATE team_members SET unit_id=? WHERE email=?').run(bdept,reviewer1.email),/tenant scope/)});
 test('department administrator can reassign within department with reason; cannot cross departments',async()=>{selected=A;user=deptManager;const a=await team.assignment(A,'customer-1'),r=sql.prepare('SELECT id FROM team_members WHERE email=?').get(reviewer1.email);await flow.assignCustomer({customerId:'customer-1',departmentId:dept,institutionId:inst,reviewerId:r.id,reason:'Synthetic reassignment',version:a.version});const updated=await team.assignment(A,'customer-1');assert.equal(updated.reviewer_id,r.id);await assert.rejects(flow.assignCustomer({customerId:'customer-1',departmentId:dept2,institutionId:inst,reason:'cross',version:updated.version}));await assert.rejects(flow.assignCustomer({customerId:'customer-1',departmentId:dept,institutionId:inst,reason:'',version:updated.version}));});
-test('employee identity cannot access another company or another reviewer case; admin has no KYC access',async()=>{selected=B;user=reviewer1;await assert.rejects(team.staff());selected=A;user=reviewer2;await assert.rejects(team.guardKyc(A,'customer-1',true));user=owner;await assert.rejects(team.guardKyc(A,'customer-1'));user=reviewer1;await team.guardKyc(A,'customer-1',true)});
+test('employee identity cannot access another company or another reviewer case; admin can review within own company',async()=>{selected=B;user=reviewer1;await assert.rejects(team.staff());selected=A;user=reviewer2;await assert.rejects(team.guardKyc(A,'customer-1',true));user=owner;await team.guardKyc(A,'customer-1',true);await assert.rejects(team.guardKyc(B,'customer-1',true));user=reviewer1;await team.guardKyc(A,'customer-1',true)});
 let caseRow;
 async function profile(){const p=core.emptyProfile();p.consent=true;for(const f of core.fields.filter(x=>x.required))p.values[f.id]=f.options?.[0].value||(f.kind==='phone'?'+1202555010'+(f.id.includes('1')?'1':'2'):'SYNTHETIC TEST');p.values.contact2Relation='朋友';p.values.district=core.regions[0].districts[0].value;const bytes=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jX1sAAAAASUVORK5CYII=','base64'));for(const slot of core.slots.filter(x=>x.required&&x.id!=='signature'))p.files[slot.id]=await kyc.recordFile(A,'customer-1',slot.id,bytes,'image/png');return p}
 test('KYC is reviewed independently before any loan; reviewer amendments require resubmission',async()=>{selected=A;user=reviewer1;await assert.rejects(store.mutate(A,{action:'create',name:'SYNTHETIC',amount:5000,consent:true,requestId:crypto.randomUUID()},{id:'customer-1',phoneMasked:'test'}),/KYC/);caseRow=await kyc.initialize(A,'customer-1',false);const first=await profile();assert.deepEqual(Array.from(core.missing(first)),[]);assert.equal(first.files.signature,undefined);caseRow=await kyc.transition(caseRow,'submitted',{profile:first,phoneVerified:false,ruleVersion:'test'},'submit','customer-1');const old=await kyc.payload(caseRow),values={...old.profile.values,givenName:'CORRECTED'};const updated=await kyc.decide(req({action:'amend',id:caseRow.id,revision:caseRow.revision,values,reason:'Correct synthetic spelling'}));assert.equal(updated.status,'needs_info');assert.equal(updated.profile.consent,false);assert.equal(updated.profile.files.signature,undefined);caseRow=await kyc.getCase(A,caseRow.id);caseRow=await kyc.transition(caseRow,'submitted',{profile:await profile(),phoneVerified:false,ruleVersion:'test'},'submit','customer-1');await kyc.decide(req({id:caseRow.id,revision:caseRow.revision,decision:'approved',reason:'Synthetic manual checks',checklist:Object.fromEntries(core.sections.map(x=>[x.id,true]))}));assert.equal((await store.readState(A)).state.loans.length,0);});
@@ -210,11 +210,25 @@ test('completed followup exposes review capability only to assigned reviewer and
  const f=await mod('@/lib/kyc/followups');selected=A;user=owner;
  const row=await kyc.findCase(A,'customer-1');
  const saved=await f.kycFollowups(row.id,{status:'resolved',note:'Synthetic followup complete',requestId:crypto.randomUUID()});
- assert.equal(saved.canReview,false);assert.equal(saved.order.status,row.status);
+ assert.equal(saved.canReview,true);assert.equal(saved.order.status,row.status);
  const reviewer=await member(A,'kyc','followup-reviewer@example.test',dept);
  const m=await team.staff();
  sql.prepare('UPDATE team_assignments SET reviewer_id=? WHERE tenant_id=? AND customer_id=?').run(m.member.id,A,row.customer_id);
  assert.equal((await f.kycFollowups(row.id)).canReview,true);
  user={userId:'correct',email:'pending@example.test'};assert.equal((await f.kycFollowups(row.id)).canReview,false);
  user=owner;assert.equal((await kyc.findCase(A,row.customer_id)).status,row.status);
+});
+
+test('Admin confirms KYC with complete checks and audit trail, but cannot amend or bypass validation',async()=>{
+ selected=A;user=owner;
+ let row=await kyc.findCase(A,'customer-1');
+ row=await kyc.transition(row,'submitted',{profile:await profile(),phoneVerified:false,ruleVersion:'test'},'submit','customer-1');
+ const p={id:row.id,revision:row.revision,decision:'approved',reason:'Synthetic admin manual review',checklist:Object.fromEntries(core.sections.map(s=>[s.id,true]))};
+ await assert.rejects(kyc.decide(req({...p,checklist:{}})));
+ await assert.rejects(kyc.decide(req({...p,action:'amend'})),/仅可确认/);
+ await assert.rejects(kyc.decide(req({...p,decision:'rejected'})),/仅可确认/);
+ selected=B;await assert.rejects(kyc.decide(req(p)));selected=A;
+ const result=await kyc.decide(req(p));assert.equal(result.status,'approved');
+ const stored=await kyc.payload(await kyc.findCase(A,'customer-1'));assert.equal(stored.review.actor,owner.userId);
+ await assert.rejects(kyc.decide(req(p)),/资料已更新/);
 });

@@ -5,7 +5,7 @@ export type Assignment={tenant_id:string;customer_id:string;department_id:string
 export function canSee(m:Member,a:Assignment|undefined,kind:'summary'|'kyc'='summary'){
  if(!m.active||!a||m.tenant_id!==a.tenant_id)return false;
  if(kind==='summary'&&['admin','audit'].includes(m.role))return true;
- if(m.role==='audit')return true;
+ if(['admin','audit'].includes(m.role))return true;
  if(['ops','dept_admin'].includes(m.role))return kind==='summary'&&m.unit_id===a.department_id;
  if(m.role==='kyc')return m.unit_id===a.department_id&&m.id===a.reviewer_id;
  if(['lender','checker','finance','finance_checker'].includes(m.role))return kind==='summary'&&!!a.institution_id&&m.unit_id===a.institution_id;
