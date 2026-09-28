@@ -178,3 +178,10 @@ test('company bot Token: verified metadata, encrypted isolation, rotation and pe
  context.fetch=async()=>{const actor=sql.prepare("SELECT * FROM team_members WHERE tenant_id=? AND user_id='owner'").get(A);sql.prepare('UPDATE team_members SET version=version+1 WHERE id=?').run(actor.id);return Response.json({ok:true,result:{id:987654321,is_bot:true,first_name:'Changed',username:'changed_bot'}})};
  await assert.rejects(bots.configureBot({botId:'bot-1',token}),/权限已变化/);assert.equal(await bots.channelToken(A,'bot-1'),rotated);
 });
+
+test('assignment workspace exposes scoped KYC metadata without identity documents or cross-company cases',async()=>{
+ selected=A;user=owner;const all=await flow.scopedState();assert(all.kycOrders.length>0);for(const k of all.kycOrders)assert.deepEqual(Object.keys(k).sort(),['customer_id','id','revision','status','updated_at']);
+ selected=B;const other=await flow.scopedState();assert(!other.kycOrders.some(k=>all.kycOrders.some(a=>a.id===k.id)));
+ selected=A;user=reviewer1;const assigned=await flow.scopedState();const member=await team.staff();for(const k of assigned.kycOrders)assert.equal((await team.assignment(A,k.customer_id)).reviewer_id,member.member.id);
+ user=owner;
+});
