@@ -124,3 +124,17 @@ test('Telegram signed subscription, tenant isolation, one-time delivery and unsu
  await assert.rejects(flow.staffAction({action:'bot_switch',botId:'bot-1',previousBotId:'bot-1',requestId:crypto.randomUUID()}));
  const result=await store.mutate(A,{action:'create',name:'Channel test',amount:5000,botId:'forged-channel',consent:true,requestId:crypto.randomUUID()},{id:'channel-customer',phoneMasked:'test'});assert.equal(result.state.loans[0].botId,'bot-2');
  });
+
+test('channel registration switches are isolated, account-bound and enforced by account API',async()=>{
+ selected=A;user=owner;
+ const route=await mod('@/app/api/h5/auth/account/route'),policy=await mod('@/lib/registration-policy');
+ const browser='b'.repeat(64),request=(body,token='')=>new Request('http://localhost/api/h5/auth/account',{method:'POST',headers:{origin:'http://localhost','content-type':'application/json',cookie:'payease_h5_browser='+browser+(token?'; payease_h5_session='+token:'')},body:JSON.stringify(body)});
+ let response=await route.POST(request({action:'register',phone:'+85599123456'}));assert.equal(response.status,200);const d=await response.json(),token=response.headers.get('set-cookie').match(/payease_h5_session=([a-f0-9]+)/)[1];assert.equal(d.policy.channelId,'bot-2');assert.equal(d.session.phoneVerified,false);
+ await flow.staffAction({action:'bot_save',botId:'bot-2',label:'Channel two',username:'',enabled:true,phoneVerification:false,passwordSetup:false,requestId:crypto.randomUUID()});
+ assert.equal((await policy.registrationPolicy({db:DB},A,d.session.customerId)).passwordSetup,false);
+ response=await route.POST(request({action:'set_password',password:'Synthetic-password-123',passwordSetup:true},token));assert.equal(response.status,403);
+ await assert.rejects(policy.requireRegistrationStep({db:DB},A,d.session.customerId,'phoneVerification'));
+ await flow.staffAction({action:'bot_switch',botId:'bot-1',previousBotId:'bot-2',requestId:crypto.randomUUID()});
+ assert.equal((await policy.registrationPolicy({db:DB},A,d.session.customerId)).phoneVerification,false);assert.equal((await policy.registrationPolicy({db:DB},A)).phoneVerification,true);assert.equal((await policy.registrationPolicy({db:DB},B)).passwordSetup,true);
+ user=reviewer1;await assert.rejects(flow.staffAction({action:'bot_save',botId:'bot-2',label:'Forbidden',username:'',enabled:true,passwordSetup:true,requestId:crypto.randomUUID()}));
+});

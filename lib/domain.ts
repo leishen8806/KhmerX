@@ -3,7 +3,7 @@ import {syncSettlements} from './postloan/core.ts';
 import type {Bill} from './pricing';
 export type Role='mini'|'ops'|'lender';
 export type Status='registered'|'kyc_pending'|'needs_info'|'kyc_approved'|'decision_pending'|'approved'|'rejected'|'signed'|'active'|'closed';
-export type Bot={id:string;label:string;username:string;enabled:boolean;envKey:string};
+export type Bot={phoneVerification?:boolean;passwordSetup?:boolean;id:string;label:string;username:string;enabled:boolean;envKey:string};
 export type Entry={id:string;loanId:string;kind:string;cents:number;debit:string;credit:string;at:string};
 export type Event={id:string;loanId:string;action:string;role:Role;note:string;at:string};
 export type Loan={billing?:Bill;billConfirmedAt?:string;approvalActor?:string;approvalCheckedBy?:string;fundingActor?:string;fundingCheckedBy?:string;id:string;customerId?:string;kycCaseId?:string;kycRevision?:number;phoneMasked?:string;name:string;botId:string;amount:number;fee:number;status:Status;createdAt:string;dueAt?:string;signedAt?:string;signature?:string;contract?:string;paid:number;wallet:number;note:string;demoDays:number;kyc:{income:number;contacts:string[];document:string}};
@@ -32,8 +32,9 @@ export function applyAction(input:State,p:any,now=new Date().toISOString()):Stat
   const username=text(p.username,40).replace(/^@/,''); if(username&&!/^[A-Za-z0-9_]{5,32}bot$/i.test(username))throw Error('机器人用户名须为有效的 bot 用户名');
   if(username&&s.bots.some(b=>b.id!==bot.id&&b.username.toLowerCase()===username.toLowerCase()))throw Error('两个机器人必须使用不同用户名');
   if(!p.enabled&&businessBot(s)?.id===bot.id)throw Error('请先切换业务机器人，再停用当前渠道');
+  for(const key of ['phoneVerification','passwordSetup'] as const){if(p[key]!==undefined){if(typeof p[key]!=='boolean')throw Error('注册步骤开关无效');bot[key]=p[key]}}
   bot.label=label;bot.username=username;bot.enabled=p.enabled===true;
-  s.events.unshift({id:id(),loanId:'渠道',action:p.action,role:p.role,note:label+' 配置已更新',at:now});
+  s.events.unshift({id:id(),loanId:'渠道',action:p.action,role:p.role,note:label+' 配置已更新；手机号验证 '+(bot.phoneVerification!==false?'开启':'关闭')+'；设置密码 '+(bot.passwordSetup!==false?'开启':'关闭'),at:now});
  }else if(p.action==='create'){
   if(s.loans.length>=100)throw Error('测试空间最多保存 100 笔申请');
   p={...p,botId:businessBot(s)?.id};if(!p.botId)throw Error('暂无可用业务机器人，请联系管理员');
