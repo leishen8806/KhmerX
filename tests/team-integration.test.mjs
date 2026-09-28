@@ -198,3 +198,10 @@ test('test registration cleanup matches full phone across workspaces, preserves 
  assert.equal(await auth.getSession(runtime,A,a.token),null);assert.equal(await auth.getSession(runtime,'owner',b.token),null);assert(await auth.getSession(runtime,A,other.token));assert.equal(await kyc.findCase(A,a.session.customerId),null);
  assert.equal((await cleanup.customerCleanup({action:'preview',phone})).records.length,0);
 });
+
+test('KYC followups preserve review status, are idempotent and scoped by company and reviewer',async()=>{
+ const f=await mod('@/lib/kyc/followups');selected=A;user=owner;const row=await kyc.findCase(A,'customer-1');const p={status:'waiting',note:'Synthetic followup: awaiting clarification',requestId:crypto.randomUUID()};
+ const saved=await f.kycFollowups(row.id,p);assert.equal(saved.records.length,1);assert.equal(saved.order.status,row.status);assert.equal((await f.kycFollowups(row.id,p)).records.length,1);
+ await assert.rejects(f.kycFollowups(row.id,{...p,note:'',requestId:crypto.randomUUID()}));
+ selected=B;await assert.rejects(f.kycFollowups(row.id));selected=A;user=reviewer2;await assert.rejects(f.kycFollowups(row.id));user={userId:'correct',email:'pending@example.test'};assert.equal((await f.kycFollowups(row.id)).records.length,1);await assert.rejects(f.kycFollowups(row.id,{...p,requestId:crypto.randomUUID()}),/只可查看/);user=owner;
+});

@@ -16,7 +16,7 @@ export default function KycClient({review=false}:{review?:boolean}){
  const endpoint=review?'/api/kyc/review':'/api/kyc';
  const accept=(d:RecordView)=>{setRecord(d);setVehicleKind(vehicleSlots.find(id=>d.profile.files[id])||'');setProfile(!review&&['draft','needs_info'].includes(d.status)&&d.profile.declarationVersion!==KYC_CONSENT_VERSION?{...d.profile,consent:false,declarationVersion:KYC_CONSENT_VERSION}:d.profile);setDirty(false);setAmending(false);setChecks({});setReason('');setDecision('needs_info')};
  async function load(id?:string){setBusy(true);setError('');try{const r=await fetch(endpoint+(id?'?id='+encodeURIComponent(id):''),{cache:'no-store'}),d:any=await r.json();if(!r.ok)throw Error(d.error);if(review&&!id){setCases(d.cases);setRecord(null)}else accept(d);setLoaded(true)}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
- useEffect(()=>{void load()},[]);
+ useEffect(()=>{void load(review?(new URLSearchParams(window.location.search).get('id')||undefined):undefined)},[]);
  useEffect(()=>{if(error)document.querySelector<HTMLElement>('[role="alert"]')?.scrollIntoView({block:'nearest'})},[error]);
  useEffect(()=>{if(!dirty)return;const f=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue=''};window.addEventListener('beforeunload',f);return()=>window.removeEventListener('beforeunload',f)},[dirty]);
  const editable=!review&&!!record&&['draft','needs_info'].includes(record.status);
