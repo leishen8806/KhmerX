@@ -185,3 +185,16 @@ test('assignment workspace exposes scoped KYC metadata without identity document
  selected=A;user=reviewer1;const assigned=await flow.scopedState();const member=await team.staff();for(const k of assigned.kycOrders)assert.equal((await team.assignment(A,k.customer_id)).reviewer_id,member.member.id);
  user=owner;
 });
+
+test('test registration cleanup matches full phone across workspaces, preserves mask collisions, denies non-admin and stale previews',async()=>{
+ const cleanup=await mod('@/lib/customer-cleanup'),auth=await mod('@/lib/h5-auth-core');user=owner;selected=A;
+ const runtime={db:DB,config:{mode:'demo',secret:env.PAYEASE_AUTH_SECRET}},phone='+85512349876';
+ const a=await auth.registerPhone(runtime,A,'d'.repeat(64),{phone}),b=await auth.registerPhone(runtime,'owner','e'.repeat(64),{phone}),other=await auth.registerPhone(runtime,A,'f'.repeat(64),{phone:'+85599999876'});
+ await kyc.initialize(A,a.session.customerId,false);
+ const preview=await cleanup.customerCleanup({action:'preview',phone});assert.equal(preview.records.length,2);
+ user=reviewer1;await assert.rejects(cleanup.customerCleanup({action:'clear',phone,version:preview.version,confirm:true}),/平台管理员/);user=owner;
+ await assert.rejects(cleanup.customerCleanup({action:'clear',phone,version:'stale',confirm:true}));
+ assert.equal((await cleanup.customerCleanup({action:'clear',phone,version:preview.version,confirm:true})).cleared,2);
+ assert.equal(await auth.getSession(runtime,A,a.token),null);assert.equal(await auth.getSession(runtime,'owner',b.token),null);assert(await auth.getSession(runtime,A,other.token));assert.equal(await kyc.findCase(A,a.session.customerId),null);
+ assert.equal((await cleanup.customerCleanup({action:'preview',phone})).records.length,0);
+});
