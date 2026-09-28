@@ -6,7 +6,7 @@ import {businessBot,type State,type Bot} from '@/lib/domain';
 export function BusinessBots({state,tenant,busy,post}:{state:State;tenant:string;busy:boolean;post:any}){
  const current=businessBot(state);
  const save=(action:string,values:any={})=>post({action,...values,requestId:crypto.randomUUID()},'/api/state');
- return <section className="panel"><h2>Telegram 业务渠道</h2><p>当前业务机器人：<strong>{current?.label||'未设置'}</strong></p><p>由公司管理员切换，新申请自动使用当前机器人。已有申请保留原渠道；通知仍需客户在对应机器人内同意订阅。</p><div className="bot-grid">{state.bots.map(bot=><Channel key={bot.id} bot={bot} tenant={tenant} current={current?.id} busy={busy} save={save} post={post}/>)}</div><Button variant="outline" disabled={busy||state.bots.length>=10} onClick={()=>void save('bot_add')}>新增机器人</Button></section>
+ return <section className="panel" id="telegram-business-channels"><h2>Telegram 业务渠道</h2><p>当前业务机器人：<strong>{current?.label||'未设置'}</strong></p><p>由公司管理员切换，新申请自动使用当前机器人。已有申请保留原渠道。此处统一管理机器人凭据，业务渠道与还款通知共用，无需重复配置；通知仍需客户在对应机器人内同意订阅。</p><div className="bot-grid">{state.bots.map(bot=><Channel key={bot.id} bot={bot} tenant={tenant} current={current?.id} busy={busy} save={save} post={post}/>)}</div><Button variant="outline" disabled={busy||state.bots.length>=10} onClick={()=>void save('bot_add')}>新增机器人</Button></section>
 }
 function Channel({bot,tenant,current,busy,save,post}:{bot:Bot;tenant:string;current?:string;busy:boolean;save:any;post:any}){
  const [label,setLabel]=useState(bot.label),[username,setUsername]=useState(bot.username),[enabled,setEnabled]=useState(bot.enabled),[phoneVerification,setPhoneVerification]=useState(bot.phoneVerification!==false),[passwordSetup,setPasswordSetup]=useState(bot.passwordSetup!==false);
