@@ -1,0 +1,11 @@
+'use client';
+import {useEffect,useState} from 'react';
+import {Signature} from '@/app/kyc/client';
+import {LoanBill} from '@/components/loan-bill';
+import {Checkbox} from '@/components/ui/checkbox';
+export default function LoanSign(){
+ const [data,setData]=useState<any>(null),[error,setError]=useState(''),[consent,setConsent]=useState(false),[busy,setBusy]=useState(false),[signatureId,setSignatureId]=useState('');
+ useEffect(()=>{const id=new URLSearchParams(location.search).get('loan');fetch('/api/loan/sign?loan='+encodeURIComponent(id||''),{cache:'no-store'}).then(async r=>{const d:any=await r.json();if(!r.ok)throw Error(d.error);setData(d);if(d.loan.contract)setSignatureId(JSON.parse(d.loan.contract).signatureId)}).catch(e=>setError(e.message))},[]);
+ async function save(blob:Blob){setBusy(true);setError('');try{const r=await fetch('/api/loan/sign',{method:'POST',headers:{'Content-Type':blob.type,'X-Loan-Id':data.loan.id,'X-Loan-Consent':String(consent),'X-Loan-Terms':data.termsVersion},body:blob}),d:any=await r.json();if(!r.ok)throw Error(d.error);setSignatureId(d.contract.signatureId)}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
+ return <main className="kyc-shell"><header className="kyc-header"><a href="/h5">返回我的贷款</a></header><section className="panel"><h1>费用确认与借款签约</h1><p>KYC 已审核通过。请核对本笔费用，阅读协议并手写签名，随后提交贷款审批。</p>{error&&<p role="alert" className="error">{error}</p>}{data&&<>{data.loan.billing?<LoanBill bill={data.loan.billing}/>:<p>本金 ${(data.loan.amount/100).toFixed(2)} · 费用 ${(data.loan.fee/100).toFixed(2)}</p>}{!data.loan.billConfirmedAt&&<p className="notice">请先返回我的贷款确认测算费用，再进行签约。</p>}<div className="kyc-agreement-scroll" role="region" aria-label="借款协议全文" tabIndex={0}>{data.blocks.map((b:any,i:number)=>b.type==='heading'||b.type==='title'?<h3 key={i}>{b.text}</h3>:<p key={i}>{b.text}</p>)}</div>{!signatureId&&<label className="check"><Checkbox checked={consent} disabled={busy} onCheckedChange={v=>setConsent(v===true)}/>我已核对费用并阅读、同意本次借款协议（仅测试资金）</label>}<Signature disabled={busy||!consent||!data.loan.billConfirmedAt} readOnly={!!signatureId} savedUrl={signatureId?'/api/kyc/files?id='+encodeURIComponent(signatureId):undefined} onClear={()=>{}} onSave={b=>void save(b)}/>{signatureId&&<div className="success">手写签名与合同已保存。<a href="/h5">返回提交贷款审批 →</a></div>}</>}</section></main>
+}
