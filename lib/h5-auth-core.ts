@@ -34,8 +34,8 @@ async function gateway(r:AuthRuntime,method:string,body:Record<string,unknown>){
  if(!response.ok||!payload?.ok||!payload.result){const code=payload?.error;if(code==='PHONE_NUMBER_INVALID'||code==='PHONE_NUMBER_NOT_FOUND')throw new AuthError('该号码暂不能接收 Telegram 验证码，请核对已注册 Telegram 的手机号');throw new AuthError('验证码服务暂不可用，请稍后重试或联系管理员',503)}
  return payload.result;
 }
-export async function sendCode(r:AuthRuntime,owner:string,browserToken:string,input:{phone?:unknown;consent?:unknown}){
- const c=config(r,true);if(input.consent!==true)throw new AuthError('请先同意接收本次登录验证码');const phone=normalizePhone(input.phone,c.mode);
+export async function sendCode(r:AuthRuntime,owner:string,browserToken:string,input:{phone?:unknown;consent?:unknown},purpose:'login'|'reset'='login'){
+ const c=config(r,true);if(input.consent!==true)throw new AuthError('请先同意接收本次手机号验证码');const phone=normalizePhone(input.phone,c.mode);
  const phoneKey=await customerKey(r,owner,phone),browserHash=await digest(browserToken),t=now(r);
  await limit(r,'send-phone|'+phoneKey,5,3600,RESEND_DELAY);
  await limit(r,'send-browser|'+owner+'|'+browserHash,10,3600,0);
@@ -44,7 +44,7 @@ export async function sendCode(r:AuthRuntime,owner:string,browserToken:string,in
  await r.db.prepare('DELETE FROM h5_sessions WHERE owner=? AND expires_at<?').bind(owner,t).run();
  const id=randomToken(),code=c.mode==='demo'?String(crypto.getRandomValues(new Uint32Array(1))[0]%1000000).padStart(6,'0'):null;
  const codeHash=code?await keyed(c.secret,id+'|'+code):null;
- await r.db.prepare('INSERT INTO h5_challenges (id,owner,phone_key,phone_mask,mode,code_hash,provider_request,browser_hash,created_at,expires_at,attempts,consumed,status,locked_until) VALUES (?,?,?,?,?,?,NULL,?,?,?,0,0,?,0)').bind(id,owner,phoneKey,maskPhone(phone),c.mode,codeHash,browserHash,t,t+AUTH_TTL,'sending').run();
+ await r.db.prepare('INSERT INTO h5_challenges (id,owner,phone_key,phone_mask,mode,code_hash,provider_request,browser_hash,created_at,expires_at,attempts,consumed,status,locked_until,purpose) VALUES (?,?,?,?,?,?,NULL,?,?,?,0,0,?,0,?)').bind(id,owner,phoneKey,maskPhone(phone),c.mode,codeHash,browserHash,t,t+AUTH_TTL,'sending',purpose).run();
  let provider:string|null=null;
  try{if(c.mode==='telegram'){const data=await gateway(r,'sendVerificationMessage',{phone_number:phone,code_length:6,ttl:AUTH_TTL});if(typeof data.request_id!=='string'||!data.request_id||data.phone_number!==phone)throw new AuthError('验证码服务响应无效，请稍后重试',503);provider=data.request_id}
   await r.db.prepare('UPDATE h5_challenges SET status=?,provider_request=? WHERE id=?').bind('ready',provider,id).run();
@@ -52,13 +52,13 @@ export async function sendCode(r:AuthRuntime,owner:string,browserToken:string,in
  }catch(e){await r.db.prepare('UPDATE h5_challenges SET status=?,consumed=1 WHERE id=?').bind('failed',id).run();throw e}
  return {challengeId:id,phoneMasked:maskPhone(phone),expiresAt:(t+AUTH_TTL)*1000,retryAt:(t+RESEND_DELAY)*1000,mode:c.mode,...(code?{demoCode:code}:{}),message:c.mode==='demo'?'模拟验证码已生成，未向 Telegram 发送消息':'验证码请求已提交，请查看 Telegram 的 Verification Codes 会话'};
 }
-export async function pendingChallenge(r:AuthRuntime,owner:string,browserToken:string){config(r);const row=await r.db.prepare('SELECT id,phone_mask,expires_at,created_at FROM h5_challenges WHERE owner=? AND browser_hash=? AND mode=? AND consumed=0 AND status=? AND expires_at>? ORDER BY created_at DESC LIMIT 1').bind(owner,await digest(browserToken),r.config.mode,'ready',now(r)).first<{id:string;phone_mask:string;expires_at:number;created_at:number}>();return row?{challengeId:row.id,phoneMasked:row.phone_mask,expiresAt:row.expires_at*1000,retryAt:(row.created_at+RESEND_DELAY)*1000,mode:r.config.mode}:null}
-export async function verifyCode(r:AuthRuntime,owner:string,browserToken:string,input:{challengeId?:unknown;code?:unknown},expectedCustomerId?:string){
+export async function pendingChallenge(r:AuthRuntime,owner:string,browserToken:string){config(r);const row=await r.db.prepare(`SELECT id,phone_mask,expires_at,created_at FROM h5_challenges WHERE owner=? AND browser_hash=? AND mode=? AND consumed=0 AND status=? AND purpose='login' AND expires_at>? ORDER BY created_at DESC LIMIT 1`).bind(owner,await digest(browserToken),r.config.mode,'ready',now(r)).first<{id:string;phone_mask:string;expires_at:number;created_at:number}>();return row?{challengeId:row.id,phoneMasked:row.phone_mask,expiresAt:row.expires_at*1000,retryAt:(row.created_at+RESEND_DELAY)*1000,mode:r.config.mode}:null}
+async function consumeCode(r:AuthRuntime,owner:string,browserToken:string,input:{challengeId?:unknown;code?:unknown},expectedCustomerId?:string,purpose:'login'|'reset'='login'){
  config(r,true);if(typeof input.challengeId!=='string'||!/^[a-f0-9]{64}$/.test(input.challengeId)||typeof input.code!=='string'||!/^\d{6}$/.test(input.code))throw new AuthError('请输入 6 位数字验证码');
  const id=input.challengeId,t=now(r),browserHash=await digest(browserToken);
  await limit(r,'verify-browser|'+owner+'|'+browserHash,30,600,0);
  await r.db.prepare('UPDATE h5_challenges SET status=? WHERE id=? AND owner=? AND browser_hash=? AND status=? AND locked_until<? AND consumed=0').bind('ready',id,owner,browserHash,'verifying',t).run();
- const row=await r.db.prepare('UPDATE h5_challenges SET attempts=attempts+1,status=?,locked_until=? WHERE id=? AND owner=? AND browser_hash=? AND mode=? AND status=? AND consumed=0 AND expires_at>? AND attempts<? RETURNING *').bind('verifying',t+20,id,owner,browserHash,r.config.mode,'ready',t,MAX_ATTEMPTS).first<Challenge>();
+ const row=await r.db.prepare('UPDATE h5_challenges SET attempts=attempts+1,status=?,locked_until=? WHERE id=? AND owner=? AND browser_hash=? AND mode=? AND purpose=? AND status=? AND consumed=0 AND expires_at>? AND attempts<? RETURNING *').bind('verifying',t+20,id,owner,browserHash,r.config.mode,purpose,'ready',t,MAX_ATTEMPTS).first<Challenge>();
  if(!row)throw new AuthError('验证码已失效、正在核验或尝试次数已用完，请稍后重新获取',409);
  if(expectedCustomerId&&row.phone_key!==expectedCustomerId)throw new AuthError('请验证当前账号注册时填写的手机号',409);
  let valid=false;
@@ -67,19 +67,24 @@ export async function verifyCode(r:AuthRuntime,owner:string,browserToken:string,
  if(!valid){await r.db.prepare('UPDATE h5_challenges SET status=? WHERE id=? AND attempts=? AND consumed=0').bind('ready',id,row.attempts).run();throw new AuthError(row.attempts>=MAX_ATTEMPTS?'尝试次数已用完，请重新获取验证码':'验证码不正确，请重新输入',400)}
  const used=await r.db.prepare('UPDATE h5_challenges SET consumed=1,status=? WHERE id=? AND status=? AND attempts=? AND consumed=0 AND expires_at>?').bind('used',id,'verifying',row.attempts,now(r)).run();
  if(used.meta.changes!==1)throw new AuthError('验证码已失效，请重新获取',409);
+ return row;
+}
+export async function verifyCode(r:AuthRuntime,owner:string,browserToken:string,input:{challengeId?:unknown;code?:unknown},expectedCustomerId?:string){
+ const row=await consumeCode(r,owner,browserToken,input,expectedCustomerId),browserHash=await digest(browserToken);
  // First phone proof replaces any unverified registration's recovery credentials.
- const account=await r.db.prepare('SELECT phone_verified FROM h5_accounts WHERE customer_id=? AND owner=?').bind(row.phone_key,owner).first<{phone_verified:number}>();
- await r.db.prepare('INSERT INTO h5_accounts (customer_id,owner,phone_mask,mode,browser_hash,phone_verified,password_hash,created_at,verification_completed) VALUES (?,?,?,?,?,?,NULL,?,1) ON CONFLICT(customer_id) DO UPDATE SET verification_completed=1,phone_verified=excluded.phone_verified,browser_hash=excluded.browser_hash,password_hash=CASE WHEN h5_accounts.phone_verified=0 THEN NULL ELSE h5_accounts.password_hash END').bind(row.phone_key,owner,row.phone_mask,row.mode,browserHash,row.mode==='telegram'?1:0,now(r)).run();
- if(!account?.phone_verified)await r.db.prepare('DELETE FROM h5_sessions WHERE owner=? AND customer_id=?').bind(owner,row.phone_key).run();
+ const account=await r.db.prepare('SELECT verification_completed FROM h5_accounts WHERE customer_id=? AND owner=?').bind(row.phone_key,owner).first<{verification_completed:number}>();
+ await r.db.prepare('INSERT INTO h5_accounts (customer_id,owner,phone_mask,mode,browser_hash,phone_verified,password_hash,created_at,verification_completed) VALUES (?,?,?,?,?,?,NULL,?,1) ON CONFLICT(customer_id) DO UPDATE SET verification_completed=1,phone_verified=excluded.phone_verified,browser_hash=excluded.browser_hash,password_hash=CASE WHEN h5_accounts.verification_completed=0 THEN NULL ELSE h5_accounts.password_hash END').bind(row.phone_key,owner,row.phone_mask,row.mode,browserHash,row.mode==='telegram'?1:0,now(r)).run();
+ if(!account?.verification_completed)await r.db.prepare('DELETE FROM h5_sessions WHERE owner=? AND customer_id=?').bind(owner,row.phone_key).run();
+ const generation=await r.db.prepare('SELECT credential_version FROM h5_accounts WHERE customer_id=? AND owner=?').bind(row.phone_key,owner).first<{credential_version:number}>();
  const token=randomToken(),expiresAt=now(r)+SESSION_TTL;
- await r.db.prepare('INSERT INTO h5_sessions (token_hash,owner,customer_id,phone_mask,mode,expires_at) VALUES (?,?,?,?,?,?)').bind(await digest(token),owner,row.phone_key,row.phone_mask,row.mode,expiresAt).run();
+ await r.db.prepare('INSERT INTO h5_sessions (token_hash,owner,customer_id,phone_mask,mode,expires_at,credential_version) VALUES (?,?,?,?,?,?,?)').bind(await digest(token),owner,row.phone_key,row.phone_mask,row.mode,expiresAt,generation?.credential_version||0).run();
  return {token,session:{customerId:row.phone_key,phoneMasked:row.phone_mask,mode:row.mode,expiresAt:expiresAt*1000,phoneVerified:row.mode==='telegram',verificationCompleted:true,hasPassword:!!(await r.db.prepare('SELECT password_hash FROM h5_accounts WHERE customer_id=? AND owner=?').bind(row.phone_key,owner).first<{password_hash:string|null}>())?.password_hash} satisfies CustomerSession};
 }
-export async function getSession(r:AuthRuntime,owner:string,token:string|undefined):Promise<CustomerSession|null>{config(r);if(!token||!/^[a-f0-9]{64}$/.test(token))return null;const row=await r.db.prepare('SELECT s.customer_id,s.phone_mask,s.mode,s.expires_at,a.phone_verified,a.verification_completed,a.password_hash FROM h5_sessions s LEFT JOIN h5_accounts a ON a.customer_id=s.customer_id AND a.owner=s.owner WHERE s.token_hash=? AND s.owner=? AND s.mode=? AND s.expires_at>?').bind(await digest(token),owner,r.config.mode,now(r)).first<any>();return row?{customerId:row.customer_id,phoneMasked:row.phone_mask,mode:row.mode,expiresAt:row.expires_at*1000,phoneVerified:row.phone_verified==null?row.mode==='telegram':!!row.phone_verified,verificationCompleted:row.verification_completed==null?true:!!row.verification_completed,hasPassword:!!row.password_hash}:null}
+export async function getSession(r:AuthRuntime,owner:string,token:string|undefined):Promise<CustomerSession|null>{config(r);if(!token||!/^[a-f0-9]{64}$/.test(token))return null;const row=await r.db.prepare('SELECT s.customer_id,s.phone_mask,s.mode,s.expires_at,a.phone_verified,a.verification_completed,a.password_hash FROM h5_sessions s LEFT JOIN h5_accounts a ON a.customer_id=s.customer_id AND a.owner=s.owner WHERE s.token_hash=? AND s.owner=? AND s.mode=? AND s.expires_at>? AND s.credential_version=COALESCE(a.credential_version,0)').bind(await digest(token),owner,r.config.mode,now(r)).first<any>();return row?{customerId:row.customer_id,phoneMasked:row.phone_mask,mode:row.mode,expiresAt:row.expires_at*1000,phoneVerified:row.phone_verified==null?row.mode==='telegram':!!row.phone_verified,verificationCompleted:row.verification_completed==null?true:!!row.verification_completed,hasPassword:!!row.password_hash}:null}
 export async function revokeSession(r:AuthRuntime,owner:string,token:string|undefined){if(token)await r.db.prepare('DELETE FROM h5_sessions WHERE token_hash=? AND owner=?').bind(await digest(token),owner).run()}
 
-type Account={customer_id:string;owner:string;phone_mask:string;mode:AuthMode;browser_hash:string|null;phone_verified:number;verification_completed:number;password_hash:string|null};
-async function issueAccountSession(r:AuthRuntime,a:Account){const token=randomToken(),expires=now(r)+SESSION_TTL;await r.db.prepare('INSERT INTO h5_sessions (token_hash,owner,customer_id,phone_mask,mode,expires_at) VALUES (?,?,?,?,?,?)').bind(await digest(token),a.owner,a.customer_id,a.phone_mask,a.mode,expires).run();return {token,session:{customerId:a.customer_id,phoneMasked:a.phone_mask,mode:a.mode,expiresAt:expires*1000,phoneVerified:!!a.phone_verified,verificationCompleted:!!a.verification_completed,hasPassword:!!a.password_hash} satisfies CustomerSession}}
+type Account={credential_version:number;customer_id:string;owner:string;phone_mask:string;mode:AuthMode;browser_hash:string|null;phone_verified:number;verification_completed:number;password_hash:string|null};
+async function issueAccountSession(r:AuthRuntime,a:Account){const token=randomToken(),expires=now(r)+SESSION_TTL;await r.db.prepare('INSERT INTO h5_sessions (token_hash,owner,customer_id,phone_mask,mode,expires_at,credential_version) VALUES (?,?,?,?,?,?,?)').bind(await digest(token),a.owner,a.customer_id,a.phone_mask,a.mode,expires,a.credential_version).run();return {token,session:{customerId:a.customer_id,phoneMasked:a.phone_mask,mode:a.mode,expiresAt:expires*1000,phoneVerified:!!a.phone_verified,verificationCompleted:!!a.verification_completed,hasPassword:!!a.password_hash} satisfies CustomerSession}}
 export async function registerPhone(r:AuthRuntime,owner:string,browserToken:string,input:{phone?:unknown},channelId?:string){
  config(r);const phone=normalizePhone(input.phone,'telegram'),id=await customerKey(r,owner,phone),browserHash=await digest(browserToken);
  await limit(r,'register-browser|'+owner+'|'+browserHash,10,3600,1);await limit(r,'register-owner|'+owner,60,3600,0);
@@ -114,3 +119,17 @@ export async function setPassword(r:AuthRuntime,owner:string,token:string|undefi
  return {ok:true};
 }
 export async function forgetBrowser(r:AuthRuntime,owner:string,browserToken:string){await r.db.prepare('UPDATE h5_accounts SET browser_hash=NULL WHERE owner=? AND browser_hash=?').bind(owner,await digest(browserToken)).run()}
+
+export async function resetPassword(r:AuthRuntime,owner:string,browserToken:string,input:{challengeId?:unknown;code?:unknown;password?:unknown;confirmPassword?:unknown}){
+ config(r,true);
+ if(typeof input.password!=='string'||input.password.length<12||input.password.length>128)throw new AuthError('新密码需为 12–128 个字符');
+ if(input.password!==input.confirmPassword)throw new AuthError('两次输入的新密码不一致');
+ await limit(r,'reset-browser|'+owner+'|'+await digest(browserToken),10,900,0);
+ // Verification grants only this one reset operation, never a general customer session.
+ const row=await consumeCode(r,owner,browserToken,input,undefined,'reset');
+ const account=await r.db.prepare('SELECT credential_version FROM h5_accounts WHERE customer_id=? AND owner=?').bind(row.phone_key,owner).first<{credential_version:number}>();if(!account)throw new AuthError('当前公司下未找到此手机号账号，请返回注册',404);
+ const salt=randomToken(),hash=salt+':'+await passwordHash(input.password,salt);
+ const changed=await r.db.prepare('UPDATE h5_accounts SET password_hash=?,credential_version=credential_version+1,browser_hash=NULL,verification_completed=1,phone_verified=? WHERE customer_id=? AND owner=? AND mode=? AND credential_version=?').bind(hash,row.mode==='telegram'?1:0,row.phone_key,owner,row.mode,account.credential_version).run();
+ if(!changed.meta.changes)throw new AuthError('账号已被更新，请重新获取验证码',409);
+ return {ok:true,message:'密码已重置，旧登录会话已失效，请使用新密码登录'};
+}
