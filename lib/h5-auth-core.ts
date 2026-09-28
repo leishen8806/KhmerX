@@ -17,7 +17,6 @@ export function normalizePhone(value:unknown,mode:AuthMode){
  if(typeof value!=='string'||value.length>32)throw new AuthError('请输入带国家区号的手机号');
  const phone=value.replace(/[\s()-]/g,'');
  if(!/^\+[1-9]\d{7,14}$/.test(phone))throw new AuthError('手机号须包含 + 和国家区号，例如 +855…');
- if(mode==='demo'&&!/^\+120255501\d{2}$/.test(phone))throw new AuthError('测试模式仅接受 +12025550100 至 +12025550199 的预留号码');
  return phone;
 }
 const maskPhone=(phone:string)=>phone.slice(0,4)+' •••• '+phone.slice(-4);
