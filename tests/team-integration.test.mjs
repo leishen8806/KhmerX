@@ -180,7 +180,7 @@ test('company bot Token: verified metadata, encrypted isolation, rotation and pe
 });
 
 test('assignment workspace exposes scoped KYC metadata without identity documents or cross-company cases',async()=>{
- selected=A;user=owner;const all=await flow.scopedState();assert(all.kycOrders.length>0);for(const k of all.kycOrders)assert.deepEqual(Object.keys(k).sort(),['customer_id','id','revision','status','updated_at']);
+ selected=A;user=owner;const all=await flow.scopedState();assert(all.kycOrders.length>0);for(const k of all.kycOrders)assert.deepEqual(Object.keys(k).sort(),['customer_id','id','phone_mask','registered_at','revision','status','updated_at']);
  selected=B;const other=await flow.scopedState();assert(!other.kycOrders.some(k=>all.kycOrders.some(a=>a.id===k.id)));
  selected=A;user=reviewer1;const assigned=await flow.scopedState();const member=await team.staff();for(const k of assigned.kycOrders)assert.equal((await team.assignment(A,k.customer_id)).reviewer_id,member.member.id);
  user=owner;
@@ -231,4 +231,23 @@ test('Admin confirms KYC with complete checks and audit trail, but cannot amend 
  const result=await kyc.decide(req(p));assert.equal(result.status,'approved');
  const stored=await kyc.payload(await kyc.findCase(A,'customer-1'));assert.equal(stored.review.actor,owner.userId);
  await assert.rejects(kyc.decide(req(p)),/资料已更新/);
+});
+
+test('registered account keeps the same KYC and linked orders across sessions and isolates other users',async()=>{
+ const auth=await mod('@/lib/h5-auth-core'),f=await mod('@/lib/kyc/followups');
+ selected=A;user=owner;const runtime={db:DB,config:{mode:'demo',secret:env.PAYEASE_AUTH_SECRET}},phone='+12025550991',browser='9'.repeat(64);
+ const first=await auth.registerPhone(runtime,A,browser,{phone});
+ const row=await kyc.initialize(A,first.session.customerId,false);
+ runtime.now=()=>Date.now()+61000;
+ const again=await auth.registerPhone(runtime,A,browser,{phone});
+ assert.equal(first.session.customerId,again.session.customerId);
+ assert.equal((await kyc.initialize(A,again.session.customerId,false)).id,row.id);
+ runtime.now=()=>Date.now()+122000;
+ const other=await auth.registerPhone(runtime,A,browser,{phone:'+12025550992'});
+ assert.notEqual(other.session.customerId,first.session.customerId);
+ const data=await f.kycFollowups(row.id);assert.equal(data.account.phone_mask,first.session.phoneMasked);assert.equal(data.loans.length,0);
+ const existing=await kyc.findCase(A,'customer-1'),linked=await f.kycFollowups(existing.id);
+ assert(linked.loans.some(l=>l.id===loanId));assert(!data.loans.some(l=>l.id===loanId));
+ await assert.rejects(store.mutate(A,{action:'repay',loanId,amount:1,requestId:crypto.randomUUID()},{id:other.session.customerId,phoneMasked:other.session.phoneMasked}));
+ selected=B;await assert.rejects(f.kycFollowups(row.id));selected=A;
 });

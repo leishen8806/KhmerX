@@ -1,3 +1,4 @@
+import {readState} from '@/lib/store';
 import {staff,db,assignment} from '@/lib/team/server';
 import {canSee} from '@/lib/team/policy';
 import {AuthError} from '@/lib/h5-auth-core';
@@ -17,5 +18,7 @@ export async function kycFollowups(id:string,p?:any){
   if(!result.meta.changes&&!await db().prepare('SELECT id FROM team_audit WHERE id=?').bind('kyc-followup:'+s.tenant.id+':'+id+':'+s.member.id+':'+p.requestId).first())throw new AuthError('权限或分单已变化，请刷新后重试',409);
  }
  const rows=(await db().prepare("SELECT id,actor,detail,created_at FROM team_audit WHERE tenant_id=? AND action='kyc_followup' AND json_extract(detail,'$.caseId')=? ORDER BY created_at DESC,id DESC LIMIT 100").bind(s.tenant.id,id).all<any>()).results;
- return {order:k,canNote,canReview:s.member.role==='admin'||(s.member.role==='kyc'&&a?.reviewer_id===s.member.id),records:rows.map(({detail,...r}:any)=>({...r,...JSON.parse(detail)}))};
+ const account=await db().prepare('SELECT phone_mask,created_at FROM h5_accounts WHERE owner=? AND customer_id=?').bind(s.tenant.id,k.customer_id).first();
+ const loans=(await readState(s.tenant.id)).state.loans.filter(l=>l.customerId===k.customer_id).map(l=>({id:l.id,status:l.status,kycCaseId:l.kycCaseId}));
+ return {order:k,account,loans,canNote,canReview:s.member.role==='admin'||(s.member.role==='kyc'&&a?.reviewer_id===s.member.id),records:rows.map(({detail,...r}:any)=>({...r,...JSON.parse(detail)}))};
 }
