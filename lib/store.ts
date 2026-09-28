@@ -18,7 +18,7 @@ export async function mutate(owner:string,p:any,customer?:{id:string;phoneMasked
   if(customer&&p.action!=='create'&&loan?.customerId!==customer.id)throw new KycError('申请不存在或不属于当前客户',404);
   let approvedCase;
   if(loan?.customerId){
-   if(!customer&&['confirm_kyc','submit_kyc','resubmit','apply','sign','withdraw','repay'].includes(p.action))throw new KycError('请由客户在 H5 会话操作',403);
+   if(!customer&&['confirm_bill','confirm_kyc','submit_kyc','resubmit','apply','sign','withdraw','repay'].includes(p.action))throw new KycError('请由客户在 H5 会话操作',403);
    if(['review','supplement'].includes(p.action))throw new KycError('请在 KYC 人工审核页面逐项核对资料',409);
    if(['approve','reject','disburse'].includes(p.action))await reviewer();
    if(['confirm_kyc','submit_kyc','resubmit','apply','approve','sign','disburse'].includes(p.action)){
@@ -27,7 +27,15 @@ export async function mutate(owner:string,p:any,customer?:{id:string;phoneMasked
     if(loan.kycCaseId&&(loan.kycCaseId!==approvedCase.id||loan.kycRevision!==approvedCase.revision))throw new KycError('审核资料版本已变化，请联系审核人员',409);
    }
   }
+  let confirmedContract;
+  if(customer&&p.action==='apply'){
+   const data=approvedCase?await payload(approvedCase):null,contract=data?.signedLoan;
+   if(!loan?.billConfirmedAt||!data?.profile.consent||!contract||contract.loanId!==loan.id||contract.principal!==loan.amount||contract.fee!==loan.fee||contract.signatureId!==data.profile.files.signature?.id||(loan.billing&&contract.billing?.quoteId!==loan.billing.quoteId))throw new KycError('请先确认费用并完成本笔申请的手写签约，再提交贷款审批',409);
+   confirmedContract=contract;
+  }
   const next=customer?customerAction(state,p,customer):applyAction(state,p);
+  if(confirmedContract){const target=next.loans.find(l=>l.id===p.loanId)!;target.signedAt=confirmedContract.signedAt;target.signature='已保存的手写签名';target.contract=JSON.stringify({...confirmedContract,notice:'仅测试资金，待机构审批，不产生真实债务'});target.note='费用已确认、合同已签署，等待贷款审批';}
+
   if(next===state)return {state,revision};if(p.action==='create'&&owner.startsWith('t_')){const termDays=p.termDays??14;if(![14,28].includes(termDays))throw new KycError('请选择 14 天或 28 天贷款期限');const bill=calculateBill(next.loans[0].amount,{...await pricingFor(owner),termDays},crypto.randomUUID());next.loans[0].billing=bill;next.loans[0].fee=bill.total-bill.principal;}if(customer)await ensureAssignment(owner,customer.id);
   if(approvedCase){
    const updated=next.loans.find(l=>l.id===p.loanId)!;

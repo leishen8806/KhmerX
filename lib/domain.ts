@@ -11,7 +11,7 @@ export type State={activeBotId?:string;postloan?:Postloan;loans:Loan[];bots:Bot[
 export function businessBot(s:State){return s.activeBotId?s.bots.find(b=>b.id===s.activeBotId&&b.enabled):s.bots.find(b=>b.enabled)}
 export const statusNames:Record<Status,string>={registered:'已注册 · 待 KYC',kyc_pending:'待资料审核',needs_info:'待补件',kyc_approved:'资料通过',decision_pending:'待机构审批',approved:'待签约',rejected:'申请未通过',signed:'待放款',active:'还款中',closed:'已结清'};
 export const initialState=():State=>({loans:[],bots:[{id:'bot-1',label:'PayEase 主机器人',username:'',enabled:true,envKey:'TELEGRAM_BOT_TOKEN_1'},{id:'bot-2',label:'PayEase 第二机器人',username:'',enabled:true,envKey:'TELEGRAM_BOT_TOKEN_2'}],events:[],entries:[],notifications:[],requests:[]});
-export const roles:Record<string,Role>={create:'mini',confirm_kyc:'mini',submit_kyc:'mini',resubmit:'mini',apply:'mini',sign:'mini',withdraw:'mini',repay:'mini',review:'ops',supplement:'ops',approve:'lender',reject:'lender',disburse:'lender',overdue:'ops',bot_save:'ops',bot_add:'ops',bot_switch:'ops'};
+export const roles:Record<string,Role>={create:'mini',confirm_bill:'mini',confirm_kyc:'mini',submit_kyc:'mini',resubmit:'mini',apply:'mini',sign:'mini',withdraw:'mini',repay:'mini',review:'ops',supplement:'ops',approve:'lender',reject:'lender',disburse:'lender',overdue:'ops',bot_save:'ops',bot_add:'ops',bot_switch:'ops'};
 export function applyAction(input:State,p:any,now=new Date().toISOString()):State{
  if(!p||typeof p!=='object'||!roles[p.action]||roles[p.action]!==p.role)throw Error('此操作不属于当前演示角色');
  if(typeof p.requestId!=='string'||p.requestId.length<8||p.requestId.length>100)throw Error('请求编号无效');
@@ -49,12 +49,13 @@ export function applyAction(input:State,p:any,now=new Date().toISOString()):Stat
   const note=text(p.note);
   const journal=(kind:string,cents:number,debit:string,credit:string)=>s.entries.push({id:id(),loanId:l.id,kind,cents,debit,credit,at:now});
   switch(p.action){
+   case 'confirm_bill':needs(['registered','needs_info','kyc_pending','kyc_approved']);if(p.billConfirmed!==true||(l.billing&&p.quoteId!==l.billing.quoteId))throw Error('请核对并确认当前费用账单');l.billConfirmedAt=l.billConfirmedAt||now;l.note='费用已确认，请完善资料并手写签约后送审';break;
    case 'confirm_kyc':needs(['registered','kyc_pending','needs_info']);if(!l.customerId)throw Error('仅适用于 H5 客户');l.status='kyc_pending';l.note='等待确认人工审核结果';break;
    case 'submit_kyc':needs(['registered']);if(p.consent!==true)throw Error('请确认测试 KYC 资料授权');l.status='kyc_pending';l.note='测试 KYC 已提交审核';break;
    case 'review':needs(['kyc_pending']);l.status='kyc_approved';l.note='资料审核通过，可以申请贷款';break;
    case 'supplement':needs(['kyc_pending']);if(!note)throw Error('请填写补件原因');l.status='needs_info';l.note=note;break;
    case 'resubmit':needs(['needs_info']);l.status='kyc_pending';l.note='测试补充材料已提交';break;
-   case 'apply':needs(['kyc_approved']);if(l.billing&&(p.billConfirmed!==true||p.quoteId!==l.billing.quoteId))throw Error('请核对并确认当前结算账单后提交');if(l.billing)l.billConfirmedAt=now;l.status='decision_pending';l.note='申请已送交测试机构';break;
+   case 'apply':needs(['kyc_approved']);if(l.billing&&(p.billConfirmed!==true||p.quoteId!==l.billing.quoteId))throw Error('请核对并确认当前结算账单后提交');if(l.billing)l.billConfirmedAt=l.billConfirmedAt||now;l.status='decision_pending';l.note='申请已送交测试机构';break;
    case 'approve':needs(['decision_pending']);l.status='approved';l.note='机构已批准，等待用户确认费用与签约';break;
    case 'reject':needs(['decision_pending']);if(!note)throw Error('请填写拒绝原因');l.status='rejected';l.note=note;break;
    case 'sign':needs(['approved']);if(p.consent!==true||text(p.signature,50).length<2)throw Error('请确认协议并输入测试签名');
