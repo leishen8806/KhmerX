@@ -19,7 +19,7 @@ export async function configureBot(p:any){
  if(!/^[0-9]{5,20}:[A-Za-z0-9_-]{20,100}$/.test(token))throw new AuthError('请填写有效的 BotFather Bot Token');
  let me:any;
  // getMe takes no parameters. GET avoids empty-POST framing differences on Workers.
- let response:Response;try{response=await fetch('https://api.telegram.org/bot'+token+'/getMe',{method:'GET',redirect:'error',signal:AbortSignal.timeout(15000)})}catch(error){const message=String(error instanceof Error?error.message:'unknown').replaceAll(token,'[redacted]').replace(/https?:\/\/[^\s]+/g,'[url]').slice(0,240);console.error('telegram_getme_connection',message);throw new AuthError('Telegram 校验失败：服务连接失败，请稍后重试',502)}
+ let response:Response;try{response=await fetch('https://api.telegram.org/bot'+token+'/getMe',{method:'GET',redirect:'manual',signal:AbortSignal.timeout(15000)})}catch(error){const message=String(error instanceof Error?error.message:'unknown').replaceAll(token,'[redacted]').replace(/https?:\/\/[^\s]+/g,'[url]').slice(0,240);console.error('telegram_getme_connection',message);throw new AuthError('Telegram 校验失败：服务连接失败，请稍后重试',502)}
  if(!response.ok){const status=response.status;if(status===401||status===404)throw new AuthError('Telegram 拒绝此 Token，请确认是否已撤销或输入有误',400);throw new AuthError('Telegram 校验服务返回 HTTP '+status+'，请稍后重试',502)}
  let body:any;try{body=await response.json()}catch{throw new AuthError('Telegram 校验服务返回异常格式，请稍后重试',502)}
  if(body?.ok!==true)throw new AuthError('Telegram 校验未通过，请检查机器人配置',400);me=body.result;

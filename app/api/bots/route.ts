@@ -13,7 +13,7 @@ export async function POST(request:Request){
   if(!bot)throw Error('机器人未启用');const token=company?await channelToken(company.id,bot.id):(env as unknown as Record<string,string>)[bot.envKey];
   if(!token)return Response.json({connected:false,message:company?'请由公司管理员在业务渠道中配置 Token':'请在部署环境中配置机器人 Token'});
   if(p.initData){if(p.initData.length>10000)throw Error('认证数据过长');return Response.json({connected:true,user:await validateInitData(p.initData,token)})}
-  const r=await fetch('https://api.telegram.org/bot'+token+'/getMe',{method:'GET',redirect:'error',signal:AbortSignal.timeout(15000)});const v=await r.json() as any;
+  const r=await fetch('https://api.telegram.org/bot'+token+'/getMe',{method:'GET',redirect:'manual',signal:AbortSignal.timeout(15000)});const v=await r.json() as any;
   if(!v.ok||!v.result?.is_bot)throw Error('Telegram 凭据验证失败');
   if(bot.username&&bot.username.toLowerCase()!==v.result.username.toLowerCase())throw Error('凭据与配置的机器人用户名不匹配');
   return Response.json({connected:true,username:v.result.username,message:'已验证 @'+v.result.username+'，资金仍为测试模式'});
