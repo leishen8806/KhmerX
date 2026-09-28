@@ -42,7 +42,7 @@ export async function sendCode(r:AuthRuntime,owner:string,browserToken:string,in
  await limit(r,'send-owner|'+owner,30,3600,0);
  await r.db.prepare('DELETE FROM h5_challenges WHERE owner=? AND expires_at<?').bind(owner,t-86400).run();
  await r.db.prepare('DELETE FROM h5_sessions WHERE owner=? AND expires_at<?').bind(owner,t).run();
- const id=randomToken(),code=c.mode==='demo'?String(crypto.getRandomValues(new Uint32Array(1))[0]%1000000).padStart(6,'0'):null;
+ const id=randomToken(),code=c.mode==='demo'?'123456':null;
  const codeHash=code?await keyed(c.secret,id+'|'+code):null;
  await r.db.prepare('INSERT INTO h5_challenges (id,owner,phone_key,phone_mask,mode,code_hash,provider_request,browser_hash,created_at,expires_at,attempts,consumed,status,locked_until,purpose) VALUES (?,?,?,?,?,?,NULL,?,?,?,0,0,?,0,?)').bind(id,owner,phoneKey,maskPhone(phone),c.mode,codeHash,browserHash,t,t+AUTH_TTL,'sending',purpose).run();
  let provider:string|null=null;

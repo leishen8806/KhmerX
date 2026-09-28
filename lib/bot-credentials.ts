@@ -17,7 +17,12 @@ export async function configureBot(p:any){
  const old=await db().prepare('SELECT telegram_id,version FROM telegram_bot_credentials WHERE owner=? AND bot_id=?').bind(owner,botId).first<{telegram_id:string;version:number}>();
  const token=typeof p.token==='string'?p.token.trim():'';
  if(!/^[0-9]{5,20}:[A-Za-z0-9_-]{20,100}$/.test(token))throw new AuthError('请填写有效的 BotFather Bot Token');
- let me:any;try{const response=await fetch('https://api.telegram.org/bot'+token+'/getMe',{method:'POST',redirect:'error',signal:AbortSignal.timeout(8000)});const body:any=await response.json();if(!response.ok||!body.ok)throw Error();me=body.result}catch{throw new AuthError('Telegram 校验失败，请检查 Token 或稍后重试',400)}
+ let me:any;
+ // getMe takes no parameters. GET avoids empty-POST framing differences on Workers.
+ let response:Response;try{response=await fetch('https://api.telegram.org/bot'+token+'/getMe',{method:'GET',redirect:'error',signal:AbortSignal.timeout(15000)})}catch{throw new AuthError('Telegram 校验失败：服务连接失败，请稍后重试',502)}
+ if(!response.ok){const status=response.status;if(status===401||status===404)throw new AuthError('Telegram 拒绝此 Token，请确认是否已撤销或输入有误',400);throw new AuthError('Telegram 校验服务返回 HTTP '+status+'，请稍后重试',502)}
+ let body:any;try{body=await response.json()}catch{throw new AuthError('Telegram 校验服务返回异常格式，请稍后重试',502)}
+ if(body?.ok!==true)throw new AuthError('Telegram 校验未通过，请检查机器人配置',400);me=body.result;
  if(me?.is_bot!==true||!Number.isSafeInteger(me.id)||me.id<=0||!me.first_name||typeof me.first_name!=='string'||typeof me.username!=='string'||!/^[a-zA-Z0-9_]{5,32}$/.test(me.username))throw new AuthError('Telegram 返回的机器人资料无效');
  const telegramId=String(me.id),legacy=(env as unknown as Record<string,string>)[tokenKey(owner,botId)];if(!old&&legacy&&legacy.split(':')[0]!==telegramId)throw new AuthError('此渠道已有机器人凭据，请为不同机器人新增渠道',409);if(token.split(':')[0]!==telegramId)throw new AuthError('机器人身份校验失败');
  if(old&&old.telegram_id!==telegramId)throw new AuthError('此渠道已绑定其他机器人，请新增渠道；原客户订阅和贷款渠道保持不变',409);
