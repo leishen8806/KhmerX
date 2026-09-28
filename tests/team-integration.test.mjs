@@ -166,7 +166,7 @@ test('company bot Token: verified metadata, encrypted isolation, rotation and pe
  const result=await bots.configureBot({botId:'bot-1',token});assert.equal(result.username,'synthetic_bot');assert(!JSON.stringify(result).includes(token));
  assert.equal(await bots.channelToken(A,'bot-1'),token);assert.equal(await bots.channelToken(B,'bot-1'),'');
  const stored=sql.prepare('SELECT * FROM telegram_bot_credentials WHERE owner=?').get(A);assert(!JSON.stringify(stored).includes(token));
- const state=(await store.readState(A)).state;assert.equal(state.bots[0].label,'Synthetic bot');assert.equal(state.bots[0].tokenConfigured,true);assert(!JSON.stringify(state).includes(token));
+ const state=(await store.readState(A)).state;assert.equal(state.bots[0].label,'Synthetic bot');assert.equal(state.bots[0].tokenConfigured,true);assert.equal((await flow.scopedState()).state.bots[0].username,'synthetic_bot');assert(!JSON.stringify(state).includes(token));
  assert(!JSON.stringify(sql.prepare('SELECT * FROM team_audit').all()).includes(token));
  user=reviewer1;await assert.rejects(bots.configureBot({botId:'bot-1',token}),/管理员/);
  selected=B;user=owner;await assert.rejects(bots.configureBot({botId:'bot-1',token}),/其他业务渠道/);
