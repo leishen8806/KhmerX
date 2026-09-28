@@ -205,3 +205,16 @@ test('KYC followups preserve review status, are idempotent and scoped by company
  await assert.rejects(f.kycFollowups(row.id,{...p,note:'',requestId:crypto.randomUUID()}));
  selected=B;await assert.rejects(f.kycFollowups(row.id));selected=A;user=reviewer2;await assert.rejects(f.kycFollowups(row.id));user={userId:'correct',email:'pending@example.test'};assert.equal((await f.kycFollowups(row.id)).records.length,1);await assert.rejects(f.kycFollowups(row.id,{...p,requestId:crypto.randomUUID()}),/只可查看/);user=owner;
 });
+
+test('completed followup exposes review capability only to assigned reviewer and never approves automatically',async()=>{
+ const f=await mod('@/lib/kyc/followups');selected=A;user=owner;
+ const row=await kyc.findCase(A,'customer-1');
+ const saved=await f.kycFollowups(row.id,{status:'resolved',note:'Synthetic followup complete',requestId:crypto.randomUUID()});
+ assert.equal(saved.canReview,false);assert.equal(saved.order.status,row.status);
+ const reviewer=await member(A,'kyc','followup-reviewer@example.test',dept);
+ const m=await team.staff();
+ sql.prepare('UPDATE team_assignments SET reviewer_id=? WHERE tenant_id=? AND customer_id=?').run(m.member.id,A,row.customer_id);
+ assert.equal((await f.kycFollowups(row.id)).canReview,true);
+ user={userId:'correct',email:'pending@example.test'};assert.equal((await f.kycFollowups(row.id)).canReview,false);
+ user=owner;assert.equal((await kyc.findCase(A,row.customer_id)).status,row.status);
+});
