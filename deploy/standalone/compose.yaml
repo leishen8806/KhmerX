@@ -1,0 +1,14 @@
+services:
+  payease:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:4300:4300"
+    volumes:
+      - /opt/payease/data:/data
+    mem_limit: 768m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
