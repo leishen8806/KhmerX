@@ -119,6 +119,8 @@ body:has(.mini-app) .test-flow-toolbar,body:has(.mini-login) .test-flow-toolbar{
 .customer-kyc .kyc-step-label{display:inline-flex;align-items:center;gap:4px}
 .required-star{color:#e5484d;font-style:normal;font-weight:700}
 .mini-app .kyc-next-button{width:100%;min-height:48px}
+.kyc-section-title{display:flex;align-items:center;gap:8px}
+.kyc-section-title svg{color:#2f72e6;flex:0 0 auto}
 .mini-bottom{background:#f4f7ff}
 .mini-bottom a[aria-current=page]{background:transparent!important;border-radius:0}
 .mini-language-flag{display:block;width:18px;height:12px;object-fit:cover;border-radius:1px}
