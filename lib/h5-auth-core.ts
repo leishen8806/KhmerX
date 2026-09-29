@@ -84,14 +84,15 @@ export async function revokeSession(r:AuthRuntime,owner:string,token:string|unde
 
 type Account={credential_version:number;customer_id:string;owner:string;phone_mask:string;mode:AuthMode;browser_hash:string|null;phone_verified:number;verification_completed:number;password_hash:string|null};
 async function issueAccountSession(r:AuthRuntime,a:Account){const token=randomToken(),expires=now(r)+SESSION_TTL;await r.db.prepare('INSERT INTO h5_sessions (token_hash,owner,customer_id,phone_mask,mode,expires_at,credential_version) VALUES (?,?,?,?,?,?,?)').bind(await digest(token),a.owner,a.customer_id,a.phone_mask,a.mode,expires,a.credential_version).run();return {token,session:{customerId:a.customer_id,phoneMasked:a.phone_mask,mode:a.mode,expiresAt:expires*1000,phoneVerified:!!a.phone_verified,verificationCompleted:!!a.verification_completed,hasPassword:!!a.password_hash} satisfies CustomerSession}}
-export async function registerPhone(r:AuthRuntime,owner:string,browserToken:string,input:{phone?:unknown},channelId?:string){
+export async function registerPhone(r:AuthRuntime,owner:string,browserToken:string,input:{phone?:unknown},channelId?:string,allowPhoneOnly=false){
  config(r);const phone=normalizePhone(input.phone,'telegram'),id=await customerKey(r,owner,phone),browserHash=await digest(browserToken);
  await limit(r,'register-browser|'+owner+'|'+browserHash,10,3600,1);await limit(r,'register-owner|'+owner,60,3600,0);
  // Preserve legacy accounts: entering a number never grants access to their stored records.
  await r.db.prepare(`INSERT OR IGNORE INTO h5_accounts (customer_id,owner,phone_mask,mode,browser_hash,phone_verified,password_hash,created_at,channel_id)
  SELECT ?,?,?,?,?,0,NULL,?,? WHERE NOT EXISTS(SELECT 1 FROM h5_sessions WHERE owner=? AND customer_id=?) AND NOT EXISTS(SELECT 1 FROM kyc_cases WHERE owner=? AND customer_id=?) AND NOT EXISTS(SELECT 1 FROM team_assignments WHERE tenant_id=? AND customer_id=?) AND NOT EXISTS(SELECT 1 FROM demo_workspaces w,json_each(w.payload,'$.loans') l WHERE w.owner=? AND json_extract(l.value,'$.customerId')=?)`).bind(id,owner,maskPhone(phone),r.config.mode,browserHash,now(r),channelId||null,owner,id,owner,id,owner,id,owner,id).run();
  const a=await r.db.prepare('SELECT * FROM h5_accounts WHERE customer_id=? AND owner=?').bind(id,owner).first<Account>();
- if(!a||a.browser_hash!==browserHash)throw new AuthError('请使用验证码或密码登录；无法仅凭手机号进入已有账号',409);
+ if(!a)throw new AuthError('账号创建失败，请稍后重试',409);
+ if(a.browser_hash!==browserHash&&!allowPhoneOnly)throw new AuthError('请使用验证码或密码登录；无法仅凭手机号进入已有账号',409);
  return issueAccountSession(r,a);
 }
 async function passwordHash(password:string,salt:string){const key=await crypto.subtle.importKey('raw',encoder.encode(password),'PBKDF2',false,['deriveBits']);return Array.from(new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',salt:encoder.encode(salt),iterations:100000,hash:'SHA-256'},key,256)),x=>x.toString(16).padStart(2,'0')).join('')}

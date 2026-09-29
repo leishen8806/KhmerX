@@ -8,8 +8,8 @@ export const metadata: Metadata = {
     "codex-preview": "development",
   },
   icons: {
-    icon: "/brand/khmerx-icon.png",
-    shortcut: "/brand/khmerx-icon.png",
+    icon: "/brand/khmerx-icon-v2.png",
+    shortcut: "/brand/khmerx-icon-v2.png",
   },
 };
 
