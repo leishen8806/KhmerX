@@ -80,3 +80,5 @@ body:has(.mini-app) .test-flow-toolbar,body:has(.mini-login) .test-flow-toolbar{
 .mini-language-flag{display:block;width:18px;height:12px;object-fit:cover;border-radius:1px}
 .mini-icon-menu>div a{display:flex;align-items:center;gap:8px}
 .mini-icon-menu>div a img{width:18px;height:12px;object-fit:cover;border-radius:1px;flex:0 0 auto}
+.mini-language-flag{width:20px;height:20px;object-fit:cover;border-radius:50%;display:block}
+.mini-icon-menu>div a img{width:20px;height:20px;object-fit:cover;border-radius:50%;display:block}
