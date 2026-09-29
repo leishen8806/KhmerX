@@ -117,6 +117,8 @@ body:has(.mini-app) .test-flow-toolbar,body:has(.mini-login) .test-flow-toolbar{
 .customer-kyc .kyc-step-button[data-state=complete] .kyc-step-marker{border-color:#39a765;background:#39a765;color:#fff}
 .customer-kyc .kyc-step-button>span:last-child{position:relative;z-index:1;white-space:nowrap}
 .customer-kyc .kyc-step-label{display:inline-flex;align-items:center;gap:4px}
+.mini-bottom{background:#f4f7ff}
+.mini-bottom a[aria-current=page]{background:transparent!important;border-radius:0}
 .mini-language-flag{display:block;width:18px;height:12px;object-fit:cover;border-radius:1px}
 .mini-icon-menu>div a{display:flex;align-items:center;gap:8px}
 .mini-icon-menu>div a img{width:18px;height:12px;object-fit:cover;border-radius:1px;flex:0 0 auto}
