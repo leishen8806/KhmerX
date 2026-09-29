@@ -1,0 +1,8 @@
+-- Enable password login for the existing test-company administrators only.
+INSERT INTO team_staff_credentials (member_id,password_hash) SELECT m.id,'bf7b821ae8de99ad650dae9553f084e4991092f2416cf07034b80269c897179e:b7df9476e4a6482b3aa6cb88a6eb9def7149ae9dd5b4d58a379b11ed24f5a695' FROM team_members m JOIN team_companies c ON c.id=m.tenant_id WHERE c.slug='uat-company-a' AND lower(m.email)='zhangdaowang3@gmail.com' AND m.role='admin' AND m.active=1 AND c.active=1 AND NOT EXISTS(SELECT 1 FROM team_staff_credentials p WHERE p.member_id=m.id);
+--> statement-breakpoint
+INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) SELECT 'admin-password-uat-company-a-v56',c.id,'deployment','enable_admin_password','{"email":"zhangdaowang3@gmail.com","company":"uat-company-a"}',datetime('now') FROM team_companies c WHERE c.slug='uat-company-a' AND changes()>0;
+--> statement-breakpoint
+INSERT INTO team_staff_credentials (member_id,password_hash) SELECT m.id,'72cd21eeefe8879e95af08dfe63d6dd8aa3865a371f51caf2bb4ad94466b99d5:8866b49fcae4d1881dc331cf344c2ad19891e07d78c36b7090df14c08ff04275' FROM team_members m JOIN team_companies c ON c.id=m.tenant_id WHERE c.slug='uat-company-b' AND lower(m.email)='zhangdaowang3@gmail.com' AND m.role='admin' AND m.active=1 AND c.active=1 AND NOT EXISTS(SELECT 1 FROM team_staff_credentials p WHERE p.member_id=m.id);
+--> statement-breakpoint
+INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) SELECT 'admin-password-uat-company-b-v56',c.id,'deployment','enable_admin_password','{"email":"zhangdaowang3@gmail.com","company":"uat-company-b"}',datetime('now') FROM team_companies c WHERE c.slug='uat-company-b' AND changes()>0;

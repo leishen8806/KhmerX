@@ -335,3 +335,16 @@ test('staff auth HTTP logout, SSO choice, same-origin and company entry enforcem
  user=lender;assert.equal((await api.POST(make({action:'enter',slug:'synthetic-b'}))).status,403);
  user=owner;extraCookies='';
 });
+
+test('existing SSO Admin can use company password without inheriting other companies or platform access',async()=>{
+ selected=A;user=owner;extraCookies='';const auth=await mod('@/lib/team/auth');
+ const m=sql.prepare('SELECT id FROM team_members WHERE tenant_id=? AND user_id=?').get(A,owner.userId);
+ const password='Synthetic-Admin-Password-Only';await sql.prepare('INSERT INTO team_staff_credentials(member_id,password_hash) VALUES (?,?)').run(m.id,await auth.makePassword(password));
+ const login=await auth.passwordLogin({company:'synthetic-a',email:owner.email,password},owner.userId);
+ extraCookies=`; payease_staff_mode=password; payease_staff_session=${login.token}; payease_staff_company=${A}`;
+ assert.equal((await team.staff()).member.role,'admin');assert.equal((await team.teamData()).memberships.length,1);await assert.rejects(team.platformAdmin());
+ const api=await mod('@/app/api/team/route');assert.equal((await api.POST(new Request('http://localhost/api/team',{method:'POST',headers:{origin:'http://localhost','content-type':'application/json'},body:JSON.stringify({action:'enter',slug:'synthetic-b'})}))).status,403);
+ extraCookies=`; payease_staff_mode=password; payease_staff_session=${login.token}; payease_staff_company=${B}`;await assert.rejects(team.staff(),/没有此公司/);
+ extraCookies=`; payease_staff_mode=password; payease_staff_session=${login.token}; payease_staff_company=none`;await assert.rejects(team.staff(),/请选择/);
+ await auth.logoutStaff(extraCookies);await assert.rejects(team.identity(),/失效/);extraCookies='';assert.equal((await team.staff()).member.role,'admin');await team.platformAdmin();
+});
