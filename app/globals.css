@@ -92,6 +92,15 @@ body:has(.mini-app) .test-flow-toolbar,body:has(.mini-login) .test-flow-toolbar{
 /* Mini App KYC step navigation stays on one horizontal row. */
 .customer-kyc .kyc-steps{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;padding:4px 2px 10px;scrollbar-width:thin}
 .customer-kyc .kyc-steps button{flex:0 0 auto;white-space:nowrap}
+.customer-kyc .kyc-steps{gap:8px;margin-bottom:8px;scroll-snap-type:x proximity}
+.customer-kyc .kyc-step-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:132px;height:48px;padding:0 16px;border-radius:14px;border:1px solid #d8e2f2;background:#f8faff;color:#526887;box-shadow:none;scroll-snap-align:start;transition:background .18s ease,color .18s ease,border-color .18s ease,transform .18s ease}
+.customer-kyc .kyc-step-button:hover{border-color:#8eb1ed;color:#155bd7;transform:translateY(-1px)}
+.customer-kyc .kyc-step-button[data-state=active]{background:#0b5bea;border-color:#0b5bea;color:#fff;box-shadow:0 8px 18px #0b5bea26}
+.customer-kyc .kyc-step-button[data-state=complete]{background:#eef8f2;border-color:#b9e2c7;color:#237344}
+.customer-kyc .kyc-step-marker{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;font-size:12px;font-weight:700;color:currentColor;background:#e4ebf7}
+.customer-kyc .kyc-step-button[data-state=active] .kyc-step-marker{background:#fff;color:#0b5bea}
+.customer-kyc .kyc-step-button[data-state=complete] .kyc-step-marker{background:#39a765;color:#fff}
+.customer-kyc .kyc-step-progress{margin:0 0 20px;color:#7184a1;font-size:12px}
 .mini-language-flag{display:block;width:18px;height:12px;object-fit:cover;border-radius:1px}
 .mini-icon-menu>div a{display:flex;align-items:center;gap:8px}
 .mini-icon-menu>div a img{width:18px;height:12px;object-fit:cover;border-radius:1px;flex:0 0 auto}
