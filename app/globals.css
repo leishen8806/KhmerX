@@ -88,6 +88,10 @@ body:has(.mini-app) .test-flow-toolbar,body:has(.mini-login) .test-flow-toolbar{
 .kyc-example-visual.idFront span,.kyc-example-visual.idBack span{position:relative;z-index:1;margin-top:44px;font-size:10px}
 .kyc-example-visual.selfie{width:62px;height:62px;border-radius:50%;margin:auto;background:radial-gradient(circle at 50% 35%,#7ca7dc 0 11px,transparent 12px),radial-gradient(ellipse at 50% 100%,#7ca7dc 0 24px,transparent 25px),#e8f1ff}
 .kyc-example-visual.selfie span{font-size:10px;margin-top:82px;white-space:nowrap}
+
+/* Mini App KYC step navigation stays on one horizontal row. */
+.customer-kyc .kyc-steps{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;padding:4px 2px 10px;scrollbar-width:thin}
+.customer-kyc .kyc-steps button{flex:0 0 auto;white-space:nowrap}
 .mini-language-flag{display:block;width:18px;height:12px;object-fit:cover;border-radius:1px}
 .mini-icon-menu>div a{display:flex;align-items:center;gap:8px}
 .mini-icon-menu>div a img{width:18px;height:12px;object-fit:cover;border-radius:1px;flex:0 0 auto}
