@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import {TestFlowMenu} from "@/components/test-flow-menu";
 
 export const metadata: Metadata = {
   title: "KhmerX · PayEase",
@@ -21,7 +20,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN">
-      <body className="antialiased"><TestFlowMenu/>{children}</body>
+      <body className="antialiased">{children}</body>
     </html>
   );
 }
