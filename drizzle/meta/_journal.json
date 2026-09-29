@@ -99,6 +99,13 @@
       "when": 1790590000000,
       "tag": "0013_service_routing",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1790593000000,
+      "tag": "0014_staff_password_login",
+      "breakpoints": true
     }
   ]
 }

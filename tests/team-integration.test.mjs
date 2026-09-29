@@ -20,10 +20,10 @@ const DB={
  async batch(statements){sql.exec('BEGIN');try{const out=[];for(const s of statements)out.push(await s.run());sql.exec('COMMIT');return out}catch(e){sql.exec('ROLLBACK');throw e}}
 };
 const blobs=new Map();const env={DB,BUCKET:{async put(k,v){blobs.set(k,v)},async get(k){const v=blobs.get(k);return v?{async arrayBuffer(){return v.buffer.slice(v.byteOffset,v.byteOffset+v.byteLength)}}:null},async delete(k){blobs.delete(k)}},KYC_DATA_SECRET:'synthetic-only-'.repeat(5),KYC_REVIEWER_EMAILS:'owner@example.test',PAYEASE_AUTH_SECRET:'synthetic-auth-'.repeat(5),PAYEASE_AUTH_MODE:'demo'};
-let user={userId:'owner',email:'owner@example.test'},selected='';const context=vm.createContext({console,crypto,TextEncoder,TextDecoder,Headers,Request,Response,URL,URLSearchParams,AbortSignal,Uint8Array,ArrayBuffer,Buffer,Date,structuredClone,atob,btoa,setTimeout,clearTimeout});
+let user={userId:'owner',email:'owner@example.test'},selected='',extraCookies='';const context=vm.createContext({console,crypto,TextEncoder,TextDecoder,Headers,Request,Response,URL,URLSearchParams,AbortSignal,Uint8Array,ArrayBuffer,Buffer,Date,structuredClone,atob,btoa,setTimeout,clearTimeout});
 const cache=new Map();
 function synth(id,values){const m=new vm.SyntheticModule(Object.keys(values),function(){for(const [k,v] of Object.entries(values))this.setExport(k,v)},{context,identifier:id});cache.set(id,m);return m}
-synth('cloudflare:workers',{env});synth('next/headers',{headers:async()=>new Headers({cookie:selected?'payease_company='+selected:''})});synth(path.join(root,'app/chatgpt-auth.ts'),{getChatGPTUser:async()=>user});
+synth('cloudflare:workers',{env});synth('next/headers',{headers:async()=>new Headers({cookie:(selected?'payease_company='+selected:'')+extraCookies})});synth(path.join(root,'app/chatgpt-auth.ts'),{getChatGPTUser:async()=>user});
 function getModule(spec,base=root+'/entry.ts'){let id=spec;if(spec.startsWith('@/'))id=path.join(root,spec.slice(2));else if(spec.startsWith('.'))id=path.resolve(path.dirname(base),spec);if(!cache.has(id)&&!path.extname(id)&&fs.existsSync(id+'.ts'))id+='.ts';if(cache.has(id))return cache.get(id);if(id.endsWith('.json'))return synth(id,{default:JSON.parse(fs.readFileSync(id,'utf8'))});const source=ts.transpileModule(fs.readFileSync(id,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;const m=new vm.SourceTextModule(source,{context,identifier:id});cache.set(id,m);return m}
 const entry=getModule('@/lib/team/workflow');await entry.link((s,m)=>getModule(s,m.identifier));await entry.evaluate();
 async function mod(name){const m=getModule(name);if(m.status==='unlinked')await m.link((s,p)=>getModule(s,p.identifier));if(m.status==='linked')await m.evaluate();return m.namespace}
@@ -295,4 +295,43 @@ test('Admin funding and repayment require prior approval, enforce isolation and 
  await flow.staffAction({...receipt,cents:target.amount+target.fee-1000,reference:'UAT-RECEIPT-002',requestId:crypto.randomUUID()});
  task=(await post.postloanData()).tasks.find(t=>t.loanId===l.id);assert.equal(task.status,'closed');assert.equal(task.balance,0);
  assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM team_repayment_receipts WHERE tenant_id=? AND loan_id=?').get(A,l.id).n,2);
+});
+
+test('independent staff password login, tenant scope, logout, expiry and disabled accounts',async()=>{
+ selected=A;user=owner;extraCookies='';const auth=await mod('@/lib/team/auth');
+ const created=await team.manage({action:'create_member',role:'lender',email:'password-lender@example.test',unitId:inst,passwordLogin:true});
+ const d=created.loginDetails;assert(d.password.length>=24);const input={company:d.company,email:d.email,password:d.password};
+ const m=sql.prepare('SELECT * FROM team_members WHERE tenant_id=? AND email=?').get(A,d.email);
+ assert(m.user_id.startsWith('local:'));assert(!sql.prepare('SELECT password_hash FROM team_staff_credentials WHERE member_id=?').get(m.id).password_hash.includes(d.password));
+ await assert.rejects(auth.passwordLogin({...input,password:'incorrect'},owner.userId),/不正确/);
+ const login=await auth.passwordLogin(input,owner.userId);extraCookies=`; payease_staff_mode=password; payease_staff_session=${login.token}; payease_staff_company=${A}`;
+ assert.equal((await team.staff()).member.id,m.id);assert.equal((await team.staff()).member.role,'lender');
+ await assert.rejects(team.manage({action:'add_unit',name:'forbidden',kind:'institution'}));await assert.rejects(team.platformAdmin());
+ // Shared gateway owner must not confer its Admin identity on the password user.
+ extraCookies=`; payease_staff_mode=password; payease_staff_session=${login.token}; payease_staff_company=${B}`;
+ await assert.rejects(team.staff(),/没有此公司/);assert.equal((await team.customerCompany()).id,A);
+ extraCookies=`; payease_staff_mode=password; payease_staff_session=${login.token}; payease_staff_company=${A}`;
+ await auth.logoutStaff(extraCookies);await assert.rejects(team.identity(),/失效/);
+ extraCookies='; payease_staff_mode=out';await assert.rejects(team.identity(),/退出/);
+ extraCookies='; payease_staff_mode=password';await assert.rejects(team.identity(),/失效/);
+ extraCookies='';const next=await auth.passwordLogin(input,owner.userId);extraCookies=`; payease_staff_mode=password; payease_staff_session=${next.token}; payease_staff_company=${A}`;
+ user={userId:'another-site-user',email:'another@example.test'};await assert.rejects(team.identity(),/失效/);user=owner;
+ sql.prepare('UPDATE team_staff_sessions SET expires_at=0 WHERE member_id=?').run(m.id);await assert.rejects(team.identity(),/失效/);
+ extraCookies='';const third=await auth.passwordLogin(input,owner.userId);extraCookies=`; payease_staff_mode=password; payease_staff_session=${third.token}; payease_staff_company=${A}`;
+ sql.prepare('UPDATE team_members SET active=0,version=version+1 WHERE id=?').run(m.id);await assert.rejects(team.identity(),/失效/);
+ extraCookies='';await assert.rejects(auth.passwordLogin(input,owner.userId),/不正确/);
+ assert.equal(sql.prepare("SELECT COUNT(*) n FROM team_audit WHERE action='staff_login' AND actor=?").get(d.email).n,3);
+ assert.equal(sql.prepare("SELECT COUNT(*) n FROM team_audit WHERE action='staff_logout' AND actor=?").get(d.email).n,1);
+ for(let i=0;i<5;i++)await assert.rejects(auth.passwordLogin({company:'synthetic-a',email:'missing@example.test',password:'wrong'},owner.userId),/不正确/);
+ await assert.rejects(auth.passwordLogin({company:'synthetic-a',email:'missing@example.test',password:'wrong'},owner.userId),/尝试过多/);
+});
+
+test('staff auth HTTP logout, SSO choice, same-origin and company entry enforcement',async()=>{
+ selected=A;user=owner;extraCookies='';const route=await mod('@/app/api/team/auth/route'),api=await mod('@/app/api/team/route');
+ const make=(p,origin='http://localhost')=>new Request('http://localhost/api/team/auth',{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify(p)});
+ const out=await route.POST(make({action:'logout'}));assert.equal(out.status,200);assert.match(out.headers.get('set-cookie'),/payease_staff_mode=out/);assert(!out.headers.get('set-cookie').includes('payease_h5_session'));
+ assert.equal((await route.POST(make({action:'sso'},'https://evil.invalid'))).status,403);
+ assert.equal((await route.POST(make({action:'sso'}))).status,200);
+ user=lender;assert.equal((await api.POST(make({action:'enter',slug:'synthetic-b'}))).status,403);
+ user=owner;extraCookies='';
 });
