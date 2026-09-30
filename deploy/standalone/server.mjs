@@ -32,8 +32,8 @@ const server=createServer(async(req,res)=>{try{
  const expected='Basic '+Buffer.from(cfg.accessUser+':'+cfg.accessPassword).toString('base64');
  const jobRequest=req.url==='/api/jobs/postloan'&&req.method==='POST'&&eq(req.headers.authorization||'','Bearer '+cfg.bindings.POSTLOAN_JOB_SECRET);
  const host=req.headers.host;
- if(![cfg.host,'admin.khmerx.org','api.khmerx.org','payeas.khmerx.org'].includes(host)){res.writeHead(400);return res.end('Invalid host');}
- const publicClient=host==='payeas.khmerx.org'||host==='admin.khmerx.org';
+ if(![cfg.host,'admin.khmerx.org','api.khmerx.org','payease.khmerx.org','payeas.khmerx.org'].includes(host)){res.writeHead(400);return res.end('Invalid host');}
+ const publicClient=host==='payease.khmerx.org'||host==='payeas.khmerx.org'||host==='admin.khmerx.org';
  if(!jobRequest&&!publicClient&&!eq(req.headers.authorization||'',expected)){res.writeHead(401,{'WWW-Authenticate':'Basic realm="PayEase private test"','Cache-Control':'no-store'});return res.end('Private test environment');}
  const secure=req.headers['x-forwarded-proto']==='https';
  if(host==='admin.khmerx.org'&&req.url==='/'){res.writeHead(302,{Location:'/team/login'});return res.end();}
