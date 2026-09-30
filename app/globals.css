@@ -118,6 +118,7 @@ body:has(.mini-app) .test-flow-toolbar,body:has(.mini-login) .test-flow-toolbar{
 .customer-kyc .kyc-step-button>span:last-child{position:relative;z-index:1;white-space:nowrap}
 .customer-kyc .kyc-step-label{display:inline-flex;align-items:center;gap:4px}
 .required-star{color:#e5484d;font-style:normal;font-weight:700}
+.kyc-field-label{display:inline-flex;align-items:center;gap:2px;min-height:20px}
 .mini-app .kyc-next-button{width:100%;min-height:48px}
 .mini-app .customer-kyc .kyc-layout{margin-top:10px}
 .mini-app .customer-kyc .kyc-meta:empty{display:none}
