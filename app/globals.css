@@ -116,7 +116,7 @@ body:has(.mini-app) .test-flow-toolbar,body:has(.mini-login) .test-flow-toolbar{
 .customer-kyc .kyc-step-button{position:relative;overflow:visible;flex:1 0 104px;min-width:104px;height:62px;padding:0 8px;border:0;border-radius:0;background:transparent;color:#7b8da8;box-shadow:none;flex-direction:column;justify-content:flex-start;gap:6px;font-size:12px}
 .customer-kyc .kyc-step-button{align-items:flex-start;text-align:left}
 .customer-kyc .kyc-step-button:hover{background:transparent;border:0;box-shadow:none;transform:none;color:#155bd7}
-.customer-kyc .kyc-step-button:not(:last-child)::after{content:"";position:absolute;z-index:0;top:12.5px;left:calc(50% + 13px);width:calc(100% - 26px);height:3px;background:#dce6f5;border-radius:9px}
+.customer-kyc .kyc-step-button:not(:last-child)::after{content:"";position:absolute;z-index:0;top:12.5px;left:28px;width:calc(100% - 28px);height:3px;background:#dce6f5;border-radius:9px}
 .customer-kyc .kyc-step-button[data-state=complete]::after{background:#8bd0a4}
 .customer-kyc .kyc-step-button[data-state=active]::after{background:linear-gradient(90deg,#2f72e6 0 50%,#dce6f5 50%)}
 .customer-kyc .kyc-step-button[data-state=active]{background:transparent;color:#155bd7;box-shadow:none}
