@@ -96,6 +96,7 @@ body:has(.mini-app) .test-flow-toolbar,body:has(.mini-login) .test-flow-toolbar{
 .kyc-example-visual.selfie span{margin-top:184px}
 .mini-app .customer-kyc .kyc-documents{display:block;width:100%}
 .mini-app .customer-kyc .kyc-document{width:100%;box-sizing:border-box}
+.mini-app .customer-kyc .kyc-document:has(.kyc-example-guide)>h3{display:none}
 
 /* Mini App KYC step navigation stays on one horizontal row. */
 .customer-kyc .kyc-steps{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;padding:4px 2px 10px;scrollbar-width:thin}
