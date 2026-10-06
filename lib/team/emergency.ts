@@ -9,3 +9,16 @@ export async function emergencyApprove(id:string){const s=await staff();if(!s||s
 export async function emergencyRevoke(id:string){const s=await staff();if(!s||s.member.role!=='admin')throw new AuthError('仅公司 Admin 可撤销应急权限',403);const row=await db().prepare('SELECT status FROM team_emergency_access WHERE id=? AND tenant_id=?').bind(id,s.tenant.id).first<any>();if(!row)throw new AuthError('应急申请不存在',404);if(!['requested','active'].includes(row.status))throw new AuthError('应急申请已结束',409);await db().prepare('UPDATE team_emergency_access SET status=\'revoked\',revoked_at=? WHERE id=? AND tenant_id=? AND status IN (\'requested\',\'active\')').bind(new Date().toISOString(),id,s.tenant.id).run();await audit(s.tenant.id,s.user.userId,'emergency_access_revoked',{id}).run();return {ok:true,id,status:'revoked'} }
 export async function expireEmergencyAccess(){const now=Date.now(),rows=await db().prepare('SELECT id,tenant_id FROM team_emergency_access WHERE status=\'active\' AND expires_at<=?').bind(now).all<any>();for(const row of rows.results){await db().prepare('UPDATE team_emergency_access SET status=\'expired\' WHERE id=? AND status=\'active\'').bind(row.id).run();await audit(row.tenant_id,'system','emergency_access_expired',{id:row.id}).run()}return rows.results.length}
 export async function emergencyList(){const s=await staff();if(!s||s.member.role!=='admin')throw new AuthError('仅公司 Admin 可查看应急权限',403);await expireEmergencyAccess();return (await db().prepare('SELECT id,requester_id,approver_id,status,scope_json,reason,expires_at,created_at,approved_at,revoked_at FROM team_emergency_access WHERE tenant_id=? ORDER BY created_at DESC LIMIT 50').bind(s.tenant.id).all()).results}
+/** Validate an explicitly supplied emergency grant at the business decision point. */
+export async function assertEmergencyAccess(id:string,scope:string,action:string){
+ const s=await staff();
+ if(!s||s.member.role!=='admin')throw new AuthError('仅公司 Admin 可使用应急权限',403);
+ if(!id||!scopes.has(scope))throw new AuthError('应急授权参数无效',400);
+ await expireEmergencyAccess();
+ const row=await db().prepare('SELECT requester_id,status,scope_json,expires_at FROM team_emergency_access WHERE id=? AND tenant_id=?').bind(id,s.tenant.id).first<any>();
+ if(!row||row.status!=='active'||Number(row.expires_at)<=Date.now())throw new AuthError('应急授权不存在、已失效或已过期',403);
+ if(row.requester_id!==s.member.id)throw new AuthError('应急授权仅限申请人执行',403);
+ let granted:string[]=[];try{granted=JSON.parse(row.scope_json)}catch{throw new AuthError('应急授权范围无效',403)}
+ if(!granted.includes(scope))throw new AuthError('当前应急授权不包含该业务范围',403);
+ return {id,scope,action,expiresAt:new Date(Number(row.expires_at)).toISOString(),tenantId:s.tenant.id,actor:s.user.userId};
+}

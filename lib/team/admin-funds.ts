@@ -5,9 +5,11 @@ import {applyAction} from '@/lib/domain';
 import {findCase} from '@/lib/kyc/server';
 import {validLoanContract} from '@/lib/loan-signing';
 import {scopedState} from './workflow';
+import {assertEmergencyAccess} from './emergency';
 export async function adminFunds(p:any){
  const s=await staff();if(!s||s.member.role!=='admin')throw new AuthError('仅本公司 Admin 可执行资金管理',403);
  if(!['admin_disburse','admin_repay'].includes(p.action))throw new AuthError('操作无效');
+ const emergency=p.emergencyId?await assertEmergencyAccess(String(p.emergencyId),'funding',p.action):null;
  if(typeof p.requestId!=='string'||!/^[a-f0-9-]{36}$/.test(p.requestId))throw new AuthError('请求编号无效');
  const key=s.user.userId+':'+p.requestId,{state,revision}=await readState(s.tenant.id);
  const loan=state.loans.find(l=>l.id===p.loanId);if(!loan?.customerId)throw new AuthError('贷款不属于本公司',403);
@@ -35,7 +37,7 @@ export async function adminFunds(p:any){
  next.events[0].note+=' · Admin '+s.user.email;
  const statements=[db().prepare("UPDATE demo_workspaces SET payload=?,revision=revision+1 WHERE owner=? AND revision=? AND EXISTS(SELECT 1 FROM team_members WHERE id=? AND tenant_id=? AND role='admin' AND active=1 AND version=?) AND EXISTS(SELECT 1 FROM team_assignments WHERE tenant_id=? AND customer_id=? AND version=?) AND EXISTS(SELECT 1 FROM team_companies WHERE id=? AND active=1) AND (?=0 OR EXISTS(SELECT 1 FROM kyc_cases WHERE owner=? AND id=? AND revision=? AND status='approved'))").bind(JSON.stringify(next),s.tenant.id,revision,s.member.id,s.tenant.id,s.member.version,s.tenant.id,loan.customerId,route.version,s.tenant.id,p.action==='admin_disburse'?1:0,s.tenant.id,loan.kycCaseId||'',loan.kycRevision??-1)];
  if(reference)statements.push(db().prepare('INSERT INTO team_repayment_receipts(tenant_id,reference,loan_id,cents,actor,created_at) SELECT ?,?,?,?,?,? WHERE changes()=1').bind(s.tenant.id,reference,loan.id,p.cents,s.user.userId,now));
- statements.push(db().prepare('INSERT INTO team_audit(id,tenant_id,actor,action,detail,created_at) SELECT ?,?,?,?,?,? WHERE changes()=1').bind(crypto.randomUUID(),s.tenant.id,s.user.userId,p.action,JSON.stringify({loanId:loan.id,reason,reference,cents:reference?p.cents:loan.billing?.net??loan.amount,institutionId:reference?route.repayment_institution_id:route.funding_institution_id,mode:'test_funds'}),now));
+ statements.push(db().prepare('INSERT INTO team_audit(id,tenant_id,actor,action,detail,created_at) SELECT ?,?,?,?,?,? WHERE changes()=1').bind(crypto.randomUUID(),s.tenant.id,s.user.userId,p.action,JSON.stringify({loanId:loan.id,reason,reference,cents:reference?p.cents:loan.billing?.net??loan.amount,institutionId:reference?route.repayment_institution_id:route.funding_institution_id,mode:'test_funds',...(emergency?{emergencyId:emergency.id,emergencyScope:emergency.scope,emergencyExpiresAt:emergency.expiresAt}: {})}),now));
  const result=await db().batch(statements);if(!result[0].meta.changes)throw new AuthError('订单、分单或权限已更新，请刷新后重试',409);
  return scopedState();
 }
