@@ -4,6 +4,7 @@ import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
 import {PasswordRecovery} from '@/components/password-recovery';
 import {MiniClient} from '@/components/mini-client';
+import {MiniRouteLoading} from '@/components/mini-route-loading';
 type Session={phoneMasked:string;mode:'demo'|'telegram';expiresAt:number;phoneVerified?:boolean;verificationCompleted?:boolean;hasPassword?:boolean};
 type Challenge={challengeId:string;expiresAt:number;retryAt:number;demoCode?:string;phoneMasked:string};
 export default function H5Login({screen='home'}:{screen?:string}){
@@ -40,6 +41,7 @@ export default function H5Login({screen='home'}:{screen?:string}){
  const send=()=>run(async()=>{const d=await post('send',{phone,consent});setChallenge(d);setCode('')});
  const verify=()=>run(async()=>{const d=await post('verify',{challengeId:challenge?.challengeId,code});setSession(d.session);const latest=await load();navigate(complete(latest.session,latest.policy)?'workspace':'security');setNotice(d.session.phoneVerified?'手机号验证成功':'模拟验证完成，手机号仍标记为未真实验证')});
  const savePassword=()=>run(async()=>{if(password!==confirm)throw Error('两次输入的密码不一致');await post('account',{action:'set_password',password,currentPassword});const latest=await load();navigate(complete(latest.session,latest.policy)?'workspace':'security');setNotice('密码已保存')});
+ if(!ready&&!error)return <MiniRouteLoading/>;
  if(ready&&session&&view==='workspace'&&complete(session,policy))return <MiniClient screen={screen==='login'?'home':screen} phone={session.phoneMasked} company={company} busy={busy} onLogout={()=>void logout()} onSecurity={()=>navigate('security')}/>;
 
  return <main className="h5-login mini-login"><header className="h5-header"><a className="brand" href="/h5"><img className="brand-logo" src="/brand/khmerx-icon-v2.png" alt="KhmerX" width={72} height={72}/><span>PayEase</span></a></header><div className="h5-login-grid"><section className="h5-login-card"><h1>{({register:'注册 / 登录',password:'密码登录',verify:'验证手机号',recovery:'找回密码',security:'完成账号设置',telegram:'Telegram 登录'} as any)[view]||'客户账号'}</h1>{error&&<p className="error" role="alert">{error}</p>}{notice&&<p className="success" role="status">{notice}</p>}
