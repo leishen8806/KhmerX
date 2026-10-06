@@ -45,7 +45,8 @@ function TeamClientInner(){
  <TabsContent value="loans"><h3>贷款申请订单</h3><p className="fine">展示 KYC 通过后的借款申请，包含费用确认、签约、机构审批和放款状态。机构分单沿用客户所属机构；调整会影响该客户后续处理范围，已有审批或资金记录时禁止直接改派。</p>{!work?.state?.loans?.filter((l:any)=>!['registered','kyc_pending','needs_info'].includes(l.status)).length&&<p>当前权限范围内暂无贷款申请订单。</p>}{work?.state?.loans?.filter((l:any)=>!['registered','kyc_pending','needs_info'].includes(l.status)).map((l:any)=>{const a=work.scope?.find((a:any)=>a.customer_id===l.customerId);return <div key={l.id}><LoanRow loan={l} role={member.role} busy={busy} post={post}/><p className="fine" style={{overflowWrap:'anywhere'}}>关联用户：{l.customerId||'历史测试订单'} · 注册手机：{l.phoneMasked||'未关联'} · KYC 订单：{l.kycCaseId||'未关联'} · 资料版本：{l.kycRevision??'—'}</p><p className="fine">承接机构：{units.find((u:any)=>u.id===a?.institution_id)?.name||'待分配'}</p>{manager&&a&&<details><summary>调整客户所属机构与分单</summary><AssignmentRow key={a.customer_id+':'+a.version} assignment={a} units={units} members={members} admin={admin} busy={busy} post={post}/></details>}</div>})}</TabsContent>
  <TabsContent value="funding"><FundingPanel scope={work?.scope||[]} units={units} key={data.company.id+member.id} loans={work?.state?.loans||[]} events={work?.state?.events||[]} role={member.role} busy={busy} post={post}/></TabsContent><TabsContent value="repayment">{['admin','audit'].includes(member.role)?<RepaymentPanel loans={work?.state?.loans||[]} events={work?.state?.events||[]} scope={work?.scope||[]} units={units} role={member.role} busy={busy} post={post}/>:<p>还款登记由公司 Admin 处理。</p>}</TabsContent><TabsContent value="postloan">{['admin','audit','collection_admin','collector'].includes(member.role)?<PostloanPanel key={'assignment-postloan:'+data.company.id+':'+member.id}/>:<p>贷后订单由公司管理员、审计员及授权贷后部门人员查看和处理。</p>}</TabsContent>
  </Tabs></section>
- {admin&&<ServicingConfig key={'servicing:'+data.company.id} units={units} busy={busy} post={post}/>}
+ {!queueView&&<>
+ {admin&&<ServicingConfig key={'servicing:'+data.company.id} units={units} busy={busy} post={post}/>} 
  <span id="team-notifications" className="crm-anchor"/>
  {admin&&work?.state&&<BusinessBots key={'business-bots:'+data.company.id+':'+work.revision} state={work.state} tenant={data.company.id} busy={busy} post={post}/>}
  {['admin','audit'].includes(member.role)&&<TelegramNotifications key={'telegram-notifications:'+data.company.id+':'+work?.revision} admin/>}{admin&&<PricingPanel key={data.pricing?.version} pricing={data.pricing||defaultPricing} busy={busy} post={post}/>}
@@ -54,6 +55,7 @@ function TeamClientInner(){
  {manager&&<section className="panel"><h2>员工与权限</h2><div className="table-scroll"><table><thead><tr><th>员工</th><th>岗位</th><th>部门／机构</th><th>状态</th><th/></tr></thead><tbody>{members.map((m:any)=><MemberRow key={m.id+':'+m.version} m={m} units={units} editable={admin&&m.id!==member.id} busy={busy} post={post}/>)}</tbody></table></div></section>}
 
  {data.trail?.length>0&&<details className="panel"><summary>权限与协作审计记录</summary>{data.trail.map((t:any,i:number)=><div className="team-audit" key={i}><strong>{t.action}</strong> · {t.created_at}<p>操作人：{t.actor}</p><pre>{t.detail}</pre></div>)}</details>}
+ </>}
  </>}</main>
 }
  function CrmMenu({admin}:any){
