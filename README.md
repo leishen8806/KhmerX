@@ -53,6 +53,12 @@ https://payease-style.khmerx.org/?release=6b87e79958fd
 
 本轮是既有测试版的界面与交互改造，不宣称已实现样式库里的全部扩展能力：三语、真实 Telegram 会话、真实 KYC 上传、独立机构授权、双人复核和真实受控资金域仍未接通。搜索和分页仅针对当前最多 100 笔合成测试记录在客户端展示。
 
+## H5 手机号与验证码登录、Telegram Mini App 自动登录（2026-10-03）
+
+Telegram Mini App 在 `PAYEASE_AUTH_MODE=telegram` 下使用 Telegram WebApp `initData` 自动登录：服务端使用对应 Bot Token 验证签名、时间窗口和用户 ID，创建或恢复 Telegram 客户会话，不显示手机号输入框，也不要求用户输入手机号。手机号与 Telegram Gateway 验证流程仅保留给 H5/账号找回场景。
+
+Mini App 自动登录接口为 `POST /api/h5/auth/telegram`，客户端通过 `X-Telegram-Init-Data` 发送 WebApp `initData`；接口不接受客户端自行提交的 user ID 或手机号作为身份凭据。
+
 ## H5 手机号与验证码登录（2026-09-21）
 入口：`/h5`，现有三端工作台右上角也提供链接。当前发布的是 `PAYEASE_AUTH_MODE=demo`，只接受 `+12025550100` 至 `+12025550199` 的虚构号码。页面显示随机测试验证码，不向 Telegram 发送消息。
 

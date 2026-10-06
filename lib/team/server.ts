@@ -26,6 +26,12 @@ const txt=(v:any,max=80)=>typeof v==='string'?v.trim().slice(0,max):'';
 export async function manage(p:any){const u=await identity();
  if(p.action==='create_company'){await platformAdmin();const name=txt(p.name),slug=txt(p.slug,40);if(!name||! /^[a-z0-9][a-z0-9-]{2,39}$/.test(slug))throw new AuthError('请填写公司名称及 3–40 位小写字母/数字入口代码');const id='t_'+crypto.randomUUID(),dept=crypto.randomUUID();await db().batch([db().prepare('INSERT INTO team_companies (id,name,slug,active,default_department) VALUES (?,?,?,1,?)').bind(id,name,slug,dept),db().prepare('INSERT INTO team_units (id,tenant_id,name,kind) VALUES (?,?,?,?)').bind(dept,id,'运营一部','department'),db().prepare('INSERT INTO team_members (id,tenant_id,user_id,email,role,active,version) VALUES (?,?,?,?,?,1,0)').bind(crypto.randomUUID(),id,u.userId,u.email.toLowerCase(),'admin'),audit(id,u.userId,'create_company',{name})]);return {companyId:id}}
  const s=await staff();if(!s||s.member.role!=='admin')throw new AuthError('仅当前公司管理员可管理组织',403);const tenant=s.tenant.id;
+ if(p.action==='client_language_config'){
+  const enabled={en:p.en!==false,km:p.km!==false,zh:p.zh!==false};
+  if(!enabled.en&&!enabled.km&&!enabled.zh)throw new AuthError('至少启用一种客户端语言');
+  await db().batch([db().prepare('UPDATE team_companies SET client_en_enabled=?,client_km_enabled=?,client_zh_enabled=? WHERE id=?').bind(enabled.en?1:0,enabled.km?1:0,enabled.zh?1:0,tenant),audit(tenant,u.userId,'client_language_config',enabled)]);
+  return {ok:true,languages:enabled};
+ }
  if(p.action==='pricing_save'){
   const current=await pricingFor(tenant);if(p.version!==current.version)throw new AuthError('费率已更新，请刷新后重新设置',409);
   const next=validatePricing({feeModel:'single',version:current.version+1,deductionBps:p.deductionBps,annualInterestBps:p.annualInterestBps,interestTiming:p.interestTiming,serviceBps:p.serviceBps,serviceTiming:p.serviceTiming,termDays:p.termDays});
@@ -57,6 +63,20 @@ export async function manage(p:any){const u=await identity();
   statements.push(db().prepare(`UPDATE team_members SET role=?,unit_id=?,active=?,version=version+1 WHERE ${guard}`).bind(role,unitId,active,...args));
   statements.push(db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) SELECT ?,?,?,?,?,? WHERE changes()=1').bind(crypto.randomUUID(),tenant,u.userId,'update_member',JSON.stringify({member:m.id,before:{role:m.role,unitId:m.unit_id,active:m.active},after:{role,unitId,active},reason:txt(p.reason,300)}),new Date().toISOString()));
   const results=await db().batch(statements);if(!results[results.length-2].meta.changes)throw new AuthError('管理权限或员工资料已变化，请刷新',409);return {ok:true}
+ }
+ if(p.action==='reset_member_password'){
+  const memberId=txt(p.memberId,80),reason=txt(p.reason,300);
+  if(!memberId||!reason)throw new AuthError('请填写重置原因');
+  const m=await db().prepare('SELECT id,tenant_id,email,active FROM team_members WHERE id=? AND tenant_id=?').bind(memberId,tenant).first<any>();
+  if(!m||m.id===s.member.id)throw new AuthError('不能重置自己的密码');
+  if(!m.active)throw new AuthError('已停用员工不能重置密码');
+  const password=randomToken().slice(0,24),passwordHash=await makePassword(password);
+  const results=await db().batch([
+   db().prepare(`UPDATE team_staff_credentials SET password_hash=?,version=version+1 WHERE member_id=? AND EXISTS (SELECT 1 FROM team_members WHERE id=? AND tenant_id=? AND active=1 AND EXISTS (SELECT 1 FROM team_members actor WHERE actor.id=? AND actor.tenant_id=? AND actor.role='admin' AND actor.active=1 AND actor.version=?))`).bind(passwordHash,m.id,m.id,tenant,s.member.id,tenant,s.member.version),
+   db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) SELECT ?,?,?,?,?,? WHERE changes()=1').bind(crypto.randomUUID(),tenant,u.userId,'reset_member_password',JSON.stringify({member:m.id,email:m.email,reason}),new Date().toISOString())
+  ]);
+  if(!results[0].meta.changes)throw new AuthError('员工密码记录不存在或权限已变化，请刷新后重试',409);
+  return {ok:true,loginDetails:{company:s.tenant.slug,email:m.email,password},passwordReset:true};
  }
  throw new AuthError('操作无效');
 }

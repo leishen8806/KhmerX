@@ -1,7 +1,12 @@
 services:
   payease:
-    build: .
+    build:
+      context: ../..
+      dockerfile: deploy/standalone/Dockerfile
     restart: unless-stopped
+    depends_on:
+      scanner:
+        condition: service_healthy
     ports:
       - "127.0.0.1:4300:4300"
     volumes:
@@ -12,3 +17,28 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+  clamav:
+    image: clamav/clamav:1.4
+    restart: unless-stopped
+    volumes:
+      - /opt/payease/clamav:/var/lib/clamav
+    mem_limit: 768m
+    expose:
+      - "3310"
+  scanner:
+    build: ./clamav-gateway
+    restart: unless-stopped
+    depends_on:
+      clamav:
+        condition: service_started
+    environment:
+      CLAMD_HOST: clamav
+      CLAMD_PORT: "3310"
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s

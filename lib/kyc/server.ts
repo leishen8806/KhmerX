@@ -12,6 +12,18 @@ export type CaseRow={id:string;owner:string;customer_id:string;revision:number;s
 export const settings=()=>env as unknown as Record<string,string>;
 export function db(){if(!env.DB)throw new KycError('KYC 数据库暂不可用',503);return env.DB}
 export function bucket(){if(!env.BUCKET)throw new KycError('私有材料存储尚未配置',503);return env.BUCKET}
+export async function scanFile(bytes:Uint8Array){
+ const values=settings(),url=values.KYC_SCAN_URL?.trim();
+ if(!url){if(values.KYC_SCAN_REQUIRED==='true')throw new KycError('文件安全扫描服务尚未配置，请联系管理员',503);return}
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),30000);
+ try{
+  const response=await fetch(url,{method:'POST',headers:{'content-type':'application/octet-stream','cache-control':'no-store'},body:bytes as BodyInit,signal:controller.signal});
+  let result:{clean?:boolean;status?:string};try{result=await response.json() as {clean?:boolean;status?:string}}catch{throw new KycError('文件安全扫描服务不可用，请稍后重试',503)}
+  if(response.status===422&&result.clean===false)throw new KycError('文件未通过安全扫描，请更换文件后重试',422);
+  if(!response.ok)throw new KycError('文件安全扫描服务不可用，请稍后重试',503);
+  if(result.clean!==true)throw new KycError('文件未通过安全扫描，请更换文件后重试',422);
+ }catch(e){if(e instanceof KycError)throw e;throw new KycError('文件安全扫描服务不可用，请稍后重试',503)}finally{clearTimeout(timer)}
+}
 const encoder=new TextEncoder();
 export async function digest(s:string|Uint8Array){return [...new Uint8Array(await crypto.subtle.digest('SHA-256',typeof s==='string'?encoder.encode(s):s as BufferSource))].map(x=>x.toString(16).padStart(2,'0')).join('')}
 async function key(){const secret=settings().KYC_DATA_SECRET;if(!secret||secret.length<32)throw new KycError('KYC 加密服务尚未配置，请联系管理员',503);return crypto.subtle.importKey('raw',await crypto.subtle.digest('SHA-256',encoder.encode('payease-kyc-v1:'+secret)),{name:'AES-GCM'},false,['encrypt','decrypt'])}
@@ -66,4 +78,15 @@ export async function decide(request:Request){
  }
  const checklist=Object.fromEntries(['identity','contacts','employment','bank','consent'].map(k=>[k,p.checklist?.[k]===true]));validateReview(row.status,p.decision,checklist,reason,data.profile);data.review={decision:p.decision,reason,checklist,actor:u.actorId,at:new Date().toISOString(),revision:row.revision};return view(await transition(row,p.decision,data,'review:'+p.decision,u.actorId));
 }
-export async function recordFile(owner:string,customerId:string,slot:Slot,bytes:Uint8Array,type:string){const id=crypto.randomUUID(),ref:FileRef={id,slot,name:slot+(type==='image/png'?'.png':type==='image/jpeg'?'.jpg':'.pdf'),type,size:bytes.length,sha256:await digest(bytes)};const inserted=await db().prepare('INSERT INTO kyc_files (id,owner,customer_id,slot,metadata,ready,created_at) SELECT ?,?,?,?,?,0,? WHERE (SELECT COUNT(*) FROM kyc_files WHERE owner=? AND customer_id=?)<40').bind(id,owner,customerId,slot,await seal(ref,'file:'+id),new Date().toISOString(),owner,customerId).run();if(!inserted.meta.changes)throw new KycError('本客户已达到 40 份材料上限，请联系管理员');try{await bucket().put('kyc/'+id,await encryptBytes(bytes,'blob:'+id),{httpMetadata:{contentType:'application/octet-stream'}});await db().prepare('UPDATE kyc_files SET ready=1 WHERE id=?').bind(id).run();return ref}catch(e){await bucket().delete('kyc/'+id).catch(()=>{});await db().prepare('DELETE FROM kyc_files WHERE id=? AND ready=0').bind(id).run();throw e}}
+export async function recordFile(owner:string,customerId:string,slot:Slot,bytes:Uint8Array,type:string){
+ const sha256=await digest(bytes);
+ await scanFile(bytes);
+ // A retry or a double-click must not create another evidence row. Keep older
+ // versions for audit, and reuse an identical ready object for this slot.
+ const existing=await db().prepare('SELECT id,metadata FROM kyc_files WHERE owner=? AND customer_id=? AND slot=? AND ready=1').bind(owner,customerId,slot).all<{id:string;metadata:string}>();
+ for(const row of existing.results||[]){try{const old=await metadata(row);if(old.sha256===sha256)return old}catch(e){if(e instanceof KycError)throw e}}
+ const id=crypto.randomUUID(),ref:FileRef={id,slot,name:slot+(type==='image/png'?'.png':type==='image/jpeg'?'.jpg':'.pdf'),type,size:bytes.length,sha256};
+ const inserted=await db().prepare('INSERT INTO kyc_files (id,owner,customer_id,slot,metadata,ready,created_at) SELECT ?,?,?,?,?,0,? WHERE (SELECT COUNT(*) FROM kyc_files WHERE owner=? AND customer_id=?)<40').bind(id,owner,customerId,slot,await seal(ref,'file:'+id),new Date().toISOString(),owner,customerId).run();
+ if(!inserted.meta.changes)throw new KycError('本客户已达到 40 份材料上限，请联系管理员');
+ try{await bucket().put('kyc/'+id,await encryptBytes(bytes,'blob:'+id),{httpMetadata:{contentType:'application/octet-stream'}});await db().prepare('UPDATE kyc_files SET ready=1 WHERE id=?').bind(id).run();return ref}catch(e){await bucket().delete('kyc/'+id).catch(()=>{});await db().prepare('DELETE FROM kyc_files WHERE id=? AND ready=0').bind(id).run();throw e}
+}

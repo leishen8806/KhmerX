@@ -4,7 +4,9 @@ import {readFileSync,readdirSync,existsSync,writeFileSync} from 'node:fs';
 import {randomUUID,randomBytes,createHmac,timingSafeEqual,pbkdf2Sync} from 'node:crypto';
 import {Readable} from 'node:stream';
 const moduleRoot='/app/dist/server';
-const modulePaths=readdirSync(moduleRoot,{recursive:true}).filter(n=>/\.m?js$/.test(n));
+// macOS AppleDouble resource-fork files (._*.js) are not JavaScript. Exclude
+// them so a copied release cannot make the Workers runtime fail at boot.
+const modulePaths=readdirSync(moduleRoot,{recursive:true}).filter(n=>/\.m?js$/.test(n)&&!n.split('/').some(part=>part.startsWith('._')));
 const modules=['index.js',...modulePaths.filter(n=>n!=='index.js')].map(n=>({type:'ESModule',path:moduleRoot+'/'+n}));
 const cfg=JSON.parse(readFileSync('/data/config.json','utf8'));
 const mf=new Miniflare({modules,modulesRoot:moduleRoot,compatibilityDate:'2026-05-15',compatibilityFlags:['nodejs_compat'],assets:{directory:'/app/dist/client',binding:'ASSETS',routerConfig:{has_user_worker:true}},d1Databases:{DB:'payease'},d1Persist:'/data/d1',r2Buckets:{BUCKET:'payease'},r2Persist:'/data/r2',bindings:cfg.bindings,host:'127.0.0.1'});
@@ -33,7 +35,7 @@ const server=createServer(async(req,res)=>{try{
  const jobRequest=req.url==='/api/jobs/postloan'&&req.method==='POST'&&eq(req.headers.authorization||'','Bearer '+cfg.bindings.POSTLOAN_JOB_SECRET);
  const host=req.headers.host;
  if(![cfg.host,'admin.khmerx.org','api.khmerx.org','payease.khmerx.org','payeas.khmerx.org'].includes(host)){res.writeHead(400);return res.end('Invalid host');}
- const publicClient=host==='payease.khmerx.org'||host==='payeas.khmerx.org'||host==='admin.khmerx.org';
+ const publicClient=host==='payease.khmerx.org'||host==='payeas.khmerx.org'||host==='api.khmerx.org'||host==='admin.khmerx.org';
  if(!jobRequest&&!publicClient&&!eq(req.headers.authorization||'',expected)){res.writeHead(401,{'WWW-Authenticate':'Basic realm="PayEase private test"','Cache-Control':'no-store'});return res.end('Private test environment');}
  const secure=req.headers['x-forwarded-proto']==='https';
  if(host==='admin.khmerx.org'&&req.url==='/'){res.writeHead(302,{Location:'/team/login'});return res.end();}

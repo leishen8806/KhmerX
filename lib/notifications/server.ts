@@ -6,7 +6,7 @@ import {AuthError} from '@/lib/h5-auth-core';
 import {validateInitData} from '@/lib/telegram';
 import {encryptBytes,decryptBytes} from '@/lib/kyc/server';
 import {localDay} from '@/lib/postloan/core';
-import {sendTelegram,tokenKey} from './core';
+import {sendTelegram,tokenKey,type NotificationLocale} from './core';
 const config=()=>env as unknown as Record<string,string>;
 const bindingId=(owner:string,customerId:string,botId:string)=>owner+':'+customerId+':'+botId;
 export async function notificationSettings(owner:string,customerId:string){const {state}=await readState(owner);const rows=(await db().prepare('SELECT bot_id,active FROM telegram_subscriptions WHERE owner=? AND customer_id=?').bind(owner,customerId).all<any>()).results;return {channels:state.bots.filter(b=>b.enabled).map(b=>({id:b.id,label:b.label,username:b.username,configured:!!b.tokenConfigured||!!config()[tokenKey(owner,b.id)],bound:!!rows.find(r=>r.bot_id===b.id&&r.active)}))}}
@@ -28,7 +28,7 @@ export async function dispatchCompany(owner:string,now=new Date().toISOString())
  if(!l||l.status!=='active'||!l.dueAt||localDay(l.dueAt)<today||!sub||!bot){await db().prepare("UPDATE telegram_outbox SET status='cancelled',reason='已结清、提醒过期或已停用' WHERE id=? AND status IN ('pending','retry')").bind(job.id).run();continue}
  const token=await channelToken(owner,bot.id);if(!token)continue;
  const claim=await db().prepare("UPDATE telegram_outbox SET status='sending',attempts=attempts+1,updated_at=? WHERE id=? AND owner=? AND status IN ('pending','retry') AND attempts=? AND EXISTS (SELECT 1 FROM telegram_subscriptions WHERE id=? AND active=1)").bind(now,job.id,owner,job.attempts,sub.id).run();if(!claim.meta.changes)continue;
- let result;try{const chat=Number(new TextDecoder().decode(await decryptBytes(Uint8Array.from(atob(sub.chat_encrypted),c=>c.charCodeAt(0)),'telegram:'+sub.id)));result=await sendTelegram(token,chat)}catch{result={status:'failed',reason:'收件人资料无法读取'}}
+ let result;try{const chat=Number(new TextDecoder().decode(await decryptBytes(Uint8Array.from(atob(sub.chat_encrypted),c=>c.charCodeAt(0)),'telegram:'+sub.id)));const account=await db().prepare('SELECT locale FROM h5_accounts WHERE owner=? AND customer_id=?').bind(owner,l.customerId).first<{locale?:string}>();const locale:NotificationLocale=account?.locale==='km'?'km':account?.locale==='zh'?'zh':'en';result=await sendTelegram(token,chat,fetch,locale)}catch{result={status:'failed',reason:'收件人资料无法读取'}}
  const status=result.status==='retry'&&job.attempts>=4?'failed':result.status;await db().prepare("UPDATE telegram_outbox SET status=?,reason=?,message_id=?,next_at=?,updated_at=? WHERE id=? AND owner=? AND status='sending'").bind(status,result.reason,'messageId' in result?result.messageId:null,Date.parse(now)+('retrySeconds' in result?(result.retrySeconds||60)*1000:0),new Date().toISOString(),job.id,owner).run();if(status==='sent')sent++;
  }
  return {sent}

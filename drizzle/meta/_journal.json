@@ -113,6 +113,41 @@
       "when": 1790649000000,
       "tag": "0015_admin_password",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1791000000000,
+      "tag": "0016_customer_locale",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1791001000000,
+      "tag": "0017_team_member_locale",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791002000000,
+      "tag": "0018_client_language_flags",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791003000000,
+      "tag": "0019_h5_identity_binding",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791004000000,
+      "tag": "0020_disable_client_chinese",
+      "breakpoints": true
     }
   ]
 }

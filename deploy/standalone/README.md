@@ -8,4 +8,6 @@ Docker 服务在 127.0.0.1:4300，经 Caddy 暴露 IP 入口。已有业务不�
 停止：cd /opt/payease/app && docker compose stop
 日志：docker compose logs --tail=100
 备份：先 docker compose stop，再备份 /opt/payease/data，之后 docker compose start。config.json 加密密钥与数据必须一同备份。
+
+KYC 文件上传会先经过内部 ClamAV 扫描网关，扫描服务不可用时默认拒绝上传（fail closed）。ClamAV 特征库保存在 `/opt/payease/clamav`，仅通过 Docker 内部网络访问，不对公网暴露。健康检查：`docker compose exec scanner python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8080/health').read())"`。
 部署包不应包含 config.json、账号明文或测试脚本。配置置于镜像外，仅 root 可读。

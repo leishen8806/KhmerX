@@ -1,3 +1,11 @@
 config.json
 check-accounts.json
 check*.py
+node_modules
+dist.prev*
+dist.backup*
+dist.failed*
+releases
+*.sqlite
+*.sqlite-*
+*.bak*

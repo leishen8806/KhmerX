@@ -1,4 +1,4 @@
-export const roleLabels={admin:'公司管理员',collection_admin:'贷后部门主管',collector:'贷后客服',dept_admin:'部门管理员',ops:'运营分单',kyc:'KYC 审核员',lender:'机构审批员',checker:'机构复核员',finance:'放款员',finance_checker:'放款复核员',audit:'审计员'} as const;
+export const roleLabels={admin:'公司管理员',collection_admin:'贷后部门主管',collector:'贷后客服',dept_admin:'KYC 审核主管',ops:'运营分单',kyc:'KYC 审核员',lender:'机构审批员',checker:'机构复核员',finance:'放款员',finance_checker:'放款复核员',audit:'审计员'} as const;
 export type TeamRole=keyof typeof roleLabels;
 export type Member={id:string;tenant_id:string;user_id:string;email:string;role:TeamRole;unit_id:string|null;active:number;version:number};
 export type Assignment={tenant_id:string;customer_id:string;department_id:string;institution_id:string|null;version:number;funding_institution_id?:string|null;repayment_institution_id?:string|null;collection_unit_id?:string|null;reviewer_id?:string|null};

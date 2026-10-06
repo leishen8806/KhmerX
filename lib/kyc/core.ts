@@ -52,7 +52,7 @@ export const slots=[
 ] as const;
 export type Slot=typeof slots[number]['id'];
 export type FileRef={id:string;slot:Slot;name:string;type:string;size:number;sha256:string};
-export type Profile={values:Record<string,string>;files:Partial<Record<Slot,FileRef>>;consent:boolean;declarationVersion:string;location?:{lat:number;lon:number;accuracy:number;capturedAt:string}};
+export type Profile={values:Record<string,string>;files:Partial<Record<Slot,FileRef>>;consent:boolean;declarationVersion:string;location?:{lat:number;lon:number;accuracy:number;capturedAt:string;source?:'device'|'google_geocoding';formattedAddress?:string}};
 export const vehicleSlots:Slot[]=['vehicleInvoice','vehicleContract','vehiclePhoto'];
 export function hasVehicle(p:Profile){return ['摩托车','嘟嘟车','汽车'].includes(p.values.vehicle)}
 export function slotVisible(id:Slot,p:Profile){if(vehicleSlots.includes(id))return hasVehicle(p);if(id==='rentContract')return p.values.housing==='租房';if(id==='propertyCertificate')return p.values.housing==='个人房产';return true}
@@ -72,7 +72,7 @@ export function cleanProfile(raw:any):Profile{
  if(vehicleSlots.filter(id=>out.files[id]).length>1)throw new KycError('车辆材料只需一份，请选择购车发票、购车合同或车辆照片中的一种');
  if(raw.consent===true&&![KYC_CONSENT_VERSION,LOAN_TERMS_VERSION].includes(raw.declarationVersion))throw new KycError('请重新阅读并确认当前资料审核授权');
  out.consent=raw.consent===true;
- if(raw.location){const {lat,lon,accuracy,capturedAt}=raw.location;if(!Number.isFinite(lat)||lat< -90||lat>90||!Number.isFinite(lon)||lon< -180||lon>180||!Number.isFinite(accuracy)||accuracy<0||typeof capturedAt!=='string'||!Number.isFinite(Date.parse(capturedAt)))throw new KycError('定位格式无效');out.location={lat,lon,accuracy,capturedAt};}
+ if(raw.location){const {lat,lon,accuracy,capturedAt,source,formattedAddress}=raw.location;if(!Number.isFinite(lat)||lat< -90||lat>90||!Number.isFinite(lon)||lon< -180||lon>180||!Number.isFinite(accuracy)||accuracy<0||typeof capturedAt!=='string'||!Number.isFinite(Date.parse(capturedAt)))throw new KycError('定位格式无效');if(source!==undefined&&!['device','google_geocoding'].includes(source))throw new KycError('定位来源无效');if(formattedAddress!==undefined&&(typeof formattedAddress!=='string'||formattedAddress.length>240))throw new KycError('标准化地址无效');out.location={lat,lon,accuracy,capturedAt,...(source?{source}:{}),...(formattedAddress?{formattedAddress}:{})};}
  return out;
 }
 export function missing(profile:Profile):string[]{
