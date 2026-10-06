@@ -10,6 +10,7 @@ export const localeLabels:Record<Locale,string>={en:'English',km:'ភាសា�
 // used by the existing demo flows; English and Khmer are the production variants.
 export const messages:Record<Locale,Record<string,string>>={
   zh:{
+    kycUploadLimit:'单份材料不能超过 10 MB',kycUploadDetail:'单份不超过 10 MB。图片支持 JPG/PNG，证明材料可使用 PDF。PDF 以下载方式查看。',
     home:'首页',records:'借款记录',me:'我的',apply:'申请借款',bill:'费用确认',sign:'确认签约',status:'借款进度',repay:'还款',withdraw:'提现',kyc:'身份认证',
     back:'返回',language:'切换语言',notifications:'站内信息',loading:'正在加载',syncing:'同步你的账户与借款信息…',reload:'重新加载',
     hello:'你好，{name}',simpleFinance:'Simple finance for everyday life.',highest:'最高可申请金额',chooseTerm:'可选 14 天或 28 天 · 签约前展示完整费用',completeKyc:'完成身份认证',applyLoan:'申请借款',viewProgress:'查看借款进度',
@@ -25,6 +26,7 @@ export const messages:Record<Locale,Record<string,string>>={
     noDebt:'测试资金 · 不产生真实债务',registered:'已注册 · 待 KYC',kycPending:'待资料审核',needsInfo:'待补件',kycApproved:'资料通过',decisionPending:'待机构审批',approvedStatus:'待签约',rejected:'申请未通过',signed:'待放款',active:'还款中',closed:'已结清',
   },
   en:{
+    kycUploadLimit:'Each document must be 10 MB or smaller',kycUploadDetail:'Each file must be 10 MB or smaller. JPG/PNG images and PDF evidence are supported. PDFs open as downloads.',
     home:'Home',records:'Loan records',me:'My account',apply:'Apply for a loan',bill:'Fee confirmation',sign:'Sign agreement',status:'Loan progress',repay:'Repayment',withdraw:'Withdraw',kyc:'KYC verification',
     back:'Back',language:'Change language',notifications:'Messages',loading:'Loading',syncing:'Syncing your account and loan information…',reload:'Reload',
     hello:'Hello, {name}',simpleFinance:'Simple finance for everyday life.',highest:'Maximum available amount',chooseTerm:'Choose 14 or 28 days · full costs shown before signing',completeKyc:'Complete KYC',applyLoan:'Apply for a loan',viewProgress:'View loan progress',
@@ -40,6 +42,7 @@ export const messages:Record<Locale,Record<string,string>>={
     noDebt:'Test funds · no real debt is created',registered:'Registered · KYC pending',kycPending:'KYC review pending',needsInfo:'More information required',kycApproved:'KYC approved',decisionPending:'Institution review pending',approvedStatus:'Ready to sign',rejected:'Application declined',signed:'Ready for disbursement',active:'Repayment in progress',closed:'Paid off',
   },
   km:{
+    kycUploadLimit:'ឯកសារមួយមិនអាចលើស ១០ MB ទេ',kycUploadDetail:'ឯកសារមួយមិនលើស ១០ MB។ គាំទ្ររូប JPG/PNG និងភស្តុតាង PDF។ PDF នឹងបើកជាការទាញយក។',
     home:'ទំព័រដើម',records:'កំណត់ត្រាកម្ចី',me:'គណនីរបស់ខ្ញុំ',apply:'ដាក់ពាក្យកម្ចី',bill:'បញ្ជាក់ថ្លៃសេវា',sign:'ចុះហត្ថលេខា',status:'វឌ្ឍនភាពកម្ចី',repay:'សងប្រាក់',withdraw:'ដកប្រាក់',kyc:'ផ្ទៀងផ្ទាត់ KYC',
     back:'ត្រឡប់',language:'ប្តូរភាសា',notifications:'សារ',loading:'កំពុងផ្ទុក',syncing:'កំពុងធ្វើសមកាលកម្មគណនី និងព័ត៌មានកម្ចី…',reload:'ផ្ទុកឡើងវិញ',
     hello:'សួស្តី {name}',simpleFinance:'ហិរញ្ញវត្ថុសាមញ្ញសម្រាប់ជីវិតប្រចាំថ្ងៃ។',highest:'ចំនួនអតិបរមាដែលអាចស្នើសុំ',chooseTerm:'ជ្រើសរើស ១៤ ឬ ២៨ ថ្ងៃ · បង្ហាញថ្លៃសេវាពេញលេញមុនចុះហត្ថលេខា',completeKyc:'បំពេញ KYC',applyLoan:'ដាក់ពាក្យកម្ចី',viewProgress:'មើលវឌ្ឍនភាពកម្ចី',
@@ -60,7 +63,10 @@ export const I18nContext=createContext<I18nValue>({locale:'en',t:(key)=>messages
 export function useI18n(){return useContext(I18nContext)}
 export function i18nValue(locale:Locale):I18nValue{return {locale,t:(key,vars={})=>{const value=messages[locale][key]??messages.en[key]??key;return Object.entries(vars).reduce((s,[k,v])=>s.replaceAll('{'+k+'}',String(v)),value)}}}
 export function legacyText(text:string,locale:Locale):string;
-export function legacyText(text:string,locale:Locale){const value=i18nValue(locale);const known:Record<string,string>={
+export function legacyText(text:string,locale:Locale){const value=i18nValue(locale);if(text==='单份材料不能超过 5 MB')return value.t('kycUploadLimit');if(text.startsWith('单份不超过 5 MB。'))return value.t('kycUploadDetail');const known:Record<string,string>={
+  // Upload limits are enforced at every boundary; keep legacy callers on the 10 MB contract.
+  ...(text==='单份材料不能超过 5 MB'?{ '单份材料不能超过 5 MB':'kycUploadLimit' }:{}),
+  ...(text.startsWith('单份不超过 5 MB。')?{ '单份不超过 5 MB。图片支持 JPG/PNG，证明材料可使用 PDF。PDF 以下载方式查看。':'kycUploadDetail' }:{}),
   '首页':'home','借款记录':'records','我的':'me','申请借款':'apply','费用确认':'bill','确认签约':'sign','借款进度':'status','还款':'repay','提现':'withdraw','身份认证':'kyc','返回':'back','切换语言':'language','站内信息':'notifications','正在加载':'loading','重新加载':'reload','你好，':'hello','查看借款进度':'viewProgress','完成身份认证':'completeKyc','申请只需三步':'threeSteps','身份资料审核':'identityReview','选择金额，确认账单并签约':'chooseAmount','等待审批与放款':'approvalDisbursement','还没有借款记录':'noLoans','完成身份认证后，即可申请借款。':'completeBeforeApply','开始申请':'startApply','继续当前申请':'continue','账户安全':'accountSecurity','账号与安全':'accountSecurity','退出登录':'logout','测试账户':'testAccount','查看资料':'viewProfile','已审核通过':'approved','费用明细':'feeDetails','已签借款协议':'loanAgreement','申请编号':'number','借款期限':'term','实际到账':'net','到期应还':'due','已还金额':'paid','还款日期':'repaymentDate','办理进度':'processing','测试资金 · 不产生真实债务':'noDebt','已注册 · 待 KYC':'registered','待资料审核':'kycPending','待补件':'needsInfo','资料通过':'kycApproved','待机构审批':'decisionPending','待签约':'approvedStatus','申请未通过':'rejected','待放款':'signed','还款中':'active','已结清':'closed'};
   if(text.startsWith('你好，'))return value.t('hello',{name:text.slice(3)});
   if(text.startsWith('剩余应还 '))return value.t('outstanding')+' '+text.slice(5);

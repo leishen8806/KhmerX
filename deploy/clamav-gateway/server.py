@@ -3,7 +3,7 @@ import socket
 import struct
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-MAX_BYTES = 5 * 1024 * 1024
+MAX_BYTES = 10 * 1024 * 1024
 CLAMD_HOST = os.getenv("CLAMD_HOST", "clamav")
 CLAMD_PORT = int(os.getenv("CLAMD_PORT", "3310"))
 
