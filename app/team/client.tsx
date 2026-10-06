@@ -22,8 +22,8 @@ import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
 import {roleLabels,kycFieldGroups,type TeamRole} from '@/lib/team/policy';
 import {statusNames} from '@/lib/domain';
-function TeamClientInner(){
- const [queueView,setQueueView]=useState('');
+function TeamClientInner({initialQueue=''}:{initialQueue?:string}){
+ const [queueView,setQueueView]=useState(initialQueue);
  const [newCompanyLanguages,setNewCompanyLanguages]=useState({en:true,km:true,zh:true});
  const [loginDetails,setLoginDetails]=useState<any>(null),[passwordLogin,setPasswordLogin]=useState(true);
  async function logout(){setBusy(true);setError('');try{const r=await fetch('/api/team/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'logout'})});if(!r.ok)throw Error('退出失败，请重试');setData(null);setWork(null);window.location.replace('/team/login')}catch(e){setError((e as Error).message);setBusy(false)}}
@@ -31,7 +31,7 @@ function TeamClientInner(){
  function focusOrderSearch(){const el=document.querySelector<HTMLInputElement>('input[aria-label="查询订单"]');el?.focus();el?.scrollIntoView({behavior:'smooth',block:'center'})}
  function scrollToSection(id:string){document.getElementById(id)?.scrollIntoView({behavior:'smooth',block:'start'})}
  async function toggleFullscreen(){try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen()}catch{setNotice('当前浏览器不支持全屏模式')}}
- useEffect(()=>{const q=new URLSearchParams(window.location.search).get('queue');if(['customers','reports','notifications','tickets','kyc','loans','funding','repayment','postloan'].includes(q||''))setQueueView(q||'')},[]);
+ useEffect(()=>{if(initialQueue)return;const q=new URLSearchParams(window.location.search).get('queue');if(['customers','reports','notifications','tickets','kyc','loans','funding','repayment','postloan'].includes(q||''))setQueueView(q||'')},[initialQueue]);
  const [data,setData]=useState<any>(null),[work,setWork]=useState<any>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[notice,setNotice]=useState(''),[name,setName]=useState(''),[slug,setSlug]=useState(''),[unitName,setUnitName]=useState(''),[kind,setKind]=useState('department'),[email,setEmail]=useState(''),[role,setRole]=useState<TeamRole>('kyc'),[unit,setUnit]=useState('');
  const [mfaEnrollment,setMfaEnrollment]=useState<any>(null),[mfaCode,setMfaCode]=useState(''),[mfaReason,setMfaReason]=useState(''),[recoveryCodes,setRecoveryCodes]=useState<string[]>([]);
  async function load(){try{const r=await fetch('/api/team',{cache:'no-store'}),d:any=await r.json();if(r.status===401){setData(null);setWork(null);window.location.replace('/team/login');return}if(!r.ok)throw Error(d.error);setError('');setData(d);if(d.company){const w=await fetch('/api/state',{cache:'no-store'}),v:any=await w.json();if(!w.ok)throw Error(v.error);setWork(v)}else setWork(null)}catch(e){setError((e as Error).message)}}
@@ -70,16 +70,16 @@ function TeamClientInner(){
   const lender=role==='checker'||role==='finance_checker';
   const items=[
    ['工作台','查看今日待办与资金监管','/team'],
-   ['客户与 KYC','审核资料、补件和修改记录','/team?queue=kyc#team-queue'],
-   ['贷款申请','查看审批、签约和费用','/team?queue=loans#team-queue'],
-   ['放款管理','资金状态与放款流水','/team?queue=funding#team-queue'],
-   ['还款管理','登记还款并核对账单','/team?queue=repayment#team-queue'],
-   ['贷后催收','跟进逾期与提醒任务','/team?queue=postloan#team-queue'],
- ['通知中心','查看 Telegram 发送记录','#team-notifications'],['工单与投诉','处理客户问题、投诉和争议','/team?queue=tickets#team-queue'],
-   ...(admin?[['权限与配置','员工、角色、费用和机构设置','#team-permissions']]:[]),
-   ['审计记录','查看操作前后值与登录轨迹','#team-audit']
+   ['客户与 KYC','审核资料、补件和修改记录','/team/kyc'],
+   ['贷款申请','查看审批、签约和费用','/team/loans'],
+   ['放款管理','资金状态与放款流水','/team/funding'],
+   ['还款管理','登记还款并核对账单','/team/repayment'],
+   ['贷后催收','跟进逾期与提醒任务','/team/postloan'],
+ ['通知中心','查看 Telegram 发送记录','/team/notifications'],['工单与投诉','处理客户问题、投诉和争议','/team/tickets'],
+   ...(admin?[['权限与配置','员工、角色、费用和机构设置','/team#team-permissions']]:[]),
+   ['审计记录','查看操作前后值与登录轨迹','/team#team-audit']
   ];
-  const links=lender?(role==='checker'?[['贷款复核','/team?queue=loans#team-queue'],['审计记录','#team-audit']]:[['放款复核','/team?queue=funding#team-queue'],['审计记录','#team-audit']]):[['工作台','/team'],['用户管理','/team?queue=customers#team-queue'],['订单管理','/team?queue=loans#team-queue'],['信审管理','/team?queue=kyc#team-queue'],['支付管理','/team?queue=funding#team-queue'],['通知管理','/team?queue=notifications#team-queue'],['催收管理','/team?queue=postloan#team-queue'],['数据报表','/team?queue=reports#team-queue'],['风控与资金','/team?queue=funding#team-queue'],...(admin?[['权限管理','#team-permissions'],['系统管理','#team-permissions']]:[]),['审计与安全','#team-audit']];
+  const links=lender?(role==='checker'?[['贷款复核','/team/loans'],['审计记录','/team#team-audit']]:[['放款复核','/team/funding'],['审计记录','/team#team-audit']]):[['工作台','/team'],['用户管理','/team/customers'],['订单管理','/team/loans'],['信审管理','/team/kyc'],['支付管理','/team/funding'],['通知管理','/team/notifications'],['催收管理','/team/postloan'],['数据报表','/team/reports'],['风控与资金','/team/funding'],...(admin?[['权限管理','/team#team-permissions'],['系统管理','/team#team-permissions']]:[]),['审计与安全','/team#team-audit']];
   return <aside className="crm-sidebar" aria-label={lender?'持牌机构菜单':'服务机构菜单'}><div className="crm-sidebar-brand"><span className="crm-sidebar-mark">K</span><span><strong>KhmerX</strong><small>{lender?'LENDER REVIEW':'SERVICE OPERATIONS'}</small></span></div><nav>{links.map(([label,href],i)=><a className={i===0?'active':''} href={href} key={label}>◉<span>{label}</span>{!lender&&i>0&&<b>⌄</b>}</a>)}</nav><div className="crm-sidebar-foot">{lender?'持牌机构复核':'服务机构后台'}<br/><span>PayEase</span></div></aside>
 }
 
@@ -113,4 +113,4 @@ function PricingPanel({pricing,busy,post}:{pricing:Pricing;busy:boolean;post:any
  const [p,setP]=useState(pricing);let preview,error='';try{preview=calculateBill(10000,p,'preview')}catch(e){error=(e as Error).message}
  return <section className="panel"><h2>贷款费用配置</h2><p>仅影响之后新建的申请；已创建申请、签名合同及确认账单保留原费用。当前版本 {pricing.version}。</p><label>计费方案<select aria-label="计费方案" value={p.interestTiming} onChange={e=>setP({...p,interestTiming:e.target.value as Pricing['interestTiming']})}><option value="upfront">方案一：整个周期利息在放款时一次性扣除</option><option value="repayment">方案二：整个周期利息在还款时收取</option></select></label><div className="team-grid">{([['serviceBps','服务费（放款时扣除，%）'],['annualInterestBps','年利率（%）']] as const).map(([key,label])=><label key={key}>{label}<Input aria-label={label} type="number" min="0" max="100" step="0.01" value={p[key]/100} onChange={e=>setP({...p,[key]:Math.round(Number(e.target.value)*100)})}/></label>)}<label>账单预览期限<select aria-label="账单预览期限" value={p.termDays} onChange={e=>setP({...p,termDays:Number(e.target.value)})}><option value="14">14 天</option><option value="28">28 天</option></select></label></div><p>利息按本金单利计算：本金 × 年利率 × 贷款天数 ÷ 365；不复利。两种方案均按整个周期收取，提前还款不减免。客户申请时自行选择 14 天或 28 天；此处期限仅用于预览。服务费即放款扣费，仅在放款时扣除一次，可设为 0。</p>{error&&<p role="alert">{error}</p>}{preview&&<LoanBill bill={preview}/>}<Button disabled={busy||!!error} onClick={()=>void post({action:'pricing_save',...p})}>保存费用配置</Button></section>
 }
-export default function TeamClient(){return <AdminLocaleShell><TeamClientInner/></AdminLocaleShell>}
+export default function TeamClient({initialQueue}:{initialQueue?:string}={}){return <AdminLocaleShell><TeamClientInner initialQueue={initialQueue}/></AdminLocaleShell>}
