@@ -1,4 +1,4 @@
-import {staffIdentity,STAFF_COMPANY,value,makePassword} from './auth';
+import {staffIdentity,STAFF_COMPANY,value,makePassword,createMfaEnrollment,revealMfaSecret,verifyTotp} from './auth';
 import {fillServiceAssignments} from './servicing';
 import {defaultPricing,validatePricing,normalizePricing,type Pricing} from '@/lib/pricing';
 import {env} from 'cloudflare:workers';
@@ -26,6 +26,15 @@ const txt=(v:any,max=80)=>typeof v==='string'?v.trim().slice(0,max):'';
 export async function manage(p:any){const u=await identity();
  if(p.action==='create_company'){await platformAdmin();const name=txt(p.name),slug=txt(p.slug,40),enabled={en:p.en!==false,km:p.km!==false,zh:p.zh!==false};if(!name||! /^[a-z0-9][a-z0-9-]{2,39}$/.test(slug))throw new AuthError('请填写公司名称及 3–40 位小写字母/数字入口代码');if(!Object.values(enabled).some(Boolean))throw new AuthError('至少启用一种客户端语言');const id='t_'+crypto.randomUUID(),dept=crypto.randomUUID();await db().batch([db().prepare('INSERT INTO team_companies (id,name,slug,active,default_department,client_en_enabled,client_km_enabled,client_zh_enabled) VALUES (?,?,?,1,?,?,?,?)').bind(id,name,slug,dept,enabled.en?1:0,enabled.km?1:0,enabled.zh?1:0),db().prepare('INSERT INTO team_units (id,tenant_id,name,kind) VALUES (?,?,?,?)').bind(dept,id,'运营一部','department'),db().prepare('INSERT INTO team_members (id,tenant_id,user_id,email,role,active,version) VALUES (?,?,?,?,?,1,0)').bind(crypto.randomUUID(),id,u.userId,u.email.toLowerCase(),'admin'),audit(id,u.userId,'create_company',{name,languages:enabled})]);return {companyId:id,languages:enabled}}
  const s=await staff();if(!s||s.member.role!=='admin')throw new AuthError('仅当前公司管理员可管理组织',403);const tenant=s.tenant.id;
+ if(p.action==='mfa_enroll_start'){
+  const enrollment=await createMfaEnrollment();await db().prepare('UPDATE team_members SET mfa_secret=?,mfa_enabled=0,version=version+1 WHERE id=? AND tenant_id=? AND active=1 AND role=\'admin\' AND version=?').bind(enrollment.protectedSecret,s.member.id,tenant,s.member.version).run();await db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),tenant,u.userId,'mfa_enroll_start',JSON.stringify({member:s.member.id}),new Date().toISOString()).run();return {ok:true,mfa:{secret:enrollment.secret,uri:enrollment.uri}};
+ }
+ if(p.action==='mfa_enroll_confirm'){
+  const row=await db().prepare('SELECT mfa_secret,mfa_enabled,version FROM team_members WHERE id=? AND tenant_id=? AND active=1 AND role=\'admin\'').bind(s.member.id,tenant).first<any>();if(!row?.mfa_secret)throw new AuthError('请先开始 MFA 设置');const secret=await revealMfaSecret(row.mfa_secret);if(!await verifyTotp(secret,txt(p.code,6)))throw new AuthError('MFA 验证码不正确',400);await db().prepare('UPDATE team_members SET mfa_enabled=1,version=version+1 WHERE id=? AND tenant_id=? AND version=?').bind(s.member.id,tenant,row.version).run();await db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),tenant,u.userId,'mfa_enabled',JSON.stringify({member:s.member.id}),new Date().toISOString()).run();return {ok:true};
+ }
+ if(p.action==='mfa_disable'){
+  if(!txt(p.reason,300))throw new AuthError('请填写关闭 MFA 的原因');await db().prepare('UPDATE team_members SET mfa_enabled=0,version=version+1 WHERE id=? AND tenant_id=? AND role=\'admin\' AND active=1 AND version=?').bind(s.member.id,tenant,s.member.version).run();await db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),tenant,u.userId,'mfa_disabled',JSON.stringify({member:s.member.id,reason:txt(p.reason,300)}),new Date().toISOString()).run();return {ok:true};
+ }
  if(p.action==='client_language_config'){
   const enabled={en:p.en!==false,km:p.km!==false,zh:p.zh!==false};
   if(!enabled.en&&!enabled.km&&!enabled.zh)throw new AuthError('至少启用一种客户端语言');
