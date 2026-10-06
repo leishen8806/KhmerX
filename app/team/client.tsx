@@ -79,7 +79,7 @@ function TeamClientInner({initialQueue=''}:{initialQueue?:string}){
    ...(admin?[['权限与配置','员工、角色、费用和机构设置','/team#team-permissions']]:[]),
    ['审计记录','查看操作前后值与登录轨迹','/team#team-audit']
   ];
-  const links=lender?(role==='checker'?[['贷款复核','/team/loans'],['审计记录','/team#team-audit']]:[['放款复核','/team/funding'],['审计记录','/team#team-audit']]):[['工作台','/team'],['用户管理','/team/customers'],['订单管理','/team/loans'],['信审管理','/team/kyc'],['支付管理','/team/funding'],['通知管理','/team/notifications'],['催收管理','/team/postloan'],['数据报表','/team/reports'],['风控与资金','/team/funding'],...(admin?[['权限管理','/team#team-permissions'],['系统管理','/team#team-permissions']]:[]),['审计与安全','/team#team-audit']];
+  const links=lender?(role==='checker'?[['贷款复核','/team/loans'],['审计记录','/team#team-audit']]:[['放款复核','/team/funding'],['审计记录','/team#team-audit']]):[['工作台','/team'],['用户管理','/team/customers'],['订单管理','/team/loans'],['信审管理','/team/kyc'],['支付管理','/team/funding'],['通知管理','/team/notifications'],['工单管理','/team/tickets'],['催收管理','/team/postloan'],['数据报表','/team/reports'],['风控与资金','/team/funding'],...(admin?[['权限管理','/team#team-permissions'],['系统管理','/team#team-permissions']]:[]),['审计与安全','/team#team-audit']];
   return <aside className="crm-sidebar" aria-label={lender?'持牌机构菜单':'服务机构菜单'}><div className="crm-sidebar-brand"><span className="crm-sidebar-mark">K</span><span><strong>KhmerX</strong><small>{lender?'LENDER REVIEW':'SERVICE OPERATIONS'}</small></span></div><nav>{links.map(([label,href],i)=><a className={i===0?'active':''} href={href} key={label}>◉<span>{label}</span>{!lender&&i>0&&<b>⌄</b>}</a>)}</nav><div className="crm-sidebar-foot">{lender?'持牌机构复核':'服务机构后台'}<br/><span>PayEase</span></div></aside>
 }
 
