@@ -96,5 +96,15 @@ export async function manage(p:any){const u=await identity();
   if(!results[0].meta.changes)throw new AuthError('员工密码记录不存在或权限已变化，请刷新后重试',409);
   return {ok:true,loginDetails:{company:s.tenant.slug,email:m.email,password},passwordReset:true};
  }
+ if(p.action==='revoke_member_sessions'){
+  const memberId=txt(p.memberId,80),reason=txt(p.reason,300);
+  if(!memberId||!reason)throw new AuthError('请填写撤销会话原因');
+  const m=await db().prepare('SELECT id,tenant_id,email,active FROM team_members WHERE id=? AND tenant_id=?').bind(memberId,tenant).first<any>();
+  if(!m||m.id===s.member.id)throw new AuthError('不能撤销自己的会话');
+  if(!m.active)throw new AuthError('已停用员工无需单独撤销会话');
+  const result=await db().prepare('DELETE FROM team_staff_sessions WHERE member_id=? AND EXISTS (SELECT 1 FROM team_members actor WHERE actor.id=? AND actor.tenant_id=? AND actor.role=\'admin\' AND actor.active=1 AND actor.version=?)').bind(m.id,s.member.id,tenant,s.member.version).run();
+  await db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),tenant,u.userId,'revoke_member_sessions',JSON.stringify({member:m.id,email:m.email,revoked:result.meta.changes,reason}),new Date().toISOString()).run();
+  return {ok:true,revokedSessions:result.meta.changes};
+ }
  throw new AuthError('操作无效');
 }

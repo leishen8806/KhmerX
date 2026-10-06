@@ -327,6 +327,11 @@ test('independent staff password login, tenant scope, logout, expiry and disable
  extraCookies='';await assert.rejects(auth.passwordLogin(input,owner.userId),/不正确/);
  assert.equal(sql.prepare("SELECT COUNT(*) n FROM team_audit WHERE action='staff_login' AND actor=?").get(d.email).n,3);
  assert.equal(sql.prepare("SELECT COUNT(*) n FROM team_audit WHERE action='staff_logout' AND actor=?").get(d.email).n,1);
+ extraCookies=`; payease_staff_mode=sso; payease_staff_company=${A}`;const revokeCreated=await team.manage({action:'create_member',role:'lender',email:'session-revoke@example.test',unitId:inst,passwordLogin:true});
+ const revokeInput=revokeCreated.loginDetails, revokeMember=sql.prepare('SELECT * FROM team_members WHERE tenant_id=? AND email=?').get(A,revokeInput.email);
+ const activeOne=await auth.passwordLogin(revokeInput,owner.userId),activeTwo=await auth.passwordLogin(revokeInput,owner.userId);assert(activeOne.token&&activeTwo.token);assert.equal(sql.prepare('SELECT COUNT(*) n FROM team_staff_sessions WHERE member_id=?').get(revokeMember.id).n,2);
+ extraCookies=`; payease_staff_mode=sso; payease_staff_company=${A}`;await assert.rejects(team.manage({action:'revoke_member_sessions',memberId:revokeMember.id,reason:''}),/会话原因/);
+ const revoked=await team.manage({action:'revoke_member_sessions',memberId:revokeMember.id,reason:'Synthetic security review'});assert.equal(revoked.revokedSessions,2);assert.equal(sql.prepare('SELECT COUNT(*) n FROM team_staff_sessions WHERE member_id=?').get(revokeMember.id).n,0);assert.equal(sql.prepare("SELECT COUNT(*) n FROM team_audit WHERE action='revoke_member_sessions'").get().n,1);
  for(let i=0;i<5;i++)await assert.rejects(auth.passwordLogin({company:'synthetic-a',email:'missing@example.test',password:'wrong'},owner.userId),/不正确/);
  await assert.rejects(auth.passwordLogin({company:'synthetic-a',email:'missing@example.test',password:'wrong'},owner.userId),/尝试过多/);
 });
