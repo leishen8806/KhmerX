@@ -350,6 +350,22 @@ test('staff auth HTTP logout, SSO choice, same-origin and company entry enforcem
  user=owner;extraCookies='';
 });
 
+test('service and lender portal selection enforces reviewer-only access',async()=>{
+ selected=A;user=owner;extraCookies='';const auth=await mod('@/lib/team/auth');
+ const checkerCreated=await team.manage({action:'create_member',role:'checker',email:'portal-checker@example.test',unitId:inst,passwordLogin:true});
+ const financeCheckerCreated=await team.manage({action:'create_member',role:'finance_checker',email:'portal-finance-checker@example.test',unitId:inst,passwordLogin:true});
+ const lenderCreated=await team.manage({action:'create_member',role:'lender',email:'portal-lender@example.test',unitId:inst,passwordLogin:true});
+ const financeCreated=await team.manage({action:'create_member',role:'finance',email:'portal-finance@example.test',unitId:inst,passwordLogin:true});
+ const serviceCreated=await team.manage({action:'create_member',role:'kyc',email:'portal-service@example.test',unitId:dept,passwordLogin:true});
+ assert.equal((await auth.passwordLogin({...checkerCreated.loginDetails,portal:'lender'},owner.userId)).portal,'lender');
+ assert.equal((await auth.passwordLogin({...financeCheckerCreated.loginDetails,portal:'lender'},owner.userId)).portal,'lender');
+ await assert.rejects(auth.passwordLogin({...checkerCreated.loginDetails,portal:'business'},owner.userId),/不属于服务机构后台/);
+ await assert.rejects(auth.passwordLogin({...financeCheckerCreated.loginDetails,portal:'business'},owner.userId),/不属于服务机构后台/);
+ await assert.rejects(auth.passwordLogin({...lenderCreated.loginDetails,portal:'lender'},owner.userId),/持牌机构复核/);
+ await assert.rejects(auth.passwordLogin({...financeCreated.loginDetails,portal:'lender'},owner.userId),/持牌机构复核/);
+ await assert.rejects(auth.passwordLogin({...serviceCreated.loginDetails,portal:'lender'},owner.userId),/持牌机构复核/);
+});
+
 test('existing SSO Admin can use company password without inheriting other companies or platform access',async()=>{
  selected=A;user=owner;extraCookies='';const auth=await mod('@/lib/team/auth');
  const m=sql.prepare('SELECT id FROM team_members WHERE tenant_id=? AND user_id=?').get(A,owner.userId);
