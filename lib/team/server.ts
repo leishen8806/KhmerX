@@ -41,6 +41,15 @@ export async function manage(p:any){const u=await identity();
   await db().batch([db().prepare('INSERT INTO team_kyc_field_permissions (tenant_id,member_id,field_group,active,updated_at) VALUES (?,?,?,?,?) ON CONFLICT(tenant_id,member_id,field_group) DO UPDATE SET active=excluded.active,updated_at=excluded.updated_at').bind(tenant,memberId,fieldGroup,p.enabled?1:0,now),audit(tenant,u.userId,'kyc_field_permission',{member:memberId,email:target.email,fieldGroup,before:before?.active===1,after:p.enabled,reason})]);
   return {ok:true};
  }
+ if(p.action==='notification_template_save'){
+  const eventKey=txt(p.eventKey,60),locale=txt(p.locale,5),title=txt(p.title,120),body=txt(p.body,2000),reason=txt(p.reason,300);
+  if(!/^[a-z][a-z0-9_.-]{1,59}$/.test(eventKey)||!['en','km','zh'].includes(locale)||!title||!body||!reason)throw new AuthError('请填写完整的通知模板、语言和变更原因');
+  const old=await db().prepare('SELECT id,version,title,body,active FROM team_notification_templates WHERE tenant_id=? AND event_key=? AND locale=?').bind(tenant,eventKey,locale).first<any>();
+  if(old&&p.version!==old.version)throw new AuthError('模板已被其他管理员更新，请刷新后重试',409);
+  const now=new Date().toISOString(),id=old?.id||crypto.randomUUID(),version=(old?.version||0)+1,active=p.active===false?0:1;
+  await db().batch([db().prepare('INSERT INTO team_notification_templates (id,tenant_id,event_key,locale,title,body,version,active,updated_by,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(tenant_id,event_key,locale) DO UPDATE SET title=excluded.title,body=excluded.body,version=excluded.version,active=excluded.active,updated_by=excluded.updated_by,updated_at=excluded.updated_at').bind(id,tenant,eventKey,locale,title,body,version,active,u.userId,now),audit(tenant,u.userId,'notification_template_save',{eventKey,locale,before:old?{title:old.title,body:old.body,active:old.active,version:old.version}:null,after:{title,body,active,version},reason})]);
+  return {ok:true};
+ }
  if(p.action==='pricing_save'){
   const current=await pricingFor(tenant);if(p.version!==current.version)throw new AuthError('费率已更新，请刷新后重新设置',409);
   const next=validatePricing({feeModel:'single',version:current.version+1,deductionBps:p.deductionBps,annualInterestBps:p.annualInterestBps,interestTiming:p.interestTiming,serviceBps:p.serviceBps,serviceTiming:p.serviceTiming,termDays:p.termDays});
