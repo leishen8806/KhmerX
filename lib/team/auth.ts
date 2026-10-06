@@ -2,7 +2,10 @@ import {env} from 'cloudflare:workers';
 import {headers} from 'next/headers';
 import {getChatGPTUser} from '@/app/chatgpt-auth';
 import {AuthError,randomToken,digest} from '@/lib/h5-auth-core';
-export const STAFF_SESSION='payease_staff_session',STAFF_MODE='payease_staff_mode',STAFF_COMPANY='payease_staff_company';
+export const STAFF_SESSION='payease_staff_session',STAFF_MODE='payease_staff_mode',STAFF_COMPANY='payease_staff_company',STAFF_PORTAL='payease_staff_portal';
+export type StaffPortal='business'|'lender';
+export function portal(value:unknown):StaffPortal{return value==='lender'?'lender':'business'}
+export function portalAllows(role:string,selected:StaffPortal){return selected==='lender'?['lender','checker','finance','finance_checker'].includes(role):!['lender','checker','finance','finance_checker'].includes(role)}
 const db=()=>{if(!env.DB)throw new AuthError('员工登录服务暂不可用',503);return env.DB};
 export function value(raw:string|null,name:string){return raw?.split(';').map(v=>v.trim()).find(v=>v.startsWith(name+'='))?.slice(name.length+1)}
 export async function makePassword(password:string,salt=randomToken()){const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(password),'PBKDF2',false,['deriveBits']);const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:new TextEncoder().encode(salt),iterations:100000,hash:'SHA-256'},k,256);return salt+':'+Array.from(new Uint8Array(bits),b=>b.toString(16).padStart(2,'0')).join('')}
@@ -34,6 +37,7 @@ export async function staffIdentity(){
  return {...outer,staffTenantId:null};
 }
 export async function passwordLogin(p:any,siteUserId:string){
+ const requested=p.portal===undefined||p.portal===null?'':String(p.portal),selected=requested?portal(requested):null;
  const slug=typeof p.company==='string'?p.company.trim().toLowerCase():'',email=typeof p.email==='string'?p.email.trim().toLowerCase():'',password=typeof p.password==='string'?p.password:'';
  if(!/^[a-z0-9][a-z0-9-]{2,39}$/.test(slug)||email.length>254||!/^\S+@\S+\.\S+$/.test(email)||password.length>128)throw new AuthError('请填写公司代码、邮箱和密码');
  const now=Date.now(),window=Math.floor(now/900000);
@@ -42,9 +46,11 @@ export async function passwordLogin(p:any,siteUserId:string){
   const row=await db().prepare(`INSERT INTO team_staff_limits (key,window,count) VALUES (?,?,1) ON CONFLICT(key) DO UPDATE SET count=CASE WHEN window=excluded.window THEN count+1 ELSE 1 END,window=excluded.window RETURNING count`).bind(k,window).first<any>();
   if(row.count>limit)throw new AuthError('登录尝试过多，请 15 分钟后重试',429);
  }
- const m=await db().prepare(`SELECT m.id,m.tenant_id,m.version,m.email,m.mfa_enabled,m.mfa_secret,p.password_hash,p.version AS credential_version FROM team_members m JOIN team_companies c ON c.id=m.tenant_id JOIN team_staff_credentials p ON p.member_id=m.id WHERE c.slug=? AND lower(m.email)=? AND c.active=1 AND m.active=1`).bind(slug,email).first<any>();
+ const m=await db().prepare(`SELECT m.id,m.tenant_id,m.version,m.email,m.role,m.mfa_enabled,m.mfa_secret,p.password_hash,p.version AS credential_version FROM team_members m JOIN team_companies c ON c.id=m.tenant_id JOIN team_staff_credentials p ON p.member_id=m.id WHERE c.slug=? AND lower(m.email)=? AND c.active=1 AND m.active=1`).bind(slug,email).first<any>();
  const stored=m?.password_hash||('0'.repeat(64)+':'+ '0'.repeat(64));const candidate=await makePassword(password,stored.split(':')[0]);
  if(!m||!equal(candidate,stored))throw new AuthError('公司、账号或密码不正确',401);
+ const effective=selected||( ['lender','checker','finance','finance_checker'].includes(m.role)?'lender':'business');
+ if(!portalAllows(m.role,effective))throw new AuthError(effective==='lender'?'该账号没有持牌机构后台权限，请切换到业务后台':'该账号属于持牌机构后台，请切换到持牌机构入口',403);
  if(m.mfa_enabled)return {mfaRequired:true,challenge:await createMfaChallenge(m.id,siteUserId)};
  const token=randomToken(),hash=await digest(token);
  const result=await db().batch([
@@ -52,12 +58,14 @@ export async function passwordLogin(p:any,siteUserId:string){
   db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) SELECT ?,?,?,?,?,? WHERE changes()=1').bind(crypto.randomUUID(),m.tenant_id,m.email,'staff_login',JSON.stringify({member:m.id}),new Date().toISOString())
  ]);
  if(!result[0].meta.changes)throw new AuthError('账号权限已变化，请重试',409);
- return {token,companyId:m.tenant_id};
+ return {token,companyId:m.tenant_id,portal:effective};
 }
-export async function completeMfaLogin(challenge:string,code:string,siteUserId:string){
- const row=await db().prepare(`SELECT c.member_id,c.site_user_id,m.tenant_id,m.version,m.email,p.version AS credential_version,m.mfa_secret FROM team_mfa_challenges c JOIN team_members m ON m.id=c.member_id LEFT JOIN team_staff_credentials p ON p.member_id=m.id WHERE c.token_hash=? AND c.site_user_id=? AND c.expires_at>? AND m.active=1 AND m.mfa_enabled=1`).bind(await digest(challenge),siteUserId,Date.now()).first<any>();
+export async function completeMfaLogin(challenge:string,code:string,siteUserId:string,selectedPortal:unknown='business'){
+ const selected=portal(selectedPortal);
+ const row=await db().prepare(`SELECT c.member_id,c.site_user_id,m.tenant_id,m.version,m.email,m.role,p.version AS credential_version,m.mfa_secret FROM team_mfa_challenges c JOIN team_members m ON m.id=c.member_id LEFT JOIN team_staff_credentials p ON p.member_id=m.id WHERE c.token_hash=? AND c.site_user_id=? AND c.expires_at>? AND m.active=1 AND m.mfa_enabled=1`).bind(await digest(challenge),siteUserId,Date.now()).first<any>();
  if(!row)throw new AuthError('MFA 验证已失效，请重新登录',401);const secret=await revealMfaSecret(row.mfa_secret);if(!await verifyTotp(secret,code)&&!await consumeRecoveryCode(row.member_id,code)){await db().prepare('DELETE FROM team_mfa_challenges WHERE token_hash=?').bind(await digest(challenge)).run();throw new AuthError('MFA 验证码不正确',401)}
- await db().prepare('DELETE FROM team_mfa_challenges WHERE token_hash=?').bind(await digest(challenge)).run();if(!row.credential_version){await db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),row.tenant_id,row.email,'staff_mfa_login',JSON.stringify({member:row.member_id,mode:'sso'}),new Date().toISOString()).run();return {sso:true,companyId:row.tenant_id};}const token=randomToken();const result=await db().batch([db().prepare('INSERT INTO team_staff_sessions (token_hash,member_id,site_user_id,member_version,credential_version,expires_at) VALUES (?,?,?,?,?,?)').bind(await digest(token),row.member_id,siteUserId,row.version,row.credential_version,Date.now()+8*3600000),db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),row.tenant_id,row.email,'staff_mfa_login',JSON.stringify({member:row.member_id}),new Date().toISOString())]);if(!result[0].meta.changes)throw new AuthError('MFA 登录状态已变化，请重试',409);return {token,companyId:row.tenant_id};
+ if(!portalAllows(row.role,selected))throw new AuthError(selected==='lender'?'该账号没有持牌机构后台权限，请切换到业务后台':'该账号属于持牌机构后台，请切换到持牌机构入口',403);
+ await db().prepare('DELETE FROM team_mfa_challenges WHERE token_hash=?').bind(await digest(challenge)).run();if(!row.credential_version){await db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),row.tenant_id,row.email,'staff_mfa_login',JSON.stringify({member:row.member_id,mode:'sso',portal:selected}),new Date().toISOString()).run();return {sso:true,companyId:row.tenant_id,portal:selected};}const token=randomToken();const result=await db().batch([db().prepare('INSERT INTO team_staff_sessions (token_hash,member_id,site_user_id,member_version,credential_version,expires_at) VALUES (?,?,?,?,?,?)').bind(await digest(token),row.member_id,siteUserId,row.version,row.credential_version,Date.now()+8*3600000),db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),row.tenant_id,row.email,'staff_mfa_login',JSON.stringify({member:row.member_id,portal:selected}),new Date().toISOString())]);if(!result[0].meta.changes)throw new AuthError('MFA 登录状态已变化，请重试',409);return {token,companyId:row.tenant_id,portal:selected};
 }
 export async function logoutStaff(raw:string|null){
  const token=value(raw,STAFF_SESSION);if(!token||!/^[a-f0-9]{64}$/.test(token))return;
