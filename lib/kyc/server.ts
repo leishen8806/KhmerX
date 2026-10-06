@@ -1,11 +1,11 @@
 import type {Bill} from '@/lib/pricing';
 import {staff,guardKyc,ensureAssignment,assignments} from '@/lib/team/server';
-import {canSee} from '@/lib/team/policy';
+import {canSee,kycFieldGroupFor,kycFieldGroups,type KycFieldGroup} from '@/lib/team/policy';
 import {env} from 'cloudflare:workers';
 import {getChatGPTUser} from '@/app/chatgpt-auth';
 import {customer,json} from '@/lib/h5-auth';
 import {AuthError} from '@/lib/h5-auth-core';
-import {cleanProfile,emptyProfile,missing,completeness,validateReview,KycError,RULE_VERSION,type Profile,type KycStatus,type FileRef,type Slot} from './core';
+import {cleanProfile,emptyProfile,missing,completeness,validateReview,fields,KycError,RULE_VERSION,type Profile,type KycStatus,type FileRef,type Slot} from './core';
 export {json,KycError};
 export type CasePayload={profile:Profile;phoneVerified:boolean;ruleVersion:string;submittedAt?:string;signedLoan?:{billing?:Bill;borrowerName:string;profileHash:string;loanId:string;signatureId:string;signatureHash:string;termsVersion:string;principal:number;fee:number;currency:string;termDays:number;signedAt:string;contractHash:string};review?:{decision:string;reason:string;checklist:Record<string,boolean>;actor:string;at:string;revision:number}};
 export type CaseRow={id:string;owner:string;customer_id:string;revision:number;status:KycStatus;payload:string;updated_at:string};
@@ -31,7 +31,7 @@ export async function encryptBytes(bytes:Uint8Array,context:string){const iv=cry
 export async function decryptBytes(bytes:Uint8Array,context:string){return new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv:bytes.slice(0,12),additionalData:encoder.encode(context)},await key(),bytes.slice(12)))}
 async function seal(value:unknown,context:string){const b=await encryptBytes(encoder.encode(JSON.stringify(value)),context);return btoa(String.fromCharCode(...b))}
 async function unseal<T>(value:string,context:string){const b=Uint8Array.from(atob(value),c=>c.charCodeAt(0));return JSON.parse(new TextDecoder().decode(await decryptBytes(b,context))) as T}
-export async function reviewer(){const team=await staff();if(team){if(!['admin','kyc','audit'].includes(team.member.role))throw new KycError('当前岗位没有 KYC 材料查看权限',403);return {...team.user,userId:team.tenant.id,actorId:team.user.userId,team}}const u=await getChatGPTUser();if(!u)throw new KycError('请先登录工作区',401);const allowed=(settings().KYC_REVIEWER_EMAILS||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);if(!allowed.includes(u.email.toLowerCase()))throw new KycError('当前账号未获 KYC 审核授权',403);return {...u,actorId:u.userId,team:null}}
+export async function reviewer(){const team=await staff();if(team){if(!['admin','kyc','dept_admin','audit'].includes(team.member.role))throw new KycError('当前岗位没有 KYC 材料查看权限',403);return {...team.user,userId:team.tenant.id,actorId:team.user.userId,team}}const u=await getChatGPTUser();if(!u)throw new KycError('请先登录工作区',401);const allowed=(settings().KYC_REVIEWER_EMAILS||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);if(!allowed.includes(u.email.toLowerCase()))throw new KycError('当前账号未获 KYC 审核授权',403);return {...u,actorId:u.userId,team:null}}
 export async function context(request:Request){const c=await customer(request);return {owner:c.ownerId,customerId:c.session.customerId,verified:c.session.phoneVerified===true}}
 export function origin(request:Request){if(request.headers.get('origin')!==new URL(request.url).origin)throw new KycError('不允许跨站操作',403)}
 export async function boundedBody(request:Request,max:number){if(Number(request.headers.get('content-length')||0)>max)throw new KycError('上传内容过大',413);const reader=request.body?.getReader();if(!reader)return new Uint8Array();const chunks:Uint8Array[]=[];let size=0;while(true){const r=await reader.read();if(r.done)break;size+=r.value.length;if(size>max){await reader.cancel();throw new KycError('上传内容过大',413)}chunks.push(r.value)}const out=new Uint8Array(size);let offset=0;for(const c of chunks){out.set(c,offset);offset+=c.length}return out}
@@ -73,8 +73,22 @@ export async function decide(request:Request){
  if(p.action==='amend'){
   if(!['submitted','needs_info'].includes(row.status))throw new KycError('仅待审核或待补件资料可代修改');
   if(!reason||reason.length>1000)throw new KycError('请填写代修改原因');
-  const profile=await resolveFiles(row.owner,row.customer_id,cleanProfile({...data.profile,values:p.values,consent:false,files:{...data.profile.files,signature:undefined}}));
-  return view(await transition(row,'needs_info',{...data,profile,signedLoan:undefined,review:{decision:'needs_info',reason:'审核员代修改，待客户确认：'+reason,checklist:{},actor:u.actorId,at:new Date().toISOString(),revision:row.revision}},'review:amend',u.actorId));
+  if(!p.values||typeof p.values!=='object'||Array.isArray(p.values))throw new KycError('代修改资料格式无效');
+  const normalized=cleanProfile({...data.profile,values:p.values,consent:false,files:{...data.profile.files,signature:undefined}}),changed=fields.map(f=>f.id).filter(id=>String(data.profile.values[id]??'')!==String(normalized.values[id]??''));
+  if(!changed.length)throw new KycError('没有检测到资料变化');
+  const groups=[...new Set(changed.map(kycFieldGroupFor))] as KycFieldGroup[];
+  if(u.team){
+   if(!['admin','kyc','dept_admin'].includes(u.team.member.role))throw new KycError('当前岗位没有 KYC 修改权限',403);
+   const permitted=(await db().prepare('SELECT field_group FROM team_kyc_field_permissions WHERE tenant_id=? AND member_id=? AND active=1').bind(u.team.tenant.id,u.team.member.id).all()).results.map((x:any)=>x.field_group);
+   const denied=groups.filter(group=>!permitted.includes(group));
+   if(denied.length)throw new KycError('未授予字段级修改权限：'+denied.map(group=>kycFieldGroups[group]).join('、'),403);
+  }
+  const mask=(value:unknown)=>{const text=String(value??'');return text.length>4?'***'+text.slice(-4):text};
+  const before=Object.fromEntries(changed.map(id=>[id,mask(data.profile.values[id])]));
+  const after=Object.fromEntries(changed.map(id=>[id,mask(normalized.values[id])]));
+  const next=await transition(row,'needs_info',{...data,profile:await resolveFiles(row.owner,row.customer_id,normalized),signedLoan:undefined,review:{decision:'needs_info',reason:'审核员代修改，待客户确认：'+reason,checklist:{},actor:u.actorId,at:new Date().toISOString(),revision:row.revision}},'review:amend',u.actorId);
+  if(u.team)await db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),u.team.tenant.id,u.actorId,'kyc_field_amend',JSON.stringify({caseId:row.id,fields:changed,groups,before,after,reason,requiresResubmission:true,revision:next.revision}),new Date().toISOString()).run();
+  return view(next);
  }
  const checklist=Object.fromEntries(['identity','contacts','employment','bank','consent'].map(k=>[k,p.checklist?.[k]===true]));validateReview(row.status,p.decision,checklist,reason,data.profile);data.review={decision:p.decision,reason,checklist,actor:u.actorId,at:new Date().toISOString(),revision:row.revision};return view(await transition(row,p.decision,data,'review:'+p.decision,u.actorId));
 }

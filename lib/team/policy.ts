@@ -2,6 +2,15 @@ export const roleLabels={admin:'公司管理员',collection_admin:'贷后部门�
 export type TeamRole=keyof typeof roleLabels;
 export type Member={id:string;tenant_id:string;user_id:string;email:string;role:TeamRole;unit_id:string|null;active:number;version:number};
 export type Assignment={tenant_id:string;customer_id:string;department_id:string;institution_id:string|null;version:number;funding_institution_id?:string|null;repayment_institution_id?:string|null;collection_unit_id?:string|null;reviewer_id?:string|null};
+export const kycFieldGroups={identity:'身份与证件',contacts:'联系人',employment:'工作与收入',bank:'银行与钱包',address:'地址与定位'} as const;
+export type KycFieldGroup=keyof typeof kycFieldGroups;
+export const kycFieldGroupFor=(field:string):KycFieldGroup=>{
+ if(['contact1Name','contact1Relation','contact1Phone','contact2Name','contact2Relation','contact2Phone','contact3Name','contact3Relation','contact3Phone'].includes(field))return 'contacts';
+ if(['bankName','bankAccount','bankHolder'].includes(field))return 'bank';
+ if(['address','province','district','location'].includes(field))return 'address';
+ if(['workType','company','industry','position','income','tenure','supervisorName','supervisorPhone','vehicle','housing'].includes(field))return 'employment';
+ return 'identity';
+};
 export function canSee(m:Member,a:Assignment|undefined,kind:'summary'|'kyc'='summary'){
  if(!m.active||!a||m.tenant_id!==a.tenant_id)return false;
  if(kind==='summary'&&['admin','audit'].includes(m.role))return true;
