@@ -1,4 +1,4 @@
-import {staffIdentity,STAFF_COMPANY,value,makePassword,createMfaEnrollment,revealMfaSecret,verifyTotp} from './auth';
+import {staffIdentity,STAFF_COMPANY,value,makePassword,createMfaEnrollment,generateMfaRecoveryCodes,revealMfaSecret,verifyTotp} from './auth';
 import {fillServiceAssignments} from './servicing';
 import {defaultPricing,validatePricing,normalizePricing,type Pricing} from '@/lib/pricing';
 import {env} from 'cloudflare:workers';
@@ -34,6 +34,9 @@ export async function manage(p:any){const u=await identity();
  }
  if(p.action==='mfa_disable'){
   if(!txt(p.reason,300))throw new AuthError('请填写关闭 MFA 的原因');await db().prepare('UPDATE team_members SET mfa_enabled=0,version=version+1 WHERE id=? AND tenant_id=? AND role=\'admin\' AND active=1 AND version=?').bind(s.member.id,tenant,s.member.version).run();await db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),tenant,u.userId,'mfa_disabled',JSON.stringify({member:s.member.id,reason:txt(p.reason,300)}),new Date().toISOString()).run();return {ok:true};
+ }
+ if(p.action==='mfa_recovery_generate'){
+  if(!s.member.mfa_enabled)throw new AuthError('请先启用 MFA');const codes=await generateMfaRecoveryCodes(s.member.id);await db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),tenant,u.userId,'mfa_recovery_generate',JSON.stringify({member:s.member.id,count:codes.length}),new Date().toISOString()).run();return {ok:true,recoveryCodes:codes};
  }
  if(p.action==='client_language_config'){
   const enabled={en:p.en!==false,km:p.km!==false,zh:p.zh!==false};
