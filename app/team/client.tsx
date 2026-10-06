@@ -14,6 +14,7 @@ import {ReportCenter} from '@/components/report-center';
 import {NotificationTemplates} from '@/components/notification-templates';
 import {ServiceTickets} from '@/components/service-tickets';
 import {EmergencyAccess} from '@/components/emergency-access';
+import {AuditIntegrity} from '@/components/audit-integrity';
 import {AdminLocaleShell} from '@/lib/admin-i18n';
 import {useEffect,useState} from 'react';
 import {Tabs,TabsList,TabsTrigger,TabsContent} from '@/components/ui/tabs';
@@ -53,6 +54,7 @@ function TeamClientInner(){
  {!queueView&&<>
  {admin&&<ServicingConfig key={'servicing:'+data.company.id} units={units} busy={busy} post={post}/>} 
  {admin&&<EmergencyAccess/>}
+ {['admin','audit'].includes(member.role)&&<AuditIntegrity/>}
  <span id="team-notifications" className="crm-anchor"/>
  {admin&&work?.state&&<BusinessBots key={'business-bots:'+data.company.id+':'+work.revision} state={work.state} tenant={data.company.id} busy={busy} post={post}/>}
  {['admin','audit'].includes(member.role)&&<TelegramNotifications key={'telegram-notifications:'+data.company.id+':'+work?.revision} admin/>}{admin&&<NotificationTemplates busy={busy}/>} {admin&&<PricingPanel key={data.pricing?.version} pricing={data.pricing||defaultPricing} busy={busy} post={post}/>} {admin&&<section className="panel"><h2>管理员 MFA</h2><p className="fine">启用后，管理员使用密码登录还需输入身份验证器的 6 位验证码。密钥和恢复码只以加密哈希形式保存；恢复码仅生成时显示一次。</p>{data.member?.mfa_enabled?<><p className="success">当前管理员已启用 MFA。</p><div className="button-row"><Button variant="outline" disabled={busy} onClick={()=>void post({action:'mfa_recovery_generate'})}>重新生成恢复码</Button><label>关闭原因<Input value={mfaReason} maxLength={300} onChange={e=>setMfaReason(e.target.value)}/></label><Button variant="outline" disabled={busy||!mfaReason.trim()} onClick={()=>void post({action:'mfa_disable',reason:mfaReason})}>关闭 MFA</Button></div>{recoveryCodes.length>0&&<div className="sample"><strong>请立即保存以下恢复码；离开页面后不会再次显示：</strong><pre>{recoveryCodes.join('\n')}</pre></div>}</>:!mfaEnrollment?<Button disabled={busy} onClick={()=>void post({action:'mfa_enroll_start'})}>开始设置 MFA</Button>:<div className="sample"><p>请将以下密钥添加到身份验证器：</p><code style={{wordBreak:'break-all'}}>{mfaEnrollment.secret}</code><p className="fine">或使用 URI：{mfaEnrollment.uri}</p><label>输入当前 6 位验证码<Input inputMode="numeric" value={mfaCode} onChange={e=>setMfaCode(e.target.value.replace(/\D/g,'').slice(0,6))} maxLength={6}/></label><div className="button-row"><Button disabled={busy||mfaCode.length!==6} onClick={()=>void post({action:'mfa_enroll_confirm',code:mfaCode})}>确认启用</Button><Button variant="ghost" disabled={busy} onClick={()=>setMfaEnrollment(null)}>取消</Button></div></div>}</section>}
