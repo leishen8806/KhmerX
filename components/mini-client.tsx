@@ -1,7 +1,7 @@
 'use client';
 import {clientRequestId} from '@/lib/client-id';
 import {useCallback,useEffect,useRef,useState} from 'react';
-import {ShieldCheck,ChevronRight,CheckCircle2,Clock3,Wallet,LockKeyhole} from 'lucide-react';
+import {ShieldCheck,ChevronRight,CheckCircle2,Clock3,Wallet,LockKeyhole,LoaderCircle} from 'lucide-react';
 import {Button} from '@/components/ui/button';
 import {LoanBill} from '@/components/loan-bill';
 import {MiniShell} from './mini-shell';
@@ -30,7 +30,7 @@ export function MiniClient({screen,phone,company,onLogout,onSecurity,busy:authBu
  let content;
  if(screen==='kyc')content=<KycClient mini/>;
  else if(screen==='sign')content=<LoanSign mini/>;
- else if(!data)content=<section className="mini-card" role="status"><h2>正在加载</h2><p>同步你的账户与借款信息…</p></section>;
+ else if(!data)content=<section className="mini-card mini-data-loading" role="status"><LoaderCircle size={28} className="spin" aria-hidden="true"/><h2>正在加载</h2><p>同步你的账户与借款信息…</p></section>;
  else if(screen==='me')content=<><section className="mini-profile"><span className="mini-profile-icon"><UserIcon/></span><h1>{phone}</h1><p>{company}</p><span className="mini-tag">测试账户</span></section><section className="mini-card mini-menu"><a href="/h5/kyc"><ShieldCheck size={20}/>身份资料<span className="mini-menu-value">{kyc==='approved'?'已审核通过':'查看资料'}</span><ChevronRight className="mini-menu-arrow" size={18}/></a><a href="/h5/records"><Wallet size={20}/>借款记录<ChevronRight size={18}/></a><button onClick={onSecurity}><LockKeyhole size={20}/>账户安全<ChevronRight size={18}/></button><details><summary>Telegram 还款提醒</summary><TelegramNotifications/></details></section><Button className="mini-logout-button" variant="outline" disabled={authBusy} onClick={onLogout}>退出登录</Button></>;
  else if(screen==='records')content=<><div className="mini-page-heading"><p>查看每笔申请的进度、账单与还款情况。</p></div>{loans.length?loans.map(card):<section className="mini-card mini-empty"><ReceiptIcon/><h2>还没有借款记录</h2><p>完成身份认证后，即可申请借款。</p><a className="mini-primary" href={kyc==='approved'?'/h5/apply':'/h5/kyc'}>开始申请</a></section>}</>;
  else if(screen==='home')content=<><div className="mini-greeting"><p>你好，{phone}</p><h1>Simple finance for <em>everyday life.</em></h1></div>{open?<section className="mini-hero"><small>当前借款 · {statusNames[open.status]}</small><strong>{money(open.amount)}<small> USD</small></strong><p>{open.status==='active'?'剩余应还 '+money(open.amount+open.fee-open.paid):open.note}</p><a className="mini-primary" href={href(loanDestination(open),open)}>查看借款进度<ChevronRight size={18}/></a></section>:<section className="mini-hero"><small>最高可申请金额</small><strong>$500</strong><p>可选 14 天或 28 天 · 签约前展示完整费用</p><a className="mini-primary" href={kyc==='approved'?'/h5/apply':'/h5/kyc'}>{kyc==='approved'?'申请借款':'完成身份认证'}<ChevronRight size={18}/></a></section>}<a className="mini-card mini-kyc-link" href="/h5/kyc"><ShieldCheck size={25}/><span><strong>{k.title}</strong><small>{k.description}</small></span><ChevronRight size={18}/></a><section className="mini-card"><h2>申请只需三步</h2><ol className="mini-intro"><li><span>1</span>身份资料审核</li><li><span>2</span>选择金额，确认账单并签约</li><li><span>3</span>等待审批与放款</li></ol></section></>;
