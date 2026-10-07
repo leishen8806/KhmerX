@@ -73,19 +73,20 @@ function TeamClientInner({initialQueue=''}:{initialQueue?:string}){
 }
  function CrmMenu({admin,role}:any){
   const lender=role==='checker'||role==='finance_checker';
-  const items=[
-   ['工作台','查看今日待办与资金监管','/team'],
-   ['客户与 KYC','审核资料、补件和修改记录','/team/kyc'],
-   ['贷款申请','查看审批、签约和费用','/team/loans'],
-   ['放款管理','资金状态与放款流水','/team/funding'],
-   ['还款管理','登记还款并核对账单','/team/repayment'],
-   ['贷后催收','跟进逾期与提醒任务','/team/postloan'],
- ['通知中心','查看 Telegram 发送记录','/team/notifications'],['工单与投诉','处理客户问题、投诉和争议','/team/tickets'],
-   ...(admin?[['权限与配置','员工、角色、费用和机构设置','/team#team-permissions']]:[]),
-   ['审计记录','查看操作前后值与登录轨迹','/team#team-audit']
-  ];
   const links=lender?(role==='checker'?[['贷款复核','/team/loans'],['审计记录','/team#team-audit']]:[['放款复核','/team/funding'],['审计记录','/team#team-audit']]):[['工作台','/team'],['用户管理','/team/customers'],['订单管理','/team/loans'],['信审管理','/team/kyc'],['支付管理','/team/funding'],['通知管理','/team/notifications'],['工单管理','/team/tickets'],['催收管理','/team/postloan'],['数据报表','/team/reports'],['风控与资金','/team/funding'],...(admin?[['权限管理','/team#team-permissions'],['系统管理','/team#team-permissions']]:[]),['审计与安全','/team#team-audit']];
-  return <aside className="crm-sidebar" aria-label={lender?'持牌机构菜单':'服务机构菜单'}><div className="crm-sidebar-brand"><span className="crm-sidebar-mark">K</span><span><strong>KhmerX</strong><small>{lender?'LENDER REVIEW':'SERVICE OPERATIONS'}</small></span></div><nav>{links.map(([label,href],i)=><a className={i===0?'active':''} href={href} key={label}>◉<span>{label}</span>{!lender&&i>0&&<b>⌄</b>}</a>)}</nav><div className="crm-sidebar-foot">{lender?'持牌机构复核':'服务机构后台'}<br/><span>PayEase</span></div></aside>
+  const active=(target:string)=>target===queueView||(!queueView&&target==='home');
+  const groups=lender?[[role==='checker'?'贷款复核':'放款复核',[[role==='checker'?'贷款复核':'放款复核',role==='checker'?'/team/loans':'/team/funding',role==='checker'?'loans':'funding']]],['审计与安全',[['审计记录','#team-audit','audit']]]]:[
+   ['工作台',[['今日概览','/team','home'],['我的待办','/team/kyc','kyc'],['团队队列','/team/loans','loans'],['SLA 与提醒','/team/notifications','notifications'],['风险摘要','/team/funding','funding']]],
+   ['客户中心',[['客户列表','/team/customers','customers'],['客户 360° 详情','/team/customers','customers'],['KYC 审核队列','/team/kyc','kyc'],['待补件','/team/kyc','kyc'],['客户标签与分组','/team/customers','customers']]],
+   ['业务中心',[['贷款申请','/team/loans','loans'],['审批协同','/team/loans','loans'],['合同与签约','/team/loans','loans'],['放款管理','/team/funding','funding'],['账单与还款','/team/repayment','repayment'],['提现与钱包','/team/funding','funding'],['业务时间线','/team/loans','loans']]],
+   ['服务中心',[['客服工单','/team/tickets','tickets'],['补件任务','/team/kyc','kyc'],['贷后任务','/team/postloan','postloan'],['逾期与催收','/team/postloan','postloan'],['投诉与争议','/team/tickets','tickets'],['通知发送记录','/team/notifications','notifications']]],
+   ['风控与资金',[['风控事件','/team/funding','funding'],['资金监管','/team/funding','funding'],['每日放款限额','/team/funding','funding'],['每月放款限额','/team/funding','funding'],['20% 资金预警','/team/funding','funding'],['冻结与解除','/team/funding','funding'],['资金流水','/team/funding','funding'],['对账异常','/team/funding','funding']]],
+   ['产品与运营',[['贷款产品','#team-permissions','permissions'],['费率与费用','#team-permissions','permissions'],['风控规则与版本','#team-permissions','permissions'],['Telegram 业务渠道','#team-notifications','notifications'],['通知模板','#team-notifications','notifications'],['公司新闻','#team-notifications','notifications'],['行业资讯','#team-notifications','notifications'],['帮助中心','#team-notifications','notifications']]],
+   ['报表中心',[['客户漏斗','/team/reports','reports'],['KYC 与审批','/team/reports','reports'],['放款与还款','/team/reports','reports'],['逾期与催收','/team/reports','reports'],['资金监管','/team/reports','reports'],['客服与投诉','/team/reports','reports'],['自定义报表','/team/reports','reports']]],
+   ['组织与系统',[['公司与部门','#team-permissions','permissions'],['员工与角色','#team-permissions','permissions'],['数据范围','#team-permissions','permissions'],['字段权限','#team-permissions','permissions'],['持牌机构','#team-permissions','permissions'],['API 应用','#team-permissions','permissions'],['语言与时区','#team-permissions','permissions'],['文件与扫描配置','#team-permissions','permissions'],['系统健康','#team-permissions','permissions']]],
+   ['审计与安全',[['操作审计','#team-audit','audit'],['登录与 IP','#team-audit','audit'],['数据修改','#team-audit','audit'],['资金操作','#team-audit','audit'],['权限变更','#team-audit','audit'],['安全告警','#team-audit','audit'],['应急事件','#team-audit','audit'],['审计导出','#team-audit','audit']]]
+  ];
+  return <aside className="crm-sidebar" aria-label={lender?'持牌机构菜单':'服务机构菜单'}><div className="crm-sidebar-brand"><span className="crm-sidebar-mark">K</span><span><strong>KhmerX</strong><small>{lender?'LENDER REVIEW':'SERVICE OPERATIONS'}</small></span></div><nav>{groups.map(([groupName,children]:any)=><details key={groupName} open={children.some(([, ,key]:any)=>active(key))||groupName==='工作台'}><summary><span>◉<b>{groupName}</b></span><i>⌄</i></summary><div className="crm-sidebar-subnav">{children.map(([label,href,key]:any)=><a className={active(key)?'active':''} href={href} key={label} onClick={()=>setQueueView(key==='home'?'':key)}><span>{label}</span><b>›</b></a>)}</div></details>)}</nav><div className="crm-sidebar-foot">{lender?'持牌机构复核':'服务机构后台'}<br/><span>PayEase</span></div></aside>
 }
 
  function queueRoute(queue:string){return ({customers:'/team/customers',reports:'/team/reports',notifications:'/team/notifications',tickets:'/team/tickets',kyc:'/team/kyc',loans:'/team/loans',funding:'/team/funding',repayment:'/team/repayment',postloan:'/team/postloan'} as Record<string,string>)[queue]||'/team'}
