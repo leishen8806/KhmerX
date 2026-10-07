@@ -36,7 +36,6 @@ export function applyAction(input:State,p:any,now=new Date().toISOString()):Stat
   bot.label=label;bot.username=username;bot.enabled=p.enabled===true;
   s.events.unshift({id:id(),loanId:'渠道',action:p.action,role:p.role,note:label+' 配置已更新；手机号验证 '+(bot.phoneVerification!==false?'开启':'关闭')+'；设置密码 '+(bot.passwordSetup!==false?'开启':'关闭'),at:now});
  }else if(p.action==='create'){
-  if(s.loans.length>=100)throw Error('测试空间最多保存 100 笔申请');
   p={...p,botId:businessBot(s)?.id};if(!p.botId)throw Error('暂无可用业务机器人，请联系管理员');
   const amount=Number(p.amount);if(![3000,5000,10000,50000].includes(amount))throw Error('请选择 30、50、100 或 500 USD 测试额度');
   const name=text(p.name,50).toUpperCase();if(name.length<2)throw Error('请填写测试姓名');
@@ -73,7 +72,11 @@ export function applyAction(input:State,p:any,now=new Date().toISOString()):Stat
   s.events.unshift({id:id(),loanId:l.id,action:p.action,role:p.role,note:l.note+(note&&note!==l.note?' · '+note:''),at:now});
   s.notifications.unshift({id:id(),loanId:l.id,botId:l.botId,text:l.note,at:now,status:'模拟已记录 · 未发送 Telegram'});
  }
- syncSettlements(s,now);s.requests.push(p.requestId);return s;
+  syncSettlements(s,now);s.requests.push(p.requestId);
+  // Idempotency keys are not business history. Keep a bounded recent window so
+  // the workspace row cannot grow forever while retaining replay protection.
+  if(s.requests.length>500)s.requests=s.requests.slice(-500);
+  return s;
 }
 export function summary(s:State){return {applications:s.loans.length,active:s.loans.filter(l=>l.status==='active').length,closed:s.loans.filter(l=>l.status==='closed').length,disbursed:s.entries.filter(e=>e.kind==='测试放款').reduce((n,e)=>n+e.cents,0),repaid:s.entries.filter(e=>e.kind==='测试还款').reduce((n,e)=>n+e.cents,0)}}
 

@@ -12,7 +12,7 @@ const cfg=JSON.parse(readFileSync('/data/config.json','utf8'));
 const mf=new Miniflare({modules,modulesRoot:moduleRoot,compatibilityDate:'2026-05-15',compatibilityFlags:['nodejs_compat'],assets:{directory:'/app/dist/client',binding:'ASSETS',routerConfig:{has_user_worker:true}},d1Databases:{DB:'payease'},d1Persist:'/data/d1',r2Buckets:{BUCKET:'payease'},r2Persist:'/data/r2',bindings:cfg.bindings,host:'127.0.0.1'});
 const db=await mf.getD1Database('DB');
 await db.prepare('CREATE TABLE IF NOT EXISTS standalone_migrations (name TEXT PRIMARY KEY)').run();
-function splitSql(sql){const statements=[];let current='',quote=false;for(let i=0;i<sql.length;i++){const ch=sql[i];if(ch==="'"){if(quote&&sql[i+1]==="'"){current+=ch+sql[++i];continue}quote=!quote;current+=ch;continue}if(ch===';'&&!quote){if(current.trim())statements.push(current.trim());current='';continue}current+=ch}if(current.trim())statements.push(current.trim());return statements}
+function splitSql(sql){const statements=[],push=current=>{const text=current.trim();if(text&&text.replace(/--[^\n]*/g,'').trim())statements.push(text)};let current='',quote=false;for(let i=0;i<sql.length;i++){const ch=sql[i];if(ch==="'"){if(quote&&sql[i+1]==="'"){current+=ch+sql[++i];continue}quote=!quote;current+=ch;continue}if(ch===';'&&!quote){push(current);current='';continue}current+=ch}push(current);return statements}
 for(const name of readdirSync('/app/drizzle').filter(n=>/^\d.*\.sql$/.test(n)).sort()){
  if(await db.prepare('SELECT name FROM standalone_migrations WHERE name=?').bind(name).first())continue;
  const parts=splitSql(readFileSync('/app/drizzle/'+name,'utf8').replace(/--> statement-breakpoint/g,';'));

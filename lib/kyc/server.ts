@@ -14,7 +14,7 @@ export function db(){if(!env.DB)throw new KycError('KYC 数据库暂不可用',5
 export function bucket(){if(!env.BUCKET)throw new KycError('私有材料存储尚未配置',503);return env.BUCKET}
 export async function scanFile(bytes:Uint8Array){
  const values=settings(),url=values.KYC_SCAN_URL?.trim();
- if(!url){if(values.KYC_SCAN_REQUIRED==='true')throw new KycError('文件安全扫描服务尚未配置，请联系管理员',503);return}
+ if(!url){if(values.KHMERX_TEST_MODE==='true')return;throw new KycError('文件安全扫描服务尚未配置，请联系管理员',503,undefined,'KYC_SCAN_REQUIRED');}
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),30000);
  try{
   const response=await fetch(url,{method:'POST',headers:{'content-type':'application/octet-stream','cache-control':'no-store'},body:bytes as BodyInit,signal:controller.signal});
@@ -40,6 +40,15 @@ export function failed(e:unknown){return e instanceof KycError||e instanceof Aut
 export async function findCase(owner:string,customerId:string){return db().prepare('SELECT * FROM kyc_cases WHERE owner=? AND customer_id=?').bind(owner,customerId).first<CaseRow>()}
 export async function getCase(owner:string,id:string){const row=await db().prepare('SELECT * FROM kyc_cases WHERE owner=? AND id=?').bind(owner,id).first<CaseRow>();if(!row)throw new KycError('资料不存在或不可访问',404);return row}
 export async function payload(row:CaseRow){return unseal<CasePayload>(row.payload,'case:'+row.id)}
+export async function storedContract(owner:string,customerId:string,signatureId:string){
+ const row=await db().prepare('SELECT payload FROM kyc_contracts WHERE signature_id=? AND owner=? AND customer_id=?').bind(signatureId,owner,customerId).first<{payload:string}>();
+ if(!row)throw new KycError('签名合同不可访问',409);
+ return unseal<NonNullable<CasePayload['signedLoan']>>(row.payload,'contract:'+signatureId);
+}
+export async function contractHashValid(contract:NonNullable<CasePayload['signedLoan']>){
+ const {contractHash,...terms}=contract;
+ return typeof contractHash==='string'&&contractHash===await digest(JSON.stringify(terms));
+}
 export async function initialize(owner:string,customerId:string,verified:boolean){await ensureAssignment(owner,customerId);let row=await findCase(owner,customerId);if(row)return row;const id=await digest(owner+'\0'+customerId),data:CasePayload={profile:emptyProfile(),phoneVerified:verified,ruleVersion:RULE_VERSION};await db().prepare('INSERT OR IGNORE INTO kyc_cases (id,owner,customer_id,revision,status,payload,updated_at) VALUES (?,?,?,0,?,?,?)').bind(id,owner,customerId,'draft',await seal(data,'case:'+id),new Date().toISOString()).run();return (await findCase(owner,customerId))!}
 export async function metadata(row:{id:string;metadata:string}){return unseal<FileRef>(row.metadata,'file:'+row.id)}
 export async function fileRow(owner:string,id:string,customerId?:string){const row=await db().prepare('SELECT * FROM kyc_files WHERE id=? AND owner=? AND ready=1').bind(id,owner).first<{id:string;owner:string;customer_id:string;slot:Slot;metadata:string}>();if(!row||customerId&&row.customer_id!==customerId)throw new KycError('材料不存在或不可访问',404);return row}

@@ -1,11 +1,14 @@
-import {db,findCase,payload,fileRow,metadata,digest,recordFile,signedContract,KycError,type CaseRow,type CasePayload} from '@/lib/kyc/server';
+import {db,findCase,payload,fileRow,metadata,digest,recordFile,signedContract,storedContract,contractHashValid,KycError,type CaseRow,type CasePayload} from '@/lib/kyc/server';
 import {LOAN_TERMS_VERSION} from '@/lib/agreements/loan-terms';
 import {fileType} from '@/lib/kyc/core';
 import type {Loan,State} from '@/lib/domain';
 export async function validLoanContract(owner:string,loan:Loan,row:CaseRow){
  const data=await payload(row);let contract:CasePayload['signedLoan'];
  try{contract=loan.contract?JSON.parse(loan.contract):data.signedLoan}catch{throw new KycError('合同记录无效',409)}
- if(row.status!=='approved'||loan.kycCaseId!==row.id||loan.kycRevision!==row.revision||!loan.billConfirmedAt||!contract||contract.loanId!==loan.id||contract.principal!==loan.amount||contract.fee!==loan.fee||contract.profileHash!==await digest(JSON.stringify(data.profile.values))||(loan.billing&&contract.billing?.quoteId!==loan.billing.quoteId))throw new KycError('请完成当前申请的费用确认与手写签约，资料须保持审核通过',409);
+ const immutable=contract?.signatureId?await storedContract(owner,row.customer_id,contract.signatureId):null;
+ const contractFields=['billing','borrowerName','profileHash','loanId','signatureId','signatureHash','termsVersion','principal','fee','currency','termDays','signedAt'] as const;
+ const matchesImmutable=!!immutable&&await contractHashValid(immutable)&&!!contract&&contractFields.every(field=>JSON.stringify(contract?.[field])===JSON.stringify(immutable[field]));
+ if(row.status!=='approved'||loan.kycCaseId!==row.id||loan.kycRevision!==row.revision||!loan.billConfirmedAt||!contract||!matchesImmutable||contract.loanId!==loan.id||contract.principal!==loan.amount||contract.fee!==loan.fee||contract.profileHash!==await digest(JSON.stringify(data.profile.values))||contract.borrowerName!==[data.profile.values.surname,data.profile.values.givenName].filter(Boolean).join(' ')||(loan.billing&&contract.billing?.quoteId!==loan.billing.quoteId))throw new KycError('请完成当前申请的费用确认与手写签约，资料须保持审核通过',409);
  const file=await fileRow(owner,contract.signatureId,loan.customerId),ref=await metadata(file);
  if(file.slot!=='signature'||ref.sha256!==contract.signatureHash)throw new KycError('合同签名无效',409);
  return contract;
