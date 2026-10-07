@@ -1,7 +1,7 @@
 import {AuthError} from '@/lib/h5-auth-core';
 import {db,staff,audit} from './server';
 
-const scopes=new Set(['customer','kyc','loan','funding','audit']);
+const scopes=new Set(['customer','kyc','loan','funding','audit','staff']);
 const text=(v:unknown,max:number)=>typeof v==='string'?v.trim().slice(0,max):'';
 function cleanScope(value:unknown){const list=Array.isArray(value)?value.map(v=>text(v,32)).filter(Boolean):[];if(!list.length||list.length>5||list.some(v=>!scopes.has(v)))throw new AuthError('应急权限范围无效',400);return [...new Set(list)]}
 export async function emergencyRequest(p:any){const s=await staff();if(!s||s.member.role!=='admin')throw new AuthError('仅公司 Admin 可申请应急权限',403);const reason=text(p.reason,500),scope=cleanScope(p.scope);if(reason.length<10)throw new AuthError('请填写至少 10 个字符的应急原因',400);const id=crypto.randomUUID(),now=new Date().toISOString();await db().prepare('INSERT INTO team_emergency_access (id,tenant_id,requester_id,status,scope_json,reason,created_at) VALUES (?,?,?,?,?,?,?)').bind(id,s.tenant.id,s.member.id,'requested',JSON.stringify(scope),reason,now).run();await audit(s.tenant.id,s.user.userId,'emergency_access_requested',{id,scope,reason}).run();return {ok:true,id,status:'requested'} }
