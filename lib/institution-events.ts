@@ -4,6 +4,7 @@ export type InstitutionEventType=typeof institutionEventTypes[number];
 export function normalizeInstitutionEvent(payload:Record<string,unknown>,institutionId:string){
  const eventType=typeof payload.eventType==='string'?payload.eventType.trim():'';
  if(!/^[a-z][a-z0-9_.-]{2,79}$/.test(eventType))throw new Error('事件类型无效');
+ if(!institutionEventTypes.includes(eventType as InstitutionEventType))throw new Error('暂不支持的机构事件类型');
  if(payload.institutionId!==undefined&&payload.institutionId!==institutionId)throw new Error('事件机构与签名机构不一致');
  const eventId=typeof payload.eventId==='string'?payload.eventId.trim():'';
  if(eventId&&!/^[A-Za-z0-9._:-]{3,120}$/.test(eventId))throw new Error('事件编号无效');

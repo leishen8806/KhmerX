@@ -10,5 +10,6 @@ test('institution event envelope is normalized and bound to the signed instituti
 test('institution event envelope rejects mismatched identity and malformed fields',()=>{
  assert.throws(()=>normalizeInstitutionEvent({eventType:'loan.approved',institutionId:'inst-b'},'inst-a'),/机构/);
  assert.throws(()=>normalizeInstitutionEvent({eventType:'loan approved'},'inst-a'),/事件类型/);
+ assert.throws(()=>normalizeInstitutionEvent({eventType:'loan.unknown'},'inst-a'),/不支持/);
  assert.throws(()=>normalizeInstitutionEvent({eventType:'loan.approved',occurredAt:'not-a-date'},'inst-a'),/事件时间/);
 });
