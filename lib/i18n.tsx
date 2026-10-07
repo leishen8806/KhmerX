@@ -71,8 +71,11 @@ export function legacyText(text:string,locale:Locale){const value=i18nValue(loca
   // The greeting is rendered by the legacy home screen and can already be
   // translated once. Accept every supported language prefix so a later
   // language switch can translate it back instead of leaving stale copy.
-  const greeting=/^(你好，|Hello, |សួស្តី\s+)/.exec(text);
-  if(greeting)return value.t('hello',{name:text.slice(greeting[0].length)});
+  const greeting=/^(你好，|Hello, |សួស្តី)/.exec(text);
+  if(greeting){
+    const name=text.slice(greeting[0].length).replace(/^[\s\u00a0]+/,'');
+    return value.t('hello',{name});
+  }
   if(text.startsWith('剩余应还 '))return value.t('outstanding')+' '+text.slice(5);
   if(text.startsWith('提现 · '))return value.t('withdrawNow',{amount:text.slice(5)});
   if(text.startsWith('去还款 · '))return value.t('repayNow',{amount:text.slice(5)});
