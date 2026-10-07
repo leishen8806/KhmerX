@@ -1,6 +1,7 @@
 import {env} from 'cloudflare:workers';
 import {addErrorCode} from '@/lib/error-codes';
 import {verifyInstitutionCallback} from '@/lib/institution-callback';
+import {nextCallbackRetry} from '@/lib/institution-callback-queue';
 
 export const dynamic='force-dynamic';
 const response=(data:unknown,status=200)=>Response.json(addErrorCode(data,status),{status,headers:{'Cache-Control':'no-store'}});
@@ -26,6 +27,8 @@ export async function POST(request:Request){
   if(!nonceResult.meta?.changes)return failure('回调 nonce 已使用','CALLBACK_REPLAYED',409);
   const eventId=crypto.randomUUID(),eventType=typeof payload.eventType==='string'?payload.eventType.slice(0,80):'unknown';
   await db.prepare('INSERT INTO institution_callback_events (id,institution_id,idempotency_key,event_type,payload,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)').bind(eventId,institutionId,idempotency,eventType,raw,'received',nowIso,nowIso).run();
+  const retry=nextCallbackRetry(0,now);
+  await db.prepare('INSERT INTO institution_callback_attempts (id,event_id,attempt,status,next_at,last_error,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)').bind(crypto.randomUUID(),eventId,0,retry.status,retry.nextAt,null,nowIso,nowIso).run();
   return response({ok:true,duplicate:false,eventId,eventType,status:'received'},202);
  }catch{return failure('持牌机构回调暂不可用','SERVICE_UNAVAILABLE',503)}
 }
