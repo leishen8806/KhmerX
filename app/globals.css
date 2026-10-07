@@ -209,3 +209,7 @@ fieldset.language-config{margin:16px 0;padding:14px 16px;border:1px solid var(--
 .mini-app button.mini-primary{background:#0057e6;color:#fff}
 .mini-app button.mini-secondary{background:#e7efff;color:#0047c2}
 .mini-app .mini-hero .mini-primary{width:100%;min-height:56px;box-sizing:border-box;padding:16px 20px;justify-content:space-between;border-radius:16px;font-size:16px}
+.mini-app button.mini-kyc-link{width:100%;box-sizing:border-box;text-align:left;color:inherit;border:1px solid #dfe7f5;background:#fff;cursor:pointer}
+.mini-app button.mini-kyc-link:hover{border-color:#9bbcf0;background:#f8fbff}
+.mini-bottom button.mini-tab-button{display:flex;flex:1;min-width:0;min-height:54px;align-items:center;justify-content:center;flex-direction:column;gap:5px;padding:6px 4px;border:0;border-radius:12px;background:transparent;color:#71809b;font-size:12px;line-height:1.2}
+.mini-bottom button.mini-tab-button[aria-current=page]{background:#edf3ff;color:#0057e6;font-weight:700}
