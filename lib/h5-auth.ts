@@ -5,7 +5,7 @@ import {getChatGPTUser} from '@/app/chatgpt-auth';
 import {AuthError,getSession,type AuthMode,type AuthRuntime} from './h5-auth-core';
 import {addErrorCode} from './error-codes.ts';
 export const SESSION_COOKIE='payease_h5_session',BROWSER_COOKIE='payease_h5_browser';
-export function runtime():AuthRuntime{if(!env.DB)throw new AuthError('登录数据库暂不可用',503);const values=env as unknown as Record<string,string>;return {db:env.DB,config:{mode:(values.PAYEASE_AUTH_MODE||'disabled') as AuthMode,secret:values.PAYEASE_AUTH_SECRET||'',gatewayToken:values.TELEGRAM_GATEWAY_TOKEN}}}
+export function runtime():AuthRuntime{if(!env.DB)throw new AuthError('登录数据库暂不可用',503);const values=env as unknown as Record<string,string>;return {db:env.DB,config:{mode:(values.PAYEASE_AUTH_MODE||'disabled') as AuthMode,secret:values.PAYEASE_AUTH_SECRET||'',gatewayToken:values.TELEGRAM_GATEWAY_TOKEN,allowDemo:values.KHMERX_TEST_MODE==='true'}}}
 export function telegramBotToken(channelId='bot-1'){const values=env as unknown as Record<string,string>;const suffix=channelId.match(/^bot-(\d+)$/)?.[1]||'1';const specific=values['TELEGRAM_BOT_TOKEN_'+suffix];return specific||(suffix==='1'?values.TELEGRAM_BOT_TOKEN||'':'')}
 export function cookieValue(request:Request,name:string){const value=request.headers.get('cookie')?.split(';').map(x=>x.trim()).find(x=>x.startsWith(name+'='))?.slice(name.length+1);return value&&/^[a-f0-9]{64}$/.test(value)?value:undefined}
 export function cookie(request:Request,name:string,value:string,age:number){return `${name}=${value}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${age}${new URL(request.url).protocol==='https:'?'; Secure':''}`}

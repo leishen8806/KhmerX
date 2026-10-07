@@ -17,7 +17,7 @@ function fixture(mode='demo',transport=async()=>{throw Error('Unexpected network
   }
  };
 
- let t=1800000000000;const r={db,config:{mode,secret:'synthetic-test-secret-at-least-32-characters',gatewayToken:mode==='telegram'?'test-token':undefined},now:()=>t,transport};
+ let t=1800000000000;const r={db,config:{mode,secret:'synthetic-test-secret-at-least-32-characters',gatewayToken:mode==='telegram'?'test-token':undefined,allowDemo:true},now:()=>t,transport};
  return {r,sql,tick:(seconds)=>{t+=seconds*1000},owner:'workspace-A',browser:randomToken()};
 }
 const send=(f,phone='+12025550123',browser=f.browser)=>sendCode(f.r,f.owner,browser,{phone,consent:true});

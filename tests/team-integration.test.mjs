@@ -149,7 +149,7 @@ test('channel registration switches are isolated, account-bound and enforced by 
 });
 
 test('enabled registration requirements block customer and KYC access until fulfilled; disabled requirements do not',async()=>{
- selected=A;user=owner;const auth=await mod('@/lib/h5-auth-core'),access=await mod('@/lib/h5-auth');const runtime={db:DB,config:{mode:'demo',secret:env.PAYEASE_AUTH_SECRET}};
+ selected=A;user=owner;const auth=await mod('@/lib/h5-auth-core'),access=await mod('@/lib/h5-auth');const runtime={db:DB,config:{mode:'demo',secret:env.PAYEASE_AUTH_SECRET,allowDemo:true}};
  const a=await auth.registerPhone(runtime,A,'c'.repeat(64),{phone:'+12025550188'},'bot-1'),request=new Request('http://localhost/api/h5/state',{headers:{cookie:'payease_h5_session='+a.token}});
  const config=async(phoneVerification,passwordSetup)=>flow.staffAction({action:'bot_save',botId:'bot-1',label:'Main',username:'',enabled:true,phoneVerification,passwordSetup,requestId:crypto.randomUUID()});
  await config(true,true);await assert.rejects(access.customer(request),/手机号验证/);await assert.rejects(kyc.context(request),/手机号验证/);
@@ -197,7 +197,7 @@ test('assignment workspace exposes scoped KYC metadata without identity document
 
 test('test registration cleanup matches full phone across workspaces, preserves mask collisions, denies non-admin and stale previews',async()=>{
  const cleanup=await mod('@/lib/customer-cleanup'),auth=await mod('@/lib/h5-auth-core');user=owner;selected=A;
- const runtime={db:DB,config:{mode:'demo',secret:env.PAYEASE_AUTH_SECRET}},phone='+85512349876';
+ const runtime={db:DB,config:{mode:'demo',secret:env.PAYEASE_AUTH_SECRET,allowDemo:true}},phone='+85512349876';
  const a=await auth.registerPhone(runtime,A,'d'.repeat(64),{phone}),b=await auth.registerPhone(runtime,'owner','e'.repeat(64),{phone}),other=await auth.registerPhone(runtime,A,'f'.repeat(64),{phone:'+85599999876'});
  await kyc.initialize(A,a.session.customerId,false);
  const preview=await cleanup.customerCleanup({action:'preview',phone});assert.equal(preview.records.length,2);
@@ -244,7 +244,7 @@ test('Admin confirms KYC with complete checks and audit trail, but cannot amend 
 
 test('registered account keeps the same KYC and linked orders across sessions and isolates other users',async()=>{
  const auth=await mod('@/lib/h5-auth-core'),f=await mod('@/lib/kyc/followups');
- selected=A;user=owner;const runtime={db:DB,config:{mode:'demo',secret:env.PAYEASE_AUTH_SECRET}},phone='+12025550991',browser='9'.repeat(64);
+ selected=A;user=owner;const runtime={db:DB,config:{mode:'demo',secret:env.PAYEASE_AUTH_SECRET,allowDemo:true}},phone='+12025550991',browser='9'.repeat(64);
  const first=await auth.registerPhone(runtime,A,browser,{phone});
  const row=await kyc.initialize(A,first.session.customerId,false);
  runtime.now=()=>Date.now()+61000;
