@@ -115,6 +115,9 @@ export async function loginTelegram(r:AuthRuntime,owner:string,browserToken:stri
  let identity:{id:number;firstName:string};
  try{identity=await validateInitData(initData,botToken)}catch(e){throw new AuthError(e instanceof Error?e.message:'Telegram 身份校验失败',401)}
  const customerId=await telegramCustomerKey(r,owner,identity.id),browserHash=await digest(browserToken),nowValue=now(r);
+ await r.db.prepare('DELETE FROM telegram_initdata_nonces WHERE auth_date<?').bind(nowValue-600).run();
+ const nonce=await digest(initData),claimed=await r.db.prepare('INSERT OR IGNORE INTO telegram_initdata_nonces (initdata_hash,owner,channel_id,auth_date,consumed_at) VALUES (?,?,?,?,?)').bind(nonce,owner,channelId||null,nowValue,nowValue).run();
+ if(claimed.meta.changes!==1)throw new AuthError('Telegram 登录凭证已使用，请重新打开 Mini App',409,undefined,'TELEGRAM_INITDATA_REPLAY');
  await limit(r,'telegram-login|'+owner+'|'+identity.id,30,3600,0);
  await r.db.prepare(`INSERT OR IGNORE INTO h5_accounts (customer_id,owner,telegram_user_hash,telegram_verified,phone_mask,mode,browser_hash,phone_verified,password_hash,created_at,verification_completed,channel_id) VALUES (?,?,?,1,?,?,?,0,NULL,?,0,?)`).bind(customerId,owner,customerId,'Telegram · '+identity.firstName,r.config.mode,browserHash,nowValue,channelId||null).run();
  await r.db.prepare('UPDATE h5_accounts SET browser_hash=?,telegram_user_hash=?,telegram_verified=1,channel_id=COALESCE(channel_id,?),verification_completed=CASE WHEN phone_verified=1 THEN verification_completed ELSE 0 END WHERE customer_id=? AND owner=?').bind(browserHash,customerId,channelId||null,customerId,owner).run();
