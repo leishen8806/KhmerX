@@ -10,7 +10,7 @@ const allowed=(role:string)=>role==='admin'||role==='audit';
 export async function GET(){
  try{
   const s=await staff();if(!s||!allowed(s.member.role))throw new AuthError('当前岗位没有持牌机构回调查看权限',403);
-  const rows=await db().prepare(`SELECT e.id,e.institution_id,e.idempotency_key,e.event_type,e.status,e.created_at,e.updated_at,a.attempt,a.status AS attempt_status,a.next_at,a.last_error
+  const rows=await db().prepare(`SELECT e.id,e.institution_id,e.idempotency_key,e.event_type,e.status,e.request_id,e.created_at,e.updated_at,a.attempt,a.status AS attempt_status,a.next_at,a.last_error
    FROM institution_callback_events e LEFT JOIN institution_callback_attempts a ON a.id=(SELECT x.id FROM institution_callback_attempts x WHERE x.event_id=e.id ORDER BY x.attempt DESC LIMIT 1)
    WHERE EXISTS (SELECT 1 FROM team_units u WHERE u.id=e.institution_id AND u.tenant_id=? AND u.kind='institution') ORDER BY e.created_at DESC LIMIT 200`).bind(s.tenant.id).all();
   return json({events:rows.results,redacted:true});
