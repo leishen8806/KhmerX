@@ -205,3 +205,6 @@ fieldset.language-config{margin:16px 0;padding:14px 16px;border:1px solid var(--
 .crm-overview .crm-quick-grid{display:none}
  .mini-bottom button{border:0;background:transparent;font:inherit;cursor:pointer}.mini-bottom button[aria-current=page]{color:#0057e6;font-weight:700}.mini-nav-button{border:0;background:transparent;font:inherit;cursor:pointer}
  .mini-top>button.mini-nav-button{display:grid;place-items:center;width:40px;height:44px;padding:0;color:inherit}.mini-icon-menu>div button{display:flex;align-items:center;gap:8px;width:100%;padding:10px 12px;color:#19345d;background:transparent;border:0;border-radius:8px;font:inherit;font-size:13px;text-align:left;white-space:nowrap;cursor:pointer}.mini-icon-menu>div button:hover{background:#edf3ff}.mini-icon-menu>div button img{width:20px;height:20px;object-fit:cover;border-radius:50%;display:block}
+.mini-app button.mini-primary,.mini-app button.mini-secondary,.mini-app button.mini-order,.mini-app button.mini-row,.mini-app button.mini-text-link{font:inherit;text-align:inherit;cursor:pointer}
+.mini-app button.mini-primary{background:#0057e6;color:#fff}
+.mini-app button.mini-secondary{background:#e7efff;color:#0047c2}
