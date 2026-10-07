@@ -2,6 +2,7 @@ export const KYC_CONSENT_VERSION='kyc-data-consent-v2';
 import loanTerms from '../agreements/loan-terms-zh.json' with {type:'json'};
 const LOAN_TERMS_VERSION=loanTerms.version;
 import source from './options.json' with {type:'json'};
+import {codeForError} from '../error-codes.ts';
 export const RULE_VERSION=source.version;
 export const choices=source.options;
 export const regions=source.regions;
@@ -58,7 +59,7 @@ export function hasVehicle(p:Profile){return ['摩托车','嘟嘟车','汽车'].
 export function slotVisible(id:Slot,p:Profile){if(vehicleSlots.includes(id))return hasVehicle(p);if(id==='rentContract')return p.values.housing==='租房';if(id==='propertyCertificate')return p.values.housing==='个人房产';return true}
 export function slotRequired(id:Slot,p:Profile){return slots.some(s=>s.id===id&&s.required)||(['rentContract','propertyCertificate'].includes(id)&&slotVisible(id,p))}
 export const emptyProfile=():Profile=>({values:{},files:{},consent:false,declarationVersion:KYC_CONSENT_VERSION});
-export class KycError extends Error{status:number;constructor(message:string,status=400){super(message);this.status=status}}
+export class KycError extends Error{status:number;code:string;constructor(message:string,status=400,code?:string){super(message);this.status=status;this.code=code||codeForError(message,status)}}
 function duplicateRelations(profile:Profile){const relations=[1,2,3].map(n=>profile.values[`contact${n}Relation`]).filter(Boolean);return new Set(relations).size!==relations.length}
 export const isPersonName=(id:string)=>['surname','givenName','contact1Name','contact2Name','contact3Name','supervisorName','bankHolder'].includes(id);
 export const normalizePersonName=(value:string)=>value.toUpperCase();
