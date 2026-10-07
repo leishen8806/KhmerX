@@ -30,6 +30,10 @@ for(const company of cfg.companies){
  await db.prepare('INSERT OR IGNORE INTO demo_workspaces(owner,revision,payload) VALUES (?,0,?)').bind(t,JSON.stringify(state)).run();
 }
 const sign=x=>createHmac('sha256',cfg.sessionSecret).update(x).digest('hex');
+// Standalone requests carry a synthetic site identity so the local staff
+// portal can authenticate without the hosted ChatGPT gateway. The proof must
+// use the same secret that chatgpt-auth.ts uses for verification.
+const identitySign=x=>createHmac('sha256',cfg.bindings.PAYEASE_IDENTITY_PROOF_SECRET||cfg.bindings.PAYEASE_AUTH_SECRET||cfg.sessionSecret).update(x).digest('hex');
 const eq=(a,b)=>{const x=Buffer.from(a),y=Buffer.from(b);return x.length===y.length&&timingSafeEqual(x,y)};
 const server=createServer(async(req,res)=>{try{
  const expected='Basic '+Buffer.from(cfg.accessUser+':'+cfg.accessPassword).toString('base64');
@@ -45,7 +49,7 @@ const server=createServer(async(req,res)=>{try{
  let fresh=false;if(!id||!/^[a-f0-9-]{36}$/.test(id)||!eq(value?.split('.')[1]||'',sign(id))){id=randomUUID();value=id+'.'+sign(id);fresh=true;}
  const headers=new Headers();for(const [k,v]of Object.entries(req.headers)){if(v&&!k.startsWith('oai-')&&!['host','authorization','connection','content-length','transfer-encoding','x-forwarded-proto','x-forwarded-host','x-payease-identity-proof'].includes(k))headers.set(k,Array.isArray(v)?v.join(','):v);}
  if(jobRequest)headers.set('authorization',req.headers.authorization);
- const identityId='visitor:'+id, identityEmail=id+'@visitor.invalid';headers.set('oai-authenticated-user-id',identityId);headers.set('oai-authenticated-user-email',identityEmail);headers.set('x-payease-identity-proof',sign(identityId+'\n'+identityEmail));
+ const identityId='visitor:'+id, identityEmail=id+'@visitor.invalid';headers.set('oai-authenticated-user-id',identityId);headers.set('oai-authenticated-user-email',identityEmail);headers.set('x-payease-identity-proof',identitySign(identityId+'\n'+identityEmail));
  if(!/(?:^|;\s*)payease_company=/.test(cookies)){cookies+='; payease_company='+cfg.companies[0].id;headers.set('cookie',cookies);}
  const url=(secure?'https://':'http://')+host+(req.url||'/');
  const method=req.method||'GET';let body;
