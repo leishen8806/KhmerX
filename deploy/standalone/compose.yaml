@@ -26,7 +26,7 @@ services:
     expose:
       - "3310"
   scanner:
-    build: ./clamav-gateway
+    build: ../clamav-gateway
     restart: unless-stopped
     depends_on:
       clamav:
