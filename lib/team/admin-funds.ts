@@ -1,4 +1,5 @@
 import {staff,db} from './server';
+import {env} from 'cloudflare:workers';
 import {AuthError} from '@/lib/h5-auth-core';
 import {readState} from '@/lib/store';
 import {applyAction} from '@/lib/domain';
@@ -9,6 +10,8 @@ import {assertEmergencyAccess} from './emergency';
 export async function adminFunds(p:any){
  const s=await staff();if(!s||s.member.role!=='admin')throw new AuthError('仅本公司 Admin 可执行资金管理',403);
  if(!['admin_disburse','admin_repay'].includes(p.action))throw new AuthError('操作无效');
+ const testMode=(env as any).KHMERX_TEST_MODE==='true';
+ if(!testMode&&!p.emergencyId)throw new AuthError('管理员资金操作必须经过已批准的应急授权',403,undefined,'FUNDING_DUAL_CONTROL_REQUIRED');
  const emergency=p.emergencyId?await assertEmergencyAccess(String(p.emergencyId),'funding',p.action):null;
  if(typeof p.requestId!=='string'||!/^[a-f0-9-]{36}$/.test(p.requestId))throw new AuthError('请求编号无效');
  const key=s.user.userId+':'+p.requestId,{state,revision}=await readState(s.tenant.id);
@@ -30,6 +33,7 @@ export async function adminFunds(p:any){
   if(!route?.repayment_institution_id)throw new AuthError('请先配置并分配还款承接机构');
   reference=typeof p.reference==='string'?p.reference.trim().toUpperCase():'';
   if(!/^[A-Z0-9_-]{6,80}$/.test(reference))throw new AuthError('还款流水号须为 6–80 位字母、数字、横线或下划线');
+  if(!testMode&&p.paymentVerified!==true)throw new AuthError('真实支付回执尚未核验，不能登记还款',409,undefined,'PAYMENT_RECEIPT_UNVERIFIED');
   const prior=await db().prepare('SELECT loan_id,cents FROM team_repayment_receipts WHERE tenant_id=? AND reference=?').bind(s.tenant.id,reference).first<any>();
   if(prior){if(prior.loan_id===loan.id&&prior.cents===p.cents)return scopedState();throw new AuthError('流水号已用于其他还款，不可重复入账',409)}
   next=applyAction(state,{action:'repay',loanId:loan.id,role:'mini',requestId:key,cents:p.cents,note:'Admin 登记测试还款 '+reference+'：'+reason},now);
