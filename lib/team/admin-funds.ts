@@ -7,6 +7,7 @@ import {findCase} from '@/lib/kyc/server';
 import {validLoanContract} from '@/lib/loan-signing';
 import {scopedState} from './workflow';
 import {assertEmergencyAccess} from './emergency';
+import {assertFundingCapacity} from '@/lib/funding-limits';
 export async function adminFunds(p:any){
  const s=await staff();if(!s||s.member.role!=='admin')throw new AuthError('仅本公司 Admin 可执行资金管理',403);
  if(!['admin_disburse','admin_repay'].includes(p.action))throw new AuthError('操作无效');
@@ -27,6 +28,7 @@ export async function adminFunds(p:any){
   const k=await findCase(s.tenant.id,loan.customerId);
   if(!k||k.status!=='approved'||k.id!==loan.kycCaseId||k.revision!==loan.kycRevision)throw new AuthError('KYC 状态或版本已变化',409);
   await validLoanContract(s.tenant.id,loan,k);
+  try{assertFundingCapacity(state.entries,loan.billing?.net??loan.amount,now)}catch(error){if((error as Error & {code?:string}).code==='FUNDING_LIMIT_EXCEEDED')throw new AuthError((error as Error).message,409,undefined,'FUNDING_LIMIT_EXCEEDED');throw error}
   next=applyAction(state,{action:'disburse',loanId:loan.id,role:'lender',requestId:key,note:'测试放款已登记'},now);
   const target=next.loans.find(l=>l.id===loan.id)!;target.fundingActor ||= s.user.userId;target.fundingCheckedBy=s.user.userId;
  }else{
