@@ -103,7 +103,7 @@ test('postloan roles, tenant/department isolation, task notes and settlement',as
  await assert.rejects(post.postloanAction({...p,requestId:crypto.randomUUID(),version:'stale'}));await assert.rejects(post.postloanAction({...p,action:'reassign',requestId:crypto.randomUUID(),assigneeId:'bad'}));
  user=cm;const task=(await post.postloanData()).tasks[0];await post.postloanAction({action:'reassign',taskId:t.id,version:task.updatedAt,requestId:crypto.randomUUID(),assigneeId:sql.prepare('SELECT id FROM team_members WHERE email=?').get(other.email).id,note:'balance work'});
  user=assignee;assert.equal((await post.postloanData()).tasks.length,0);user=reviewer1;await assert.rejects(post.postloanData());
- user=owner;await store.mutate(A,{action:'repay',loanId,cents:l.amount+l.fee-l.paid,requestId:crypto.randomUUID()},{id:l.customerId,phoneMasked:'TEST'});assert.equal((await post.postloanData()).tasks[0].status,'closed');
+ user=owner;await store.mutate(A,{action:'repay',loanId,cents:l.amount+l.fee-l.paid,requestId:crypto.randomUUID()},{id:l.customerId,phoneMasked:'TEST'},{allowInternalSettlement:true});assert.equal((await post.postloanData()).tasks[0].status,'closed');
  assert.equal(await post.jobAuthorized(new Request('https://test/api/jobs/postloan')),false);env.POSTLOAN_JOB_SECRET='secret-test-'.repeat(4);assert.equal(await post.jobAuthorized(new Request('https://test/api/jobs/postloan',{headers:{authorization:'Bearer '+env.POSTLOAN_JOB_SECRET}})),true);assert.equal(await post.jobAuthorized(new Request('https://test/api/jobs/postloan',{headers:{authorization:'Bearer wrong'}})),false);
 });
 

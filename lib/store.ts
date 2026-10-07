@@ -13,7 +13,9 @@ export async function readState(owner:string):Promise<{state:State;revision:numb
  for(const bot of result.state.bots){const saved=credentials.find(c=>c.bot_id===bot.id);bot.tokenConfigured=!!saved;if(saved){bot.label=saved.label;bot.username=saved.username;bot.telegramId=saved.telegram_id}}
  return result;
 }
-export async function mutate(owner:string,p:any,customer?:{id:string;phoneMasked:string}){
+// The settlement override is an internal post-loan test/worker capability only;
+// H5 routes never pass it and customer requests cannot set function arguments.
+export async function mutate(owner:string,p:any,customer?:{id:string;phoneMasked:string},options:{allowInternalSettlement?:boolean}={}){
  await db().prepare('INSERT OR IGNORE INTO demo_workspaces (owner,revision,payload) VALUES (?,0,?)').bind(owner,JSON.stringify(initialState())).run();
  for(let i=0;i<4;i++){
   const {state,revision}=await readState(owner);
@@ -35,7 +37,7 @@ export async function mutate(owner:string,p:any,customer?:{id:string;phoneMasked
   if(customer&&p.action==='apply'){
    if(!loan||!approvedCase)throw new KycError('请先完成资料审核',409);confirmedContract=await validLoanContract(owner,loan,approvedCase);
   }
-  const next=customer?customerAction(state,p,customer):applyAction(state,p);
+  const next=customer?customerAction(state,p,customer,options):applyAction(state,p);
   if(creationCase){const target=next.loans[0];target.status='kyc_approved';target.kycCaseId=creationCase.id;target.kycRevision=creationCase.revision;target.note='贷款申请已创建，请核对测算费用后确认签约';}
   if(confirmedContract){const target=next.loans.find(l=>l.id===p.loanId)!;target.signedAt=confirmedContract.signedAt;target.signature='已保存的手写签名';target.contract=JSON.stringify({...confirmedContract,notice:'仅测试资金，待机构审批，不产生真实债务'});target.note='费用已确认、合同已签署，等待贷款审批';}
 
