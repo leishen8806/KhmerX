@@ -15,13 +15,7 @@ export async function POST(request:Request){try{
   const selected=portal(p.portal);const match=existing.results.find((m:any)=>m.role&&((selected==='lender'&&['checker','finance_checker'].includes(m.role))||(selected==='business'&&!['lender','checker','finance','finance_checker'].includes(m.role))));if(!match)throw new AuthError(selected==='lender'?'当前站点账号没有持牌机构复核权限，请联系管理员':'当前站点账号不属于服务机构后台，请切换到正确入口',403);
   const mfaAdmin=existing.results.find((m:any)=>m.role==='admin'&&m.user_id===outer.userId);if(mfaAdmin){const enabled=await db().prepare('SELECT mfa_enabled FROM team_members WHERE id=? AND active=1').bind(mfaAdmin.id).first<any>();if(enabled?.mfa_enabled)return json({mfaRequired:true,challenge:await createMfaChallenge(mfaAdmin.id,outer.userId),portal:selected});}
   const legacy=existing.results.filter((m:any)=>m.user_id!==outer.userId&&m.role==='admin'&&m.user_id.startsWith('local:'));
-  if(legacy.length&&email.endsWith('@visitor.invalid'))throw new AuthError('当前站点账号没有可绑定的管理员邮箱',403);
-  if(legacy.length){
-   await db().batch(legacy.flatMap((m:any)=>[
-    db().prepare('UPDATE team_members SET user_id=?,version=version+1 WHERE id=? AND tenant_id=? AND user_id=? AND active=1 AND role=\'admin\'').bind(outer.userId,m.id,m.tenant_id,m.user_id),
-    db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) SELECT ?,?,?,?,?,? WHERE changes()=1').bind(crypto.randomUUID(),m.tenant_id,outer.userId,'sso_admin_bind',JSON.stringify({member:m.id,email}),new Date().toISOString())
-   ]));
-  }
+  if(legacy.length)throw new AuthError('本地管理员账号不能通过外层邮箱静默绑定，请使用公司密码登录或完成显式绑定',403);
   const sso=await createSsoSession(match.id,outer.userId);await logoutStaff(request.headers.get('cookie'));set(STAFF_SESSION,sso.token);set(STAFF_MODE,'sso');set(STAFF_COMPANY,sso.companyId);set(STAFF_PORTAL,selected);return response;
  }
  if(p.action==='mfa'){
