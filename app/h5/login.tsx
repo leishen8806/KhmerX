@@ -1,19 +1,23 @@
 'use client';
 import {useCallback,useEffect,useState} from 'react';
-import {usePathname,useRouter,useSearchParams} from 'next/navigation';
+import {usePathname,useRouter} from 'next/navigation';
 import Link from 'next/link';
 import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
 import {PasswordRecovery} from '@/components/password-recovery';
 import {MiniClient} from '@/components/mini-client';
+import {MiniNavigationProvider} from '@/components/mini-shell';
 import {MiniRouteLoading} from '@/components/mini-route-loading';
 type Session={phoneMasked:string;mode:'demo'|'telegram';expiresAt:number;phoneVerified?:boolean;verificationCompleted?:boolean;hasPassword?:boolean};
 type Challenge={challengeId:string;expiresAt:number;retryAt:number;demoCode?:string;phoneMasked:string};
 export default function H5Login(){
- const pathname=usePathname(),router=useRouter(),search=useSearchParams();
+ const pathname=usePathname(),router=useRouter();
  const screen=pathname.split('/')[2]||'home';
  const [policy,setPolicy]=useState({phoneVerification:true,passwordSetup:true});
  const [ready,setReady]=useState(false),[company,setCompany]=useState(''),[mode,setMode]=useState('demo'),[session,setSession]=useState<Session|null>(null),[view,setView]=useState('register'),[phone,setPhone]=useState('+855'),[password,setPassword]=useState(''),[confirm,setConfirm]=useState(''),[currentPassword,setCurrentPassword]=useState(''),[code,setCode]=useState(''),[challenge,setChallenge]=useState<Challenge|null>(null),[consent,setConsent]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
+ const [miniScreen,setMiniScreen]=useState(screen),[miniQuery,setMiniQuery]=useState(()=>typeof window==='undefined'?'':window.location.search);
+ useEffect(()=>{setMiniScreen(screen);setMiniQuery(window.location.search)},[screen]);
+ const navigateMini=(href:string)=>{const target=new URL(href,window.location.origin);const parts=target.pathname.split('/').filter(Boolean);setMiniScreen(parts[0]==='h5'?(parts[1]||'home'):'home');setMiniQuery(target.search)};
  const complete=(s:Session|null,p:{phoneVerification:boolean;passwordSetup:boolean})=>!!s&&(!p.phoneVerification||!!s.verificationCompleted)&&(!p.passwordSetup||!!s.hasPassword);
  const telegramInitData=()=>{
   const runtime=(window as any).Telegram?.WebApp?.initData;
@@ -48,7 +52,7 @@ export default function H5Login(){
  const verify=()=>run(async()=>{const d=await post('verify',{challengeId:challenge?.challengeId,code});setSession(d.session);const latest=await load();navigate(complete(latest.session,latest.policy)?'workspace':'security');setNotice(d.session.phoneVerified?'手机号验证成功':'模拟验证完成，手机号仍标记为未真实验证')});
  const savePassword=()=>run(async()=>{if(password!==confirm)throw Error('两次输入的密码不一致');await post('account',{action:'set_password',password,currentPassword});const latest=await load();navigate(complete(latest.session,latest.policy)?'workspace':'security');setNotice('密码已保存')});
  if(!ready)return error?<main className="h5-login mini-login"><section className="h5-login-card"><p className="error" role="alert">{error}</p><Button onClick={()=>window.location.reload()}>重新加载</Button></section></main>:<MiniRouteLoading/>;
- if(session&&view==='workspace'&&complete(session,policy))return <MiniClient key={screen+':'+(search.get('loan')||'')} screen={screen==='login'?'home':screen} phone={session.phoneMasked} company={company} busy={busy} onLogout={()=>void logout()} onSecurity={()=>navigate('security')}/>;
+ if(session&&view==='workspace'&&complete(session,policy))return <MiniNavigationProvider navigate={navigateMini}><MiniClient key={miniScreen+':'+miniQuery} screen={miniScreen==='login'?'home':miniScreen} queryString={miniQuery} phone={session.phoneMasked} company={company} busy={busy} onLogout={()=>void logout()} onSecurity={()=>navigate('security')}/></MiniNavigationProvider>;
 
  return <main className="h5-login mini-login"><header className="h5-header"><Link className="brand" href="/h5"><img className="brand-logo" src="/brand/khmerx-icon-v2.png" alt="KhmerX" width={72} height={72}/><span>PayEase</span></Link></header><div className="h5-login-grid"><section className="h5-login-card"><h1>{({register:'注册 / 登录',password:'密码登录',verify:'验证手机号',recovery:'找回密码',security:'完成账号设置',telegram:'Telegram 登录'} as any)[view]||'客户账号'}</h1>{error&&<p className="error" role="alert">{error}</p>}{notice&&<p className="success" role="status">{notice}</p>}
  {!ready?<><p>正在读取账号信息…</p><Button onClick={()=>void run(async()=>{await load()})}>重新加载</Button></>:view==='telegram'?<div className="form"><p>正在由服务器验证 Telegram 身份，请关闭后重新打开 Mini App。</p></div>:view==='recovery'?<PasswordRecovery mode={mode} onBack={()=>navigate(session?'security':'password')} onDone={p=>{setSession(null);setPhone(p);navigate('password');setNotice('密码重置成功，旧登录会话已失效，请使用新密码登录')}}/>:view==='security'&&session?<div className="form"><p>{session.phoneMasked} · 账号已创建</p>{policy.phoneVerification&&<article className="sample"><h3>手机号验证</h3><p>{session.verificationCompleted?(session.phoneVerified?'已验证':'测试验证已完成，未真实核验手机号'):'请先完成手机号验证'}</p>{!session.verificationCompleted&&<Button variant="outline" disabled={busy} onClick={()=>navigate('verify')}>验证手机号</Button>}</article>}{policy.passwordSetup&&<form className="form" onSubmit={e=>{e.preventDefault();void savePassword()}}><h3>{session.hasPassword?'修改密码':'设置密码（必填）'}</h3><p>设置后可使用手机号和密码在其他设备登录。</p>{session.hasPassword&&<label>当前密码<Input type="password" autoComplete="current-password" value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} required maxLength={128}/></label>}<label>{session.hasPassword?'新密码':'密码'}<Input type="password" autoComplete="new-password" value={password} onChange={e=>setPassword(e.target.value)} minLength={12} maxLength={128} required/></label><label>确认密码<Input type="password" autoComplete="new-password" value={confirm} onChange={e=>setConfirm(e.target.value)} minLength={12} maxLength={128} required/></label><p className="fine">12–128 个字符。密码不会验证手机号归属。</p><Button variant="outline" type="submit" disabled={busy||password.length<12||!confirm}>保存密码</Button></form>}{!policy.phoneVerification&&!policy.passwordSetup&&<p>当前渠道未开启验证与密码设置，可直接继续申请。</p>}<Button disabled={busy||!complete(session,policy)} onClick={()=>navigate('workspace')}>进入申请</Button><Button variant="ghost" disabled={busy} onClick={()=>navigate('recovery')}>忘记密码？验证手机号重置</Button><p className="fine">请完成当前渠道开启的项目后进入申请。退出或会话失效后，使用验证码或已设置的密码登录。</p></div>:<>

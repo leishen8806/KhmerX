@@ -1,12 +1,11 @@
 'use client';
-import Link from 'next/link';
 import {useRouter} from 'next/navigation';
 import {clientRequestId} from '@/lib/client-id';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {ShieldCheck,ChevronRight,CheckCircle2,Clock3,Wallet,LockKeyhole,LoaderCircle} from 'lucide-react';
 import {Button} from '@/components/ui/button';
 import {LoanBill} from '@/components/loan-bill';
-import {MiniShell} from './mini-shell';
+import {MiniNavLink,MiniShell} from './mini-shell';
 import {kycPresentation,LoanSteps,loanPhase} from './customer-journey';
 import {TelegramNotifications} from './telegram-notifications';
 import {trackEvent} from '@/lib/analytics';
@@ -21,9 +20,10 @@ const date=(s?:string)=>s?new Date(s).toLocaleDateString('zh-CN',{timeZone:'Asia
 export function loanDestination(l:Loan){return !l.billConfirmedAt?'bill':l.status==='kyc_approved'?'sign':'status'}
 const href=(screen:string,l:Loan)=>'/h5/'+screen+'?loan='+encodeURIComponent(l.id);
 type Data={state:State;kyc:{status:string}|null;pricing:Pricing};
-export function MiniClient({screen,phone,company,onLogout,onSecurity,busy:authBusy}:{screen:string;phone:string;company:string;onLogout:()=>void;onSecurity:()=>void;busy:boolean}){
+const Link=MiniNavLink;
+export function MiniClient({screen,queryString='',phone,company,onLogout,onSecurity,busy:authBusy}:{screen:string;queryString?:string;phone:string;company:string;onLogout:()=>void;onSecurity:()=>void;busy:boolean}){
  const router=useRouter();
- const [query,setQuery]=useState(new URLSearchParams());useEffect(()=>setQuery(new URLSearchParams(window.location.search)),[]);const [data,setData]=useState<Data|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[notice,setNotice]=useState(''),[amount,setAmount]=useState(5000),[days,setDays]=useState(14),[consent,setConsent]=useState(false),[name,setName]=useState(''),[repay,setRepay]=useState(''),[confirm,setConfirm]=useState(false);const request=useRef<{key:string;id:string}|null>(null),lock=useRef(false);
+ const [query,setQuery]=useState(()=>new URLSearchParams(queryString));useEffect(()=>setQuery(new URLSearchParams(queryString)),[queryString]);const [data,setData]=useState<Data|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[notice,setNotice]=useState(''),[amount,setAmount]=useState(5000),[days,setDays]=useState(14),[consent,setConsent]=useState(false),[name,setName]=useState(''),[repay,setRepay]=useState(''),[confirm,setConfirm]=useState(false);const request=useRef<{key:string;id:string}|null>(null),lock=useRef(false);
  const load=useCallback(async()=>{try{const r=await fetch('/api/h5/state',{cache:'no-store'}),d:any=await r.json();if(r.status===401){window.location.replace('/h5/login');return}if(!r.ok)throw Error(d.error);setData(d);setError('')}catch(e){setError((e as Error).message)}},[]);
  useEffect(()=>{void load();const refresh=()=>{if(!document.hidden&&!lock.current)void load()};const t=setInterval(refresh,15000);window.addEventListener('focus',refresh);return()=>{clearInterval(t);window.removeEventListener('focus',refresh)}},[load]);
  useEffect(()=>{setConsent(false);setConfirm(false);setRepay('');setNotice('')},[screen,query.get('loan')]);
