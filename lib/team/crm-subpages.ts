@@ -25,4 +25,4 @@ const descriptions:Record<string,string>={
 
 export const crmSubpages:CrmSubpage[]=Object.entries(groups).flatMap(([,group])=>group.items.map(label=>({label,queue:group.queue,view:label,description:descriptions[label]||'当前页面仅展示授权范围内的数据，并保留操作审计。'})));
 export const crmSubpageByView=Object.fromEntries(crmSubpages.map(page=>[page.view,page]));
-export function crmSubpageHref(href:string,label:string){const target=href.startsWith('#')?'/team':href;return `${target}${target.includes('?')?'&':'?'}view=${encodeURIComponent(label)}`}
+export function crmSubpageHref(href:string,label:string){const target=href.startsWith('#')?'/team':href;if(label==='今日概览')return '/team';return `${target}${target.includes('?')?'&':'?'}view=${encodeURIComponent(label)}`}
