@@ -42,9 +42,9 @@ const server=createServer(async(req,res)=>{try{
  if(host==='api.khmerx.org'&&!req.url?.startsWith('/api/')){res.writeHead(404,{'Content-Type':'application/json'});return res.end(JSON.stringify({error:'API endpoint required'}));}
  let cookies=req.headers.cookie||'',value=cookies.split(';').map(x=>x.trim()).find(x=>x.startsWith('payease_visitor='))?.slice(16),id=value?.split('.')[0];
  let fresh=false;if(!id||!/^[a-f0-9-]{36}$/.test(id)||!eq(value?.split('.')[1]||'',sign(id))){id=randomUUID();value=id+'.'+sign(id);fresh=true;}
- const headers=new Headers();for(const [k,v]of Object.entries(req.headers)){if(v&&!k.startsWith('oai-')&&!['host','authorization','connection','content-length','transfer-encoding','x-forwarded-proto','x-forwarded-host'].includes(k))headers.set(k,Array.isArray(v)?v.join(','):v);}
+ const headers=new Headers();for(const [k,v]of Object.entries(req.headers)){if(v&&!k.startsWith('oai-')&&!['host','authorization','connection','content-length','transfer-encoding','x-forwarded-proto','x-forwarded-host','x-payease-identity-proof'].includes(k))headers.set(k,Array.isArray(v)?v.join(','):v);}
  if(jobRequest)headers.set('authorization',req.headers.authorization);
- headers.set('oai-authenticated-user-id','visitor:'+id);headers.set('oai-authenticated-user-email',id+'@visitor.invalid');
+ const identityId='visitor:'+id, identityEmail=id+'@visitor.invalid';headers.set('oai-authenticated-user-id',identityId);headers.set('oai-authenticated-user-email',identityEmail);headers.set('x-payease-identity-proof',sign(identityId+'\n'+identityEmail));
  if(!/(?:^|;\s*)payease_company=/.test(cookies)){cookies+='; payease_company='+cfg.companies[0].id;headers.set('cookie',cookies);}
  const url=(secure?'https://':'http://')+host+(req.url||'/');
  const method=req.method||'GET';let body;
