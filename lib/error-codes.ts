@@ -3,7 +3,7 @@ export type ApiErrorCode=string;
 export function codeForError(message:string,status=400):ApiErrorCode{
  const m=message.toLowerCase();
  if(status===401||m.includes('登录已失效')||m.includes('请先登录')||m.includes('请先进入'))return 'AUTH_REQUIRED';
- if(status===403||m.includes('无权')||m.includes('没有权限')||m.includes('不允许跨站'))return 'FORBIDDEN';
+ if(status===403||m.includes('无权')||m.includes('没有权限')||m.includes('没有此公司的员工权限')||m.includes('不允许跨站'))return 'FORBIDDEN';
  if(status===404||m.includes('不存在')||m.includes('未找到'))return 'NOT_FOUND';
  if(status===409||m.includes('已变化')||m.includes('已锁定')||m.includes('重复'))return 'CONFLICT';
  if(status===413||m.includes('过大'))return 'PAYLOAD_TOO_LARGE';
