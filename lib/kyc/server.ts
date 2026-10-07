@@ -109,7 +109,9 @@ export async function recordFile(owner:string,customerId:string,slot:Slot,bytes:
  // A retry or a double-click must not create another evidence row. Keep older
  // versions for audit, and reuse an identical ready object for this slot.
  const existing=await db().prepare('SELECT id,metadata FROM kyc_files WHERE owner=? AND customer_id=? AND slot=? AND ready=1').bind(owner,customerId,slot).all<{id:string;metadata:string}>();
- for(const row of existing.results||[]){try{const old=await metadata(row);if(old.sha256===sha256)return old}catch(e){if(e instanceof KycError)throw e}}
+ // A signature is evidence for one loan and one signing event. Never reuse a
+ // byte-identical signature across loans; other KYC slots may safely dedupe.
+ if(slot!=='signature')for(const row of existing.results||[]){try{const old=await metadata(row);if(old.sha256===sha256)return old}catch(e){if(e instanceof KycError)throw e}}
  const id=crypto.randomUUID(),ref:FileRef={id,slot,name:slot+(type==='image/png'?'.png':type==='image/jpeg'?'.jpg':'.pdf'),type,size:bytes.length,sha256};
  const inserted=await db().prepare('INSERT INTO kyc_files (id,owner,customer_id,slot,metadata,ready,created_at) SELECT ?,?,?,?,?,0,? WHERE (SELECT COUNT(*) FROM kyc_files WHERE owner=? AND customer_id=?)<40').bind(id,owner,customerId,slot,await seal(ref,'file:'+id),new Date().toISOString(),owner,customerId).run();
  if(!inserted.meta.changes)throw new KycError('本客户已达到 40 份材料上限，请联系管理员');
