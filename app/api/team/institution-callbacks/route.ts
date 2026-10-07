@@ -6,6 +6,8 @@ import {nextCallbackRetry} from '@/lib/institution-callback-queue';
 export const dynamic='force-dynamic';
 const text=(value:unknown,max=120)=>typeof value==='string'?value.trim().slice(0,max):'';
 const allowed=(role:string)=>role==='admin'||role==='audit';
+type RetryInput={action?:unknown;eventId?:unknown};
+type RetryEvent={id:string;institution_id:string;status:string;attempts:number};
 
 export async function GET(){
  try{
@@ -20,8 +22,8 @@ export async function GET(){
 export async function POST(request:Request){
  try{
   const s=await staff();if(!s||s.member.role!=='admin')throw new AuthError('仅公司 Admin 可重试持牌机构回调',403);
-  const p:any=await input(request);if(p.action!=='retry')throw new AuthError('回调队列操作无效',400);
-  const eventId=text(p.eventId,80),event=await db().prepare(`SELECT e.id,e.institution_id,e.status,COALESCE(MAX(a.attempt),-1) AS attempts FROM institution_callback_events e LEFT JOIN institution_callback_attempts a ON a.event_id=e.id WHERE e.id=? AND EXISTS (SELECT 1 FROM team_units u WHERE u.id=e.institution_id AND u.tenant_id=? AND u.kind='institution') GROUP BY e.id`).bind(eventId,s.tenant.id).first<any>();
+  const p=await input(request) as RetryInput;if(p.action!=='retry')throw new AuthError('回调队列操作无效',400);
+  const eventId=text(p.eventId,80),event=await db().prepare(`SELECT e.id,e.institution_id,e.status,COALESCE(MAX(a.attempt),-1) AS attempts FROM institution_callback_events e LEFT JOIN institution_callback_attempts a ON a.event_id=e.id WHERE e.id=? AND EXISTS (SELECT 1 FROM team_units u WHERE u.id=e.institution_id AND u.tenant_id=? AND u.kind='institution') GROUP BY e.id`).bind(eventId,s.tenant.id).first<RetryEvent>();
   if(!event)throw new AuthError('回调记录不存在或不属于当前公司',404);
   if(event.status!=='dead_letter')throw new AuthError('只有死信回调允许人工重试',409);
   const attempt=Number(event.attempts)+1,retry=nextCallbackRetry(attempt),now=new Date().toISOString();

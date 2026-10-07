@@ -10,6 +10,7 @@ const response=(data:unknown,status=200,requestId='')=>{
  return Response.json(addErrorCode(body,status),{status,headers:{'Cache-Control':'no-store','X-Request-Id':requestId}});
 };
 const failure=(error:string,code:string,status:number,requestId='')=>response({error,code},status,requestId);
+type ExistingCallback={id:string;event_type:string;status:string};
 
 export async function POST(request:Request){
  const requestId=crypto.randomUUID();
@@ -27,7 +28,7 @@ export async function POST(request:Request){
   const db=env.DB;if(!db)return failure('回调数据库暂不可用','SERVICE_UNAVAILABLE',503,requestId);
   const now=Math.floor(Date.now()/1000),nowIso=new Date().toISOString();
   await db.prepare('DELETE FROM institution_callback_nonces WHERE expires_at<?').bind(now).run();
-  const existing=await db.prepare('SELECT id,event_type,status FROM institution_callback_events WHERE institution_id=? AND idempotency_key=?').bind(institutionId,idempotency).first<any>();
+  const existing=await db.prepare('SELECT id,event_type,status FROM institution_callback_events WHERE institution_id=? AND idempotency_key=?').bind(institutionId,idempotency).first<ExistingCallback>();
   if(existing)return response({ok:true,duplicate:true,eventId:existing.id,eventType:existing.event_type,status:existing.status},200,requestId);
   const nonceResult=await db.prepare('INSERT OR IGNORE INTO institution_callback_nonces (institution_id,nonce,expires_at,created_at) VALUES (?,?,?,?)').bind(institutionId,nonce,now+600,nowIso).run();
   if(!nonceResult.meta?.changes)return failure('回调 nonce 已使用','CALLBACK_REPLAYED',409,requestId);
