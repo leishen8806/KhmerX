@@ -8,6 +8,6 @@ export async function POST(request:Request){try{
  const policy=await registrationPolicy(r,id);if(body.action==='register'&&r.config.mode==='telegram')throw new AuthError('Telegram 模式请先验证手机号，不能仅凭手机号注册',409);if(body.action==='register'&&!policy.channelId)throw new AuthError('暂无可用业务渠道',409);
  // With both optional registration steps disabled, the Mini App uses the
  // submitted phone as its lightweight account key and can return directly.
- const result=body.action==='register'?await registerPhone(r,id,browser(request),body,policy.channelId,!policy.phoneVerification&&!policy.passwordSetup):await loginPassword(r,id,browser(request),body);
+ const b=await browser(request),result=body.action==='register'?await registerPhone(r,id,b,body,policy.channelId,!policy.phoneVerification&&!policy.passwordSetup):await loginPassword(r,id,b,body);
  await revokeSession(r,id,token);return json({authenticated:true,session:result.session,policy:await registrationPolicy(r,id,result.session.customerId)},200,{'Set-Cookie':cookie(request,SESSION_COOKIE,result.token,SESSION_TTL)})
 }catch(e){return failure(e)}}

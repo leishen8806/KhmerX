@@ -9,7 +9,7 @@ export async function POST(request:Request){
  try{
   const initData=request.headers.get('x-telegram-init-data')||'';
   if(!initData||initData.length>10000)throw new AuthError('请从 Telegram Mini App 打开后再登录',401);
-  const id=await owner(),r=runtime(),b=cookieValue(request,BROWSER_COOKIE)||browser(request);
+  const id=await owner(),r=runtime(),b=await browser(request);
   const requestedChannel=new URL(request.url).searchParams.get('channel')||'bot-1';
   if(!/^bot-[1-9]\d*$/.test(requestedChannel))throw new AuthError('Telegram 渠道无效',400);
   // Bot credentials configured by the company Admin are encrypted in D1;

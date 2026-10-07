@@ -2,7 +2,7 @@ import {requireRegistrationComplete} from '@/lib/registration-policy';
 import {customerCompany} from '@/lib/team/server';
 import {env} from 'cloudflare:workers';
 import {getChatGPTUser} from '@/app/chatgpt-auth';
-import {AuthError,getSession,type AuthMode,type AuthRuntime} from './h5-auth-core';
+import {AuthError,getSession,digest,randomToken,type AuthMode,type AuthRuntime} from './h5-auth-core';
 import {addErrorCode} from './error-codes.ts';
 export const SESSION_COOKIE='payease_h5_session',BROWSER_COOKIE='payease_h5_browser';
 export function runtime():AuthRuntime{if(!env.DB)throw new AuthError('登录数据库暂不可用',503);const values=env as unknown as Record<string,string>;return {db:env.DB,config:{mode:(values.PAYEASE_AUTH_MODE||'disabled') as AuthMode,secret:values.PAYEASE_AUTH_SECRET||'',gatewayToken:values.TELEGRAM_GATEWAY_TOKEN,allowDemo:values.KHMERX_TEST_MODE==='true'}}}
@@ -14,5 +14,6 @@ export function failure(e:unknown){return e instanceof AuthError?json({error:e.m
 export async function owner(){const user=await getChatGPTUser();if(!user)throw new AuthError('请先进入有权访问的私有测试工作区',401);const company=await customerCompany();return company?.id||user.userId}
 export function sameOrigin(request:Request){if(request.headers.get('origin')!==new URL(request.url).origin)throw new AuthError('不允许跨站操作',403);if(!request.headers.get('content-type')?.startsWith('application/json'))throw new AuthError('请求格式无效',415)}
 export async function input(request:Request){sameOrigin(request);const raw=await request.text();if(raw.length>4096)throw new AuthError('请求过大',413);try{const value=JSON.parse(raw);if(!value||typeof value!=='object'||Array.isArray(value))throw Error();return value}catch{throw new AuthError('请求格式无效')}}
-export function browser(request:Request){const token=cookieValue(request,BROWSER_COOKIE);if(!token)throw new AuthError('登录页面已失效，请刷新后重试',401);return token}
+export async function browser(request:Request){const token=cookieValue(request,BROWSER_COOKIE);if(!token)throw new AuthError('登录页面已失效，请刷新后重试',401);if((env as any).KHMERX_TEST_MODE==='true')return token;if(!env.DB)throw new AuthError('登录数据库暂不可用',503);const row=await env.DB.prepare('SELECT token_hash FROM h5_browser_tokens WHERE token_hash=? AND expires_at>?').bind(await digest(token),Math.floor(Date.now()/1000)).first();if(!row)throw new AuthError('登录页面已失效，请刷新后重试',401);return token}
+export async function issueBrowserToken(){const token=randomToken(),now=Math.floor(Date.now()/1000);if(!env.DB)throw new AuthError('登录数据库暂不可用',503);await env.DB.prepare('DELETE FROM h5_browser_tokens WHERE expires_at<?').bind(now).run();await env.DB.prepare('INSERT INTO h5_browser_tokens (token_hash,created_at,expires_at) VALUES (?,?,?)').bind(await digest(token),now,now+86400).run();return token}
 export async function customer(request:Request){const ownerId=await owner(),r=runtime(),session=await getSession(r,ownerId,cookieValue(request,SESSION_COOKIE));if(!session)throw new AuthError('客户登录已失效，请重新验证手机号',401);await requireRegistrationComplete(r,ownerId,session);return {ownerId,r,session}}
