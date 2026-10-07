@@ -1,4 +1,4 @@
-import {passwordLogin,completeMfaLogin,createMfaChallenge,logoutStaff,STAFF_SESSION,STAFF_MODE,STAFF_COMPANY,STAFF_PORTAL,portal} from '@/lib/team/auth';
+import {passwordLogin,completeMfaLogin,createMfaChallenge,createSsoSession,logoutStaff,STAFF_SESSION,STAFF_MODE,STAFF_COMPANY,STAFF_PORTAL,portal} from '@/lib/team/auth';
 import {getChatGPTUser} from '@/app/chatgpt-auth';
 import {input,json,failure,cookie} from '@/lib/h5-auth';
 import {db} from '@/lib/team/server';
@@ -22,10 +22,10 @@ export async function POST(request:Request){try{
     db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) SELECT ?,?,?,?,?,? WHERE changes()=1').bind(crypto.randomUUID(),m.tenant_id,outer.userId,'sso_admin_bind',JSON.stringify({member:m.id,email}),new Date().toISOString())
    ]));
   }
-  await logoutStaff(request.headers.get('cookie'));set(STAFF_SESSION,'',0);set(STAFF_MODE,'sso');set(STAFF_COMPANY,'none');set(STAFF_PORTAL,selected);return response;
+  const sso=await createSsoSession(match.id,outer.userId);await logoutStaff(request.headers.get('cookie'));set(STAFF_SESSION,sso.token);set(STAFF_MODE,'sso');set(STAFF_COMPANY,sso.companyId);set(STAFF_PORTAL,selected);return response;
  }
  if(p.action==='mfa'){
-  const result=await completeMfaLogin(String(p.challenge||''),String(p.code||''),outer.userId,p.portal);if(result.sso){set(STAFF_SESSION,'',0);set(STAFF_MODE,'sso',31536000)}else{set(STAFF_SESSION,result.token);set(STAFF_MODE,'password',31536000)}set(STAFF_COMPANY,result.companyId);set(STAFF_PORTAL,result.portal||portal(p.portal));return response;
+  const result=await completeMfaLogin(String(p.challenge||''),String(p.code||''),outer.userId,p.portal);set(STAFF_SESSION,result.token);set(STAFF_MODE,result.sso?'sso':'password',31536000);set(STAFF_COMPANY,result.companyId);set(STAFF_PORTAL,result.portal||portal(p.portal));return response;
  }
  if(p.action!=='login')throw new AuthError('登录操作无效');
  const result=await passwordLogin(p,outer.userId);if(result.mfaRequired)return json({...result,portal:portal(p.portal)});await logoutStaff(request.headers.get('cookie'));set(STAFF_SESSION,result.token);set(STAFF_MODE,'password',31536000);set(STAFF_COMPANY,result.companyId);set(STAFF_PORTAL,result.portal);return response;

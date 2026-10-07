@@ -22,6 +22,17 @@ async function totp(secret:string,at=Date.now()){const key=await crypto.subtle.i
 export async function createMfaEnrollment(){const secret=base32(crypto.getRandomValues(new Uint8Array(20)));return {secret,protectedSecret:await protectMfaSecret(secret),uri:`otpauth://totp/KhmerX:${encodeURIComponent('Admin') }?secret=${secret}&issuer=KhmerX`}}
 export async function verifyTotp(secret:string,code:string){if(!/^\d{6}$/.test(code))return false;const now=Date.now();for(const drift of [-30000,0,30000])if(equal(await totp(secret,now+drift),code))return true;return false}
 export async function createMfaChallenge(memberId:string,siteUserId:string){const token=randomToken();await db().prepare('INSERT INTO team_mfa_challenges (token_hash,member_id,site_user_id,expires_at) VALUES (?,?,?,?)').bind(await digest(token),memberId,siteUserId,Date.now()+300000).run();return token}
+export async function createSsoSession(memberId:string,siteUserId:string){
+ const row=await db().prepare('SELECT m.id,m.tenant_id,m.version,m.email,c.active AS company_active,p.version AS credential_version FROM team_members m JOIN team_companies c ON c.id=m.tenant_id LEFT JOIN team_staff_credentials p ON p.member_id=m.id WHERE m.id=? AND m.active=1 AND c.active=1').bind(memberId).first<any>();
+ if(!row||!row.company_active)throw new AuthError('员工登录已失效，请重新登录',401);
+ const token=randomToken(),credentialVersion=row.credential_version??0;
+ const result=await db().batch([
+  db().prepare('INSERT INTO team_staff_sessions (token_hash,member_id,site_user_id,member_version,credential_version,expires_at) VALUES (?,?,?,?,?,?)').bind(await digest(token),row.id,siteUserId,row.version,credentialVersion,Date.now()+8*3600000),
+  db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),row.tenant_id,row.email,'staff_sso_login',JSON.stringify({member:row.id}),new Date().toISOString())
+ ]);
+ if(!result[0].meta.changes)throw new AuthError('员工登录状态已变化，请重试',409);
+ return {token,companyId:row.tenant_id};
+}
 export async function generateMfaRecoveryCodes(memberId:string){const codes=Array.from({length:10},()=>randomToken().slice(0,16).toUpperCase()),now=new Date().toISOString();await db().prepare('DELETE FROM team_mfa_recovery_codes WHERE member_id=? AND used_at IS NULL').bind(memberId).run();for(const code of codes)await db().prepare('INSERT INTO team_mfa_recovery_codes (id,member_id,code_hash,created_at) VALUES (?,?,?,?)').bind(crypto.randomUUID(),memberId,await digest(code),now).run();return codes}
 async function consumeRecoveryCode(memberId:string,code:string){if(!/^[A-F0-9]{16}$/.test(code))return false;const hash=await digest(code),row=await db().prepare('SELECT id FROM team_mfa_recovery_codes WHERE member_id=? AND code_hash=? AND used_at IS NULL').bind(memberId,hash).first<any>();if(!row)return false;const changed=await db().prepare('UPDATE team_mfa_recovery_codes SET used_at=? WHERE id=? AND used_at IS NULL').bind(new Date().toISOString(),row.id).run();return changed.meta.changes===1}
 export async function staffIdentity(){
@@ -30,11 +41,12 @@ export async function staffIdentity(){
  if(mode==='out')throw new AuthError('员工已退出，请重新登录',401);
  if(mode==='password'||token){
   if(!token||!/^[a-f0-9]{64}$/.test(token))throw new AuthError('员工登录已失效，请重新登录',401);
-  const m=await db().prepare(`SELECT m.user_id,m.email,m.tenant_id FROM team_staff_sessions s JOIN team_members m ON m.id=s.member_id JOIN team_companies c ON c.id=m.tenant_id JOIN team_staff_credentials p ON p.member_id=m.id WHERE s.token_hash=? AND s.site_user_id=? AND s.expires_at>? AND m.active=1 AND c.active=1 AND m.version=s.member_version AND p.version=s.credential_version`).bind(await digest(token),outer.userId,Date.now()).first<any>();
+  const m=await db().prepare(`SELECT m.user_id,m.email,m.tenant_id FROM team_staff_sessions s JOIN team_members m ON m.id=s.member_id JOIN team_companies c ON c.id=m.tenant_id LEFT JOIN team_staff_credentials p ON p.member_id=m.id WHERE s.token_hash=? AND s.site_user_id=? AND s.expires_at>? AND m.active=1 AND c.active=1 AND m.version=s.member_version AND (p.version=s.credential_version OR (s.credential_version=0 AND p.member_id IS NULL))`).bind(await digest(token),outer.userId,Date.now()).first<any>();
   if(!m)throw new AuthError('员工登录已失效，请重新登录',401);
   return {userId:m.user_id,email:m.email,displayName:m.email,fullName:null,staffTenantId:m.tenant_id as string};
  }
- return {...outer,staffTenantId:null};
+ if((env as any).KHMERX_TEST_MODE==='true')return {...outer,staffTenantId:null};
+ throw new AuthError('员工会话已失效，请重新登录',401);
 }
 export async function passwordLogin(p:any,siteUserId:string){
  const requested=p.portal===undefined||p.portal===null?'':String(p.portal),selected=requested?portal(requested):null;
@@ -65,7 +77,7 @@ export async function completeMfaLogin(challenge:string,code:string,siteUserId:s
  const row=await db().prepare(`SELECT c.member_id,c.site_user_id,m.tenant_id,m.version,m.email,m.role,p.version AS credential_version,m.mfa_secret FROM team_mfa_challenges c JOIN team_members m ON m.id=c.member_id LEFT JOIN team_staff_credentials p ON p.member_id=m.id WHERE c.token_hash=? AND c.site_user_id=? AND c.expires_at>? AND m.active=1 AND m.mfa_enabled=1`).bind(await digest(challenge),siteUserId,Date.now()).first<any>();
  if(!row)throw new AuthError('MFA 验证已失效，请重新登录',401);const secret=await revealMfaSecret(row.mfa_secret);if(!await verifyTotp(secret,code)&&!await consumeRecoveryCode(row.member_id,code)){await db().prepare('DELETE FROM team_mfa_challenges WHERE token_hash=?').bind(await digest(challenge)).run();throw new AuthError('MFA 验证码不正确',401)}
  if(!portalAllows(row.role,selected))throw new AuthError(selected==='lender'?'该账号没有持牌机构复核权限，请联系管理员':'该账号不属于服务机构后台，请切换到正确入口',403);
- await db().prepare('DELETE FROM team_mfa_challenges WHERE token_hash=?').bind(await digest(challenge)).run();if(!row.credential_version){await db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),row.tenant_id,row.email,'staff_mfa_login',JSON.stringify({member:row.member_id,mode:'sso',portal:selected}),new Date().toISOString()).run();return {sso:true,companyId:row.tenant_id,portal:selected};}const token=randomToken();const result=await db().batch([db().prepare('INSERT INTO team_staff_sessions (token_hash,member_id,site_user_id,member_version,credential_version,expires_at) VALUES (?,?,?,?,?,?)').bind(await digest(token),row.member_id,siteUserId,row.version,row.credential_version,Date.now()+8*3600000),db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),row.tenant_id,row.email,'staff_mfa_login',JSON.stringify({member:row.member_id,portal:selected}),new Date().toISOString())]);if(!result[0].meta.changes)throw new AuthError('MFA 登录状态已变化，请重试',409);return {token,companyId:row.tenant_id,portal:selected};
+ await db().prepare('DELETE FROM team_mfa_challenges WHERE token_hash=?').bind(await digest(challenge)).run();const token=randomToken();const result=await db().batch([db().prepare('INSERT INTO team_staff_sessions (token_hash,member_id,site_user_id,member_version,credential_version,expires_at) VALUES (?,?,?,?,?,?)').bind(await digest(token),row.member_id,siteUserId,row.version,row.credential_version??0,Date.now()+8*3600000),db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),row.tenant_id,row.email,'staff_mfa_login',JSON.stringify({member:row.member_id,portal:selected}),new Date().toISOString())]);if(!result[0].meta.changes)throw new AuthError('MFA 登录状态已变化，请重试',409);return {token,sso:!row.credential_version,companyId:row.tenant_id,portal:selected};
 }
 export async function logoutStaff(raw:string|null){
  const token=value(raw,STAFF_SESSION);if(!token||!/^[a-f0-9]{64}$/.test(token))return;

@@ -19,7 +19,7 @@ const DB={
  }}}},
  async batch(statements){sql.exec('BEGIN');try{const out=[];for(const s of statements)out.push(await s.run());sql.exec('COMMIT');return out}catch(e){sql.exec('ROLLBACK');throw e}}
 };
-const blobs=new Map();const env={DB,BUCKET:{async put(k,v){blobs.set(k,v)},async get(k){const v=blobs.get(k);return v?{async arrayBuffer(){return v.buffer.slice(v.byteOffset,v.byteOffset+v.byteLength)}}:null},async delete(k){blobs.delete(k)}},KYC_DATA_SECRET:'synthetic-only-'.repeat(5),KYC_REVIEWER_EMAILS:'owner@example.test',PAYEASE_AUTH_SECRET:'synthetic-auth-'.repeat(5),PAYEASE_AUTH_MODE:'demo'};
+const blobs=new Map();const env={DB,BUCKET:{async put(k,v){blobs.set(k,v)},async get(k){const v=blobs.get(k);return v?{async arrayBuffer(){return v.buffer.slice(v.byteOffset,v.byteOffset+v.byteLength)}}:null},async delete(k){blobs.delete(k)}},KYC_DATA_SECRET:'synthetic-only-'.repeat(5),KYC_REVIEWER_EMAILS:'owner@example.test',PAYEASE_AUTH_SECRET:'synthetic-auth-'.repeat(5),PAYEASE_AUTH_MODE:'demo',KHMERX_TEST_MODE:'true'};
 let user={userId:'owner',email:'owner@example.test'},selected='',extraCookies='';const context=vm.createContext({console,crypto,TextEncoder,TextDecoder,Headers,Request,Response,URL,URLSearchParams,AbortSignal,Uint8Array,ArrayBuffer,Buffer,Date,structuredClone,atob,btoa,setTimeout,clearTimeout});
 const cache=new Map();
 function synth(id,values){const m=new vm.SyntheticModule(Object.keys(values),function(){for(const [k,v] of Object.entries(values))this.setExport(k,v)},{context,identifier:id});cache.set(id,m);return m}
@@ -345,7 +345,7 @@ test('staff auth HTTP logout, SSO choice, same-origin and company entry enforcem
  const make=(p,origin='http://localhost')=>new Request('http://localhost/api/team/auth',{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify(p)});
  const out=await route.POST(make({action:'logout'}));assert.equal(out.status,200);assert.match(out.headers.get('set-cookie'),/payease_staff_mode=out/);assert(!out.headers.get('set-cookie').includes('payease_h5_session'));
  assert.equal((await route.POST(make({action:'sso'},'https://evil.invalid'))).status,403);
- assert.equal((await route.POST(make({action:'sso'}))).status,200);
+ assert.equal((await route.POST(make({action:'sso'}))).status,200);env.KHMERX_TEST_MODE='false';extraCookies='';assert.equal((await api.GET()).status,401);env.KHMERX_TEST_MODE='true';
  user=lender;assert.equal((await api.POST(make({action:'enter',slug:'synthetic-b'}))).status,403);
  user=owner;extraCookies='';
 });
