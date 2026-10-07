@@ -27,7 +27,7 @@ export async function adminFunds(p:any){
   const k=await findCase(s.tenant.id,loan.customerId);
   if(!k||k.status!=='approved'||k.id!==loan.kycCaseId||k.revision!==loan.kycRevision)throw new AuthError('KYC 状态或版本已变化',409);
   await validLoanContract(s.tenant.id,loan,k);
-  next=applyAction(state,{action:'disburse',loanId:loan.id,role:'lender',requestId:key,note:'Admin 测试放款：'+reason},now);
+  next=applyAction(state,{action:'disburse',loanId:loan.id,role:'lender',requestId:key,note:'测试放款已登记'},now);
   const target=next.loans.find(l=>l.id===loan.id)!;target.fundingActor ||= s.user.userId;target.fundingCheckedBy=s.user.userId;
  }else{
   if(!route?.repayment_institution_id)throw new AuthError('请先配置并分配还款承接机构');
@@ -36,9 +36,9 @@ export async function adminFunds(p:any){
   if(!testMode&&p.paymentVerified!==true)throw new AuthError('真实支付回执尚未核验，不能登记还款',409,undefined,'PAYMENT_RECEIPT_UNVERIFIED');
   const prior=await db().prepare('SELECT loan_id,cents FROM team_repayment_receipts WHERE tenant_id=? AND reference=?').bind(s.tenant.id,reference).first<any>();
   if(prior){if(prior.loan_id===loan.id&&prior.cents===p.cents)return scopedState();throw new AuthError('流水号已用于其他还款，不可重复入账',409)}
-  next=applyAction(state,{action:'repay',loanId:loan.id,role:'mini',requestId:key,cents:p.cents,note:'Admin 登记测试还款 '+reference+'：'+reason},now);
- }
- next.events[0].note+=' · Admin '+s.user.email;
+  next=applyAction(state,{action:'repay',loanId:loan.id,role:'mini',requestId:key,cents:p.cents,note:'测试还款已登记'},now);
+}
+ next.events[0].note+=' · 已由公司管理员处理';
  const statements=[db().prepare("UPDATE demo_workspaces SET payload=?,revision=revision+1 WHERE owner=? AND revision=? AND EXISTS(SELECT 1 FROM team_members WHERE id=? AND tenant_id=? AND role='admin' AND active=1 AND version=?) AND EXISTS(SELECT 1 FROM team_assignments WHERE tenant_id=? AND customer_id=? AND version=?) AND EXISTS(SELECT 1 FROM team_companies WHERE id=? AND active=1) AND (?=0 OR EXISTS(SELECT 1 FROM kyc_cases WHERE owner=? AND id=? AND revision=? AND status='approved'))").bind(JSON.stringify(next),s.tenant.id,revision,s.member.id,s.tenant.id,s.member.version,s.tenant.id,loan.customerId,route.version,s.tenant.id,p.action==='admin_disburse'?1:0,s.tenant.id,loan.kycCaseId||'',loan.kycRevision??-1)];
  if(reference)statements.push(db().prepare('INSERT INTO team_repayment_receipts(tenant_id,reference,loan_id,cents,actor,created_at) SELECT ?,?,?,?,?,? WHERE changes()=1').bind(s.tenant.id,reference,loan.id,p.cents,s.user.userId,now));
  statements.push(db().prepare('INSERT INTO team_audit(id,tenant_id,actor,action,detail,created_at) SELECT ?,?,?,?,?,? WHERE changes()=1').bind(crypto.randomUUID(),s.tenant.id,s.user.userId,p.action,JSON.stringify({loanId:loan.id,reason,reference,cents:reference?p.cents:loan.billing?.net??loan.amount,institutionId:reference?route.repayment_institution_id:route.funding_institution_id,mode:'test_funds',...(emergency?{emergencyId:emergency.id,emergencyScope:emergency.scope,emergencyExpiresAt:emergency.expiresAt}: {})}),now));
