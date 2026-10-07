@@ -1,4 +1,4 @@
-import {staffIdentity,STAFF_COMPANY,STAFF_PORTAL,value,portal,portalAllows,makePassword,createMfaEnrollment,generateMfaRecoveryCodes,revealMfaSecret,verifyTotp} from './auth';
+import {staffIdentity,STAFF_COMPANY,STAFF_PORTAL,value,portal,portalAllows,makePassword,createMfaEnrollment,generateMfaRecoveryCodes,revealMfaSecret,verifyTotp,verifyTotpWithCounter} from './auth';
 import {fillServiceAssignments} from './servicing';
 import {defaultPricing,validatePricing,normalizePricing,type Pricing} from '@/lib/pricing';
 import {env} from 'cloudflare:workers';
@@ -27,7 +27,7 @@ const highRiskRoles=new Set<TeamRole>(['lender','checker','finance','finance_che
 async function requireMfaStepUp(s:any,code:unknown){
  if((env as any).KHMERX_TEST_MODE==='true')return;
  if(!s.member.mfa_enabled||!s.member.mfa_secret)throw new AuthError('请先启用 MFA 后再执行此安全操作',403,undefined,'MFA_STEP_UP_REQUIRED');
- const secret=await revealMfaSecret(s.member.mfa_secret);if(!await verifyTotp(secret,txt(code,6)))throw new AuthError('请使用当前 MFA 验证码确认此安全操作',403,undefined,'MFA_STEP_UP_REQUIRED');
+ const secret=await revealMfaSecret(s.member.mfa_secret),result=await verifyTotpWithCounter(secret,txt(code,6));if(!result)throw new AuthError('请使用当前 MFA 验证码确认此安全操作',403,undefined,'MFA_STEP_UP_REQUIRED');const claimed=await db().prepare('UPDATE team_members SET mfa_last_counter=? WHERE id=? AND mfa_enabled=1 AND (mfa_last_counter IS NULL OR mfa_last_counter<?)').bind(result.counter,s.member.id,result.counter).run();if(claimed.meta.changes!==1)throw new AuthError('当前 MFA 验证码已使用，请等待下一个时间片',403,undefined,'MFA_STEP_UP_REQUIRED');
 }
 async function requireRoleApproval(s:any,role:TeamRole,approvalId:unknown){
  if((env as any).KHMERX_TEST_MODE==='true'||!highRiskRoles.has(role))return;
