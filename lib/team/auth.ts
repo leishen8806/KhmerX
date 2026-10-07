@@ -8,7 +8,10 @@ export function portal(value:unknown):StaffPortal{return value==='lender'?'lende
 export function portalAllows(role:string,selected:StaffPortal){return selected==='lender'?['checker','finance_checker'].includes(role):!['lender','checker','finance','finance_checker'].includes(role)}
 const db=()=>{if(!env.DB)throw new AuthError('员工登录服务暂不可用',503);return env.DB};
 export function value(raw:string|null,name:string){return raw?.split(';').map(v=>v.trim()).find(v=>v.startsWith(name+'='))?.slice(name.length+1)}
-export async function makePassword(password:string,salt=randomToken()){const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(password),'PBKDF2',false,['deriveBits']);const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:new TextEncoder().encode(salt),iterations:100000,hash:'SHA-256'},k,256);return salt+':'+Array.from(new Uint8Array(bits),b=>b.toString(16).padStart(2,'0')).join('')}
+const PASSWORD_VERSION='v2',PASSWORD_ITERATIONS=600000,LEGACY_PASSWORD_ITERATIONS=100000;
+async function derivePassword(password:string,salt:string,iterations:number){const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(password),'PBKDF2',false,['deriveBits']);const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:new TextEncoder().encode(salt),iterations,hash:'SHA-256'},k,256);return Array.from(new Uint8Array(bits),b=>b.toString(16).padStart(2,'0')).join('')}
+export async function makePassword(password:string,salt=randomToken()){return `${PASSWORD_VERSION}:${PASSWORD_ITERATIONS}:${salt}:${await derivePassword(password,salt,PASSWORD_ITERATIONS)}`}
+function passwordParts(stored:string){const parts=stored.split(':');if(parts.length===4&&parts[0]===PASSWORD_VERSION){const iterations=Number(parts[1]);if(Number.isSafeInteger(iterations)&&iterations>=100000&&iterations<=2000000)return {version:parts[0],iterations,salt:parts[2],hash:parts[3]}}if(parts.length===2)return {version:'legacy',iterations:LEGACY_PASSWORD_ITERATIONS,salt:parts[0],hash:parts[1]};return null}
 function equal(a:string,b:string){let d=a.length^b.length;for(let i=0;i<Math.max(a.length,b.length);i++)d|=(a.charCodeAt(i)||0)^(b.charCodeAt(i)||0);return d===0}
 const B32='ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 function base32(bytes:Uint8Array){let out='',buffer=0,bits=0;for(const byte of bytes){buffer=(buffer<<8)|byte;bits+=8;while(bits>=5){bits-=5;out+=B32[(buffer>>bits)&31]}}if(bits)out+=B32[(buffer<<(5-bits))&31];return out}
@@ -59,8 +62,9 @@ export async function passwordLogin(p:any,siteUserId:string){
   if(row.count>limit)throw new AuthError('登录尝试过多，请 15 分钟后重试',429);
  }
  const m=await db().prepare(`SELECT m.id,m.tenant_id,m.version,m.email,m.role,m.mfa_enabled,m.mfa_secret,p.password_hash,p.version AS credential_version FROM team_members m JOIN team_companies c ON c.id=m.tenant_id JOIN team_staff_credentials p ON p.member_id=m.id WHERE c.slug=? AND lower(m.email)=? AND c.active=1 AND m.active=1`).bind(slug,email).first<any>();
- const stored=m?.password_hash||('0'.repeat(64)+':'+ '0'.repeat(64));const candidate=await makePassword(password,stored.split(':')[0]);
- if(!m||!equal(candidate,stored))throw new AuthError('公司、账号或密码不正确',401);
+ const parts=passwordParts(m?.password_hash||'');const candidate=await derivePassword(password,parts?.salt||'0'.repeat(64),parts?.iterations||LEGACY_PASSWORD_ITERATIONS);
+ if(!m||!parts||!equal(candidate,parts.hash))throw new AuthError('公司、账号或密码不正确',401);
+ if(parts.version==='legacy'){const upgraded=await makePassword(password);await db().prepare('UPDATE team_staff_credentials SET password_hash=? WHERE member_id=? AND password_hash=?').bind(upgraded,m.id,m.password_hash).run()}
  const effective=selected||( ['lender','checker','finance','finance_checker'].includes(m.role)?'lender':'business');
  if(selected&&!portalAllows(m.role,effective))throw new AuthError(effective==='lender'?'该账号没有持牌机构复核权限，请联系管理员':'该账号不属于服务机构后台，请切换到正确入口',403);
  if(m.mfa_enabled)return {mfaRequired:true,challenge:await createMfaChallenge(m.id,siteUserId)};

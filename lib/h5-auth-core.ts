@@ -11,6 +11,7 @@ type Challenge={id:string;owner:string;phone_key:string;phone_mask:string;mode:A
 export type CustomerSession={customerId:string;phoneMasked:string;mode:AuthMode;expiresAt:number;phoneVerified?:boolean;verificationCompleted?:boolean;hasPassword?:boolean};
 const encoder=new TextEncoder();
 export const AUTH_TTL=300,SESSION_TTL=86400,RESEND_DELAY=60,MAX_ATTEMPTS=5;
+const PASSWORD_VERSION='v2',PASSWORD_ITERATIONS=600000,LEGACY_PASSWORD_ITERATIONS=100000;
 export const randomToken=()=>Array.from(crypto.getRandomValues(new Uint8Array(32)),v=>v.toString(16).padStart(2,'0')).join('');
 export async function digest(value:string){return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',encoder.encode(value))),v=>v.toString(16).padStart(2,'0')).join('')}
 export async function keyed(secret:string,value:string){const key=await crypto.subtle.importKey('raw',encoder.encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign']);return Array.from(new Uint8Array(await crypto.subtle.sign('HMAC',key,encoder.encode(value))),v=>v.toString(16).padStart(2,'0')).join('')}
@@ -125,13 +126,15 @@ export async function loginTelegram(r:AuthRuntime,owner:string,browserToken:stri
  if(!account)throw new AuthError('Telegram 账号创建失败，请稍后重试',409);
  return issueAccountSession(r,account);
 }
-async function passwordHash(password:string,salt:string){const key=await crypto.subtle.importKey('raw',encoder.encode(password),'PBKDF2',false,['deriveBits']);return Array.from(new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',salt:encoder.encode(salt),iterations:100000,hash:'SHA-256'},key,256)),x=>x.toString(16).padStart(2,'0')).join('')}
-async function passwordMatches(password:unknown,stored:string|null){const valid=typeof password==='string'&&password.length<=128;const [salt,hash]=(stored||('0'.repeat(64)+':'+'0'.repeat(64))).split(':');const candidate=await passwordHash(valid?password:'',salt);return valid&&!!stored&&equal(candidate,hash)}
+async function passwordHash(password:string,salt:string,iterations=PASSWORD_ITERATIONS){const key=await crypto.subtle.importKey('raw',encoder.encode(password),'PBKDF2',false,['deriveBits']);return Array.from(new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',salt:encoder.encode(salt),iterations,hash:'SHA-256'},key,256)),x=>x.toString(16).padStart(2,'0')).join('')}
+function passwordParts(stored:string|null){const parts=(stored||'').split(':');if(parts.length===4&&parts[0]===PASSWORD_VERSION){const iterations=Number(parts[1]);return Number.isSafeInteger(iterations)&&iterations>=100000&&iterations<=2000000?{version:parts[0],iterations,salt:parts[2],hash:parts[3]}:null}if(parts.length===2)return {version:'legacy',iterations:LEGACY_PASSWORD_ITERATIONS,salt:parts[0],hash:parts[1]};return null}
+async function passwordMatches(password:unknown,stored:string|null){const valid=typeof password==='string'&&password.length<=128,parts=passwordParts(stored);const candidate=await passwordHash(valid?password:'',parts?.salt||'0'.repeat(64),parts?.iterations||LEGACY_PASSWORD_ITERATIONS);return valid&&!!parts&&equal(candidate,parts.hash)}
 export async function loginPassword(r:AuthRuntime,owner:string,browserToken:string,input:{phone?:unknown;password?:unknown}){
  config(r);const phone=normalizePhone(input.phone,'telegram'),id=await customerKey(r,owner,phone),bh=await digest(browserToken);
  await limit(r,'password-phone|'+id,5,900,0);await limit(r,'password-browser|'+owner+'|'+bh,10,900,0);await limit(r,'password-owner|'+owner,60,900,0);
  const a=await r.db.prepare('SELECT * FROM h5_accounts WHERE customer_id=? AND owner=?').bind(id,owner).first<Account>();
  if(!await passwordMatches(input.password,a?.password_hash||null))throw new AuthError('手机号或密码不正确，请重试或使用验证码',401);
+ const parts=passwordParts(a?.password_hash||null);if(a&&parts?.version==='legacy'&&typeof input.password==='string'){const salt=randomToken(),upgraded=`${PASSWORD_VERSION}:${PASSWORD_ITERATIONS}:${salt}:${await passwordHash(input.password,salt)}`;await r.db.prepare('UPDATE h5_accounts SET password_hash=? WHERE customer_id=? AND owner=? AND password_hash=?').bind(upgraded,a.customer_id,owner,a.password_hash).run()}
  // Password login grants a session, never a phone-only recovery capability.
  return issueAccountSession(r,a!);
 }
@@ -142,7 +145,7 @@ export async function setPassword(r:AuthRuntime,owner:string,token:string|undefi
  const a=await r.db.prepare('SELECT * FROM h5_accounts WHERE customer_id=? AND owner=?').bind(session.customerId,owner).first<Account>();
  if(!a)throw new AuthError('请先通过验证码登录，再设置密码',409);
  if(a.password_hash&&!await passwordMatches(input.currentPassword,a.password_hash))throw new AuthError('当前密码不正确',401);
- const salt=randomToken(),hash=salt+':'+await passwordHash(input.password,salt);
+ const salt=randomToken(),hash=`${PASSWORD_VERSION}:${PASSWORD_ITERATIONS}:${salt}:${await passwordHash(input.password,salt)}`;
  const changed=await r.db.prepare('UPDATE h5_accounts SET password_hash=? WHERE customer_id=? AND owner=? AND password_hash IS ? AND EXISTS(SELECT 1 FROM h5_sessions WHERE token_hash=? AND owner=? AND expires_at>?)').bind(hash,a.customer_id,owner,a.password_hash,await digest(token!),owner,now(r)).run();
  if(!changed.meta.changes)throw new AuthError('账号状态已变化，请重新登录',409);
  await r.db.prepare('DELETE FROM h5_sessions WHERE owner=? AND customer_id=? AND token_hash<>?').bind(owner,a.customer_id,await digest(token!)).run();
@@ -158,7 +161,7 @@ export async function resetPassword(r:AuthRuntime,owner:string,browserToken:stri
  // Verification grants only this one reset operation, never a general customer session.
  const row=await consumeCode(r,owner,browserToken,input,undefined,'reset');
  const account=await r.db.prepare('SELECT credential_version FROM h5_accounts WHERE customer_id=? AND owner=?').bind(row.phone_key,owner).first<{credential_version:number}>();if(!account)throw new AuthError('当前公司下未找到此手机号账号，请返回注册',404);
- const salt=randomToken(),hash=salt+':'+await passwordHash(input.password,salt);
+ const salt=randomToken(),hash=`${PASSWORD_VERSION}:${PASSWORD_ITERATIONS}:${salt}:${await passwordHash(input.password,salt)}`;
  const changed=await r.db.prepare('UPDATE h5_accounts SET password_hash=?,credential_version=credential_version+1,browser_hash=NULL,verification_completed=1,phone_verified=? WHERE customer_id=? AND owner=? AND mode=? AND credential_version=?').bind(hash,row.mode==='telegram'?1:0,row.phone_key,owner,row.mode,account.credential_version).run();
  if(!changed.meta.changes)throw new AuthError('账号已被更新，请重新获取验证码',409);
  return {ok:true,message:'密码已重置，旧登录会话已失效，请使用新密码登录'};
