@@ -68,7 +68,11 @@ export function legacyText(text:string,locale:Locale){const value=i18nValue(loca
   ...(text==='单份材料不能超过 5 MB'?{ '单份材料不能超过 5 MB':'kycUploadLimit' }:{}),
   ...(text.startsWith('单份不超过 5 MB。')?{ '单份不超过 5 MB。图片支持 JPG/PNG，证明材料可使用 PDF。PDF 以下载方式查看。':'kycUploadDetail' }:{}),
   '首页':'home','借款记录':'records','我的':'me','申请借款':'apply','费用确认':'bill','确认签约':'sign','借款进度':'status','还款':'repay','提现':'withdraw','身份认证':'kyc','返回':'back','切换语言':'language','站内信息':'notifications','正在加载':'loading','重新加载':'reload','你好，':'hello','查看借款进度':'viewProgress','完成身份认证':'completeKyc','申请只需三步':'threeSteps','身份资料审核':'identityReview','选择金额，确认账单并签约':'chooseAmount','等待审批与放款':'approvalDisbursement','还没有借款记录':'noLoans','完成身份认证后，即可申请借款。':'completeBeforeApply','开始申请':'startApply','继续当前申请':'continue','账户安全':'accountSecurity','账号与安全':'accountSecurity','退出登录':'logout','测试账户':'testAccount','查看资料':'viewProfile','已审核通过':'approved','费用明细':'feeDetails','已签借款协议':'loanAgreement','申请编号':'number','借款期限':'term','实际到账':'net','到期应还':'due','已还金额':'paid','还款日期':'repaymentDate','办理进度':'processing','测试资金 · 不产生真实债务':'noDebt','已注册 · 待 KYC':'registered','待资料审核':'kycPending','待补件':'needsInfo','资料通过':'kycApproved','待机构审批':'decisionPending','待签约':'approvedStatus','申请未通过':'rejected','待放款':'signed','还款中':'active','已结清':'closed'};
-  if(text.startsWith('你好，'))return value.t('hello',{name:text.slice(3)});
+  // The greeting is rendered by the legacy home screen and can already be
+  // translated once. Accept every supported language prefix so a later
+  // language switch can translate it back instead of leaving stale copy.
+  const greeting=/^(你好，|Hello, |សួស្តី\s+)/.exec(text);
+  if(greeting)return value.t('hello',{name:text.slice(greeting[0].length)});
   if(text.startsWith('剩余应还 '))return value.t('outstanding')+' '+text.slice(5);
   if(text.startsWith('提现 · '))return value.t('withdrawNow',{amount:text.slice(5)});
   if(text.startsWith('去还款 · '))return value.t('repayNow',{amount:text.slice(5)});
