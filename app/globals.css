@@ -76,6 +76,7 @@ body:has(.mini-app) .test-flow-toolbar,body:has(.mini-login) .test-flow-toolbar{
 .mini-empty{padding:20px}
 .mini-empty h2{margin-bottom:10px}
 .mini-empty .mini-primary{margin-top:10px}
+.crm-sidebar-icon{width:17px;height:17px;stroke-width:1.8;flex:0 0 17px}
 .mini-kyc-link{gap:10px}
 .mini-intro{gap:10px}
 .mini-action{gap:10px;margin:20px 0}

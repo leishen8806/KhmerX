@@ -23,7 +23,11 @@ import {Input} from '@/components/ui/input';
 import {roleLabels,kycFieldGroups,type TeamRole} from '@/lib/team/policy';
 import {statusNames} from '@/lib/domain';
 import {localeLabels,type Locale} from '@/lib/i18n';
+import {isCrmQueueSection} from '@/lib/team/crm-menu';
+import {LayoutDashboard,UsersRound,BriefcaseBusiness,Headphones,ShieldCheck,WalletCards,BarChart3,Settings2,ClipboardCheck} from 'lucide-react';
 const localeFlags:Record<Locale,string>={zh:'🇨🇳',en:'🇬🇧',km:'🇰🇭'};
+const crmSidebarIcons:Record<string,typeof LayoutDashboard>={工作台:LayoutDashboard,客户中心:UsersRound,业务中心:BriefcaseBusiness,服务中心:Headphones,风控与资金:ShieldCheck,产品与运营:WalletCards,报表中心:BarChart3,组织与系统:Settings2,审计与安全:ClipboardCheck};
+function CrmSidebarIcon({label}:{label:string}){const Icon=crmSidebarIcons[label]||ClipboardCheck;return <Icon className="crm-sidebar-icon" aria-hidden="true"/>}
 function TeamClientInner({initialQueue=''}:{initialQueue?:string}){
  const [queueView,setQueueView]=useState(initialQueue);
  const [newCompanyLanguages,setNewCompanyLanguages]=useState({en:true,km:true,zh:true});
@@ -35,7 +39,7 @@ function TeamClientInner({initialQueue=''}:{initialQueue?:string}){
  function focusOrderSearch(){const el=document.querySelector<HTMLInputElement>('input[aria-label="查询订单"]');el?.focus();el?.scrollIntoView({behavior:'smooth',block:'center'})}
  function scrollToSection(id:string){document.getElementById(id)?.scrollIntoView({behavior:'smooth',block:'start'})}
  async function toggleFullscreen(){try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen()}catch{setNotice('当前浏览器不支持全屏模式')}}
- useEffect(()=>{if(initialQueue)return;const q=new URLSearchParams(window.location.search).get('queue');if(['customers','reports','notifications','tickets','kyc','loans','funding','repayment','postloan'].includes(q||''))setQueueView(q||'')},[initialQueue]);
+ useEffect(()=>{if(initialQueue)return;const q=new URLSearchParams(window.location.search).get('queue');if(isCrmQueueSection(q))setQueueView(q)},[initialQueue]);
  const [data,setData]=useState<any>(null),[work,setWork]=useState<any>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[notice,setNotice]=useState(''),[name,setName]=useState(''),[slug,setSlug]=useState(''),[unitName,setUnitName]=useState(''),[kind,setKind]=useState('department'),[email,setEmail]=useState(''),[role,setRole]=useState<TeamRole>('kyc'),[unit,setUnit]=useState('');
  const [mfaEnrollment,setMfaEnrollment]=useState<any>(null),[mfaCode,setMfaCode]=useState(''),[mfaReason,setMfaReason]=useState(''),[recoveryCodes,setRecoveryCodes]=useState<string[]>([]);
  async function load(){try{const r=await fetch('/api/team',{cache:'no-store'}),d:any=await r.json();if(r.status===401){setData(null);setWork(null);window.location.replace('/team/login');return}if(!r.ok)throw Error(d.error);setError('');setData(d);if(d.company)setClientLanguages({en:d.company.client_en_enabled!==0,km:d.company.client_km_enabled!==0,zh:d.company.client_zh_enabled!==0});if(d.company){const w=await fetch('/api/state',{cache:'no-store'}),v:any=await w.json();if(!w.ok)throw Error(v.error);setWork(v)}else setWork(null)}catch(e){setError((e as Error).message)}}
@@ -86,7 +90,7 @@ function TeamClientInner({initialQueue=''}:{initialQueue?:string}){
    ['组织与系统',[['公司与部门','#team-permissions','permissions'],['员工与角色','#team-permissions','permissions'],['数据范围','#team-permissions','permissions'],['字段权限','#team-permissions','permissions'],['持牌机构','#team-permissions','permissions'],['API 应用','#team-permissions','permissions'],['语言与时区','#team-permissions','permissions'],['文件与扫描配置','#team-permissions','permissions'],['系统健康','#team-permissions','permissions']]],
    ['审计与安全',[['操作审计','#team-audit','audit'],['登录与 IP','#team-audit','audit'],['数据修改','#team-audit','audit'],['资金操作','#team-audit','audit'],['权限变更','#team-audit','audit'],['安全告警','#team-audit','audit'],['应急事件','#team-audit','audit'],['审计导出','#team-audit','audit']]]
   ];
-  return <aside className="crm-sidebar" aria-label={lender?'持牌机构菜单':'服务机构菜单'}><div className="crm-sidebar-brand"><span className="crm-sidebar-mark">K</span><span><strong>KhmerX</strong><small>{lender?'LENDER REVIEW':'SERVICE OPERATIONS'}</small></span></div><nav>{groups.map(([groupName,children]:any)=><details key={groupName} open={children.some(([, ,key]:any)=>active(key))||groupName==='工作台'}><summary><span>◉<b>{groupName}</b></span><i>⌄</i></summary><div className="crm-sidebar-subnav">{children.map(([label,href,key]:any)=><a className={active(key)?'active':''} href={href} key={label} onClick={()=>setQueueView(key==='home'?'':key)}><span>{label}</span><b>›</b></a>)}</div></details>)}</nav><div className="crm-sidebar-foot">{lender?'持牌机构复核':'服务机构后台'}<br/><span>PayEase</span></div></aside>
+  return <aside className="crm-sidebar" aria-label={lender?'持牌机构菜单':'服务机构菜单'}><div className="crm-sidebar-brand"><span className="crm-sidebar-mark">K</span><span><strong>KhmerX</strong><small>{lender?'LENDER REVIEW':'SERVICE OPERATIONS'}</small></span></div><nav>{groups.map(([groupName,children]:any)=><details key={groupName} open={children.some(([, ,key]:any)=>active(key))||groupName==='工作台'}><summary><span><CrmSidebarIcon label={groupName}/><b>{groupName}</b></span><i>⌄</i></summary><div className="crm-sidebar-subnav">{children.map(([label,href,key]:any)=><a className={active(key)?'active':''} href={href} key={label} onClick={()=>setQueueView(key==='home'?'':key)}><span>{label}</span><b>›</b></a>)}</div></details>)}</nav><div className="crm-sidebar-foot">{lender?'持牌机构复核':'服务机构后台'}<br/><span>PayEase</span></div></aside>
 }
 
  function queueRoute(queue:string){return ({customers:'/team/customers',reports:'/team/reports',notifications:'/team/notifications',tickets:'/team/tickets',kyc:'/team/kyc',loans:'/team/loans',funding:'/team/funding',repayment:'/team/repayment',postloan:'/team/postloan'} as Record<string,string>)[queue]||'/team'}
