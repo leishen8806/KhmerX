@@ -2,7 +2,7 @@ import {dispatchCompany} from '@/lib/notifications/server';
 import {env} from 'cloudflare:workers';
 import {db,staff} from '@/lib/team/server';
 import {AuthError} from '@/lib/h5-auth-core';
-import {initialState,type State} from '@/lib/domain';
+import {initialState,requestFingerprint,type State} from '@/lib/domain';
 import type {Member} from '@/lib/team/policy';
 import {runPostloan,mayViewTask,outcomes,outstanding,localDay} from './core';
 export async function ensurePostDepartment(tenant:string){await db().prepare("INSERT OR IGNORE INTO team_units (id,tenant_id,name,kind) VALUES (?,?,?,?)").bind('postloan:'+tenant,tenant,'运营贷后部','postloan').run()}
@@ -23,13 +23,13 @@ export async function postloanAction(p:any){const s=await staff();if(!s||!['admi
  if(p.action==='check'){if(s.member.role!=='admin')throw new AuthError('仅公司管理员可立即检查',403);await runCompany(s.tenant.id);return {ok:true}}
  if(!['note','reassign'].includes(p.action))throw new AuthError('无效贷后操作');
  const row=await db().prepare('SELECT payload,revision FROM demo_workspaces WHERE owner=?').bind(s.tenant.id).first<{payload:string;revision:number}>();if(!row)throw new AuthError('任务不存在',404);const state:State=JSON.parse(row.payload),t=state.postloan?.tasks.find(t=>t.id===p.taskId);if(!t||!mayViewTask(s.member,t))throw new AuthError('任务不在当前权限范围',403);
- if(typeof p.requestId!=='string'||p.requestId.length<8||p.requestId.length>100)throw new AuthError('请求编号无效');const id=s.user.userId+':postloan:'+p.requestId;if(t.records.some(r=>r.id===id))return {ok:true};
+ if(typeof p.requestId!=='string'||p.requestId.length<8||p.requestId.length>100)throw new AuthError('请求编号无效');const id=s.user.userId+':postloan:'+p.requestId,digest=requestFingerprint(p);if(t.records.some(r=>r.id===id)){if(state.requestDigests?.[id]&&state.requestDigests[id]!==digest)throw new AuthError('请求编号已绑定其他贷后操作',409,undefined,'IDEMPOTENCY_PAYLOAD_MISMATCH');return {ok:true};}
  if(t.updatedAt!==p.version)throw new AuthError('任务已变化，请刷新后重试',409);
  const l=state.loans.find(l=>l.id===t.loanId);if(!l||l.status!=='active'||outstanding(l)<=0||t.status==='closed')throw new AuthError('贷款已结清或任务不可继续处理',409);
  const note=typeof p.note==='string'?p.note.trim():'';if(!note||note.length>1000)throw new AuthError('请填写 1–1000 字处理记录');const now=new Date().toISOString();
  let detail=note;let targetGuard='';let targetArgs:(string|number)[]=[];
  if(p.action==='reassign'){if(!['admin','collection_admin'].includes(s.member.role))throw new AuthError('仅贷后主管或公司管理员可改派',403);const target=await db().prepare("SELECT * FROM team_members WHERE tenant_id=? AND id=? AND role='collector' AND active=1").bind(s.tenant.id,p.assigneeId||'').first<Member>();if(!target||(s.member.role==='collection_admin'&&target.unit_id!==s.member.unit_id))throw new AuthError('请选择授权部门的在职贷后客服');if(!await db().prepare("SELECT id FROM team_units WHERE tenant_id=? AND id=? AND kind='postloan'").bind(s.tenant.id,target.unit_id).first())throw new AuthError('客服部门无效');targetGuard=" AND EXISTS (SELECT 1 FROM team_members WHERE id=? AND tenant_id=? AND role='collector' AND active=1 AND unit_id=? AND version=?)";targetArgs=[target.id,s.tenant.id,target.unit_id!,target.version];detail=`改派：${t.assigneeId||'待分配'} → ${target.email}。${note}`;t.assigneeId=target.id;t.departmentId=target.unit_id!;
  }else{if(!Object.hasOwn(outcomes,p.outcome))throw new AuthError('请选择联系结果');if(p.nextContactAt){if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(p.nextContactAt)||!Number.isFinite(Date.parse(p.nextContactAt))||Date.parse(p.nextContactAt)<=Date.parse(now))throw new AuthError('下次跟进时间必须晚于当前时间')}if(p.outcome==='promise'&&(!/^\d{4}-\d{2}-\d{2}$/.test(p.promiseDate||'')||!Number.isFinite(Date.parse(p.promiseDate))||new Date(p.promiseDate+'T00:00:00Z').toISOString().slice(0,10)!==p.promiseDate||p.promiseDate<localDay(now)))throw new AuthError('请填写今天或以后的有效承诺还款日期');t.status=p.outcome==='promise'?'promised':p.outcome==='dispute'?'dispute':'following';t.nextContactAt=p.nextContactAt||undefined;t.promiseDate=p.outcome==='promise'?p.promiseDate:undefined;detail=outcomes[p.outcome as keyof typeof outcomes]+'：'+note}
- t.updatedAt=now;t.records.push({id,at:now,actor:s.user.email,action:p.action,note:detail,nextContactAt:t.nextContactAt,promiseDate:t.promiseDate});
+ t.updatedAt=now;t.records.push({id,at:now,actor:s.user.email,action:p.action,note:detail,nextContactAt:t.nextContactAt,promiseDate:t.promiseDate});state.requestDigests??={};state.requestDigests[id]=digest;
  const result=await db().prepare('UPDATE demo_workspaces SET payload=?,revision=revision+1 WHERE owner=? AND revision=? AND EXISTS (SELECT 1 FROM team_members WHERE id=? AND active=1 AND version=?)'+targetGuard).bind(JSON.stringify(state),s.tenant.id,row.revision,s.member.id,s.member.version,...targetArgs).run();if(!result.meta.changes)throw new AuthError('任务或权限已变化，请刷新后重试',409);return {ok:true}
 }
