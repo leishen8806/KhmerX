@@ -7,15 +7,16 @@ export type Bot={tokenConfigured?:boolean;telegramId?:string;phoneVerification?:
 export type Entry={id:string;loanId:string;kind:string;cents:number;debit:string;credit:string;at:string};
 export type Event={id:string;loanId:string;action:string;role:Role;note:string;at:string};
 export type Loan={billing?:Bill;billConfirmedAt?:string;approvalActor?:string;approvalCheckedBy?:string;fundingActor?:string;fundingCheckedBy?:string;id:string;customerId?:string;kycCaseId?:string;kycRevision?:number;phoneMasked?:string;name:string;botId:string;amount:number;fee:number;status:Status;createdAt:string;dueAt?:string;signedAt?:string;signature?:string;contract?:string;paid:number;wallet:number;note:string;demoDays:number;kyc:{income:number;contacts:string[];document:string}};
-export type State={activeBotId?:string;postloan?:Postloan;loans:Loan[];bots:Bot[];events:Event[];entries:Entry[];notifications:{id:string;loanId:string;botId:string;text:string;at:string;status:string}[];requests:string[]};
+export type State={activeBotId?:string;postloan?:Postloan;loans:Loan[];bots:Bot[];events:Event[];entries:Entry[];notifications:{id:string;loanId:string;botId:string;text:string;at:string;status:string}[];requests:string[];requestDigests?:Record<string,string>};
+export function requestFingerprint(input:Record<string,unknown>){return JSON.stringify(Object.entries(input).filter(([key])=>key!=='requestId').sort(([a],[b])=>a.localeCompare(b)))}
 export function businessBot(s:State){return s.activeBotId?s.bots.find(b=>b.id===s.activeBotId&&b.enabled):s.bots.find(b=>b.enabled)}
 export const statusNames:Record<Status,string>={registered:'已注册 · 待 KYC',kyc_pending:'待资料审核',needs_info:'待补件',kyc_approved:'资料通过',decision_pending:'待机构审批',approved:'待签约',rejected:'申请未通过',signed:'待放款',active:'还款中',closed:'已结清'};
-export const initialState=():State=>({loans:[],bots:[{id:'bot-1',label:'PayEase 主机器人',username:'',enabled:true,envKey:'TELEGRAM_BOT_TOKEN_1'},{id:'bot-2',label:'PayEase 第二机器人',username:'',enabled:true,envKey:'TELEGRAM_BOT_TOKEN_2'}],events:[],entries:[],notifications:[],requests:[]});
+export const initialState=():State=>({loans:[],bots:[{id:'bot-1',label:'PayEase 主机器人',username:'',enabled:true,envKey:'TELEGRAM_BOT_TOKEN_1'},{id:'bot-2',label:'PayEase 第二机器人',username:'',enabled:true,envKey:'TELEGRAM_BOT_TOKEN_2'}],events:[],entries:[],notifications:[],requests:[],requestDigests:{}});
 export const roles:Record<string,Role>={create:'mini',confirm_bill:'mini',confirm_kyc:'mini',submit_kyc:'mini',resubmit:'mini',apply:'mini',sign:'mini',withdraw:'mini',repay:'mini',review:'ops',supplement:'ops',approve:'lender',reject:'lender',disburse:'lender',overdue:'ops',bot_save:'ops',bot_add:'ops',bot_switch:'ops'};
 export function applyAction(input:State,p:any,now=new Date().toISOString()):State{
  if(!p||typeof p!=='object'||!roles[p.action]||roles[p.action]!==p.role)throw Error('此操作不属于当前演示角色');
  if(typeof p.requestId!=='string'||p.requestId.length<8||p.requestId.length>100)throw Error('请求编号无效');
- if(input.requests.includes(p.requestId))return input;
+ const digest=requestFingerprint(p);if(input.requests.includes(p.requestId)){if(input.requestDigests?.[p.requestId]&&input.requestDigests[p.requestId]!==digest)throw Error('请求编号已绑定其他操作');return input;}
  const s:State=structuredClone(input); const id=()=>crypto.randomUUID();
  const text=(v:unknown,max=120)=>typeof v==='string'?v.trim().slice(0,max):'';
  if(p.action==='bot_switch'){
@@ -72,10 +73,10 @@ export function applyAction(input:State,p:any,now=new Date().toISOString()):Stat
   s.events.unshift({id:id(),loanId:l.id,action:p.action,role:p.role,note:l.note+(note&&note!==l.note?' · '+note:''),at:now});
   s.notifications.unshift({id:id(),loanId:l.id,botId:l.botId,text:l.note,at:now,status:'模拟已记录 · 未发送 Telegram'});
  }
-  syncSettlements(s,now);s.requests.push(p.requestId);
+  syncSettlements(s,now);s.requests.push(p.requestId);s.requestDigests??={};s.requestDigests[p.requestId]=digest;
   // Idempotency keys are not business history. Keep a bounded recent window so
   // the workspace row cannot grow forever while retaining replay protection.
-  if(s.requests.length>500)s.requests=s.requests.slice(-500);
+  if(s.requests.length>500){const removed=s.requests.splice(0,s.requests.length-500);for(const key of removed)delete s.requestDigests?.[key]}
   return s;
 }
 export function summary(s:State){return {applications:s.loans.length,active:s.loans.filter(l=>l.status==='active').length,closed:s.loans.filter(l=>l.status==='closed').length,disbursed:s.entries.filter(e=>e.kind==='测试放款').reduce((n,e)=>n+e.cents,0),repaid:s.entries.filter(e=>e.kind==='测试还款').reduce((n,e)=>n+e.cents,0)}}
