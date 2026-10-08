@@ -11,12 +11,13 @@ import {Input} from '@/components/ui/input';
 import {Checkbox} from '@/components/ui/checkbox';
 import {Select,SelectTrigger,SelectValue,SelectContent,SelectItem} from '@/components/ui/select';
 import {trackEvent} from '@/lib/analytics';
+import {MiniNavLink,useMiniNavigation} from '@/components/mini-shell';
 import {isPersonName,normalizePersonName,KYC_CONSENT_VERSION,fields,slots,sections,hasVehicle,slotVisible,slotRequired,vehicleSlots,regions,statusLabels,emptyProfile,completeness,missing,type Profile,type Slot,type KycStatus} from '@/lib/kyc/core';
 import {KYC_FILE_MAX_BYTES,KYC_FILE_MAX_MB} from '@/lib/kyc/limits';
 type RecordView={approvalOnly?:boolean;canReview?:boolean;loanOffer?:{billConfirmedAt?:string;billing?:Bill;id:string;amount:number;fee:number;termDays:number}|null;signedLoan?:{loanId:string;contractHash:string};id:string;revision:number;status:KycStatus;profile:Profile;phoneVerified:boolean;review?:{reason:string;decision:string;at:string};updatedAt:string;history?:{revision:number;action:string;created_at:string;actor:string;review?:{reason:string;decision:string}}[]};
 const stamp=(s:string)=>new Date(s).toLocaleString('zh-CN');
 export default function KycClient({review=false,mini=false}:{review?:boolean;mini?:boolean}){
- const router=useRouter(),Navigation=mini?Link:'a';
+ const router=useRouter(),navigate=useMiniNavigation(),Navigation=mini?MiniNavLink:'a';
  const [amending,setAmending]=useState(false);
  const [record,setRecord]=useState<RecordView|null>(null),[profile,setProfile]=useState<Profile>(emptyProfile),[section,setSection]=useState(mini&&!review?'personal':'identity'),[cases,setCases]=useState<any[]>([]),[error,setError]=useState(''),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[loaded,setLoaded]=useState(false),[dirty,setDirty]=useState(false),[checks,setChecks]=useState<Record<string,boolean>>({}),[reason,setReason]=useState(''),[decision,setDecision]=useState('needs_info'),[filter,setFilter]=useState('submitted'),[vehicleKind,setVehicleKind]=useState<Slot|''>('');
  const miniSteps=[{id:'personal',label:'个人信息',Icon:UserRound,dataSection:'identity'},{id:'idFront',label:'身份证正面',Icon:IdCard,dataSection:'identity',slot:'idFront' as Slot},{id:'idBack',label:'身份证反面',Icon:IdCard,dataSection:'identity',slot:'idBack' as Slot},{id:'selfie',label:'个人自拍照',Icon:Camera,dataSection:'identity',slot:'selfie' as Slot},{id:'contacts',label:'紧急联系人',Icon:UsersRound,dataSection:'contacts'},{id:'employment',label:'工作资产',Icon:BriefcaseBusiness,dataSection:'employment'},{id:'bank',label:'收款账户',Icon:Building2,dataSection:'bank'},{id:'consent',label:'授权确认',Icon:FileSignature,dataSection:'consent'}];
@@ -49,7 +50,7 @@ export default function KycClient({review=false,mini=false}:{review?:boolean;min
    const url=new URL(link.href);
    if(url.origin!==location.origin||!/^\/h5(?:\/|$)/.test(url.pathname))return;
    e.preventDefault();e.stopPropagation();
-   if(!busy)void save('save').then(ok=>{if(ok)router.push(url.pathname+url.search+url.hash)});
+   if(!busy)void save('save').then(ok=>{if(ok){const target=url.pathname+url.search+url.hash;if(mini&&navigate)navigate(target);else router.push(target)}});
   };
   document.addEventListener('click',leave,true);
   return()=>document.removeEventListener('click',leave,true);
