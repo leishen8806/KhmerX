@@ -5,7 +5,7 @@ export function kycPresentation(status:string){
  const states:Record<string,{title:string;description:string;action:string}>={
   not_started:{title:'完成认证，开始借款',description:'准备好身份证、工作与收款账户资料。支持分步填写，随时保存草稿。',action:'填写身份资料'},
   draft:{title:'继续完善身份资料',description:'你的草稿已保存。补齐资料并提交后，我们将进行人工审核。',action:'继续填写'},
-  submitted:{title:'身份资料审核中',description:'资料已提交，正在等待人工审核。通过后即可选择借款金额与期限。',action:'查看审核进度'},
+  submitted:{title:'身份资料审核中',description:'资料已提交，预计 24 小时内完成人工审核。通过后即可选择借款金额与期限。',action:'查看审核进度'},
   needs_info:{title:'请补充身份资料',description:'审核员需要更多资料。查看补件说明，修改后重新提交审核。',action:'查看说明并补件'},
   rejected:{title:'身份资料未通过',description:'请查看审核说明，了解未通过的原因与可进行的后续操作。',action:'查看审核说明'},
   approved:{title:'身份资料已通过',description:'现在可以申请借款。确认费用并签约后，机构将审核本笔贷款。',action:'查看身份资料'},

@@ -36,7 +36,7 @@ export function MiniClient({screen,queryString='',phone,company,onLogout,onSecur
  const kycActionEntry=()=>kycLocked?<button type="button" className="mini-primary mini-primary-disabled" disabled>身份资料审核中</button>:<Link className="mini-primary" href={kycAction(kyc,k).href}>{kycAction(kyc,k).label}<ChevronRight size={18}/></Link>;
  const card=(l:Loan)=><Link className="mini-order" key={l.id} href={href(loanDestination(l),l)}><span><small>{date(l.createdAt)} · {l.billing?.termDays||14} 天</small><strong>{money(l.amount)} <small>USD</small></strong><small>申请 {l.id.slice(0,8).toUpperCase()}</small></span><span className="mini-order-end"><b>{statusNames[l.status]}</b><ChevronRight size={18}/></span></Link>;
  let content;
- if(screen==='kyc'&&kycLocked)content=<section className="mini-card mini-empty"><ShieldCheck size={32}/><h1>身份资料审核中</h1><p>资料已提交并锁定，审核期间暂不允许修改或重新提交。</p><Button variant="outline" onClick={()=>navigate?.('/h5')}>返回首页</Button></section>;
+ if(screen==='kyc'&&kycLocked)content=<section className="mini-card mini-empty"><ShieldCheck size={32}/><h1>身份资料审核中</h1><p>资料已提交，预计 24 小时内完成人工审核。审核期间暂不允许修改或重新提交。</p><Button variant="outline" onClick={()=>navigate?.('/h5')}>返回首页</Button></section>;
  else if(screen==='kyc')content=<KycClient mini/>;
  else if(screen==='sign')content=<LoanSign mini/>;
  else if(screen==='contract')content=<Contract mini/>;
