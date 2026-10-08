@@ -16,6 +16,7 @@ const USER_FULL_NAME_ENCODING_HEADER =
   "oai-authenticated-user-full-name-encoding";
 const PERCENT_ENCODED_UTF8 = "percent-encoded-utf-8";
 const IDENTITY_PROOF_HEADER = "x-payease-identity-proof";
+const IDENTITY_PROOF_TIMESTAMP_HEADER = "x-payease-identity-proof-ts";
 const SIGN_IN_PATH = "/signin-with-chatgpt";
 const SIGN_OUT_PATH = "/signout-with-chatgpt";
 const CALLBACK_PATH = "/callback";
@@ -26,9 +27,17 @@ export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
   const email = requestHeaders.get(USER_EMAIL_HEADER);
   if (!userId || !email) return null;
   const proof = requestHeaders.get(IDENTITY_PROOF_HEADER);
+  const proofTimestamp = requestHeaders.get(IDENTITY_PROOF_TIMESTAMP_HEADER);
   const secret = String((env as any).PAYEASE_IDENTITY_PROOF_SECRET || (env as any).PAYEASE_AUTH_SECRET || '');
   if (proof) {
-    if (!secret || !(await validIdentityProof(proof, userId, email))) return null;
+    if (!secret) return null;
+    if (proofTimestamp) {
+      const seconds = Number(proofTimestamp);
+      if (!Number.isInteger(seconds) || Math.abs(Math.floor(Date.now()/1000)-seconds)>300) return null;
+      if (!(await validIdentityProof(proof, userId, email, requestHeaders.get('host')||'', proofTimestamp))) return null;
+    } else if ((env as any).PAYEASE_IDENTITY_PROOF_TIMESTAMP_REQUIRED === 'true' && (env as any).KHMERX_TEST_MODE !== 'true') {
+      return null;
+    } else if (!(await validIdentityProof(proof, userId, email))) return null;
   } else if ((env as any).PAYEASE_IDENTITY_PROOF_REQUIRED === 'true' && (env as any).KHMERX_TEST_MODE !== 'true') {
     return null;
   }
@@ -48,10 +57,10 @@ export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
   };
 }
 
-async function validIdentityProof(proof:string,userId:string,email:string){
+async function validIdentityProof(proof:string,userId:string,email:string,host?:string,timestamp?:string){
   if(!/^[a-f0-9]{64}$/.test(proof))return false;
   const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(String((env as any).PAYEASE_IDENTITY_PROOF_SECRET || (env as any).PAYEASE_AUTH_SECRET || '')),{name:'HMAC',hash:'SHA-256'},false,['sign']);
-  const digest=new Uint8Array(await crypto.subtle.sign('HMAC',key,new TextEncoder().encode(userId+'\n'+email)));
+  const digest=new Uint8Array(await crypto.subtle.sign('HMAC',key,new TextEncoder().encode(timestamp===undefined?userId+'\n'+email:userId+'\n'+email+'\n'+host+'\n'+timestamp)));
   const expected=Array.from(digest,b=>b.toString(16).padStart(2,'0')).join('');
   let mismatch=0;for(let i=0;i<64;i++)mismatch|=expected.charCodeAt(i)^proof.charCodeAt(i);return mismatch===0;
 }

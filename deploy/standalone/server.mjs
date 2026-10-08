@@ -51,7 +51,7 @@ const server=createServer(async(req,res)=>{try{
  let fresh=false;if(!id||!/^[a-f0-9-]{36}$/.test(id)||!eq(value?.split('.')[1]||'',sign(id))){id=randomUUID();value=id+'.'+sign(id);fresh=true;}
  const headers=new Headers();for(const [k,v]of Object.entries(req.headers)){if(v&&!k.startsWith('oai-')&&!['host','authorization','connection','content-length','transfer-encoding','x-forwarded-proto','x-forwarded-host','x-payease-identity-proof'].includes(k))headers.set(k,Array.isArray(v)?v.join(','):v);}
  if(jobRequest)headers.set('authorization',req.headers.authorization);
- const identityId='visitor:'+id, identityEmail=id+'@visitor.invalid';headers.set('oai-authenticated-user-id',identityId);headers.set('oai-authenticated-user-email',identityEmail);headers.set('x-payease-identity-proof',identitySign(identityId+'\n'+identityEmail));
+ const identityId='visitor:'+id, identityEmail=id+'@visitor.invalid',identityProofTs=Math.floor(Date.now()/1000).toString();headers.set('oai-authenticated-user-id',identityId);headers.set('oai-authenticated-user-email',identityEmail);headers.set('x-payease-identity-proof-ts',identityProofTs);headers.set('x-payease-identity-proof',identitySign(identityId+'\n'+identityEmail+'\n'+host+'\n'+identityProofTs));
  if(!/(?:^|;\s*)payease_company=/.test(cookies)){cookies+='; payease_company='+cfg.companies[0].id;headers.set('cookie',cookies);}
  const url=(secure?'https://':'http://')+host+(req.url||'/');
  const method=req.method||'GET';let body;
