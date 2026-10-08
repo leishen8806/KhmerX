@@ -16,8 +16,16 @@ const mf=new Miniflare({modules,modulesRoot:moduleRoot,compatibilityDate:'2026-0
 const db=await mf.getD1Database('DB');
 await db.prepare('CREATE TABLE IF NOT EXISTS standalone_migrations (name TEXT PRIMARY KEY)').run();
 function splitSql(sql){const statements=[],push=current=>{const text=current.trim();if(text&&text.replace(/--[^\n]*/g,'').trim())statements.push(text)};let current='',quote=false,blockDepth=0;const wordAt=(i)=>{const m=sql.slice(i).match(/^[A-Za-z]+/);return m?m[0].toUpperCase():''};for(let i=0;i<sql.length;i++){const ch=sql[i];if(ch==="'"){if(quote&&sql[i+1]==="'"){current+=ch+sql[++i];continue}quote=!quote;current+=ch;continue}if(!quote){const word=wordAt(i);if(word==='BEGIN'){blockDepth++;current+=sql.slice(i,i+word.length);i+=word.length-1;continue}if(word==='END'){blockDepth=Math.max(0,blockDepth-1);current+=sql.slice(i,i+word.length);i+=word.length-1;continue}}if(ch===';'&&!quote&&blockDepth===0){push(current);current='';continue}current+=ch}push(current);return statements}
-for(const name of readdirSync('/app/drizzle').filter(n=>/^\d.*\.sql$/.test(n)).sort()){
- if(await db.prepare('SELECT name FROM standalone_migrations WHERE name=?').bind(name).first())continue;
+const migrationFiles=readdirSync('/app/drizzle').filter(n=>/^\d.*\.sql$/.test(n)).sort();
+const migrationNames=new Set(migrationFiles);
+const appliedMigrations=await db.prepare('SELECT name FROM standalone_migrations').all();
+const migrationNumbers=new Set(migrationFiles.map(name=>name.match(/^\d+/)?.[0]).filter(Boolean));
+const appliedNames=new Set((appliedMigrations.results||[]).map(row=>String(row.name)));
+const appliedNumbers=new Set([...appliedNames].map(name=>name.match(/^\d+/)?.[0]).filter(Boolean));
+const unknownMigrations=[...appliedNames].filter(name=>!migrationNames.has(name)&&!migrationNumbers.has(name.match(/^\d+/)?.[0]));
+if(unknownMigrations.length)throw new Error(`Unknown standalone migrations: ${unknownMigrations.join(',')}`);
+for(const name of migrationFiles){
+ if(appliedNames.has(name)||appliedNumbers.has(name.match(/^\d+/)?.[0]))continue;
  const parts=splitSql(readFileSync('/app/drizzle/'+name,'utf8'));
  await db.batch([...parts.map(s=>db.prepare(s)),db.prepare('INSERT INTO standalone_migrations VALUES (?)').bind(name)]);
 }
