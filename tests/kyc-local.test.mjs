@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import {fields,slots,regions,sections,emptyProfile} from '../lib/kyc/core.ts';
 const base=process.env.KYC_TEST_URL;
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jLPsAAAAASUVORK5CYII=','base64');
+const reviewerEmail=process.env.KYC_TEST_REVIEWER_EMAIL||'synthetic-qa-staff@example.test';
 function client(userId='synthetic-qa-owner',email=`${userId}@example.test`){let cookies={__sites_local_auth:'1',payease_h5_browser:'0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'};return async(path,body,extra={})=>{const r=await fetch(base+path,{redirect:'manual',...extra,method:body===undefined?'GET':'POST',headers:{Cookie:Object.entries(cookies).map(([k,v])=>k+'='+v).join('; '),'oai-authenticated-user-id':userId,'oai-authenticated-user-email':email,Origin:base,...(body!==undefined?{'Content-Type':Buffer.isBuffer(body)?'image/png':'application/json'}:{}),...extra.headers},body:body===undefined?undefined:Buffer.isBuffer(body)?body:JSON.stringify(body)});for(const c of r.headers.getSetCookie()){const [k,v]=c.split(';')[0].split('=');cookies[k]=v}const raw=await r.text();let d;try{d=JSON.parse(raw)}catch{d=raw}return {status:r.status,d,headers:r.headers}}}
 async function login(c,phone){
  const bootstrap=await c('/api/h5/auth');
@@ -23,7 +24,7 @@ async function login(c,phone){
 }
 function profile(){const p=emptyProfile();p.consent=true;for(const f of fields.filter(f=>f.required))p.values[f.id]=f.options?.[0].value||(f.kind==='phone'?'+1202555010'+(f.id.includes('1')?'1':'2'):'SYNTHETIC KYC QA');p.values.contact2Relation='朋友';p.values.district=regions[0].districts[0].value;return p}
 test('local KYC: draft → submit → supplement → resubmit → approval → loan; isolation and stale review', {skip:!base},async()=>{
- assert(['localhost','127.0.0.1'].includes(new URL(base).hostname),'Local test only');const a=client('synthetic-qa-a'),b=client('synthetic-qa-b'),staff=client('synthetic-qa-a','synthetic-qa-staff@example.test'),staffB=client('synthetic-qa-b','synthetic-qa-staff@example.test');
+ assert(['localhost','127.0.0.1'].includes(new URL(base).hostname),'Local test only');const a=client('synthetic-qa-a'),b=client('synthetic-qa-b'),staff=client('synthetic-qa-a',reviewerEmail),staffB=client('synthetic-qa-b',reviewerEmail);
  await login(a,process.env.KYC_TEST_PHONE_A||'+12025550180');await login(b,process.env.KYC_TEST_PHONE_B||'+12025550181');
  assert.equal((await client()('/api/kyc')).status,401);
  assert.equal((await a('/api/kyc',{}, {headers:{Origin:'https://invalid.test'}})).status,403);
