@@ -15,7 +15,7 @@ export function db(){if(!env.DB)throw new KycError('KYC 数据库暂不可用',5
 export function bucket(){if(!env.BUCKET)throw new KycError('私有材料存储尚未配置',503);return env.BUCKET}
 export async function scanFile(bytes:Uint8Array){
  const values=settings(),url=values.KYC_SCAN_URL?.trim();
- if(!url){if(values.KHMERX_TEST_MODE==='true')return;throw new KycError('文件安全扫描服务尚未配置，请联系管理员',503,undefined,'KYC_SCAN_REQUIRED');}
+  if(!url){if(values.KHMERX_TEST_MODE==='true')return;throw new KycError('文件安全扫描服务尚未配置，请联系管理员',503,'KYC_SCAN_REQUIRED');}
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),30000);
  try{
   const response=await fetch(url,{method:'POST',headers:{'content-type':'application/octet-stream','cache-control':'no-store'},body:bytes as BodyInit,signal:controller.signal});
