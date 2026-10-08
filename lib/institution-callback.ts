@@ -12,6 +12,6 @@ export async function verifyInstitutionCallback(secret:string,input:{institution
  const timestamp=Number(input.timestamp);
  if(!/^[0-9]{10}$/.test(input.timestamp)||!Number.isSafeInteger(timestamp)||Math.abs(now-timestamp)>skew)return false;
  if(!/^[A-Za-z0-9_-]{16,128}$/.test(input.nonce)||!/^[a-f0-9]{64}$/i.test(input.signature))return false;
- const expected=await signInstitutionCallback(secret,input);
- return expected.toLowerCase()===input.signature.toLowerCase();
+ const expected=await signInstitutionCallback(secret,input),a=encoder.encode(expected.toLowerCase()),b=encoder.encode(input.signature.toLowerCase());
+ if(a.length!==b.length)return false;let diff=0;for(let i=0;i<a.length;i++)diff|=a[i]^b[i];return diff===0;
 }
