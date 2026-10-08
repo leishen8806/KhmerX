@@ -37,6 +37,8 @@ const sign=x=>createHmac('sha256',cfg.sessionSecret).update(x).digest('hex');
 // use the same secret that chatgpt-auth.ts uses for verification.
 const identitySign=x=>createHmac('sha256',cfg.bindings.PAYEASE_IDENTITY_PROOF_SECRET||cfg.bindings.PAYEASE_AUTH_SECRET||cfg.sessionSecret).update(x).digest('hex');
 const eq=(a,b)=>{const x=Buffer.from(a),y=Buffer.from(b);return x.length===y.length&&timingSafeEqual(x,y)};
+const rateBuckets=new Map();
+const allowRate=(key,limit,windowMs)=>{const now=Date.now(),current=rateBuckets.get(key);if(!current||now-current.started>=windowMs){rateBuckets.set(key,{started:now,count:1});if(rateBuckets.size>10000){for(const [k,v]of rateBuckets)if(now-v.started>=windowMs)rateBuckets.delete(k)}return true}if(current.count>=limit)return false;current.count++;return true};
 const server=createServer(async(req,res)=>{try{
  const expected='Basic '+Buffer.from(cfg.accessUser+':'+cfg.accessPassword).toString('base64');
  const jobRequest=req.url==='/api/jobs/postloan'&&req.method==='POST'&&eq(req.headers.authorization||'','Bearer '+cfg.bindings.POSTLOAN_JOB_SECRET);
@@ -44,9 +46,11 @@ const server=createServer(async(req,res)=>{try{
  if(![cfg.host,'admin.khmerx.org','api.khmerx.org','payease.khmerx.org','payeas.khmerx.org'].includes(host)){res.writeHead(400);return res.end('Invalid host');}
  const publicClient=host==='payease.khmerx.org'||host==='payeas.khmerx.org'||host==='api.khmerx.org'||host==='admin.khmerx.org';
  if(!jobRequest&&!publicClient&&!eq(req.headers.authorization||'',expected)){res.writeHead(401,{'WWW-Authenticate':'Basic realm="PayEase private test"','Cache-Control':'no-store'});return res.end('Private test environment');}
- const secure=req.headers['x-forwarded-proto']==='https';
+ const secure=true;
  if(host==='admin.khmerx.org'&&req.url==='/'){res.writeHead(302,{Location:'/team/login'});return res.end();}
  if(host==='api.khmerx.org'&&!req.url?.startsWith('/api/')){res.writeHead(404,{'Content-Type':'application/json'});return res.end(JSON.stringify({error:'API endpoint required'}));}
+ const clientIp=String(req.headers['cf-connecting-ip']||req.headers['x-real-ip']||req.socket.remoteAddress||'unknown').split(',')[0].trim();
+ if(req.url?.startsWith('/api/')){const authRoute=/^\/api\/h5\/auth(?:\/|$)/.test(req.url),limit=authRoute?30:240,windowMs=authRoute?15*60*1000:60*1000;if(!allowRate((authRoute?'auth:':'api:')+clientIp,limit,windowMs)){res.writeHead(429,{'Content-Type':'application/json','Retry-After':String(Math.ceil(windowMs/1000))});return res.end(JSON.stringify({error:'请求过于频繁，请稍后重试',code:'RATE_LIMITED'}));}}
  let cookies=req.headers.cookie||'',value=cookies.split(';').map(x=>x.trim()).find(x=>x.startsWith('payease_visitor='))?.slice(16),id=value?.split('.')[0];
  let fresh=false;if(!id||!/^[a-f0-9-]{36}$/.test(id)||!eq(value?.split('.')[1]||'',sign(id))){id=randomUUID();value=id+'.'+sign(id);fresh=true;}
  const headers=new Headers();for(const [k,v]of Object.entries(req.headers)){if(v&&!k.startsWith('oai-')&&!['host','authorization','connection','content-length','transfer-encoding','x-forwarded-proto','x-forwarded-host','x-payease-identity-proof'].includes(k))headers.set(k,Array.isArray(v)?v.join(','):v);}headers.set('host',host);
