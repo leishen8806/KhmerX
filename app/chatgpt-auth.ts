@@ -60,9 +60,10 @@ export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
 async function validIdentityProof(proof:string,userId:string,email:string,host?:string,timestamp?:string){
   if(!/^[a-f0-9]{64}$/.test(proof))return false;
   const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(String((env as any).PAYEASE_IDENTITY_PROOF_SECRET || (env as any).PAYEASE_AUTH_SECRET || '')),{name:'HMAC',hash:'SHA-256'},false,['sign']);
-  const digest=new Uint8Array(await crypto.subtle.sign('HMAC',key,new TextEncoder().encode(timestamp===undefined?userId+'\n'+email:userId+'\n'+email+'\n'+host+'\n'+timestamp)));
-  const expected=Array.from(digest,b=>b.toString(16).padStart(2,'0')).join('');
-  let mismatch=0;for(let i=0;i<64;i++)mismatch|=expected.charCodeAt(i)^proof.charCodeAt(i);return mismatch===0;
+  const sign=async(value:string)=>new Uint8Array(await crypto.subtle.sign('HMAC',key,new TextEncoder().encode(value)));
+  const equal=(bytes:Uint8Array)=>{const expected=Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('');let mismatch=0;for(let i=0;i<64;i++)mismatch|=expected.charCodeAt(i)^proof.charCodeAt(i);return mismatch===0};
+  if(timestamp!==undefined&&equal(await sign(userId+'\n'+email+'\n'+host+'\n'+timestamp)))return true;
+  return timestamp!==undefined?equal(await sign(userId+'\n'+email+'\n'+timestamp)):equal(await sign(userId+'\n'+email));
 }
 
 export async function requireChatGPTUser(
