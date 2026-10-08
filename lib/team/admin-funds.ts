@@ -13,7 +13,7 @@ export async function adminFunds(p:any){
  if(!['admin_disburse','admin_repay'].includes(p.action))throw new AuthError('操作无效');
  const testMode=(env as any).KHMERX_TEST_MODE==='true';
  if(!testMode&&!p.emergencyId)throw new AuthError('管理员资金操作必须经过已批准的应急授权',403,undefined,'FUNDING_DUAL_CONTROL_REQUIRED');
- const emergency=p.emergencyId?await assertEmergencyAccess(String(p.emergencyId),'funding',p.action):null;
+ let emergency:any=null;
  if(typeof p.requestId!=='string'||!/^[a-f0-9-]{36}$/.test(p.requestId))throw new AuthError('请求编号无效');
  const key=s.user.userId+':'+p.requestId,{state,revision}=await readState(s.tenant.id);
  const loan=state.loans.find(l=>l.id===p.loanId);if(!loan?.customerId)throw new AuthError('贷款不属于本公司',403);
@@ -23,6 +23,7 @@ export async function adminFunds(p:any){
  if(reason.length<3||reason.length>500)throw new AuthError('请填写 3–500 字操作依据');
  const now=new Date().toISOString();let next,reference='';
  if(p.action==='admin_disburse'){
+  if(p.emergencyId)emergency=await assertEmergencyAccess(String(p.emergencyId),'funding',p.action,String(p.loanId||''),typeof p.cents==='number'?p.cents:undefined);
   if(!route?.funding_institution_id)throw new AuthError('请先配置并分配放款承接机构');
   if(loan.status!=='signed'||!loan.approvalActor||!loan.approvalCheckedBy)throw new AuthError('请先完成贷款初审、独立复核及客户签约');
   const k=await findCase(s.tenant.id,loan.customerId);
@@ -32,6 +33,7 @@ export async function adminFunds(p:any){
   next=applyAction(state,{action:'disburse',loanId:loan.id,role:'lender',requestId:key,note:'测试放款已登记'},now);
   const target=next.loans.find(l=>l.id===loan.id)!;target.fundingActor ||= s.user.userId;target.fundingCheckedBy=s.user.userId;
  }else{
+  if(p.emergencyId)emergency=await assertEmergencyAccess(String(p.emergencyId),'funding',p.action,String(p.loanId||''),typeof p.cents==='number'?p.cents:undefined);
   if(!route?.repayment_institution_id)throw new AuthError('请先配置并分配还款承接机构');
   reference=typeof p.reference==='string'?p.reference.trim().toUpperCase():'';
   if(!/^[A-Z0-9_-]{6,80}$/.test(reference))throw new AuthError('还款流水号须为 6–80 位字母、数字、横线或下划线');

@@ -1,6 +1,7 @@
 import {LoaderCircle} from 'lucide-react';
+import type {ReactElement} from 'react';
 
-export function MiniRouteLoading(): JSX.Element {
+export function MiniRouteLoading(): ReactElement {
   return (
     <main className="mini-app mini-route-loading-shell" role="status" aria-live="polite">
       <header className="mini-top mini-route-loading-top">

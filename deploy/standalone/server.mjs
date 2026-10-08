@@ -9,13 +9,15 @@ const moduleRoot='/app/dist/server';
 const modulePaths=readdirSync(moduleRoot,{recursive:true}).filter(n=>/\.m?js$/.test(n)&&!n.split('/').some(part=>part.startsWith('._')));
 const modules=['index.js',...modulePaths.filter(n=>n!=='index.js')].map(n=>({type:'ESModule',path:moduleRoot+'/'+n}));
 const cfg=JSON.parse(readFileSync('/data/config.json','utf8'));
+if(cfg.bindings?.KHMERX_TEST_MODE==='true')throw new Error('KHMERX_TEST_MODE must be disabled for standalone production boot');
+if(cfg.bindings?.PAYEASE_IDENTITY_PROOF_REQUIRED!==undefined&&cfg.bindings.PAYEASE_IDENTITY_PROOF_REQUIRED!=='true')throw new Error('PAYEASE_IDENTITY_PROOF_REQUIRED must be true for standalone production boot');
 const mf=new Miniflare({modules,modulesRoot:moduleRoot,compatibilityDate:'2026-05-15',compatibilityFlags:['nodejs_compat'],assets:{directory:'/app/dist/client',binding:'ASSETS',routerConfig:{has_user_worker:true}},d1Databases:{DB:'payease'},d1Persist:'/data/d1',r2Buckets:{BUCKET:'payease'},r2Persist:'/data/r2',bindings:cfg.bindings,host:'127.0.0.1'});
 const db=await mf.getD1Database('DB');
 await db.prepare('CREATE TABLE IF NOT EXISTS standalone_migrations (name TEXT PRIMARY KEY)').run();
-function splitSql(sql){const statements=[],push=current=>{const text=current.trim();if(text&&text.replace(/--[^\n]*/g,'').trim())statements.push(text)};let current='',quote=false;for(let i=0;i<sql.length;i++){const ch=sql[i];if(ch==="'"){if(quote&&sql[i+1]==="'"){current+=ch+sql[++i];continue}quote=!quote;current+=ch;continue}if(ch===';'&&!quote){push(current);current='';continue}current+=ch}push(current);return statements}
+function splitSql(sql){const statements=[],push=current=>{const text=current.trim();if(text&&text.replace(/--[^\n]*/g,'').trim())statements.push(text)};let current='',quote=false,blockDepth=0;const wordAt=(i)=>{const m=sql.slice(i).match(/^[A-Za-z]+/);return m?m[0].toUpperCase():''};for(let i=0;i<sql.length;i++){const ch=sql[i];if(ch==="'"){if(quote&&sql[i+1]==="'"){current+=ch+sql[++i];continue}quote=!quote;current+=ch;continue}if(!quote){const word=wordAt(i);if(word==='BEGIN'){blockDepth++;current+=sql.slice(i,i+word.length);i+=word.length-1;continue}if(word==='END'){blockDepth=Math.max(0,blockDepth-1);current+=sql.slice(i,i+word.length);i+=word.length-1;continue}}if(ch===';'&&!quote&&blockDepth===0){push(current);current='';continue}current+=ch}push(current);return statements}
 for(const name of readdirSync('/app/drizzle').filter(n=>/^\d.*\.sql$/.test(n)).sort()){
  if(await db.prepare('SELECT name FROM standalone_migrations WHERE name=?').bind(name).first())continue;
- const parts=splitSql(readFileSync('/app/drizzle/'+name,'utf8').replace(/--> statement-breakpoint/g,';'));
+ const parts=splitSql(readFileSync('/app/drizzle/'+name,'utf8'));
  await db.batch([...parts.map(s=>db.prepare(s)),db.prepare('INSERT INTO standalone_migrations VALUES (?)').bind(name)]);
 }
 for(const company of cfg.companies){

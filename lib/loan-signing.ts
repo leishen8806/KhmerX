@@ -1,7 +1,8 @@
-import {db,findCase,payload,fileRow,metadata,digest,recordFile,signedContract,storedContract,contractHashValid,KycError,type CaseRow,type CasePayload} from '@/lib/kyc/server';
+import {db,bucket,findCase,payload,fileRow,metadata,digest,recordFile,signedContract,storedContract,contractHashValid,KycError,type CaseRow,type CasePayload} from '@/lib/kyc/server';
 import {LOAN_TERMS_VERSION,loanTerms} from '@/lib/agreements/loan-terms';
 import {fileType} from '@/lib/kyc/core';
 import type {Loan,State} from '@/lib/domain';
+import type {FileRef} from '@/lib/kyc/core';
 export async function validLoanContract(owner:string,loan:Loan,row:CaseRow){
  const data=await payload(row);let contract:CasePayload['signedLoan'];
  try{contract=loan.contract?JSON.parse(loan.contract):data.signedLoan}catch{throw new KycError('合同记录无效',409)}

@@ -22,5 +22,5 @@ export async function POST(request:Request){try{
   const result=await completeMfaLogin(String(p.challenge||''),String(p.code||''),outer.userId,p.portal);set(STAFF_SESSION,result.token);set(STAFF_MODE,result.sso?'sso':'password',31536000);set(STAFF_COMPANY,result.companyId);set(STAFF_PORTAL,result.portal||portal(p.portal));return response;
  }
  if(p.action!=='login')throw new AuthError('登录操作无效');
- const result=await passwordLogin(p,outer.userId);if(result.mfaRequired)return json({...result,portal:portal(p.portal)});await logoutStaff(request.headers.get('cookie'));set(STAFF_SESSION,result.token);set(STAFF_MODE,'password',31536000);set(STAFF_COMPANY,result.companyId);set(STAFF_PORTAL,result.portal);return response;
+ const result=await passwordLogin(p,outer.userId);if(result.mfaRequired)return json({...result,portal:portal(p.portal)});if(!('token' in result)||!result.companyId)throw new AuthError('登录结果无效，请重试');const token=result.token as string;const loginPortal=result.portal||portal(p.portal);await logoutStaff(request.headers.get('cookie'));set(STAFF_SESSION,token);set(STAFF_MODE,'password',31536000);set(STAFF_COMPANY,result.companyId);set(STAFF_PORTAL,loginPortal);return response;
 }catch(e){return failure(e)}}
