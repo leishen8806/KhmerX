@@ -1,11 +1,20 @@
 import os
 import socket
 import struct
+import hmac
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 MAX_BYTES = 10 * 1024 * 1024
 CLAMD_HOST = os.getenv("CLAMD_HOST", "clamav")
 CLAMD_PORT = int(os.getenv("CLAMD_PORT", "3310"))
+SCAN_TOKEN_FILE = os.getenv("SCAN_TOKEN_FILE", "/data/scanner-token")
+
+def scan_token():
+    try:
+        with open(SCAN_TOKEN_FILE, "r", encoding="utf-8") as handle:
+            return handle.read().strip()
+    except OSError:
+        return os.getenv("SCAN_TOKEN", "").strip()
 
 
 def clamd_command(command: bytes, payload: bytes = b"") -> bytes:
@@ -57,6 +66,10 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path != "/scan":
             self.send_json(404, b'{"error":"not_found"}')
+            return
+        expected = scan_token()
+        if expected and not hmac.compare_digest(self.headers.get("authorization", ""), "Bearer " + expected):
+            self.send_json(401, b'{"error":"unauthorized"}')
             return
         try:
             size = int(self.headers.get("content-length", "-1"))

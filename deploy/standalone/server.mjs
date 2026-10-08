@@ -9,6 +9,7 @@ const moduleRoot='/app/dist/server';
 const modulePaths=readdirSync(moduleRoot,{recursive:true}).filter(n=>/\.m?js$/.test(n)&&!n.split('/').some(part=>part.startsWith('._')));
 const modules=['index.js',...modulePaths.filter(n=>n!=='index.js')].map(n=>({type:'ESModule',path:moduleRoot+'/'+n}));
 const cfg=JSON.parse(readFileSync('/data/config.json','utf8'));
+writeFileSync('/data/scanner-token',String(cfg.bindings?.KYC_SCAN_TOKEN||''),{mode:0o644});
 if(cfg.bindings?.KHMERX_TEST_MODE==='true')throw new Error('KHMERX_TEST_MODE must be disabled for standalone production boot');
 if(cfg.bindings?.PAYEASE_IDENTITY_PROOF_REQUIRED!==undefined&&cfg.bindings.PAYEASE_IDENTITY_PROOF_REQUIRED!=='true')throw new Error('PAYEASE_IDENTITY_PROOF_REQUIRED must be true for standalone production boot');
 const mf=new Miniflare({modules,modulesRoot:moduleRoot,compatibilityDate:'2026-05-15',compatibilityFlags:['nodejs_compat'],assets:{directory:'/app/dist/client',binding:'ASSETS',routerConfig:{has_user_worker:true}},d1Databases:{DB:'payease'},d1Persist:'/data/d1',r2Buckets:{BUCKET:'payease'},r2Persist:'/data/r2',bindings:cfg.bindings,host:'127.0.0.1'});

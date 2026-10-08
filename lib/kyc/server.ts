@@ -18,7 +18,8 @@ export async function scanFile(bytes:Uint8Array){
   if(!url){if(values.KHMERX_TEST_MODE==='true')return;throw new KycError('文件安全扫描服务尚未配置，请联系管理员',503,'KYC_SCAN_REQUIRED');}
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),30000);
  try{
-  const response=await fetch(url,{method:'POST',headers:{'content-type':'application/octet-stream','cache-control':'no-store'},body:bytes as BodyInit,signal:controller.signal});
+  const scanHeaders:Record<string,string>={'content-type':'application/octet-stream','cache-control':'no-store'};if(values.KYC_SCAN_TOKEN)scanHeaders.authorization='Bearer '+values.KYC_SCAN_TOKEN;
+  const response=await fetch(url,{method:'POST',headers:scanHeaders,body:bytes as BodyInit,signal:controller.signal});
   let result:{clean?:boolean;status?:string};try{result=await response.json() as {clean?:boolean;status?:string}}catch{throw new KycError('文件安全扫描服务不可用，请稍后重试',503)}
   if(response.status===422&&result.clean===false)throw new KycError('文件未通过安全扫描，请更换文件后重试',422);
   if(!response.ok)throw new KycError('文件安全扫描服务不可用，请稍后重试',503);

@@ -34,6 +34,9 @@ services:
     environment:
       CLAMD_HOST: clamav
       CLAMD_PORT: "3310"
+      SCAN_TOKEN_FILE: /data/scanner-token
+    volumes:
+      - /opt/payease/data:/data:ro
     expose:
       - "8080"
     healthcheck:
