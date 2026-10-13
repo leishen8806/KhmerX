@@ -3,6 +3,7 @@ import {LOAN_TERMS_VERSION,loanTerms} from '@/lib/agreements/loan-terms';
 import {fileType} from '@/lib/kyc/core';
 import type {Loan,State} from '@/lib/domain';
 import type {FileRef} from '@/lib/kyc/core';
+import {serializeWorkspacePayload} from '@/lib/workspace-payload';
 export async function validLoanContract(owner:string,loan:Loan,row:CaseRow){
  const data=await payload(row);let contract:CasePayload['signedLoan'];
  try{contract=loan.contract?JSON.parse(loan.contract):data.signedLoan}catch{throw new KycError('合同记录无效',409)}
@@ -27,7 +28,7 @@ export async function saveLoanSignature(owner:string,customerId:string,loanId:st
   const contract=await signedContract(row,profile,{...data,signedLoan:undefined});if(!contract||contract.loanId!==loan.id)throw new KycError('申请已变化，请刷新',409);
   loan.contract=JSON.stringify({...contract,notice:'仅测试资金，不产生真实债务'});loan.signedAt=contract.signedAt;loan.signature='已保存的手写签名';loan.note='费用已确认、合同已签署，可以提交贷款审批';
   state.events.unshift({id:crypto.randomUUID(),loanId:loan.id,role:'mini',action:'customer_sign',note:loan.note,at:new Date().toISOString()});
-  const saved=await db().prepare("UPDATE demo_workspaces SET payload=?,revision=revision+1 WHERE owner=? AND revision=? AND EXISTS(SELECT 1 FROM kyc_cases WHERE id=? AND owner=? AND revision=? AND status='approved')").bind(JSON.stringify(state),owner,workspace.revision,row.id,owner,row.revision).run();
+  const saved=await db().prepare("UPDATE demo_workspaces SET payload=?,revision=revision+1 WHERE owner=? AND revision=? AND EXISTS(SELECT 1 FROM kyc_cases WHERE id=? AND owner=? AND revision=? AND status='approved')").bind(serializeWorkspacePayload(state),owner,workspace.revision,row.id,owner,row.revision).run();
   if(!saved.meta.changes)throw new KycError('申请或审核资料已变化，请刷新后重新签约',409);
   return {ok:true,contract};
  }catch(error){

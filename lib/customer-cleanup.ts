@@ -1,6 +1,7 @@
 import {db,platformAdmin} from '@/lib/team/server';
 import {runtime} from '@/lib/h5-auth';
 import {AuthError,keyed,normalizePhone} from '@/lib/h5-auth-core';
+import {serializeWorkspacePayload} from '@/lib/workspace-payload';
 
 // Restricted to disposable, unapproved demo registrations. Financial records cannot be purged here.
 export async function customerCleanup(p:any){
@@ -43,7 +44,7 @@ export async function customerCleanup(p:any){
   statements.push(db().prepare('DELETE FROM kyc_history WHERE owner=? AND case_id IN (SELECT id FROM kyc_cases WHERE owner=? AND customer_id=?)').bind(owner,owner,id));
   statements.push(db().prepare('DELETE FROM kyc_cases WHERE owner=? AND customer_id=?').bind(owner,id));
   statements.push(db().prepare('DELETE FROM team_assignments WHERE tenant_id=? AND customer_id=?').bind(owner,id));
-  if(x.work&&x.loans.length){const next=structuredClone(x.state);next.loans=next.loans.filter((l:any)=>!x.loanIds.includes(l.id));for(const key of ['events','notifications'])next[key]=next[key].filter((e:any)=>!x.loanIds.includes(e.loanId));statements.push(db().prepare('UPDATE demo_workspaces SET payload=?,revision=revision+1 WHERE owner=?').bind(JSON.stringify(next),owner));for(const loanId of x.loanIds)statements.push(db().prepare('DELETE FROM telegram_outbox WHERE owner=? AND loan_id=?').bind(owner,loanId));}
+  if(x.work&&x.loans.length){const next=structuredClone(x.state);next.loans=next.loans.filter((l:any)=>!x.loanIds.includes(l.id));for(const key of ['events','notifications'])next[key]=next[key].filter((e:any)=>!x.loanIds.includes(e.loanId));statements.push(db().prepare('UPDATE demo_workspaces SET payload=?,revision=revision+1 WHERE owner=?').bind(serializeWorkspacePayload(next),owner));for(const loanId of x.loanIds)statements.push(db().prepare('DELETE FROM telegram_outbox WHERE owner=? AND loan_id=?').bind(owner,loanId));}
   statements.push(db().prepare('DELETE FROM h5_accounts WHERE owner=? AND customer_id=?').bind(owner,id));
  }
  await db().batch(statements);
