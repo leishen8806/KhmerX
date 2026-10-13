@@ -88,6 +88,7 @@ export async function manage(p:any){const u=await identity();
   await requireMfaStepUp(s,p.code);
   const eventKey=txt(p.eventKey,60),locale=txt(p.locale,5),title=txt(p.title,120),body=txt(p.body,2000),reason=txt(p.reason,300);
   if(!/^[a-z][a-z0-9_.-]{1,59}$/.test(eventKey)||!['en','km','zh'].includes(locale)||!title||!body||!reason)throw new AuthError('请填写完整的通知模板、语言和变更原因');
+  if(/\{\{\s*(?:outstanding_usd|amount|principal|fee|total)\s*\}\}/i.test(body))throw new AuthError('还款提醒模板不得包含金额字段',400,undefined,'NOTIFICATION_AMOUNT_FORBIDDEN');
   const old=await db().prepare('SELECT id,version,title,body,active FROM team_notification_templates WHERE tenant_id=? AND event_key=? AND locale=?').bind(tenant,eventKey,locale).first<any>();
   if(old&&p.version!==old.version)throw new AuthError('模板已被其他管理员更新，请刷新后重试',409);
   const now=new Date().toISOString(),id=old?.id||crypto.randomUUID(),version=(old?.version||0)+1,active=p.active===false?0:1;
