@@ -7,7 +7,7 @@ export type AuthConfig={mode:AuthMode;secret:string;gatewayToken?:string;allowDe
 type Result={meta:{changes:number}};
 export interface AuthDB {prepare(sql:string):{bind(...args:unknown[]):{first<T=Record<string,unknown>>():Promise<T|null>;run():Promise<Result>}}}
 export type AuthRuntime={db:AuthDB;config:AuthConfig;now?:()=>number;transport?:typeof fetch};
-export class AuthError extends Error {status:number;retryAfter?:number;code:string;constructor(message:string,status=400,retryAfter?:number,code?:string){super(message);this.status=status;this.retryAfter=retryAfter;this.code=code||codeForError(message,status)}}
+export class AuthError extends Error {status:number;retryAfter?:number;code:string;constructor(message:string,status=400,retryAfterOrCode?:number|string,code?:string){super(message);this.status=status;this.retryAfter=typeof retryAfterOrCode==='number'?retryAfterOrCode:undefined;this.code=code||(typeof retryAfterOrCode==='string'&&retryAfterOrCode?retryAfterOrCode:codeForError(message,status))}}
 type Challenge={id:string;owner:string;phone_key:string;phone_mask:string;mode:AuthMode;code_hash:string|null;provider_request:string|null;browser_hash:string;expires_at:number;attempts:number;status:string;consumed:number;locked_until:number};
 export type CustomerSession={customerId:string;phoneMasked:string;mode:AuthMode;expiresAt:number;phoneVerified?:boolean;verificationCompleted?:boolean;hasPassword?:boolean};
 const encoder=new TextEncoder();
