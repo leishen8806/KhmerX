@@ -1,7 +1,14 @@
 import type {Entry} from './domain';
 
 /** Company funding guardrails. Values are cents (USD). */
-export const defaultFundingLimits = {
+export type FundingLimits = {
+  dailyCents: number;
+  monthlyCents: number;
+  warningPercent: number;
+  timezone: string;
+};
+
+export const defaultFundingLimits: FundingLimits = {
   dailyCents: 1_000_000,
   monthlyCents: 3_000_000,
   warningPercent: 20,
@@ -30,7 +37,7 @@ export function fundingUsage(entries: Entry[], now: string | Date = new Date()) 
  * Warning is reached when the remaining daily or monthly allowance is at or
  * below the configured percentage; blocked is only a hard limit condition.
  */
-export function fundingStatus(entries: Entry[], now: string | Date = new Date(), limits = defaultFundingLimits) {
+export function fundingStatus(entries: Entry[], now: string | Date = new Date(), limits: FundingLimits = defaultFundingLimits) {
   const usage = fundingUsage(entries, now);
   const dailyRemainingCents = Math.max(0, limits.dailyCents - usage.dayCents);
   const monthlyRemainingCents = Math.max(0, limits.monthlyCents - usage.monthCents);
@@ -50,7 +57,7 @@ export function fundingStatus(entries: Entry[], now: string | Date = new Date(),
   };
 }
 
-export function assertFundingCapacity(entries: Entry[], amountCents: number, now: string | Date = new Date(), limits = defaultFundingLimits) {
+export function assertFundingCapacity(entries: Entry[], amountCents: number, now: string | Date = new Date(), limits: FundingLimits = defaultFundingLimits) {
   if (!Number.isSafeInteger(amountCents) || amountCents <= 0) throw new Error('放款金额无效');
   const usage = fundingUsage(entries, now);
   const daily = usage.dayCents + amountCents;
