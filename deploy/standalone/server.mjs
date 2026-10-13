@@ -202,7 +202,10 @@ const server=createServer(async(req,res)=>{try{
  headers.set('cf-connecting-ip',clientIp);
  if(jobRequest)headers.set('authorization',req.headers.authorization);
  const identityId='visitor:'+id, identityEmail=id+'@visitor.invalid',identityProofTs=Math.floor(Date.now()/1000).toString();headers.set('oai-authenticated-user-id',identityId);headers.set('oai-authenticated-user-email',identityEmail);headers.set('x-payease-identity-proof-ts',identityProofTs);headers.set('x-payease-identity-proof',identitySign(identityId+'\n'+identityEmail+'\n'+identityProofTs));
- if(!/(?:^|;\s*)payease_company=/.test(cookies)){cookies+='; payease_company='+cfg.companies[0].id;headers.set('cookie',cookies);}
+ // Do not silently bind a multi-company visitor to the first tenant. The UI
+ // must establish an explicit company selection; auto-select is safe only
+ // when the deployment contains exactly one company.
+ if(cfg.companies.length===1&&!/(?:^|;\s*)payease_company=/.test(cookies)){cookies+='; payease_company='+cfg.companies[0].id;headers.set('cookie',cookies);}
  const url=(secure?'https://':'http://')+host+(req.url||'/');
  const method=req.method||'GET';let body;
  if(!['GET','HEAD'].includes(method)){const chunks=[];let size=0;for await(const c of req){size+=c.length;if(size>15*1024*1024){res.writeHead(413);return res.end('Request too large');}chunks.push(c);}body=Buffer.concat(chunks);}
