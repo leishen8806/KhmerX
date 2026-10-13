@@ -34,6 +34,10 @@ test('local KYC: draft → submit → supplement → resubmit → approval → l
  // creating an invalid pre-KYC loan record.
  const blockedLoan=await a('/api/h5/state',{action:'create',requestId:crypto.randomUUID(),name:'SYNTHETIC KYC QA',amount:5000,botId:'bot-1',consent:true});
  assert.equal(blockedLoan.status,409,JSON.stringify(blockedLoan.d));
+ assert.equal(typeof blockedLoan.d.code,'string');
+ assert.match(blockedLoan.d.code,/^[A-Z0-9_]+$/);
+ assert.equal(typeof blockedLoan.d.requestId,'string');
+ assert.match(blockedLoan.d.requestId,/^[0-9a-f-]{36}$/i);
  assert.equal((await a('/api/kyc',{action:'submit',revision:record.revision,profile:emptyProfile()})).status,400);
  const p=profile();for(const slot of slots.filter(s=>s.required)){const up=await a('/api/kyc/files',png,{headers:{'X-KYC-Slot':slot.id,'X-KYC-Consent':'true','X-KYC-Agreement-Version':LOAN_TERMS_VERSION}});assert.equal(up.status,200,JSON.stringify(up.d));p.files[slot.id]=up.d}
  assert.equal((await b('/api/kyc/files?id='+p.files.idFront.id)).status,404);
@@ -41,7 +45,10 @@ test('local KYC: draft → submit → supplement → resubmit → approval → l
  const bad=profile();bad.files=p.files;const bCase=(await b('/api/kyc')).d;assert.equal((await b('/api/kyc',{action:'save',revision:bCase.revision,profile:bad})).status,404);
  let saved=await a('/api/kyc',{action:'save',revision:record.revision,profile:p});assert.equal(saved.status,200);record=saved.d;
  assert.equal((await a('/api/kyc')).d.profile.values.surname,'SYNTHETIC KYC QA');
- assert.equal((await a('/api/kyc',{action:'save',revision:record.revision-1,profile:p})).status,409);
+ const staleSave=await a('/api/kyc',{action:'save',revision:record.revision-1,profile:p});
+ assert.equal(staleSave.status,409);
+ assert.equal(typeof staleSave.d.code,'string');
+ assert.equal(typeof staleSave.d.traceId,'string');
  saved=await a('/api/kyc',{action:'submit',revision:record.revision,profile:p});assert.equal(saved.status,200);record=saved.d;
  assert.equal((await a('/api/kyc/files',png,{headers:{'X-KYC-Slot':'selfie','X-KYC-Consent':'true','X-KYC-Agreement-Version':LOAN_TERMS_VERSION}})).status,409);
  assert.equal((await staff('/api/kyc/review',{id:record.id,revision:record.revision,decision:'approved',reason:'QA',checklist:{}})).status,400);
