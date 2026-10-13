@@ -10,7 +10,12 @@ export async function POST(request:Request){
  const u=await getChatGPTUser();if(!u)return json({error:'请先登录'},401);
  try{assertAllowedOrigin(request,false)}catch{return json({error:'不允许跨站操作',code:'CROSS_SITE_REQUEST'},403)}
  try{
-  const company=await selectedCompany();if(company)await staff();
+  const company=await selectedCompany();
+  // Bot credentials and Telegram connectivity are tenant administration data.
+  // Only company Admin/Audit staff may probe them; the no-company path is
+  // retained exclusively for the explicit local test mode.
+  if(!company&&(env as unknown as Record<string,string>).KHMERX_TEST_MODE!=='true')return json({error:'无权查看机器人状态',code:'BOT_ACCESS_FORBIDDEN'},403);
+  if(company){const team=await staff();if(!team||!['admin','audit'].includes(team.member.role))return json({error:'无权查看机器人状态',code:'BOT_ACCESS_FORBIDDEN'},403)}
   const p=await request.json() as {botId:string;initData?:string};const {state}=await readState(company?.id||u.userId);const bot=state.bots.find(b=>b.id===p.botId&&b.enabled);
   if(!bot)throw Error('机器人未启用');const token=company?await channelToken(company.id,bot.id):(env as unknown as Record<string,string>)[bot.envKey];
   if(!token)return json({connected:false,message:company?'请由公司管理员在业务渠道中配置 Token':'请在部署环境中配置机器人 Token'});
