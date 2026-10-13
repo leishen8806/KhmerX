@@ -4,6 +4,8 @@ import {db,staff} from '@/lib/team/server';
 import {readState} from '@/lib/store';
 import {AuthError} from '@/lib/h5-auth-core';
 import {validateInitData} from '@/lib/telegram';
+import {canonicalInitData} from '@/lib/telegram';
+import {digest} from '@/lib/h5-auth-core';
 import {encryptBytes,decryptBytes} from '@/lib/kyc/server';
 import {localDay} from '@/lib/postloan/core';
 import {sendTelegram,tokenKey,type NotificationLocale} from './core';
@@ -14,6 +16,15 @@ export async function bindNotifications(owner:string,customerId:string,p:any){co
  if(p.action==='unsubscribe'){await db().batch([db().prepare('UPDATE telegram_subscriptions SET active=0,updated_at=? WHERE id=? AND owner=? AND customer_id=?').bind(new Date().toISOString(),id,owner,customerId),db().prepare("UPDATE telegram_outbox SET status='cancelled',reason='客户关闭提醒' WHERE subscription_id=? AND owner=? AND status IN ('pending','retry')").bind(id,owner)]);return {ok:true}}
  if(p.action!=='subscribe'||p.consent!==true)throw new AuthError('请确认启用 Telegram 还款提醒');const token=await channelToken(owner,bot.id);if(!token)throw new AuthError('公司机器人尚未配置，当前保留站内提醒',503);
  if(typeof p.initData!=='string'||p.initData.length>3500)throw new AuthError('请从 Telegram 机器人内打开贷款应用');let user;try{user=await validateInitData(p.initData,token)}catch{throw new AuthError('Telegram 身份校验失败，请重新打开应用',401)}
+ // The authenticated customer session is the authority for the subscription.
+ // Legacy service callers without an h5 account remain supported, while real
+ // customer sessions must match the Telegram-derived identity exactly.
+ const account=await db().prepare('SELECT customer_id,telegram_user_hash,telegram_verified FROM h5_accounts WHERE owner=? AND customer_id=?').bind(owner,customerId).first<{customer_id:string;telegram_user_hash?:string|null;telegram_verified?:number}>();
+ if(account&&(account.telegram_user_hash!==customerId||account.telegram_verified!==1))throw new AuthError('Telegram 账号与当前客户不一致，请重新打开应用',409);
+ const canonical=canonicalInitData(p.initData),replayKey=await digest(owner+':'+bot.id+':'+customerId+':'+canonical);
+ await db().prepare('DELETE FROM telegram_subscription_nonces WHERE consumed_at<?').bind(Date.now()-10*60*1000).run();
+ const claimed=await db().prepare('INSERT OR IGNORE INTO telegram_subscription_nonces (initdata_hash,owner,customer_id,bot_id,consumed_at) VALUES (?,?,?,?,?)').bind(replayKey,owner,customerId,bot.id,Date.now()).run();
+ if(!claimed.meta.changes)throw new AuthError('Telegram 授权已使用，请重新打开应用',409,undefined,'TELEGRAM_SUBSCRIPTION_REPLAY');
  const chat=String(user.id),bytes=await encryptBytes(new TextEncoder().encode(chat),'telegram:'+id),chatEncrypted=btoa(String.fromCharCode(...bytes)),hashBytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(owner+':'+bot.id+':'+chat)),hash=Array.from(new Uint8Array(hashBytes),b=>b.toString(16).padStart(2,'0')).join('');
  const existing=await db().prepare('SELECT id FROM telegram_subscriptions WHERE owner=? AND bot_id=? AND chat_hash=?').bind(owner,bot.id,hash).first<any>();if(existing&&existing.id!==id)throw new AuthError('此 Telegram 账号已绑定另一客户，请联系管理员',409);
  await db().prepare('INSERT INTO telegram_subscriptions (id,owner,customer_id,bot_id,chat_hash,chat_encrypted,active,updated_at) VALUES (?,?,?,?,?,?,1,?) ON CONFLICT(id) DO UPDATE SET chat_hash=excluded.chat_hash,chat_encrypted=excluded.chat_encrypted,active=1,updated_at=excluded.updated_at').bind(id,owner,customerId,bot.id,hash,chatEncrypted,new Date().toISOString()).run();return {ok:true}
