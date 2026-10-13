@@ -387,3 +387,11 @@ test('existing SSO Admin can use company password without inheriting other compa
  extraCookies=`; payease_staff_mode=password; payease_staff_session=${login.token}; payease_staff_company=none`;await assert.rejects(team.staff(),/请选择/);
  await auth.logoutStaff(extraCookies);await assert.rejects(team.identity(),/失效/);extraCookies='';assert.equal((await team.staff()).member.role,'admin');await team.platformAdmin();
 });
+
+test('state mutation rejects non-JSON and malformed envelopes',async()=>{
+ const api=await mod('@/app/api/state/route');selected='';user=owner;extraCookies='';
+ const wrongType=await api.POST(new Request('http://localhost/api/state',{method:'POST',headers:{origin:'http://localhost','content-type':'text/plain'},body:'{}'}));
+ assert.equal(wrongType.status,415);assert.equal((await wrongType.json()).code,'INVALID_REQUEST');
+ const malformed=await api.POST(new Request('http://localhost/api/state',{method:'POST',headers:{origin:'http://localhost','content-type':'application/json'},body:'[]'}));
+ assert.equal(malformed.status,400);assert.equal((await malformed.json()).code,'INVALID_REQUEST');
+});
