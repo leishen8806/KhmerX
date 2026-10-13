@@ -306,6 +306,7 @@ test('Admin funding and repayment require prior approval, enforce isolation and 
  await flow.staffAction({...receipt,cents:target.amount+target.fee-1000,reference:'UAT-RECEIPT-002',requestId:crypto.randomUUID()});
  task=(await post.postloanData()).tasks.find(t=>t.loanId===l.id);assert.equal(task.status,'closed');assert.equal(task.balance,0);
  assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM team_repayment_receipts WHERE tenant_id=? AND loan_id=?').get(A,l.id).n,2);
+ assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM team_repayment_ledger WHERE tenant_id=? AND loan_id=?').get(A,l.id).n,2);
 });
 test('independent staff password login, tenant scope, logout, expiry and disabled accounts',async()=>{
  selected=A;user=owner;extraCookies='';const auth=await mod('@/lib/team/auth');
