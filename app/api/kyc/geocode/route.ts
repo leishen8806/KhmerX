@@ -1,4 +1,4 @@
-import {body,context,json,failed,KycError,origin,settings} from '@/lib/kyc/server';
+import {body,context,json,failed,KycError,origin,settings,db} from '@/lib/kyc/server';
 
 export const dynamic='force-dynamic';
 
@@ -9,6 +9,15 @@ export async function POST(request:Request){
   origin(request);
   const c=await context(request),p=await body(request),address=typeof p.address==='string'?p.address.trim():'';
   if(!address||address.length>240)throw new KycError('请输入 1–240 个字符的详细地址');
+  // Geocoding is an authenticated, billable upstream call. Reuse the
+  // bounded D1 limiter and key it by tenant + customer so one account
+  // cannot exhaust the provider quota for the whole company.
+  const now=Math.floor(Date.now()/1000),limitKey=`geocode|${c.owner}|${c.customerId}`;
+  const limited=await db().prepare(`INSERT INTO h5_limits (key,window_start,count,next_allowed) VALUES (?, ?, 1, ?)
+   ON CONFLICT(key) DO UPDATE SET count=CASE WHEN window_start+60<=? THEN 1 ELSE count+1 END,
+   window_start=CASE WHEN window_start+60<=? THEN ? ELSE window_start END,next_allowed=?
+   WHERE (window_start+60<=? OR count<10) AND next_allowed<=? RETURNING key`).bind(limitKey,now,now,now,now,now,now,now,now).first();
+  if(!limited)throw new KycError('地址查询过于频繁，请稍后重试',429,'GEOCODE_RATE_LIMITED');
   const key=settings().GOOGLE_MAPS_API_KEY?.trim();
   if(!key)throw new KycError('Google 地图定位服务尚未配置，请联系管理员',503);
   const language=p.language==='km'||p.language==='zh'||p.language==='en'?p.language:'en';
