@@ -37,7 +37,14 @@ export async function dispatchCompany(owner:string,now=new Date().toISOString())
  const jobs=(await db().prepare("SELECT * FROM telegram_outbox WHERE owner=? AND status IN ('pending','retry') AND next_at<=? AND attempts<5 ORDER BY next_at,id LIMIT 20").bind(owner,Date.parse(now)).all<any>()).results;
  for(const job of jobs){const latest=await readState(owner),l=latest.state.loans.find(l=>l.id===job.loan_id),sub=await db().prepare('SELECT * FROM telegram_subscriptions WHERE id=? AND owner=? AND active=1').bind(job.subscription_id,owner).first<any>();const bot=latest.state.bots.find(b=>b.id===l?.botId&&b.enabled);
  if(!l||l.status!=='active'||!l.dueAt||localDay(l.dueAt)<today||!sub||!bot){await db().prepare("UPDATE telegram_outbox SET status='cancelled',reason='已结清、提醒过期或已停用' WHERE id=? AND status IN ('pending','retry')").bind(job.id).run();continue}
- const token=await channelToken(owner,bot.id);if(!token)continue;
+ const token=await channelToken(owner,bot.id);
+ if(!token){
+  // A broken channel must not leave the outbox pending forever or obscure
+  // other channels. Mark only this delivery as failed and expose the reason
+  // in the audit/notification panel for remediation.
+  await db().prepare("UPDATE telegram_outbox SET status='failed',reason='该 Telegram 渠道未配置或凭据无效',updated_at=? WHERE id=? AND owner=? AND status IN ('pending','retry')").bind(now,job.id,owner).run();
+  continue;
+ }
  const claim=await db().prepare("UPDATE telegram_outbox SET status='sending',attempts=attempts+1,updated_at=? WHERE id=? AND owner=? AND status IN ('pending','retry') AND attempts=? AND EXISTS (SELECT 1 FROM telegram_subscriptions WHERE id=? AND active=1)").bind(now,job.id,owner,job.attempts,sub.id).run();if(!claim.meta.changes)continue;
  let result;try{const chat=Number(new TextDecoder().decode(await decryptBytes(Uint8Array.from(atob(sub.chat_encrypted),c=>c.charCodeAt(0)),'telegram:'+sub.id)));const account=await db().prepare('SELECT locale FROM h5_accounts WHERE owner=? AND customer_id=?').bind(owner,l.customerId).first<{locale?:string}>();const locale:NotificationLocale=account?.locale==='km'?'km':account?.locale==='zh'?'zh':'en';const template=await db().prepare('SELECT title,body FROM team_notification_templates WHERE tenant_id=? AND event_key=? AND locale=? AND active=1').bind(owner,'repayment_reminder',locale).first<{title:string;body:string}>();const amount=((l.amount+l.fee-l.paid)/100).toFixed(2),text=template?`${template.title}\n${template.body}`.replaceAll('{{due_date}}',localDay(l.dueAt)).replaceAll('{{outstanding_usd}}',amount).slice(0,4000):undefined;result=await sendTelegram(token,chat,fetch,locale,text)}catch{result={status:'failed',reason:'收件人资料无法读取'}}
  const status=result.status==='retry'&&job.attempts>=4?'failed':result.status;await db().prepare("UPDATE telegram_outbox SET status=?,reason=?,message_id=?,next_at=?,updated_at=? WHERE id=? AND owner=? AND status='sending'").bind(status,result.reason,'messageId' in result?result.messageId:null,Date.parse(now)+('retrySeconds' in result?(result.retrySeconds||60)*1000:0),new Date().toISOString(),job.id,owner).run();if(status==='sent')sent++;
