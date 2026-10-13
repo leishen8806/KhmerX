@@ -40,7 +40,11 @@ async function limit(r:AuthRuntime,key:string,max:number,window:number,delay:num
 async function gateway(r:AuthRuntime,method:string,body:Record<string,unknown>){
  let response:Response;try{response=await (r.transport??fetch)('https://gatewayapi.telegram.org/'+method,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+r.config.gatewayToken},body:JSON.stringify(body),signal:AbortSignal.timeout(8000)})}catch{throw new AuthError('Telegram 暂时未响应，请稍后重试；不会自动切换为模拟验证码',503)}
  let payload:any;try{payload=await response.json()}catch{throw new AuthError('验证码服务暂不可用，请稍后重试',503)}
- if(!response.ok||!payload?.ok||!payload.result){const code=payload?.error;if(code==='PHONE_NUMBER_INVALID'||code==='PHONE_NUMBER_NOT_FOUND')throw new AuthError('该号码暂不能接收 Telegram 验证码，请核对已注册 Telegram 的手机号');throw new AuthError('验证码服务暂不可用，请稍后重试或联系管理员',503)}
+ // Do not reflect provider-specific phone lookup results. In particular,
+ // PHONE_NUMBER_NOT_FOUND must not become an account/phone enumeration oracle.
+ // Keep one stable response envelope for invalid, unregistered and provider
+ // failure cases; operators can inspect the provider response in server logs.
+ if(!response.ok||!payload?.ok||!payload.result)throw new AuthError('验证码请求未完成，请稍后重试或联系管理员',503,undefined,'VERIFICATION_UNAVAILABLE')
  return payload.result;
 }
 export async function sendCode(r:AuthRuntime,owner:string,browserToken:string,input:{phone?:unknown;consent?:unknown},purpose:'login'|'reset'='login'){
