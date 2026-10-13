@@ -28,7 +28,12 @@ function config(r:AuthRuntime,requireGateway=false){if(!['demo','telegram'].incl
 const now=(r:AuthRuntime)=>Math.floor((r.now?.()??Date.now())/1000);
 const customerKey=(r:AuthRuntime,owner:string,phone:string)=>keyed(r.config.secret,'customer|'+r.config.mode+'|'+owner+'|'+phone);
 const telegramCustomerKey=(r:AuthRuntime,owner:string,userId:number)=>keyed(r.config.secret,'telegram-customer|'+owner+'|'+userId);
-async function limit(r:AuthRuntime,key:string,max:number,window:number,delay:number){const t=now(r);const row=await r.db.prepare(`INSERT INTO h5_limits (key,window_start,count,next_allowed) VALUES (?, ?, 1, ?)
+async function limit(r:AuthRuntime,key:string,max:number,window:number,delay:number){const t=now(r);
+ // Keep the small D1 rate-limit table bounded. All current callers use a
+ // window no longer than one hour; records older than that cannot affect a
+ // future decision and are safe to remove opportunistically on auth traffic.
+ await r.db.prepare('DELETE FROM h5_limits WHERE window_start+3600<=? AND next_allowed<=?').bind(t,t).run();
+ const row=await r.db.prepare(`INSERT INTO h5_limits (key,window_start,count,next_allowed) VALUES (?, ?, 1, ?)
  ON CONFLICT(key) DO UPDATE SET count=CASE WHEN window_start+?<=? THEN 1 ELSE count+1 END,
  window_start=CASE WHEN window_start+?<=? THEN ? ELSE window_start END,next_allowed=?
  WHERE (window_start+?<=? OR count<?) AND next_allowed<=? RETURNING key`).bind(key,t,t+delay,window,t,window,t,t,t+delay,window,t,max,t).first();if(!row)throw new AuthError('请求过于频繁，请稍后再试',429,Math.max(delay,60))}
