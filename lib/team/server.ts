@@ -27,7 +27,10 @@ const txt=(v:any,max=80)=>typeof v==='string'?v.trim().slice(0,max):'';
 // Creating or promoting an administrator is itself high risk and requires a
 // second administrator's approval; otherwise one admin could self-provision
 // another admin and approve an emergency grant alone.
-const highRiskRoles=new Set<TeamRole>(['admin','lender','checker','finance','finance_checker']);
+// Audit staff can read sensitive records and approve/inspect security events;
+// provisioning or promoting them must use the same dual-control path as
+// administrators and funding/KYC approvers.
+const highRiskRoles=new Set<TeamRole>(['admin','audit','lender','checker','finance','finance_checker']);
 export async function requireMfaStepUp(s:any,code:unknown){
  if((env as any).KHMERX_TEST_MODE==='true')return;
  if(!s.member.mfa_enabled||!s.member.mfa_secret)throw new AuthError('请先启用 MFA 后再执行此安全操作',403,undefined,'MFA_STEP_UP_REQUIRED');
