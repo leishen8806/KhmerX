@@ -1,13 +1,9 @@
 import {AuthError} from '@/lib/h5-auth-core';
 import {audit,staff} from './server';
 import {scopedState} from './workflow';
+import {csvCell} from './csv';
 
 const reportRoles=['admin','audit','ops','dept_admin','finance','finance_checker','collection_admin','collector'];
-const csvCell=(value:unknown)=>{
- const text=String(value??'').replace(/\r?\n/g,' ');
- const safe=/^[=+\-@]/.test(text)?`'${text}`:text;
- return /[",]/.test(safe)?`"${safe.replace(/"/g,'""')}"`:safe;
-};
 const maskedId=(value:string)=>value.length>10?`${value.slice(0,6)}…${value.slice(-4)}`:value;
 
 export async function exportCustomerSummary(input:any){
