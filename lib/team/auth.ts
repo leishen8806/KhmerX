@@ -57,6 +57,9 @@ export async function passwordLogin(p:any,siteUserId:string){
  const slug=typeof p.company==='string'?p.company.trim().toLowerCase():'',email=typeof p.email==='string'?p.email.trim().toLowerCase():'',password=typeof p.password==='string'?p.password:'';
  if(!/^[a-z0-9][a-z0-9-]{2,39}$/.test(slug)||email.length>254||!/^\S+@\S+\.\S+$/.test(email)||password.length>128)throw new AuthError('请填写公司代码、邮箱和密码');
  const now=Date.now(),window=Math.floor(now/900000);
+ // Keep the staff login limiter bounded. Four 15-minute windows cover the
+ // longest relevant lookback here; older keys cannot affect a new decision.
+ await db().prepare('DELETE FROM team_staff_limits WHERE window<?').bind(window-4).run();
  for(const key of ['account:'+slug+':'+email,'visitor:'+siteUserId]){
   const k=await digest(key),limit=key.startsWith('account:')?5:30;
   const row=await db().prepare(`INSERT INTO team_staff_limits (key,window,count) VALUES (?,?,1) ON CONFLICT(key) DO UPDATE SET count=CASE WHEN window=excluded.window THEN count+1 ELSE 1 END,window=excluded.window RETURNING count`).bind(k,window).first<any>();
