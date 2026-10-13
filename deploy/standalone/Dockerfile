@@ -7,4 +7,5 @@ COPY deploy/standalone/server.mjs ./server.mjs
 COPY dist ./dist
 COPY drizzle ./drizzle
 ENV NODE_ENV=production
+USER node
 CMD ["node","server.mjs"]

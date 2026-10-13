@@ -3,6 +3,9 @@ services:
     build:
       context: ../..
       dockerfile: deploy/standalone/Dockerfile
+    user: "node"
+    group_add:
+      - "65534"
     restart: unless-stopped
     depends_on:
       scanner:
