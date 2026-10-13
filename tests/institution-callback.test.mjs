@@ -9,6 +9,7 @@ test('institution callback signature binds institution, timestamp, nonce and bod
  assert.equal(await verifyInstitutionCallback('synthetic-secret',{...input,signature}),true);
  assert.equal(await verifyInstitutionCallback('wrong-secret',{...input,signature}),false);
  assert.equal(await verifyInstitutionCallback('synthetic-secret',{...input,signature,body:'{}'}),false);
+ assert.equal(await verifyInstitutionCallback('synthetic-secret',{...input,signature,idempotencyKey:'different-key-123456'}),false);
 });
 
 test('institution callback rejects stale timestamps, malformed nonce and replay-shaped input',async()=>{
