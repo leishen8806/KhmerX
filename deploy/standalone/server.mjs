@@ -3,6 +3,7 @@ import {createServer} from 'node:http';
 import {readFileSync,readdirSync,existsSync,writeFileSync} from 'node:fs';
 import {randomUUID,randomBytes,createHmac,timingSafeEqual,pbkdf2Sync} from 'node:crypto';
 import {Readable} from 'node:stream';
+import {splitSql} from './sql-split.mjs';
 const moduleRoot='/app/dist/server';
 // macOS AppleDouble resource-fork files (._*.js) are not JavaScript. Exclude
 // them so a copied release cannot make the Workers runtime fail at boot.
@@ -21,7 +22,6 @@ if(cfg.bindings?.PAYEASE_IDENTITY_PROOF_REQUIRED!==undefined&&cfg.bindings.PAYEA
 const mf=new Miniflare({modules,modulesRoot:moduleRoot,compatibilityDate:'2026-05-15',compatibilityFlags:['nodejs_compat'],assets:{directory:'/app/dist/client',binding:'ASSETS',routerConfig:{has_user_worker:true}},d1Databases:{DB:'payease'},d1Persist:'/data/d1',r2Buckets:{BUCKET:'payease'},r2Persist:'/data/r2',bindings:cfg.bindings,host:'127.0.0.1'});
 const db=await mf.getD1Database('DB');
 await db.prepare('CREATE TABLE IF NOT EXISTS standalone_migrations (name TEXT PRIMARY KEY)').run();
-function splitSql(sql){const statements=[],push=current=>{const text=current.trim();if(text&&text.replace(/--[^\n]*/g,'').trim())statements.push(text)};let current='',quote=false,blockDepth=0;const wordAt=(i)=>{const m=sql.slice(i).match(/^[A-Za-z]+/);return m?m[0].toUpperCase():''};for(let i=0;i<sql.length;i++){const ch=sql[i];if(ch==="'"){if(quote&&sql[i+1]==="'"){current+=ch+sql[++i];continue}quote=!quote;current+=ch;continue}if(!quote){const word=wordAt(i);if(word==='BEGIN'){blockDepth++;current+=sql.slice(i,i+word.length);i+=word.length-1;continue}if(word==='END'){blockDepth=Math.max(0,blockDepth-1);current+=sql.slice(i,i+word.length);i+=word.length-1;continue}}if(ch===';'&&!quote&&blockDepth===0){push(current);current='';continue}current+=ch}push(current);return statements}
 const migrationFiles=readdirSync('/app/drizzle').filter(n=>/^\d.*\.sql$/.test(n)).sort();
 const migrationNames=new Set(migrationFiles);
 const appliedMigrations=await db.prepare('SELECT name FROM standalone_migrations').all();
