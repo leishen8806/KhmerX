@@ -4,7 +4,7 @@ import {env} from 'cloudflare:workers';
 import {getChatGPTUser} from '@/app/chatgpt-auth';
 import {readState} from '@/lib/store';
 import {validateInitData} from '@/lib/telegram';
-import {json} from '@/lib/h5-auth';
+import {input,json} from '@/lib/h5-auth';
 import {assertAllowedOrigin} from '@/lib/request-security';
 export async function POST(request:Request){
  const u=await getChatGPTUser();if(!u)return json({error:'请先登录'},401);
@@ -16,10 +16,10 @@ export async function POST(request:Request){
   // retained exclusively for the explicit local test mode.
   if(!company&&(env as unknown as Record<string,string>).KHMERX_TEST_MODE!=='true')return json({error:'无权查看机器人状态',code:'BOT_ACCESS_FORBIDDEN'},403);
   if(company){let team;try{team=await staff()}catch{return json({error:'无权查看机器人状态',code:'BOT_ACCESS_FORBIDDEN'},403)}if(!team||!['admin','audit'].includes(team.member.role))return json({error:'无权查看机器人状态',code:'BOT_ACCESS_FORBIDDEN'},403)}
-  const p=await request.json() as {botId:string;initData?:string};const {state}=await readState(company?.id||u.userId);const bot=state.bots.find(b=>b.id===p.botId&&b.enabled);
+  const p=await input(request) as {botId?:unknown;initData?:unknown};const botId=typeof p.botId==='string'?p.botId:'';const {state}=await readState(company?.id||u.userId);const bot=state.bots.find(b=>b.id===botId&&b.enabled);
   if(!bot)throw Error('机器人未启用');const token=company?await channelToken(company.id,bot.id):(env as unknown as Record<string,string>)[bot.envKey];
   if(!token)return json({connected:false,message:company?'请由公司管理员在业务渠道中配置 Token':'请在部署环境中配置机器人 Token'});
-  if(p.initData){if(p.initData.length>10000)throw Error('认证数据过长');return json({connected:true,user:await validateInitData(p.initData,token)})}
+  if(typeof p.initData==='string'&&p.initData){if(p.initData.length>10000)throw Error('认证数据过长');return json({connected:true,user:await validateInitData(p.initData,token)})}
   const r=await fetch('https://api.telegram.org/bot'+token+'/getMe',{method:'GET',redirect:'manual',signal:AbortSignal.timeout(15000)});const v=await r.json() as any;
   if(!v.ok||!v.result?.is_bot)throw Error('Telegram 凭据验证失败');
   if(bot.username&&bot.username.toLowerCase()!==v.result.username.toLowerCase())throw Error('凭据与配置的机器人用户名不匹配');
