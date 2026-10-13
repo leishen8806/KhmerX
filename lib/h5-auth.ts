@@ -10,7 +10,14 @@ export function runtime():AuthRuntime{if(!env.DB)throw new AuthError('登录数�
 export function telegramBotToken(channelId='bot-1'){const values=env as unknown as Record<string,string>;const suffix=channelId.match(/^bot-(\d+)$/)?.[1]||'1';const specific=values['TELEGRAM_BOT_TOKEN_'+suffix];return specific||(suffix==='1'?values.TELEGRAM_BOT_TOKEN||'':'')}
 export function cookieValue(request:Request,name:string){const value=request.headers.get('cookie')?.split(';').map(x=>x.trim()).find(x=>x.startsWith(name+'='))?.slice(name.length+1);return value&&/^[a-f0-9]{64}$/.test(value)?value:undefined}
 export function cookie(request:Request,name:string,value:string,age:number){return `${name}=${value}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${age}${new URL(request.url).protocol==='https:'?'; Secure':''}`}
-export function json(data:unknown,status=200,extra:Record<string,string>={}){return Response.json(addErrorCode(data,status),{status,headers:{'Cache-Control':'no-store','Pragma':'no-cache',...extra}})}
+export function json(data:unknown,status=200,extra:Record<string,string>={}){
+ const normalized=addErrorCode(data,status);
+ const isError=status>=400&&!!normalized&&typeof normalized==='object'&&!Array.isArray(normalized)&&typeof (normalized as Record<string,unknown>).error==='string';
+ const existing=isError&&typeof (normalized as Record<string,unknown>).requestId==='string'?(normalized as Record<string,unknown>).requestId as string:undefined;
+ const requestId=isError?(existing||crypto.randomUUID()):undefined;
+ const body=isError&&requestId&&!existing?{...(normalized as Record<string,unknown>),requestId}:normalized;
+ return Response.json(body,{status,headers:{'Cache-Control':'no-store','Pragma':'no-cache',...(requestId?{'X-Request-Id':requestId}:{}),...extra}})
+}
 export function failure(e:unknown){const requestId=crypto.randomUUID();const extra={'X-Request-Id':requestId,...(e instanceof AuthError&&e.retryAfter?{'Retry-After':String(e.retryAfter)}:{})};return e instanceof AuthError?json({error:e.message,code:e.code,requestId,...(e.retryAfter?{retryAfter:e.retryAfter}:{})},e.status,extra):json({error:'登录服务暂不可用，请稍后重试',code:'SERVICE_UNAVAILABLE',requestId},503,extra)}
 export async function owner(){const user=await getChatGPTUser();if(!user)throw new AuthError('请先进入有权访问的私有测试工作区',401);const company=await customerCompany();return company?.id||user.userId}
 export function sameOrigin(request:Request){try{assertAllowedOrigin(request,true)}catch{throw new AuthError('不允许跨站操作',403,undefined,'CROSS_SITE_REQUEST')}if(!request.headers.get('content-type')?.startsWith('application/json'))throw new AuthError('请求格式无效',415)}
