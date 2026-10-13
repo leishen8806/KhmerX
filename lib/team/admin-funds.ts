@@ -10,6 +10,7 @@ import {assertEmergencyAccess} from './emergency';
 import {assertFundingCapacity} from '@/lib/funding-limits';
 import {fundingRiskEventStatement} from './funding-risk-events';
 import {fundingSettingsForTenant} from './funding-settings';
+import {serializeWorkspacePayload} from '@/lib/workspace-payload';
 export async function adminFunds(p:any){
  const s=await staff();if(!s||s.member.role!=='admin')throw new AuthError('仅本公司 Admin 可执行资金管理',403);
  if(!['admin_disburse','admin_repay'].includes(p.action))throw new AuthError('操作无效');
@@ -46,7 +47,7 @@ export async function adminFunds(p:any){
   next=applyAction(state,{action:'repay',loanId:loan.id,role:'mini',requestId:key,cents:p.cents,note:'测试还款已登记'},now);
 }
  next.requestDigests??={};next.requestDigests[key]=digest;next.events[0].note+=' · 已由公司管理员处理';
- const statements=[db().prepare("UPDATE demo_workspaces SET payload=?,revision=revision+1 WHERE owner=? AND revision=? AND EXISTS(SELECT 1 FROM team_members WHERE id=? AND tenant_id=? AND role='admin' AND active=1 AND version=?) AND EXISTS(SELECT 1 FROM team_assignments WHERE tenant_id=? AND customer_id=? AND version=?) AND EXISTS(SELECT 1 FROM team_companies WHERE id=? AND active=1) AND (?=0 OR EXISTS(SELECT 1 FROM kyc_cases WHERE owner=? AND id=? AND revision=? AND status='approved'))").bind(JSON.stringify(next),s.tenant.id,revision,s.member.id,s.tenant.id,s.member.version,s.tenant.id,loan.customerId,route.version,s.tenant.id,p.action==='admin_disburse'?1:0,s.tenant.id,loan.kycCaseId||'',loan.kycRevision??-1)];
+ const statements=[db().prepare("UPDATE demo_workspaces SET payload=?,revision=revision+1 WHERE owner=? AND revision=? AND EXISTS(SELECT 1 FROM team_members WHERE id=? AND tenant_id=? AND role='admin' AND active=1 AND version=?) AND EXISTS(SELECT 1 FROM team_assignments WHERE tenant_id=? AND customer_id=? AND version=?) AND EXISTS(SELECT 1 FROM team_companies WHERE id=? AND active=1) AND (?=0 OR EXISTS(SELECT 1 FROM kyc_cases WHERE owner=? AND id=? AND revision=? AND status='approved'))").bind(serializeWorkspacePayload(next),s.tenant.id,revision,s.member.id,s.tenant.id,s.member.version,s.tenant.id,loan.customerId,route.version,s.tenant.id,p.action==='admin_disburse'?1:0,s.tenant.id,loan.kycCaseId||'',loan.kycRevision??-1)];
  if(emergency)statements.push(db().prepare("UPDATE team_emergency_access SET status='consumed',consumed_at=?,consumed_action=?,consumed_loan_id=?,consumed_cents=? WHERE id=? AND tenant_id=? AND status='active' AND requester_id=?").bind(Date.now(),p.action,loan.id,p.action==='admin_repay'?Number(p.cents):loan.billing?.net??loan.amount,emergency.id,s.tenant.id,s.member.id));
  if(reference)statements.push(db().prepare('INSERT INTO team_repayment_receipts(tenant_id,reference,loan_id,cents,actor,created_at) SELECT ?,?,?,?,?,? WHERE changes()=1').bind(s.tenant.id,reference,loan.id,p.cents,s.user.userId,now));
  if(reference)statements.push(db().prepare("INSERT INTO team_repayment_ledger(tenant_id,reference,loan_id,cents,actor,source,created_at) SELECT ?,?,?,?,?, 'admin_repay',? WHERE changes()=1").bind(s.tenant.id,reference,loan.id,p.cents,s.user.userId,now));

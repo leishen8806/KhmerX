@@ -7,6 +7,7 @@ import {customerAction} from './domain';
 import {findCase,payload,reviewer,KycError} from './kyc/server';
 import {publicIdentifier} from './public-id.ts';
 import {channelForAccount,claimPublicIdentifier} from './public-id-store.ts';
+import {serializeWorkspacePayload} from './workspace-payload.ts';
 function db(){if(!env.DB)throw Error('测试数据库暂不可用');return env.DB}
 async function hydratePublicRefs(owner:string,state:State,revision:number){
  let changed=false;
@@ -19,7 +20,7 @@ async function hydratePublicRefs(owner:string,state:State,revision:number){
   if(loan.publicRef!==orderRef||loan.sourceChannel!==channel){loan.publicRef=orderRef;loan.sourceChannel=channel;changed=true}
   if(loan.billing){const billRef=await claimPublicIdentifier(db(),'B',channel,loan.id+':bill',owner,loan.createdAt);if(loan.billing.publicRef!==billRef){loan.billing.publicRef=billRef;changed=true}}
  }
- if(changed)await db().prepare('UPDATE demo_workspaces SET payload=? WHERE owner=? AND revision=?').bind(JSON.stringify(state),owner,revision).run();
+ if(changed)await db().prepare('UPDATE demo_workspaces SET payload=? WHERE owner=? AND revision=?').bind(serializeWorkspacePayload(state),owner,revision).run();
  return state;
 }
 export async function readState(owner:string):Promise<{state:State;revision:number}>{
@@ -68,7 +69,7 @@ export async function mutate(owner:string,p:any,customer?:{id:string;phoneMasked
     next.events[0].note=updated.note;next.notifications[0].text=updated.note;
    }
   }
-  const result=await db().prepare("UPDATE demo_workspaces SET payload=?,revision=revision+1 WHERE owner=? AND revision=? AND (? IS NULL OR EXISTS(SELECT 1 FROM kyc_cases WHERE id=? AND owner=? AND revision=? AND status='approved'))").bind(JSON.stringify(next),owner,revision,creationCase?.id||null,creationCase?.id||null,owner,creationCase?.revision??0).run();
+  const result=await db().prepare("UPDATE demo_workspaces SET payload=?,revision=revision+1 WHERE owner=? AND revision=? AND (? IS NULL OR EXISTS(SELECT 1 FROM kyc_cases WHERE id=? AND owner=? AND revision=? AND status='approved'))").bind(serializeWorkspacePayload(next),owner,revision,creationCase?.id||null,creationCase?.id||null,owner,creationCase?.revision??0).run();
   if(result.meta.changes===1)return {state:next,revision:revision+1};
  }
  throw Error('其他操作刚刚更新了记录，请重试');
