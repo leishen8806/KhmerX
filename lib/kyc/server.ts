@@ -30,6 +30,15 @@ export async function scanFile(bytes:Uint8Array){
 }
 const encoder=new TextEncoder();
 export async function digest(s:string|Uint8Array){return [...new Uint8Array(await crypto.subtle.digest('SHA-256',typeof s==='string'?encoder.encode(s):s as BufferSource))].map(x=>x.toString(16).padStart(2,'0')).join('')}
+/** Keyed profile fingerprint: prevents offline guessing of names/IDs from a contract hash. */
+export async function profileDigest(value:unknown){
+ const secret=String(settings().PAYEASE_AUTH_SECRET||'');
+ if(secret.length<32)throw new AuthError('身份资料校验密钥尚未配置',503);
+ const key=await crypto.subtle.importKey('raw',encoder.encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign']);
+ const mac=await crypto.subtle.sign('HMAC',key,encoder.encode(JSON.stringify(value)));
+ return 'v2:'+Array.from(new Uint8Array(mac),b=>b.toString(16).padStart(2,'0')).join('');
+}
+export async function profileDigestMatches(value:unknown,stored:string){return stored===await profileDigest(value)||stored===await digest(JSON.stringify(value))}
 const KYC_ENVELOPE=0x4b, KYC_ENVELOPE_VERSION=0x02, DEFAULT_KEY_ID='v2';
 function activeKeyId(){const id=settings().KYC_DATA_KEY_ID?.trim()||DEFAULT_KEY_ID;if(!/^[A-Za-z0-9._-]{1,64}$/.test(id))throw new KycError('KYC 加密密钥编号配置无效，请联系管理员',503);return id}
 async function legacyKey(){const secret=settings().KYC_DATA_SECRET;if(!secret||secret.length<32)throw new KycError('KYC 加密服务尚未配置，请联系管理员',503);return crypto.subtle.importKey('raw',await crypto.subtle.digest('SHA-256',encoder.encode('payease-kyc-v1:'+secret)),{name:'AES-GCM'},false,['encrypt','decrypt'])}
@@ -81,7 +90,7 @@ export async function loanForSignature(owner:string,customerId:string){const row
 export async function signedContract(row:CaseRow,profile:Profile,old:CasePayload){
  if(!profile.consent||!profile.files.signature)return undefined;
  const loan=await loanForSignature(row.owner,row.customer_id);if(!loan)throw new KycError('请先创建贷款申请，再手写签名');
- const profileHash=await digest(JSON.stringify(profile.values));if(old.signedLoan?.signatureId===profile.files.signature.id){if(old.signedLoan.loanId!==loan.id||old.signedLoan.principal!==loan.amount||old.signedLoan.fee!==loan.fee||old.signedLoan.profileHash!==profileHash||(loan.billing&&old.signedLoan.billing?.quoteId!==loan.billing.quoteId))throw new KycError('个人资料或贷款条件已变化，请重新手写签名');return old.signedLoan}
+ const profileHash=await profileDigest(profile.values);if(old.signedLoan?.signatureId===profile.files.signature.id){if(old.signedLoan.loanId!==loan.id||old.signedLoan.principal!==loan.amount||old.signedLoan.fee!==loan.fee||!(await profileDigestMatches(profile.values,old.signedLoan.profileHash))||(loan.billing&&old.signedLoan.billing?.quoteId!==loan.billing.quoteId))throw new KycError('个人资料或贷款条件已变化，请重新手写签名');return old.signedLoan}
  if(!loan.billConfirmedAt)throw new KycError('请先在我的贷款确认测算费用，再手写签约');
  const file=await db().prepare('SELECT created_at FROM kyc_files WHERE id=? AND owner=? AND customer_id=?').bind(profile.files.signature.id,row.owner,row.customer_id).first<{created_at:string}>();if(!file||file.created_at<loan.createdAt||file.created_at<loan.billConfirmedAt)throw new KycError('请为当前申请重新手写签名');
  const terms={...(loan.billing?{billing:loan.billing}:{}),borrowerName:[profile.values.surname,profile.values.givenName].filter(Boolean).join(' '),profileHash,loanId:loan.id,signatureId:profile.files.signature.id,signatureHash:profile.files.signature.sha256,termsVersion:profile.declarationVersion,termsHash:await digest(JSON.stringify(loanTerms.blocks)),termsSnapshot:loanTerms.blocks,principal:loan.amount,fee:loan.fee,currency:'USD',termDays:loan.billing?.termDays??14,signedAt:file.created_at};const contract={...terms,contractHash:await digest(JSON.stringify(terms))};await db().prepare('INSERT OR IGNORE INTO kyc_contracts (signature_id,owner,customer_id,payload,created_at) VALUES (?,?,?,?,?)').bind(terms.signatureId,row.owner,row.customer_id,await seal(contract,'contract:'+terms.signatureId),new Date().toISOString()).run();const stored=await db().prepare('SELECT payload FROM kyc_contracts WHERE signature_id=? AND owner=? AND customer_id=?').bind(terms.signatureId,row.owner,row.customer_id).first<{payload:string}>();if(!stored)throw new KycError('签名合同不可访问');const immutable=await unseal<typeof contract>(stored.payload,'contract:'+terms.signatureId);if(immutable.loanId!==loan.id||immutable.profileHash!==profileHash||immutable.principal!==loan.amount||immutable.fee!==loan.fee)throw new KycError('此签名已绑定其他资料或贷款条件，请重新手写签名');return immutable;
