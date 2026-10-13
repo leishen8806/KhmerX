@@ -159,10 +159,11 @@ const server=createServer(async(req,res)=>{try{
  const secure=true;
  if(host==='admin.khmerx.org'&&req.url==='/'){res.writeHead(302,{Location:'/team/login'});return res.end();}
  if(host==='api.khmerx.org'&&!req.url?.startsWith('/api/')){res.writeHead(404,{'Content-Type':'application/json'});return res.end(JSON.stringify({error:'API endpoint required'}));}
- // Only trust the edge-provided address. x-real-ip/x-forwarded-for are
- // client-controlled when this listener is reached directly and would let a
- // caller rotate the limiter key on every request.
- const clientIp=String(req.headers['cf-connecting-ip']||req.socket.remoteAddress||'unknown').split(',')[0].trim();
+ // The standalone listener is bound behind the local reverse proxy. Do not
+ // trust forwarded client headers here: a direct request can forge them and
+ // rotate the limiter key on every call. The proxy-facing socket address is
+ // the only transport-level value available to this process.
+ const clientIp=String(req.socket.remoteAddress||'unknown').split(',')[0].trim();
  if(req.url?.startsWith('/api/')){const authRoute=/^\/api\/h5\/auth(?:\/|$)/.test(req.url),limit=authRoute?30:240,windowMs=authRoute?15*60*1000:60*1000;if(!allowRate((authRoute?'auth:':'api:')+clientIp,limit,windowMs)){res.writeHead(429,{'Content-Type':'application/json','Retry-After':String(Math.ceil(windowMs/1000))});return res.end(JSON.stringify({error:'请求过于频繁，请稍后重试',code:'RATE_LIMITED'}));}}
  let cookies=req.headers.cookie||'',value=cookies.split(';').map(x=>x.trim()).find(x=>x.startsWith('payease_visitor='))?.slice(16),id=value?.split('.')[0];
  let fresh=false;if(!id||!/^[a-f0-9-]{36}$/.test(id)||!eq(value?.split('.')[1]||'',sign(id))){id=randomUUID();value=id+'.'+sign(id);fresh=true;}
