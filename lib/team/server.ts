@@ -82,6 +82,7 @@ export async function manage(p:any){const u=await identity();
   return {ok:true};
  }
  if(p.action==='notification_template_save'){
+  await requireMfaStepUp(s,p.code);
   const eventKey=txt(p.eventKey,60),locale=txt(p.locale,5),title=txt(p.title,120),body=txt(p.body,2000),reason=txt(p.reason,300);
   if(!/^[a-z][a-z0-9_.-]{1,59}$/.test(eventKey)||!['en','km','zh'].includes(locale)||!title||!body||!reason)throw new AuthError('请填写完整的通知模板、语言和变更原因');
   const old=await db().prepare('SELECT id,version,title,body,active FROM team_notification_templates WHERE tenant_id=? AND event_key=? AND locale=?').bind(tenant,eventKey,locale).first<any>();
@@ -91,11 +92,12 @@ export async function manage(p:any){const u=await identity();
   return {ok:true};
  }
  if(p.action==='pricing_save'){
+  await requireMfaStepUp(s,p.code);
   const current=await pricingFor(tenant);if(p.version!==current.version)throw new AuthError('费率已更新，请刷新后重新设置',409);
   const next=validatePricing({feeModel:'single',version:current.version+1,deductionBps:p.deductionBps,annualInterestBps:p.annualInterestBps,interestTiming:p.interestTiming,serviceBps:p.serviceBps,serviceTiming:p.serviceTiming,termDays:p.termDays});
   const result=await db().batch([db().prepare("UPDATE team_companies SET pricing_json=? WHERE id=? AND pricing_json=? AND EXISTS (SELECT 1 FROM team_members WHERE id=? AND active=1 AND role='admin' AND version=?)").bind(JSON.stringify(next),tenant,s.tenant.pricing_json,s.member.id,s.member.version),db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) SELECT ?,?,?,?,?,? WHERE changes()=1').bind(crypto.randomUUID(),tenant,u.userId,'pricing_save',JSON.stringify({before:current,after:next}),new Date().toISOString())]);if(!result[0].meta.changes)throw new AuthError('权限或费率已变化，请刷新',409);return {ok:true}
  }
- if(p.action==='assignment_mode'){const dept=p.departmentId||s.tenant.default_department;if(!await db().prepare("SELECT id FROM team_units WHERE tenant_id=? AND id=? AND kind='department'").bind(tenant,dept).first())throw new AuthError('默认部门无效');await db().batch([db().prepare('UPDATE team_companies SET auto_assign=?,default_department=? WHERE id=?').bind(p.enabled?1:0,dept,tenant),audit(tenant,u.userId,'assignment_mode',{enabled:!!p.enabled,department:dept})]);return {ok:true}}
+ if(p.action==='assignment_mode'){await requireMfaStepUp(s,p.code);const dept=p.departmentId||s.tenant.default_department;if(!await db().prepare("SELECT id FROM team_units WHERE tenant_id=? AND id=? AND kind='department'").bind(tenant,dept).first())throw new AuthError('默认部门无效');await db().batch([db().prepare('UPDATE team_companies SET auto_assign=?,default_department=? WHERE id=?').bind(p.enabled?1:0,dept,tenant),audit(tenant,u.userId,'assignment_mode',{enabled:!!p.enabled,department:dept})]);return {ok:true}}
  if(p.action==='add_unit'){if(!['department','institution','postloan'].includes(p.kind)||!txt(p.name))throw new AuthError('机构或部门信息无效');const id=crypto.randomUUID();await db().batch([db().prepare('INSERT INTO team_units (id,tenant_id,name,kind) VALUES (?,?,?,?)').bind(id,tenant,txt(p.name),p.kind),audit(tenant,u.userId,'add_unit',{id,name:txt(p.name),kind:p.kind})]);return {ok:true}}
  if(p.action==='create_member'||p.action==='update_member'){
   const role=p.role as TeamRole,email=txt(p.email,254).toLowerCase();

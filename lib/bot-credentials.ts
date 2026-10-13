@@ -1,5 +1,5 @@
 import {env} from 'cloudflare:workers';
-import {db,staff} from '@/lib/team/server';
+import {db,staff,requireMfaStepUp} from '@/lib/team/server';
 import {readState} from '@/lib/store';
 import {encryptBytes,decryptBytes} from '@/lib/kyc/server';
 import {AuthError} from '@/lib/h5-auth-core';
@@ -12,6 +12,7 @@ export async function channelToken(owner:string,botId:string){
 }
 export async function configureBot(p:any){
  const s=await staff();if(!s||s.member.role!=='admin')throw new AuthError('仅公司管理员可配置机器人',403);
+ await requireMfaStepUp(s,p.code);
  const owner=s.tenant.id,botId=p.botId;tokenKey(owner,botId);
  const {state}=await readState(owner);if(!state.bots.some(b=>b.id===botId))throw new AuthError('业务渠道不存在',404);
  const old=await db().prepare('SELECT telegram_id,version FROM telegram_bot_credentials WHERE owner=? AND bot_id=?').bind(owner,botId).first<{telegram_id:string;version:number}>();
