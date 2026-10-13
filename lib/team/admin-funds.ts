@@ -26,7 +26,7 @@ export async function adminFunds(p:any){
  if(reason.length<3||reason.length>500)throw new AuthError('请填写 3–500 字操作依据');
  const now=new Date().toISOString();let next,reference='',fundingCheck:any=null;
  if(p.action==='admin_disburse'){
-  if(p.emergencyId)emergency=await assertEmergencyAccess(String(p.emergencyId),'funding',p.action,String(p.loanId||''),typeof p.cents==='number'?p.cents:undefined);
+  if(p.emergencyId)emergency=await assertEmergencyAccess(String(p.emergencyId),'funding',p.action,String(p.loanId||''),loan.billing?.net??loan.amount);
   if(!route?.funding_institution_id)throw new AuthError('请先配置并分配放款承接机构');
   if(loan.status!=='signed'||!loan.approvalActor||!loan.approvalCheckedBy)throw new AuthError('请先完成贷款初审、独立复核及客户签约');
   const k=await findCase(s.tenant.id,loan.customerId);
