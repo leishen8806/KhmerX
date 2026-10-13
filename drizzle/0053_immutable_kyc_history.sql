@@ -1,4 +1,4 @@
--- KYC history is an audit trail. Revisions may never be rewritten; draft-only
+-- KYC history is an audit trail. Revisions may never be rewritten, and draft-only
 -- cleanup is retained for the disposable demo customer cleanup flow.
 CREATE TRIGGER IF NOT EXISTS kyc_history_no_update
 BEFORE UPDATE ON kyc_history
