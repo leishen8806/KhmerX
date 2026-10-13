@@ -126,7 +126,7 @@ export async function loginTelegram(r:AuthRuntime,owner:string,browserToken:stri
  if(r.config.mode!=='telegram')throw new AuthError('当前渠道未启用 Telegram 登录',409);
  if(!botToken)throw new AuthError('Telegram Bot 登录尚未配置，请联系管理员',503);
  let identity:{id:number;firstName:string};
- try{identity=await validateInitData(initData,botToken)}catch(e){throw new AuthError(e instanceof Error?e.message:'Telegram 身份校验失败',401)}
+ try{identity=await validateInitData(initData,botToken)}catch{throw new AuthError('Telegram 登录凭证无效，请重新打开 Mini App',401,undefined,'TELEGRAM_INITDATA_INVALID')}
  const customerId=await telegramCustomerKey(r,owner,identity.id),browserHash=await digest(browserToken),nowValue=now(r);
  await r.db.prepare('DELETE FROM telegram_initdata_nonces WHERE auth_date<?').bind(nowValue-600).run();
  const nonce=await digest(canonicalInitData(initData)),claimed=await r.db.prepare('INSERT OR IGNORE INTO telegram_initdata_nonces (initdata_hash,owner,channel_id,auth_date,consumed_at) VALUES (?,?,?,?,?)').bind(nonce,owner,channelId||null,nowValue,nowValue).run();
