@@ -42,7 +42,13 @@ export async function POST(request:Request){
   if(eventId){const sameEvent=await db.prepare('SELECT id,payload_hash FROM institution_callback_events WHERE institution_id=? AND event_id=?').bind(institutionId,eventId).first<{id:string;payload_hash:string|null}>();if(sameEvent){if(sameEvent.payload_hash!==payloadHash)return failure('事件编号已绑定其他载荷','EVENT_PAYLOAD_MISMATCH',409,requestId);return response({ok:true,duplicate:true,eventId:sameEvent.id,eventType:eventEnvelope.eventType,status:'received'},200,requestId)}}
   const storedEventId=crypto.randomUUID(),eventType=eventEnvelope.eventType;
   const retry=nextCallbackRetry(0,now);
-  const results=await db.batch([db.prepare('INSERT OR IGNORE INTO institution_callback_nonces (institution_id,nonce,expires_at,created_at) VALUES (?,?,?,?)').bind(institutionId,nonce,now+600,nowIso),db.prepare('INSERT INTO institution_callback_events (id,institution_id,idempotency_key,event_type,event_id,payload_hash,payload,status,request_id,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)').bind(storedEventId,institutionId,idempotency,eventType,eventId,payloadHash,raw,'received',requestId,nowIso,nowIso),db.prepare('INSERT INTO institution_callback_attempts (id,event_id,attempt,status,next_at,last_error,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)').bind(crypto.randomUUID(),storedEventId,0,retry.status,retry.nextAt,null,nowIso,nowIso)]);
+  const results=await db.batch([
+   db.prepare('INSERT OR IGNORE INTO institution_callback_nonces (institution_id,nonce,expires_at,created_at) VALUES (?,?,?,?)').bind(institutionId,nonce,now+600,nowIso),
+   // Gate both writes on the nonce insert. A replay must not leave an event
+   // or retry row behind before the 409 response is returned.
+   db.prepare('INSERT INTO institution_callback_events (id,institution_id,idempotency_key,event_type,event_id,payload_hash,payload,status,request_id,created_at,updated_at) SELECT ?,?,?,?,?,?,?,?,?,?,? WHERE changes()=1').bind(storedEventId,institutionId,idempotency,eventType,eventId,payloadHash,raw,'received',requestId,nowIso,nowIso),
+   db.prepare('INSERT INTO institution_callback_attempts (id,event_id,attempt,status,next_at,last_error,created_at,updated_at) SELECT ?,?,?,?,?,?,?,? WHERE changes()=1').bind(crypto.randomUUID(),storedEventId,0,retry.status,retry.nextAt,null,nowIso,nowIso)
+  ]);
   if(!results[0].meta?.changes) return failure('回调 nonce 已使用','CALLBACK_REPLAYED',409,requestId);
   return response({ok:true,duplicate:false,eventId:storedEventId,eventType,status:'received'},202,requestId);
  }catch{return failure('持牌机构回调暂不可用','SERVICE_UNAVAILABLE',503,requestId)}
