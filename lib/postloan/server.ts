@@ -11,7 +11,13 @@ async function roster(tenant:string){const members=(await db().prepare('SELECT i
 export async function runCompany(tenant:string,now=new Date().toISOString(),job=false){
  await ensurePostDepartment(tenant);const {members,units}=await roster(tenant);
  for(let i=0;i<4;i++){const row=await db().prepare('SELECT payload,revision FROM demo_workspaces WHERE owner=?').bind(tenant).first<{payload:string;revision:number}>();if(!row)return {tasks:0};const settings=await db().prepare('SELECT auto_assign FROM team_service_settings WHERE tenant_id=?').bind(tenant).first<any>(),routes=(await db().prepare('SELECT customer_id,collection_unit_id FROM team_assignments WHERE tenant_id=? AND collection_unit_id IS NOT NULL').bind(tenant).all<any>()).results;const next=runPostloan(JSON.parse(row.payload),members,units.map(u=>u.id),now,{enabled:settings?!!settings.auto_assign:true,departments:Object.fromEntries(routes.map(a=>[a.customer_id,a.collection_unit_id]))});if(job)next.postloan!.lastJobAt=now;
- const r=await db().prepare('UPDATE demo_workspaces SET payload=?,revision=revision+1 WHERE owner=? AND revision=? AND EXISTS (SELECT 1 FROM team_companies WHERE id=? AND active=1)').bind(serializeWorkspacePayload(next),tenant,row.revision,tenant).run();if(r.meta.changes)return {tasks:next.postloan!.tasks.length}}
+ const currentPayload=serializeWorkspacePayload(JSON.parse(row.payload));
+ const nextPayload=serializeWorkspacePayload(next);
+ // A manual check that finds no new reminder, task, assignment, or settlement
+ // must not consume the workspace revision. Otherwise it can race with a
+ // legitimate staff action and produce a false 409 even though nothing changed.
+ if(!job&&currentPayload===nextPayload)return {tasks:next.postloan!.tasks.length};
+ const r=await db().prepare('UPDATE demo_workspaces SET payload=?,revision=revision+1 WHERE owner=? AND revision=? AND EXISTS (SELECT 1 FROM team_companies WHERE id=? AND active=1)').bind(nextPayload,tenant,row.revision,tenant).run();if(r.meta.changes)return {tasks:next.postloan!.tasks.length}}
  throw new AuthError('贷后检查遇到并发更新，请重试',409)
 }
 export async function runAllCompanies(now=new Date().toISOString()){const companies=(await db().prepare('SELECT id FROM team_companies WHERE active=1').bind().all<{id:string}>()).results;const failed:string[]=[];for(const c of companies)try{await runCompany(c.id,now,true);await dispatchCompany(c.id,now)}catch{failed.push(c.id)}return {ok:failed.length===0,companies:companies.length,failed:failed.length,checkedAt:now}}
