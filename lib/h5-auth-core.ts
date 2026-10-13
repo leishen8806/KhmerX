@@ -151,12 +151,13 @@ export async function loginPassword(r:AuthRuntime,owner:string,browserToken:stri
  // Password login grants a session, never a phone-only recovery capability.
  return issueAccountSession(r,a!);
 }
-export async function setPassword(r:AuthRuntime,owner:string,token:string|undefined,input:{password?:unknown;currentPassword?:unknown}){
+export async function setPassword(r:AuthRuntime,owner:string,token:string|undefined,input:{password?:unknown;currentPassword?:unknown},browserToken?:string){
  const session=await getSession(r,owner,token);if(!session)throw new AuthError('请先登录账号',401);
  await limit(r,'set-password|'+owner+'|'+session.customerId,5,900,0);
  if(typeof input.password!=='string'||input.password.length<12||input.password.length>128)throw new AuthError('密码需为 12–128 个字符');
  const a=await r.db.prepare('SELECT * FROM h5_accounts WHERE customer_id=? AND owner=?').bind(session.customerId,owner).first<Account>();
  if(!a)throw new AuthError('请先通过验证码登录，再设置密码',409);
+ if(browserToken&&a.browser_hash!==await digest(browserToken))throw new AuthError('当前浏览器会话已变化，请重新验证手机号',401,'','BROWSER_SESSION_MISMATCH');
  if(a.password_hash&&!await passwordMatches(input.currentPassword,a.password_hash))throw new AuthError('当前密码不正确',401);
  const salt=randomToken(),hash=`${PASSWORD_VERSION}:${PASSWORD_ITERATIONS}:${salt}:${await passwordHash(input.password,salt)}`;
  const changed=await r.db.prepare('UPDATE h5_accounts SET password_hash=? WHERE customer_id=? AND owner=? AND password_hash IS ? AND EXISTS(SELECT 1 FROM h5_sessions WHERE token_hash=? AND owner=? AND expires_at>?)').bind(hash,a.customer_id,owner,a.password_hash,await digest(token!),owner,now(r)).run();
