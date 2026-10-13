@@ -86,7 +86,9 @@ export function summary(s:State){return {applications:s.loans.length,active:s.lo
 
 export function customerState(state:State,customerId:string):State{
  const loans=state.loans.filter(l=>l.customerId===customerId),ids=new Set(loans.map(l=>l.id));
- return {...state,postloan:undefined,loans,bots:state.bots.filter(b=>b.enabled).map(b=>({...b,envKey:''})),events:state.events.filter(e=>ids.has(e.loanId)),entries:state.entries.filter(e=>ids.has(e.loanId)),notifications:state.notifications.filter(e=>ids.has(e.loanId)),requests:[]};
+ // Idempotency digests contain the original request payload. They are internal
+ // replay guards and must never cross the customer API boundary.
+ return {...state,postloan:undefined,loans,bots:state.bots.filter(b=>b.enabled).map(b=>({...b,envKey:''})),events:state.events.filter(e=>ids.has(e.loanId)),entries:state.entries.filter(e=>ids.has(e.loanId)),notifications:state.notifications.filter(e=>ids.has(e.loanId)),requests:[],requestDigests:{}};
 }
 export function customerAction(state:State,input:any,customer:{id:string;phoneMasked:string;channel?:PublicChannel},options:{allowInternalSettlement?:boolean}={}):State{
  if(!input||roles[input.action]!=='mini'||input.role&&input.role!=='mini')throw Error('客户会话无权执行此操作');

@@ -33,7 +33,7 @@ export default function H5Login(){
    if(d.mode==='telegram'&&!d.session){
     const initData=telegramInitData();
     if(initData){
-     try{const {data:a}=await apiFetch<any>('/api/h5/auth/telegram',{method:'POST',headers:{'X-Telegram-Init-Data':initData}});setSession(a.session);setPolicy(a.policy);setView(complete(a.session,a.policy)?'workspace':'security');return}catch{setError('Telegram 登录暂时不可用，请关闭后重新打开 Mini App。');setView('telegram');return}
+     try{const channel=new URLSearchParams(window.location.search).get('channel')||'bot-1';const {data:a}=await apiFetch<any>('/api/h5/auth/telegram?channel='+encodeURIComponent(channel),{method:'POST',headers:{'X-Telegram-Init-Data':initData}});setSession(a.session);setPolicy(a.policy);setView(complete(a.session,a.policy)?'workspace':'security');return}catch{setError('Telegram 登录暂时不可用，请关闭后重新打开 Mini App。');setView('telegram');return}
     }else {setError('当前未从 Telegram 打开，将通过 Verification Codes 完成手机号验证。');setView('verify');}
    }
    if(!((d.mode==='telegram'&&!d.session)&&!telegramInitData()))setView((screen==='login'||new URLSearchParams(window.location.search).get('view')==='login')?'register':d.session?(complete(d.session,d.policy)?'workspace':'security'):'register')

@@ -33,7 +33,7 @@ export async function POST(request:Request){
   if(!institution)return failure('持牌机构不存在或已停用','INSTITUTION_NOT_FOUND',404,requestId);
   const secret=callbackSecret(institutionId);
   if(!secret)return failure('持牌机构回调尚未配置','CALLBACK_NOT_CONFIGURED',503,requestId);
-  if(!await verifyInstitutionCallback(secret,{institutionId,timestamp,nonce,body:raw,signature}))return failure('回调签名或时间窗口无效','CALLBACK_SIGNATURE_INVALID',401,requestId);
+  if(!await verifyInstitutionCallback(secret,{institutionId,timestamp,nonce,body:raw,signature,idempotencyKey:idempotency}))return failure('回调签名或时间窗口无效','CALLBACK_SIGNATURE_INVALID',401,requestId);
   const payloadHash=await sha256(raw),eventId=eventEnvelope.eventId||null;
   const now=Math.floor(Date.now()/1000),nowIso=new Date().toISOString();
   await db.prepare('DELETE FROM institution_callback_nonces WHERE expires_at<?').bind(now).run();
