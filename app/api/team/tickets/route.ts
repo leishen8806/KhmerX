@@ -9,7 +9,7 @@ const MAX_TICKET_BODY=12000;
 const text=(x:any,max:number)=>typeof x==='string'?x.trim().slice(0,max):'';
 const sameOrigin=(request:Request)=>{try{assertAllowedOrigin(request,false)}catch{throw new AuthError('不允许跨站操作',403,undefined,'CROSS_SITE_REQUEST')}};
 const validCustomer=async(tenant:string,id:string)=>!!await db().prepare('SELECT 1 FROM h5_accounts WHERE owner=? AND customer_id=?').bind(tenant,id).first();
-const validAssignee=async(tenant:string,id:string|null)=>!id||!!await db().prepare("SELECT 1 FROM team_members WHERE tenant_id=? AND id=? AND active=1").bind(tenant,id).first();
+const validAssignee=async(tenant:string,id:string|null)=>!id||!!await db().prepare("SELECT 1 FROM team_members WHERE tenant_id=? AND id=? AND active=1 AND role IN ('admin','ops','dept_admin','collection_admin','collector')").bind(tenant,id).first();
 const canManage=(s:any,old:any)=>s.member.role!=='collector'||old.assignee_id===s.member.id;
 const appendTicketNote=(body:unknown,at:string,note:string)=>`${String(body||'')}\n\n[${at}] ${note}`.slice(-MAX_TICKET_BODY);
 export async function GET(){try{const s=await staff();if(!s||!roles.includes(s.member.role))return json({error:'当前岗位没有工单权限'},403);const query=s.member.role==='collector'?'SELECT * FROM team_service_tickets WHERE tenant_id=? AND assignee_id=? ORDER BY updated_at DESC LIMIT 200':'SELECT * FROM team_service_tickets WHERE tenant_id=? ORDER BY updated_at DESC LIMIT 200';const rows=s.member.role==='collector'?await db().prepare(query).bind(s.tenant.id,s.member.id).all():await db().prepare(query).bind(s.tenant.id).all();return json({tickets:rows.results})}catch(e){return failure(e)}}
