@@ -27,7 +27,7 @@ const maskPhone=(phone:string)=>phone.slice(0,4)+' •••• '+phone.slice(-4
 function config(r:AuthRuntime,requireGateway=false){if(!['demo','telegram'].includes(r.config.mode)||r.config.secret.length<32)throw new AuthError('登录服务尚未配置，请联系管理员',503);if(r.config.mode==='demo'&&r.config.allowDemo!==true)throw new AuthError('生产环境禁止使用模拟认证模式，请配置 Telegram 验证',503,undefined,'AUTH_DEMO_FORBIDDEN');if(requireGateway&&r.config.mode==='telegram'&&!r.config.gatewayToken)throw new AuthError('Telegram Gateway 尚未配置，暂不能发送验证码',503);return r.config}
 const now=(r:AuthRuntime)=>Math.floor((r.now?.()??Date.now())/1000);
 const customerKey=(r:AuthRuntime,owner:string,phone:string)=>keyed(r.config.secret,'customer|'+r.config.mode+'|'+owner+'|'+phone);
-const telegramCustomerKey=(r:AuthRuntime,owner:string,userId:number)=>keyed(r.config.secret,'telegram-customer|'+owner+'|'+userId);
+export const telegramCustomerKey=(r:AuthRuntime,owner:string,userId:number)=>keyed(r.config.secret,'telegram-customer|'+owner+'|'+userId);
 async function limit(r:AuthRuntime,key:string,max:number,window:number,delay:number){const t=now(r);
  // Keep the small D1 rate-limit table bounded. All current callers use a
  // window no longer than one hour; records older than that cannot affect a

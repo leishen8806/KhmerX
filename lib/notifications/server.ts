@@ -1,8 +1,9 @@
 import {channelToken} from '@/lib/bot-credentials';
 import {env} from 'cloudflare:workers';
+import {runtime} from '@/lib/h5-auth';
 import {db,staff} from '@/lib/team/server';
 import {readState} from '@/lib/store';
-import {AuthError} from '@/lib/h5-auth-core';
+import {AuthError,telegramCustomerKey} from '@/lib/h5-auth-core';
 import {validateInitData} from '@/lib/telegram';
 import {canonicalInitData} from '@/lib/telegram';
 import {digest} from '@/lib/h5-auth-core';
@@ -20,7 +21,11 @@ export async function bindNotifications(owner:string,customerId:string,p:any){co
  // Legacy service callers without an h5 account remain supported, while real
  // customer sessions must match the Telegram-derived identity exactly.
  const account=await db().prepare('SELECT customer_id,telegram_user_hash,telegram_verified FROM h5_accounts WHERE owner=? AND customer_id=?').bind(owner,customerId).first<{customer_id:string;telegram_user_hash?:string|null;telegram_verified?:number}>();
- if(account&&(account.telegram_user_hash!==customerId||account.telegram_verified!==1))throw new AuthError('Telegram 账号与当前客户不一致，请重新打开应用',409);
+ const expectedCustomerId=await telegramCustomerKey(runtime(),owner,user.id);
+ // Legacy synthetic workspaces may not have an h5 account row yet. Once an
+ // account exists, however, the signed Telegram user must map to that exact
+ // keyed customer identity; never accept a merely present/verified flag.
+ if(account&&(account.customer_id!==expectedCustomerId||account.telegram_user_hash!==expectedCustomerId||account.telegram_verified!==1))throw new AuthError('Telegram 账号与当前客户不一致，请重新打开应用',409);
  const canonical=canonicalInitData(p.initData),replayKey=await digest(owner+':'+bot.id+':'+customerId+':'+canonical);
  await db().prepare('DELETE FROM telegram_subscription_nonces WHERE consumed_at<?').bind(Date.now()-10*60*1000).run();
  const claimed=await db().prepare('INSERT OR IGNORE INTO telegram_subscription_nonces (initdata_hash,owner,customer_id,bot_id,consumed_at) VALUES (?,?,?,?,?)').bind(replayKey,owner,customerId,bot.id,Date.now()).run();
