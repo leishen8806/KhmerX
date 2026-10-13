@@ -395,3 +395,14 @@ test('state mutation rejects non-JSON and malformed envelopes',async()=>{
  const malformed=await api.POST(new Request('http://localhost/api/state',{method:'POST',headers:{origin:'http://localhost','content-type':'application/json'},body:'[]'}));
  assert.equal(malformed.status,400);assert.equal((await malformed.json()).code,'INVALID_REQUEST');
 });
+
+test('invite binding cannot create non-admin SSO without MFA',async()=>{
+ const auth=await mod('@/app/api/team/auth/route');const memberId='invite-mfa-'+crypto.randomUUID(),email='invite-mfa@example.test',token='invite-token-qa';
+ sql.prepare("INSERT INTO team_members (id,tenant_id,user_id,email,role,active,version,mfa_enabled) VALUES (?,?,?,?,?,1,0,0)").run(memberId,A,'pending:invite-mfa',email,'ops');
+ const issuer=sql.prepare('SELECT id FROM team_members WHERE tenant_id=? AND user_id=?').get(A,'owner').id;
+ sql.prepare("INSERT INTO team_invites (token_hash,tenant_id,email,role,unit_id,issuer,expires_at,used) VALUES (?,?,?,?,?,?,?,0)").run(await (await mod('@/lib/h5-auth-core')).digest(token),A,email,'ops',null,issuer,Date.now()+3600000);
+ user={userId:'invite-mfa-user',email};selected='';extraCookies='';
+ const response=await auth.POST(new Request('http://localhost/api/team/auth',{method:'POST',headers:{origin:'http://localhost','content-type':'application/json'},body:JSON.stringify({action:'bind_invite',company:'synthetic-a',inviteToken:token,portal:'business'})}));
+ assert.equal(response.status,403);assert.equal((await response.json()).code,'MFA_REQUIRED_FOR_INVITE');
+ user=owner;
+});
