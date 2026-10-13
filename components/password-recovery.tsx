@@ -2,11 +2,12 @@
 import {useEffect,useState} from 'react';
 import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
+import {apiFetch} from '@/lib/api-client';
 export function PasswordRecovery({mode,onDone,onBack}:{mode:string;onDone:(phone:string)=>void;onBack:()=>void}){
  const [phone,setPhone]=useState('+855'),[consent,setConsent]=useState(false),[challenge,setChallenge]=useState<any>(null),[code,setCode]=useState(''),[password,setPassword]=useState(''),[confirm,setConfirm]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[now,setNow]=useState(Date.now());
  useEffect(()=>{const t=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(t)},[]);
  const remaining=challenge?Math.max(0,Math.ceil((challenge.expiresAt-now)/1000)):0,retry=challenge?Math.max(0,Math.ceil((challenge.retryAt-now)/1000)):0;
- async function call(body:any){const r=await fetch('/api/h5/auth/recovery',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),d:any=await r.json();if(!r.ok)throw Error(d.error);return d}
+ async function call(body:any){return (await apiFetch<any>('/api/h5/auth/recovery',{method:'POST',body:JSON.stringify(body)})).data}
  async function send(){setBusy(true);setError('');try{setChallenge(await call({action:'send',phone,consent}));setCode('');setNow(Date.now())}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
  async function reset(){setBusy(true);setError('');try{if(password!==confirm)throw Error('两次输入的新密码不一致');await call({action:'reset',challengeId:challenge.challengeId,code,password,confirmPassword:confirm});setPassword('');setConfirm('');onDone(phone)}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
  return <div className="form"><p>验证注册手机号后重置密码，无需提供旧密码。重置后请使用新密码重新登录。</p><p className="notice">{mode==='demo'?'当前为测试模式，支持任意格式正确的注册手机号，验证码统一为 123456，不会真实发送，也不验证手机号归属。':'验证码通过 Telegram 的 Verification Codes 会话发送，请使用已注册 Telegram 的手机号。'}</p>{error&&<p className="error" role="alert">{error}</p>}

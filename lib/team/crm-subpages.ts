@@ -2,7 +2,7 @@ export type CrmSubpage={label:string;queue:string;view:string;description:string
 
 const groups:Record<string,{queue:string;items:string[]}>={
  '工作台':{queue:'home',items:['今日概览','我的待办','团队队列','SLA 与提醒','风险摘要']},
- '客户中心':{queue:'customers',items:['客户列表','客户 360° 详情','KYC 审核队列','待补件','客户标签与分组']},
+ '客户中心':{queue:'customers',items:['客户列表','KYC 审核队列','客户标签与分组']},
  '业务中心':{queue:'loans',items:['贷款申请','审批协同','合同与签约','放款管理','账单与还款','提现与钱包','业务时间线']},
  '服务中心':{queue:'tickets',items:['客服工单','补件任务','贷后任务','逾期与催收','投诉与争议','通知发送记录']},
  '风控与资金':{queue:'funding',items:['风控事件','资金监管','每日放款限额','每月放款限额','20% 资金预警','冻结与解除','资金流水','对账异常']},
@@ -14,7 +14,7 @@ const groups:Record<string,{queue:string;items:string[]}>={
 
 const descriptions:Record<string,string>={
  '今日概览':'汇总核心业务待办、风控资金和审计安全摘要。','我的待办':'查看分配给当前岗位的待处理任务和截止时间。','团队队列':'查看团队案件分配、处理进度和队列负载。','SLA 与提醒':'查看SLA倒计时、临期任务和提醒状态。','风险摘要':'查看当前公司风险等级、异常事件和待处置事项。',
- '客户列表':'搜索当前授权范围内的客户，打开详情并追踪关联业务。','客户 360° 详情':'汇总客户资料、KYC、贷款、通知、工单和操作审计。','KYC 审核队列':'按状态处理审核、补件、代修改和重新提交。','待补件':'只展示需要客户补件的案件，并回写补件状态。','客户标签与分组':'维护客户分组与运营标签，变更全量留痕。',
+ '客户列表':'搜索客户，并在同一页面查看资料、KYC、贷款和业务时间线。','KYC 审核队列':'统一处理审核、补件、代修改和重新提交。','客户标签与分组':'维护客户分组与运营标签，变更全量留痕。',
  '贷款申请':'查看申请、费用确认、签约和审批状态。','审批协同':'完成初审、独立复核和审批结果回写。','合同与签约':'查看费用快照、签名证据和合同状态。','放款管理':'执行审批后放款校验并查看资金流水。','账单与还款':'查看账单、还款分配和结清结果。','提现与钱包':'查看钱包余额、提现申请和处理状态。','业务时间线':'按时间查看贷款从申请到结清的完整事件。',
  '客服工单':'创建、分派、处理和关闭客户工单。','补件任务':'跟踪补件通知、材料回收和审核回写。','贷后任务':'处理到期提醒、承诺跟进和任务结案。','逾期与催收':'按逾期阶段处理催收任务和结清。','投诉与争议':'记录投诉、调查、处理决定和关闭原因。','通知发送记录':'查看模板、发送结果、失败重试和死信。',
  '风控事件':'查看风险事件、处置状态和责任人。','资金监管':'监控日/月限额、20%预警和资金快照。','每日放款限额':'核对当日用量、剩余额度和拦截记录。','每月放款限额':'核对当月用量、剩余额度和拦截记录。','20% 资金预警':'确认预警、分派处置并保留审计。','冻结与解除':'审批资金冻结与解除并记录原因。','资金流水':'查看放款、还款、提现和对账流水。','对账异常':'处理资金差异、复核和关闭。',
@@ -24,6 +24,9 @@ const descriptions:Record<string,string>={
  '操作审计':'按操作人、对象、时间和结果查询审计。','登录与 IP':'查看登录、退出、失败和IP记录。','数据修改':'查看敏感字段前后值、原因和复核。','资金操作':'查看资金动作、审批和流水关联。','权限变更':'查看角色、字段权限和会话变更。','安全告警':'确认、处理和关闭安全告警。','应急事件':'查看break-glass授权、范围和过期。','审计导出':'按范围脱敏导出审计记录并留痕。'
 };
 
-export const crmSubpages:CrmSubpage[]=Object.entries(groups).flatMap(([,group])=>group.items.map(label=>({label,queue:group.queue,view:label,description:descriptions[label]||'当前页面仅展示授权范围内的数据，并保留操作审计。'})));
+const hiddenCrmViews=new Set(['客户 360° 详情','待补件']);
+descriptions['客户列表']='搜索客户，并在同一页面查看资料、KYC、贷款和业务时间线。';
+export const crmSubpages:CrmSubpage[]=Object.entries(groups).flatMap(([,group])=>group.items.filter(label=>!hiddenCrmViews.has(label)).map(label=>({label,queue:group.queue,view:label,description:descriptions[label]||'当前页面仅展示授权范围内的数据，并保留操作审计。'})));
 export const crmSubpageByView=Object.fromEntries(crmSubpages.map(page=>[page.view,page]));
+export function canonicalCrmView(view:string){return view==='客户 360° 详情'?'客户列表':view==='待补件'?'KYC 审核队列':view}
 export function crmSubpageHref(href:string,label:string){const target=href.startsWith('#')?'/team':href;if(label==='今日概览')return '/team';return `${target}${target.includes('?')?'&':'?'}view=${encodeURIComponent(label)}`}

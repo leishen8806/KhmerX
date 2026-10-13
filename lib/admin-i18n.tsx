@@ -2,6 +2,7 @@
 import {createContext,useContext,useEffect,useMemo,useState} from 'react';
 import type {ReactNode} from 'react';
 import {legacyText,localeLabels,type Locale} from './i18n';
+import {apiFetch} from './api-client';
 
 const copy:Record<Locale,Record<string,string>>={
  zh:{dashboard:'服务机构后台',customer:'客户入口',logout:'退出登录',refresh:'刷新',company:'切换公司',back:'返回公司选择',login:'服务机构后台登录',email:'员工邮箱',password:'登录密码',companyCode:'公司代码',signIn:'登录服务机构后台',sso:'使用当前站点账号登录',kyc:'KYC 审核订单',loans:'贷款申请订单',funding:'放款管理',repayment:'还款管理',postloan:'贷后催收／逾期订单',notifications:'Telegram 通知',permissions:'员工与权限',pricing:'贷款费用配置',save:'保存',create:'新增',all:'全部',enabled:'启用',disabled:'已停用'},
@@ -15,8 +16,8 @@ function translate(text:string,locale:Locale){const key=phrases[text];return key
 function translateTree(root:HTMLElement,locale:Locale){const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);let node:Node|null;while((node=walker.nextNode())){const tag=node.parentElement?.tagName.toLowerCase();if(['input','textarea','script','style'].includes(tag||''))continue;const raw=node.textContent||'',trim=raw.trim(),out=translate(trim,locale);if(out!==trim)node.textContent=raw.replace(trim,out)}}
 export function AdminLocaleShell({children}:{children:ReactNode}){
  const [locale,setLocale]=useState<Locale>(()=>{if(typeof window==='undefined')return 'zh';const saved=window.localStorage.getItem('payease-admin-language');return saved==='en'||saved==='km'||saved==='zh'?saved:'zh'});
- useEffect(()=>{void fetch('/api/team',{cache:'no-store'}).then(r=>r.ok?r.json():null).then((data:any)=>{const server=data?.member?.locale;if(server==='en'||server==='km'||server==='zh'){setLocale(server);window.localStorage.setItem('payease-admin-language',server)}}).catch(()=>undefined)},[]);
- const choose=(next:Locale)=>{setLocale(next);window.localStorage.setItem('payease-admin-language',next);void fetch('/api/team/locale',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({locale:next})}).catch(()=>undefined)};
+ useEffect(()=>{void apiFetch<any>('/api/team',{cache:'no-store'}).then(({data})=>{const server=data?.member?.locale;if(server==='en'||server==='km'||server==='zh'){setLocale(server);window.localStorage.setItem('payease-admin-language',server)}}).catch(()=>undefined)},[]);
+ const choose=(next:Locale)=>{setLocale(next);window.localStorage.setItem('payease-admin-language',next);void apiFetch('/api/team/locale',{method:'POST',body:JSON.stringify({locale:next})}).catch(()=>undefined)};
  const value=useMemo(()=>({locale,t:(key:string)=>copy[locale][key]||key,setLocale:choose}),[locale]);
  useEffect(()=>{const root=document.querySelector<HTMLElement>('.team-shell');if(!root)return;translateTree(root,locale);const observer=new MutationObserver(()=>translateTree(root,locale));observer.observe(root,{subtree:true,childList:true,characterData:true});return()=>observer.disconnect()},[locale]);
  return <AdminLocaleContext.Provider value={value}><div className="admin-locale-root">{children}</div></AdminLocaleContext.Provider>

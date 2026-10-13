@@ -11,6 +11,9 @@ services:
       - "127.0.0.1:4300:4300"
     volumes:
       - /opt/payease/data:/data
+      - /opt/payease/scanner-secrets:/run/scanner-secrets
+    environment:
+      SCANNER_TOKEN_PATH: /run/scanner-secrets/scanner-token
     mem_limit: 768m
     logging:
       driver: json-file
@@ -22,7 +25,9 @@ services:
     restart: unless-stopped
     volumes:
       - /opt/payease/clamav:/var/lib/clamav
-    mem_limit: 768m
+    # ClamAV loads the full signature database into memory; 768 MB causes
+    # clamd to be OOM-killed during startup on the production VPS.
+    mem_limit: 1536m
     expose:
       - "3310"
   scanner:
@@ -34,9 +39,10 @@ services:
     environment:
       CLAMD_HOST: clamav
       CLAMD_PORT: "3310"
-      SCAN_TOKEN_FILE: /data/scanner-token
+      SCAN_TOKEN_FILE: /run/scanner-secrets/scanner-token
     volumes:
       - /opt/payease/data:/data:ro
+      - /opt/payease/scanner-secrets:/run/scanner-secrets:ro
     expose:
       - "8080"
     healthcheck:

@@ -8,6 +8,8 @@ import {validLoanContract} from '@/lib/loan-signing';
 import {scopedState} from './workflow';
 import {assertEmergencyAccess} from './emergency';
 import {assertFundingCapacity} from '@/lib/funding-limits';
+import {fundingRiskEventStatement} from './funding-risk-events';
+import {fundingSettingsForTenant} from './funding-settings';
 export async function adminFunds(p:any){
  const s=await staff();if(!s||s.member.role!=='admin')throw new AuthError('仅本公司 Admin 可执行资金管理',403);
  if(!['admin_disburse','admin_repay'].includes(p.action))throw new AuthError('操作无效');
@@ -21,7 +23,7 @@ export async function adminFunds(p:any){
  const route=await db().prepare('SELECT * FROM team_assignments WHERE tenant_id=? AND customer_id=?').bind(s.tenant.id,loan.customerId).first<any>();
  const reason=typeof p.note==='string'?p.note.trim():'';
  if(reason.length<3||reason.length>500)throw new AuthError('请填写 3–500 字操作依据');
- const now=new Date().toISOString();let next,reference='';
+ const now=new Date().toISOString();let next,reference='',fundingCheck:any=null;
  if(p.action==='admin_disburse'){
   if(p.emergencyId)emergency=await assertEmergencyAccess(String(p.emergencyId),'funding',p.action,String(p.loanId||''),typeof p.cents==='number'?p.cents:undefined);
   if(!route?.funding_institution_id)throw new AuthError('请先配置并分配放款承接机构');
@@ -29,7 +31,7 @@ export async function adminFunds(p:any){
   const k=await findCase(s.tenant.id,loan.customerId);
   if(!k||k.status!=='approved'||k.id!==loan.kycCaseId||k.revision!==loan.kycRevision)throw new AuthError('KYC 状态或版本已变化',409);
   await validLoanContract(s.tenant.id,loan,k);
-  try{assertFundingCapacity(state.entries,loan.billing?.net??loan.amount,now)}catch(error){if((error as Error & {code?:string}).code==='FUNDING_LIMIT_EXCEEDED')throw new AuthError((error as Error).message,409,undefined,'FUNDING_LIMIT_EXCEEDED');throw error}
+  const limits=await fundingSettingsForTenant(s.tenant.id);try{fundingCheck=assertFundingCapacity(state.entries,loan.billing?.net??loan.amount,now,limits)}catch(error){if((error as Error & {code?:string}).code==='FUNDING_LIMIT_EXCEEDED'){await fundingRiskEventStatement({tenantId:s.tenant.id,eventType:'funding_regulatory_freeze',severity:'critical',snapshot:{action:p.action,loanId:loan.id,requested:loan.billing?.net??loan.amount,at:now,limits},reason:(error as Error).message,correlationId:p.requestId,actor:s.user.userId}).run();throw new AuthError((error as Error).message,409,undefined,'FUNDING_LIMIT_EXCEEDED')}throw error}
   next=applyAction(state,{action:'disburse',loanId:loan.id,role:'lender',requestId:key,note:'测试放款已登记'},now);
   const target=next.loans.find(l=>l.id===loan.id)!;target.fundingActor ||= s.user.userId;target.fundingCheckedBy=s.user.userId;
  }else{
@@ -46,6 +48,7 @@ export async function adminFunds(p:any){
  const statements=[db().prepare("UPDATE demo_workspaces SET payload=?,revision=revision+1 WHERE owner=? AND revision=? AND EXISTS(SELECT 1 FROM team_members WHERE id=? AND tenant_id=? AND role='admin' AND active=1 AND version=?) AND EXISTS(SELECT 1 FROM team_assignments WHERE tenant_id=? AND customer_id=? AND version=?) AND EXISTS(SELECT 1 FROM team_companies WHERE id=? AND active=1) AND (?=0 OR EXISTS(SELECT 1 FROM kyc_cases WHERE owner=? AND id=? AND revision=? AND status='approved'))").bind(JSON.stringify(next),s.tenant.id,revision,s.member.id,s.tenant.id,s.member.version,s.tenant.id,loan.customerId,route.version,s.tenant.id,p.action==='admin_disburse'?1:0,s.tenant.id,loan.kycCaseId||'',loan.kycRevision??-1)];
  if(reference)statements.push(db().prepare('INSERT INTO team_repayment_receipts(tenant_id,reference,loan_id,cents,actor,created_at) SELECT ?,?,?,?,?,? WHERE changes()=1').bind(s.tenant.id,reference,loan.id,p.cents,s.user.userId,now));
  statements.push(db().prepare('INSERT INTO team_audit(id,tenant_id,actor,action,detail,created_at) SELECT ?,?,?,?,?,? WHERE changes()=1').bind(crypto.randomUUID(),s.tenant.id,s.user.userId,p.action,JSON.stringify({loanId:loan.id,reason,reference,cents:reference?p.cents:loan.billing?.net??loan.amount,institutionId:reference?route.repayment_institution_id:route.funding_institution_id,mode:'test_funds',...(emergency?{emergencyId:emergency.id,emergencyScope:emergency.scope,emergencyExpiresAt:emergency.expiresAt}: {})}),now));
+ if(fundingCheck?.warning)statements.push(fundingRiskEventStatement({tenantId:s.tenant.id,eventType:'funding_regulatory_warning',severity:'warning',snapshot:{action:p.action,loanId:loan.id,requested:loan.billing?.net??loan.amount,dailyUsed:fundingCheck.dailyUsed,monthlyUsed:fundingCheck.monthlyUsed,dailyLimit:fundingCheck.dailyLimit,monthlyLimit:fundingCheck.monthlyLimit,dailyRemaining:fundingCheck.dailyRemaining,monthlyRemaining:fundingCheck.monthlyRemaining,warningPercent:fundingCheck.warningPercent,timezone:fundingCheck.timezone,at:now},reason:'放款后资金限额达到预警阈值，请完成复核',correlationId:p.requestId,actor:s.user.userId}));
  const result=await db().batch(statements);if(!result[0].meta.changes)throw new AuthError('订单、分单或权限已更新，请刷新后重试',409);
  return scopedState();
 }

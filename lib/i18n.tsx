@@ -16,7 +16,7 @@ export const messages:Record<Locale,Record<string,string>>={
     hello:'你好，{name}',simpleFinance:'Simple finance for everyday life.',highest:'最高可申请金额',chooseTerm:'可选 14 天或 28 天 · 签约前展示完整费用',completeKyc:'完成身份认证',applyLoan:'申请借款',viewProgress:'查看借款进度',
     threeSteps:'申请只需三步',identityReview:'身份资料审核',chooseAmount:'选择金额，确认账单并签约',approvalDisbursement:'等待审批与放款',
     noLoans:'还没有借款记录',completeBeforeApply:'完成身份认证后，即可申请借款。',startApply:'开始申请',inProgress:'你有一笔进行中的申请',finishCurrent:'请先完成当前借款，再发起新申请。',continue:'继续当前申请',
-    accountSecurity:'账户安全',logout:'退出登录',testAccount:'测试账户',viewProfile:'查看资料',approved:'已审核通过',
+    accountSecurity:'账户安全',logout:'退出登录',testAccount:'测试账户',viewProfile:'查看资料',approved:'已审核通过',repaymentReminder:'Telegram 还款提醒',currentLoan:'当前借款',
     feeDetails:'费用明细',loanAgreement:'已签借款协议',loadingProfile:'正在读取已审核资料…',nextBill:'下一步将展示实际到账、全部扣费及到期应还金额。',
     confirmBill:'我已核对实际到账、费用、期限与应还总额',confirmTest:'确认使用虚构资料进行测试资金申请',nextBillButton:'下一步：查看结算账单',reviewBill:'核对结算账单',continueSign:'确认账单，继续签约',
     notFound:'未找到这笔借款',chooseFromRecords:'请从自己的借款记录中重新选择。',viewRecords:'查看借款记录',
@@ -32,7 +32,7 @@ export const messages:Record<Locale,Record<string,string>>={
     hello:'Hello, {name}',simpleFinance:'Simple finance for everyday life.',highest:'Maximum available amount',chooseTerm:'Choose 14 or 28 days · full costs shown before signing',completeKyc:'Complete KYC',applyLoan:'Apply for a loan',viewProgress:'View loan progress',
     threeSteps:'Three simple steps',identityReview:'KYC review',chooseAmount:'Choose amount, confirm bill and sign',approvalDisbursement:'Wait for approval and disbursement',
     noLoans:'No loan records yet',completeBeforeApply:'Complete KYC before applying for a loan.',startApply:'Start application',inProgress:'You have an application in progress',finishCurrent:'Finish the current loan before starting another one.',continue:'Continue current application',
-    accountSecurity:'Account and security',logout:'Log out',testAccount:'Test account',viewProfile:'View profile',approved:'Approved',
+    accountSecurity:'Account and security',logout:'Log out',testAccount:'Test account',viewProfile:'View profile',approved:'Approved',repaymentReminder:'Telegram repayment reminders',currentLoan:'Current loan',
     feeDetails:'Fee details',loanAgreement:'Signed loan agreement',loadingProfile:'Reading approved information…',nextBill:'The next step shows the amount received, every deduction and the total due.',
     confirmBill:'I checked the amount received, fees, term and total due',confirmTest:'I confirm this is a test application using fictional information',nextBillButton:'Next: view settlement bill',reviewBill:'Review settlement bill',continueSign:'Confirm bill and continue signing',
     notFound:'Loan not found',chooseFromRecords:'Choose a loan again from your records.',viewRecords:'View loan records',
@@ -48,7 +48,7 @@ export const messages:Record<Locale,Record<string,string>>={
     hello:'សួស្តី {name}',simpleFinance:'ហិរញ្ញវត្ថុសាមញ្ញសម្រាប់ជីវិតប្រចាំថ្ងៃ។',highest:'ចំនួនអតិបរមាដែលអាចស្នើសុំ',chooseTerm:'ជ្រើសរើស ១៤ ឬ ២៨ ថ្ងៃ · បង្ហាញថ្លៃសេវាពេញលេញមុនចុះហត្ថលេខា',completeKyc:'បំពេញ KYC',applyLoan:'ដាក់ពាក្យកម្ចី',viewProgress:'មើលវឌ្ឍនភាពកម្ចី',
     threeSteps:'តែ ៣ ជំហានប៉ុណ្ណោះ',identityReview:'ពិនិត្យឯកសារ KYC',chooseAmount:'ជ្រើសចំនួន បញ្ជាក់វិក្កយបត្រ និងចុះហត្ថលេខា',approvalDisbursement:'រង់ចាំការអនុម័ត និងបញ្ចេញប្រាក់',
     noLoans:'មិនទាន់មានកំណត់ត្រាកម្ចី',completeBeforeApply:'សូមបំពេញ KYC មុនដាក់ពាក្យកម្ចី។',startApply:'ចាប់ផ្តើមដាក់ពាក្យ',inProgress:'អ្នកមានពាក្យស្នើសុំកំពុងដំណើរការ',finishCurrent:'សូមបញ្ចប់កម្ចីបច្ចុប្បន្នសិន មុនចាប់ផ្តើមថ្មី។',continue:'បន្តពាក្យបច្ចុប្បន្ន',
-    accountSecurity:'គណនី និងសុវត្ថិភាព',logout:'ចាកចេញ',testAccount:'គណនីសាកល្បង',viewProfile:'មើលព័ត៌មាន',approved:'បានអនុម័ត',
+    accountSecurity:'គណនី និងសុវត្ថិភាព',logout:'ចាកចេញ',testAccount:'គណនីសាកល្បង',viewProfile:'មើលព័ត៌មាន',approved:'បានអនុម័ត',repaymentReminder:'ការរំលឹកសងប្រាក់ Telegram',currentLoan:'កម្ចីបច្ចុប្បន្ន',
     feeDetails:'ព័ត៌មានថ្លៃសេវា',loanAgreement:'កិច្ចព្រមព្រៀងកម្ចីដែលបានចុះហត្ថលេខា',loadingProfile:'កំពុងអានព័ត៌មានដែលបានអនុម័ត…',nextBill:'ជំហានបន្ទាប់នឹងបង្ហាញចំនួនទទួលបាន ការកាត់ទាំងអស់ និងចំនួនត្រូវសងសរុប។',
     confirmBill:'ខ្ញុំបានពិនិត្យចំនួនទទួលបាន ថ្លៃសេវា រយៈពេល និងចំនួនត្រូវសងសរុប',confirmTest:'ខ្ញុំបញ្ជាក់ថានេះជាពាក្យសាកល្បងដោយប្រើព័ត៌មានប្រឌិត',nextBillButton:'បន្ទាប់៖ មើលវិក្កយបត្រ',reviewBill:'ពិនិត្យវិក្កយបត្រ',continueSign:'បញ្ជាក់វិក្កយបត្រ និងបន្តចុះហត្ថលេខា',
     notFound:'រកមិនឃើញកម្ចីនេះ',chooseFromRecords:'សូមជ្រើសកម្ចីម្តងទៀតពីកំណត់ត្រារបស់អ្នក។',viewRecords:'មើលកំណត់ត្រាកម្ចី',
@@ -67,7 +67,7 @@ export function legacyText(text:string,locale:Locale){const value=i18nValue(loca
   // Upload limits are enforced at every boundary; keep legacy callers on the 10 MB contract.
   ...(text==='单份材料不能超过 5 MB'?{ '单份材料不能超过 5 MB':'kycUploadLimit' }:{}),
   ...(text.startsWith('单份不超过 5 MB。')?{ '单份不超过 5 MB。图片支持 JPG/PNG，证明材料可使用 PDF。PDF 以下载方式查看。':'kycUploadDetail' }:{}),
-  '首页':'home','借款记录':'records','我的':'me','申请借款':'apply','费用确认':'bill','确认签约':'sign','借款进度':'status','还款':'repay','提现':'withdraw','身份认证':'kyc','返回':'back','切换语言':'language','站内信息':'notifications','正在加载':'loading','重新加载':'reload','你好，':'hello','查看借款进度':'viewProgress','完成身份认证':'completeKyc','申请只需三步':'threeSteps','身份资料审核':'identityReview','选择金额，确认账单并签约':'chooseAmount','等待审批与放款':'approvalDisbursement','还没有借款记录':'noLoans','完成身份认证后，即可申请借款。':'completeBeforeApply','开始申请':'startApply','继续当前申请':'continue','账户安全':'accountSecurity','账号与安全':'accountSecurity','退出登录':'logout','测试账户':'testAccount','查看资料':'viewProfile','已审核通过':'approved','费用明细':'feeDetails','已签借款协议':'loanAgreement','申请编号':'number','借款期限':'term','实际到账':'net','到期应还':'due','已还金额':'paid','还款日期':'repaymentDate','办理进度':'processing','测试资金 · 不产生真实债务':'noDebt','已注册 · 待 KYC':'registered','待资料审核':'kycPending','待补件':'needsInfo','资料通过':'kycApproved','待机构审批':'decisionPending','待签约':'approvedStatus','申请未通过':'rejected','待放款':'signed','还款中':'active','已结清':'closed'};
+  '首页':'home','借款记录':'records','我的':'me','申请借款':'apply','费用确认':'bill','确认签约':'sign','借款进度':'status','还款':'repay','提现':'withdraw','身份认证':'kyc','返回':'back','切换语言':'language','站内信息':'notifications','Telegram 还款提醒':'repaymentReminder','当前借款':'currentLoan','正在加载':'loading','重新加载':'reload','你好，':'hello','查看借款进度':'viewProgress','完成身份认证':'completeKyc','申请只需三步':'threeSteps','身份资料审核':'identityReview','选择金额，确认账单并签约':'chooseAmount','等待审批与放款':'approvalDisbursement','还没有借款记录':'noLoans','完成身份认证后，即可申请借款。':'completeBeforeApply','开始申请':'startApply','继续当前申请':'continue','账户安全':'accountSecurity','账号与安全':'accountSecurity','退出登录':'logout','测试账户':'testAccount','查看资料':'viewProfile','已审核通过':'approved','费用明细':'feeDetails','已签借款协议':'loanAgreement','申请编号':'number','借款期限':'term','实际到账':'net','到期应还':'due','已还金额':'paid','还款日期':'repaymentDate','办理进度':'processing','测试资金 · 不产生真实债务':'noDebt','已注册 · 待 KYC':'registered','待资料审核':'kycPending','待补件':'needsInfo','资料通过':'kycApproved','待机构审批':'decisionPending','待签约':'approvedStatus','申请未通过':'rejected','待放款':'signed','还款中':'active','已结清':'closed'};
   // The greeting is rendered by the legacy home screen and can already be
   // translated once. Accept every supported language prefix so a later
   // language switch can translate it back instead of leaving stale copy.
@@ -76,6 +76,15 @@ export function legacyText(text:string,locale:Locale){const value=i18nValue(loca
     const name=text.slice(greeting[0].length).replace(/^[\s\u00a0]+/,'');
     return value.t('hello',{name});
   }
+  const normalizedText=text.replace(/\s+/g,' ').trim();
+  const currentLoan=/^(当前借款|Current loan|កម្ចីបច្ចុប្បន្ន)\s*·\s*(.*)$/.exec(normalizedText);
+  if(currentLoan)return `${value.t('currentLoan')} · ${legacyText(currentLoan[2],locale)}`;
+  const loanNotes:{source:string;en:string;km:string}[]=[
+   {source:'费用已确认、合同已签署，等待贷款审批',en:'Fees confirmed, agreement signed; awaiting institution review',km:'បានបញ្ជាក់ថ្លៃសេវា និងចុះហត្ថលេខាលើកិច្ចព្រមព្រៀងរួច រង់ចាំស្ថាប័នអនុម័ត'},
+   {source:'费用已确认、合同已签署，可以提交贷款审批',en:'Fees confirmed and agreement signed; ready to submit for loan review',km:'បានបញ្ជាក់ថ្លៃសេវា និងចុះហត្ថលេខាលើកិច្ចព្រមព្រៀងរួច អាចដាក់ស្នើពិនិត្យកម្ចី'},
+  ];
+  const loanNote=loanNotes.find(item=>item.source===normalizedText||item.en===normalizedText||item.km===normalizedText);
+  if(loanNote)return locale==='zh'?loanNote.source:locale==='km'?loanNote.km:loanNote.en;
   if(text.startsWith('剩余应还 '))return value.t('outstanding')+' '+text.slice(5);
   if(text.startsWith('提现 · '))return value.t('withdrawNow',{amount:text.slice(5)});
   if(text.startsWith('去还款 · '))return value.t('repayNow',{amount:text.slice(5)});
@@ -85,6 +94,7 @@ export function legacyText(text:string,locale:Locale){const value=i18nValue(loca
   // @ts-ignore legacy aliases below intentionally contain a repeated source key
   Object.assign(kyc,{
    '完善身份与工作资料':['Complete identity and work information','បំពេញព័ត៌មានអត្តសញ្ញាណ និងការងារ'],
+   '基本身份':['Basic identity','ព័ត៌មានអត្តសញ្ញាណមូលដ្ឋាន'],'个人情况':['Personal details','ព័ត៌មានផ្ទាល់ខ្លួន'],'居住地址':['Residential address','អាសយដ្ឋានលំនៅដ្ឋាន'],'紧急联系人一':['Emergency contact 1','អ្នកទំនាក់ទំនងបន្ទាន់ ១'],'紧急联系人二':['Emergency contact 2','អ្នកទំនាក់ទំនងបន្ទាន់ ២'],'紧急联系人三（选填）':['Emergency contact 3 (optional)','អ្នកទំនាក់ទំនងបន្ទាន់ ៣ (ជាជម្រើស)'],'工作资料':['Employment information','ព័ត៌មានការងារ'],'收入资料':['Income information','ព័ត៌មានចំណូល'],'资产资料':['Assets information','ព័ត៌មានទ្រព្យសម្បត្តិ'],'证件号码':['Document number','លេខឯកសារអត្តសញ្ញាណ'],'证件号码不能为空':['Document number is required','ត្រូវបំពេញលេខឯកសារអត្តសញ្ញាណ'],
    '可分步填写并保存草稿。提交后资料锁定，补件退回后可修改。':['Complete step by step and save a draft. After submission, the record is locked; returned cases can be edited.','បំពេញជាជំហានៗ និងរក្សាទុកសេចក្តីព្រាង។ បន្ទាប់ពីដាក់ស្នើ ឯកសារនឹងត្រូវចាក់សោ ហើយអាចកែបាននៅពេលត្រូវបំពេញបន្ថែម។'],
    'KYC 人工审核':['Manual KYC review','ការពិនិត្យ KYC ដោយបុគ្គលិក'],
    '逐项核对原始材料，记录依据；资料审核与贷款审批分开处理。':['Check each original document and record the basis; KYC review is separate from loan approval.','ពិនិត្យឯកសារដើមរាល់មុខ និងកត់ត្រាមូលហេតុ។ ការពិនិត្យ KYC ដាច់ដោយឡែកពីការអនុម័តកម្ចី។'],

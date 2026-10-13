@@ -1,0 +1,59 @@
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: deploy/api/Dockerfile
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4300/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    depends_on:
+      scanner:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:4320:4300"
+    volumes:
+      - /opt/payease/data:/data
+      - /opt/payease/scanner-secrets:/run/scanner-secrets
+    environment:
+      SCANNER_TOKEN_PATH: /run/scanner-secrets/scanner-token
+    mem_limit: 768m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  clamav:
+    image: clamav/clamav:1.4
+    restart: unless-stopped
+    volumes:
+      - /opt/payease/clamav:/var/lib/clamav
+    mem_limit: 768m
+    expose:
+      - "3310"
+
+  scanner:
+    build: ../clamav-gateway
+    restart: unless-stopped
+    depends_on:
+      clamav:
+        condition: service_started
+    environment:
+      CLAMD_HOST: clamav
+      CLAMD_PORT: "3310"
+      SCAN_TOKEN_FILE: /run/scanner-secrets/scanner-token
+    volumes:
+      - /opt/payease/data:/data:ro
+      - /opt/payease/scanner-secrets:/run/scanner-secrets:ro
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s

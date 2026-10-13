@@ -5,17 +5,34 @@ import {env} from 'cloudflare:workers';
 import {initialState,applyAction,type State} from './domain';
 import {customerAction} from './domain';
 import {findCase,payload,reviewer,KycError} from './kyc/server';
+import {publicIdentifier} from './public-id.ts';
+import {channelForAccount,claimPublicIdentifier} from './public-id-store.ts';
 function db(){if(!env.DB)throw Error('测试数据库暂不可用');return env.DB}
+async function hydratePublicRefs(owner:string,state:State,revision:number){
+ let changed=false;
+ const customerChannels=new Map<string,'TG'|'H5'|'AP'|'AD'|'IN'|'SY'>();
+ const accounts=(await db().prepare('SELECT customer_id,mode,channel_id FROM h5_accounts WHERE owner=?').bind(owner).all<{customer_id:string;mode:string;channel_id:string|null}>()).results;
+ for(const account of accounts)customerChannels.set(account.customer_id,channelForAccount(account.mode,account.channel_id));
+ for(const loan of state.loans){
+  const channel=loan.sourceChannel||customerChannels.get(loan.customerId||'')||'SY';
+  const orderRef=await claimPublicIdentifier(db(),'O',channel,loan.id,owner,loan.createdAt);
+  if(loan.publicRef!==orderRef||loan.sourceChannel!==channel){loan.publicRef=orderRef;loan.sourceChannel=channel;changed=true}
+  if(loan.billing){const billRef=await claimPublicIdentifier(db(),'B',channel,loan.id+':bill',owner,loan.createdAt);if(loan.billing.publicRef!==billRef){loan.billing.publicRef=billRef;changed=true}}
+ }
+ if(changed)await db().prepare('UPDATE demo_workspaces SET payload=? WHERE owner=? AND revision=?').bind(JSON.stringify(state),owner,revision).run();
+ return state;
+}
 export async function readState(owner:string):Promise<{state:State;revision:number}>{
  const row=await db().prepare('SELECT revision,payload FROM demo_workspaces WHERE owner=?').bind(owner).first<{revision:number;payload:string}>();
  const result=row?{state:JSON.parse(row.payload) as State,revision:row.revision}:{state:initialState(),revision:0};
+ if(row)result.state=await hydratePublicRefs(owner,result.state,result.revision);
  const credentials=(await db().prepare('SELECT bot_id,telegram_id,label,username FROM telegram_bot_credentials WHERE owner=?').bind(owner).all<{bot_id:string;telegram_id:string;label:string;username:string}>()).results;
  for(const bot of result.state.bots){const saved=credentials.find(c=>c.bot_id===bot.id);bot.tokenConfigured=!!saved;if(saved){bot.label=saved.label;bot.username=saved.username;bot.telegramId=saved.telegram_id}}
  return result;
 }
 // The settlement override is an internal post-loan test/worker capability only;
 // H5 routes never pass it and customer requests cannot set function arguments.
-export async function mutate(owner:string,p:any,customer?:{id:string;phoneMasked:string},options:{allowInternalSettlement?:boolean}={}){
+export async function mutate(owner:string,p:any,customer?:{id:string;phoneMasked:string;channel?:'TG'|'H5'|'AP'|'AD'|'IN'|'SY'},options:{allowInternalSettlement?:boolean}={}){
  await db().prepare('INSERT OR IGNORE INTO demo_workspaces (owner,revision,payload) VALUES (?,0,?)').bind(owner,JSON.stringify(initialState())).run();
  for(let i=0;i<4;i++){
   const {state,revision}=await readState(owner);
@@ -41,7 +58,7 @@ export async function mutate(owner:string,p:any,customer?:{id:string;phoneMasked
   if(creationCase){const target=next.loans[0];target.status='kyc_approved';target.kycCaseId=creationCase.id;target.kycRevision=creationCase.revision;target.note='贷款申请已创建，请核对测算费用后确认签约';}
   if(confirmedContract){const target=next.loans.find(l=>l.id===p.loanId)!;target.signedAt=confirmedContract.signedAt;target.signature='已保存的手写签名';target.contract=JSON.stringify({...confirmedContract,notice:'仅测试资金，待机构审批，不产生真实债务'});target.note='费用已确认、合同已签署，等待贷款审批';}
 
-  if(next===state)return {state,revision};if(p.action==='create'&&owner.startsWith('t_')){const termDays=p.termDays??14;if(![14,28].includes(termDays))throw new KycError('请选择 14 天或 28 天贷款期限');const bill=calculateBill(next.loans[0].amount,{...await pricingFor(owner),termDays},crypto.randomUUID());next.loans[0].billing=bill;next.loans[0].fee=bill.total-bill.principal;}if(customer)await ensureAssignment(owner,customer.id);
+  if(next===state)return {state,revision};if(p.action==='create'&&owner.startsWith('t_')){const termDays=p.termDays??14;if(![14,28].includes(termDays))throw new KycError('请选择 14 天或 28 天贷款期限');const bill=calculateBill(next.loans[0].amount,{...await pricingFor(owner),termDays},crypto.randomUUID());bill.publicRef=publicIdentifier('B',customer?.channel||'AD',new Date(next.loans[0].createdAt));next.loans[0].billing=bill;next.loans[0].fee=bill.total-bill.principal;}if(customer)await ensureAssignment(owner,customer.id);
   if(approvedCase){
    const updated=next.loans.find(l=>l.id===p.loanId)!;
    if(p.action==='approve'){const contract=await validLoanContract(owner,updated,approvedCase);updated.status='signed';updated.signedAt=contract.signedAt;updated.signature='已保存的手写签名';updated.contract=JSON.stringify(contract);updated.note='审批通过，按已签合同等待放款'}

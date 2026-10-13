@@ -5,9 +5,10 @@ import {getChatGPTUser} from '@/app/chatgpt-auth';
 import {readState} from '@/lib/store';
 import {validateInitData} from '@/lib/telegram';
 import {json} from '@/lib/h5-auth';
+import {assertAllowedOrigin} from '@/lib/request-security';
 export async function POST(request:Request){
  const u=await getChatGPTUser();if(!u)return json({error:'请先登录'},401);
- const origin=request.headers.get('origin');if(origin&&origin!==new URL(request.url).origin)return json({error:'不允许跨站操作'},403);
+ try{assertAllowedOrigin(request,false)}catch{return json({error:'不允许跨站操作',code:'CROSS_SITE_REQUEST'},403)}
  try{
   const company=await selectedCompany();if(company)await staff();
   const p=await request.json() as {botId:string;initData?:string};const {state}=await readState(company?.id||u.userId);const bot=state.bots.find(b=>b.id===p.botId&&b.enabled);

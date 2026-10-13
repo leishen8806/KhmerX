@@ -8,8 +8,14 @@ const moduleRoot='/app/dist/server';
 // them so a copied release cannot make the Workers runtime fail at boot.
 const modulePaths=readdirSync(moduleRoot,{recursive:true}).filter(n=>/\.m?js$/.test(n)&&!n.split('/').some(part=>part.startsWith('._')));
 const modules=['index.js',...modulePaths.filter(n=>n!=='index.js')].map(n=>({type:'ESModule',path:moduleRoot+'/'+n}));
+const buildId=existsSync(moduleRoot+'/BUILD_ID')?readFileSync(moduleRoot+'/BUILD_ID','utf8').trim():'unknown';
 const cfg=JSON.parse(readFileSync('/data/config.json','utf8'));
-writeFileSync('/data/scanner-token',String(cfg.bindings?.KYC_SCAN_TOKEN||''),{mode:0o644});
+// Keep the scanner credential outside the broad /data bind mount.  The
+// scanner gateway runs as nobody, while /data is intentionally root-only.
+// A dedicated secret mount lets the gateway enforce authorization without
+// widening access to the database/object-store files in /data.
+const scannerTokenPath=process.env.SCANNER_TOKEN_PATH||'/data/scanner-token';
+writeFileSync(scannerTokenPath,String(cfg.bindings?.KYC_SCAN_TOKEN||''),{mode:0o640});
 if(cfg.bindings?.KHMERX_TEST_MODE==='true')throw new Error('KHMERX_TEST_MODE must be disabled for standalone production boot');
 if(cfg.bindings?.PAYEASE_IDENTITY_PROOF_REQUIRED!==undefined&&cfg.bindings.PAYEASE_IDENTITY_PROOF_REQUIRED!=='true')throw new Error('PAYEASE_IDENTITY_PROOF_REQUIRED must be true for standalone production boot');
 const mf=new Miniflare({modules,modulesRoot:moduleRoot,compatibilityDate:'2026-05-15',compatibilityFlags:['nodejs_compat'],assets:{directory:'/app/dist/client',binding:'ASSETS',routerConfig:{has_user_worker:true}},d1Databases:{DB:'payease'},d1Persist:'/data/d1',r2Buckets:{BUCKET:'payease'},r2Persist:'/data/r2',bindings:cfg.bindings,host:'127.0.0.1'});
@@ -29,6 +35,39 @@ for(const name of migrationFiles){
  const parts=splitSql(readFileSync('/app/drizzle/'+name,'utf8'));
  await db.batch([...parts.map(s=>db.prepare(s)),db.prepare('INSERT INTO standalone_migrations VALUES (?)').bind(name)]);
 }
+// Public references are operator-facing aliases. Historical rows may predate
+// the alias columns, so backfill them on boot in an idempotent transaction-like
+// sequence while preserving every internal UUID/hash and JSON payload field.
+const PUBLIC_ALPHABET='0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+const dateValue=value=>{if(typeof value==='number'&&Number.isFinite(value))return new Date(value<1e12?value*1000:value);const text=String(value??'').trim();if(/^\d{10,13}$/.test(text)){const number=Number(text);return new Date(text.length===10?number*1000:number)}return new Date(value)};
+const publicDate=value=>{const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Phnom_Penh',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(dateValue(value));const get=t=>parts.find(p=>p.type===t)?.value||'';return get('year').slice(-2)+get('month')+get('day')};
+const publicRef=(entity,channel,at)=>{let random='';while(random.length<7){for(const byte of randomBytes(32)){if(byte>=224)continue;random+=PUBLIC_ALPHABET[byte&31];if(random.length===7)break;}}return entity+channel+publicDate(at)+random};
+async function claimPublicRef(entity,channel,internalId,tenantId,at){
+ const found=await db.prepare('SELECT ref FROM public_identifiers WHERE entity_type=? AND internal_id=?').bind(entity,internalId).first();
+ if(found?.ref)return String(found.ref);
+ for(let attempt=0;attempt<6;attempt++){
+  const ref=publicRef(entity,channel,at);
+  try{const result=await db.prepare('INSERT INTO public_identifiers (ref,entity_type,internal_id,tenant_id,source_channel,created_at) VALUES (?,?,?,?,?,?)').bind(ref,entity,internalId,tenantId||null,channel,dateValue(at).toISOString()).run();if(result.meta.changes===1)return ref}catch(error){const retry=await db.prepare('SELECT ref FROM public_identifiers WHERE entity_type=? AND internal_id=?').bind(entity,internalId).first();if(retry?.ref)return String(retry.ref);if(attempt===5)throw error;}
+ }
+ throw new Error('public reference backfill failed');
+}
+const channelFor=(mode,channelId)=>mode==='telegram'?'TG':mode==='demo'?'H5':String(channelId||'').startsWith('api')?'IN':'SY';
+async function backfillPublicIdentifiers(){
+ let customers=0,kycs=0,files=0,tickets=0,audits=0,workspaces=0;
+ const accountRows=(await db.prepare('SELECT customer_id,owner,mode,channel_id,customer_ref,source_channel,created_at FROM h5_accounts').all()).results||[];
+ const accountMap=new Map();
+ for(const row of accountRows){const channel=row.source_channel||channelFor(row.mode,row.channel_id),ref=await claimPublicRef('C',channel,row.customer_id,row.owner,row.created_at||new Date().toISOString());if(row.customer_ref!==ref||row.source_channel!==channel){await db.prepare('UPDATE h5_accounts SET customer_ref=?,source_channel=? WHERE owner=? AND customer_id=?').bind(ref,channel,row.owner,row.customer_id).run();customers++;}accountMap.set(row.owner+'|'+row.customer_id,channel)}
+ for(const row of (await db.prepare('SELECT id,owner,customer_id,public_ref,source_channel,updated_at FROM kyc_cases').all()).results||[]){const channel=accountMap.get(row.owner+'|'+row.customer_id)||'SY',ref=await claimPublicRef('K',channel,row.id,row.owner,row.updated_at||new Date().toISOString());if(row.public_ref!==ref||row.source_channel!==channel){await db.prepare('UPDATE kyc_cases SET public_ref=?,source_channel=? WHERE id=? AND owner=?').bind(ref,channel,row.id,row.owner).run();kycs++;}}
+ for(const row of (await db.prepare('SELECT id,owner,customer_id,public_ref,source_channel,created_at FROM kyc_files').all()).results||[]){const channel=accountMap.get(row.owner+'|'+row.customer_id)||'SY',ref=await claimPublicRef('F',channel,row.id,row.owner,row.created_at||new Date().toISOString());if(row.public_ref!==ref||row.source_channel!==channel){await db.prepare('UPDATE kyc_files SET public_ref=?,source_channel=? WHERE id=? AND owner=?').bind(ref,channel,row.id,row.owner).run();files++;}}
+ for(const row of (await db.prepare('SELECT id,tenant_id,public_ref,source_channel,created_at FROM team_service_tickets').all()).results||[]){const ref=await claimPublicRef('T','AD',row.id,row.tenant_id,row.created_at||new Date().toISOString());if(row.public_ref!==ref||row.source_channel!=='AD'){await db.prepare('UPDATE team_service_tickets SET public_ref=?,source_channel=? WHERE id=? AND tenant_id=?').bind(ref,'AD',row.id,row.tenant_id).run();tickets++;}}
+ // team_audit is append-only by database trigger. For historical rows keep the
+ // original audit record untouched and store the operator-facing alias only in
+ // the public_identifiers mapping table; new audit writes may populate columns.
+ for(const row of (await db.prepare('SELECT id,tenant_id,actor,created_at FROM team_audit').all()).results||[]){const channel=row.actor==='system'?'SY':'AD';await claimPublicRef('A',channel,row.id,row.tenant_id,row.created_at||new Date().toISOString());audits++;}
+ for(const row of (await db.prepare('SELECT owner,revision,payload FROM demo_workspaces').all()).results||[]){let state;try{state=JSON.parse(String(row.payload))}catch{continue}let changed=false;for(const loan of Array.isArray(state.loans)?state.loans:[]){const channel=loan.sourceChannel||accountMap.get(row.owner+'|'+String(loan.customerId||''))||'SY',order=await claimPublicRef('O',channel,loan.id,row.owner,loan.createdAt||new Date().toISOString());if(loan.publicRef!==order||loan.sourceChannel!==channel){loan.publicRef=order;loan.sourceChannel=channel;changed=true}if(loan.billing){const bill=await claimPublicRef('B',channel,loan.id+':bill',row.owner,loan.createdAt||new Date().toISOString());if(loan.billing.publicRef!==bill){loan.billing.publicRef=bill;changed=true}}}if(changed){await db.prepare('UPDATE demo_workspaces SET payload=? WHERE owner=? AND revision=?').bind(JSON.stringify(state),row.owner,row.revision).run();workspaces++;}}
+ console.log(JSON.stringify({event:'public_reference_backfill',customers,kycs,files,tickets,audits,workspaces}));
+}
+await backfillPublicIdentifiers();
 for(const company of cfg.companies){
  const t=company.id,dept=t+':ops',institution=t+':institution',post=t+':postloan';
  await db.batch([
@@ -52,6 +91,24 @@ const server=createServer(async(req,res)=>{try{
  const expected='Basic '+Buffer.from(cfg.accessUser+':'+cfg.accessPassword).toString('base64');
  const jobRequest=req.url==='/api/jobs/postloan'&&req.method==='POST'&&eq(req.headers.authorization||'','Bearer '+cfg.bindings.POSTLOAN_JOB_SECRET);
  const host=req.headers.host;
+ if(req.method==='GET'&&['/healthz','/readyz','/version'].includes(req.url)){
+  if(req.url==='/healthz'){
+   res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});
+   return res.end(JSON.stringify({status:'ok'}));
+  }
+  if(req.url==='/version'){
+   res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});
+   return res.end(JSON.stringify({service:'payease-api',buildId}));
+  }
+  try{
+   await db.prepare('SELECT 1 AS ok').first();
+   res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});
+   return res.end(JSON.stringify({status:'ready',buildId}));
+  }catch{
+   res.writeHead(503,{'Content-Type':'application/json','Cache-Control':'no-store'});
+   return res.end(JSON.stringify({status:'not_ready'}));
+  }
+ }
  if(![cfg.host,'admin.khmerx.org','api.khmerx.org','payease.khmerx.org','payeas.khmerx.org'].includes(host)){res.writeHead(400);return res.end('Invalid host');}
  const publicClient=host==='payease.khmerx.org'||host==='payeas.khmerx.org'||host==='api.khmerx.org'||host==='admin.khmerx.org';
  if(!jobRequest&&!publicClient&&!eq(req.headers.authorization||'',expected)){res.writeHead(401,{'WWW-Authenticate':'Basic realm="PayEase private test"','Cache-Control':'no-store'});return res.end('Private test environment');}

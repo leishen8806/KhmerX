@@ -8,13 +8,14 @@ export const choices=source.options;
 export const regions=source.regions;
 export type KycStatus='draft'|'submitted'|'needs_info'|'approved'|'rejected';
 export const statusLabels:Record<KycStatus,string>={draft:'草稿',submitted:'待人工审核',needs_info:'待补件',approved:'人工资料审核通过',rejected:'资料审核未通过'};
-export const sections=[{id:'identity',label:'个人与身份资料'},{id:'contacts',label:'紧急联系人'},{id:'employment',label:'工作与资产'},{id:'bank',label:'收款账户资料'},{id:'consent',label:'资料授权确认'}] as const;
+export const sections=[{id:'identity',label:'个人与身份资料'},{id:'contacts',label:'紧急联系人'},{id:'employment',label:'工作资料'},{id:'income',label:'收入资料'},{id:'assets',label:'资产资料'},{id:'bank',label:'收款账户资料'},{id:'consent',label:'资料授权确认'}] as const;
 export type Section=typeof sections[number]['id'];
 export type Field={id:string;label:string;section:Section;required?:boolean;options?:{value:string;label:string}[];kind?:'phone'|'select';source:string};
 const opts=(values:string[])=>values.map(x=>({value:x,label:x}));
 export const fields:Field[]=[
  {id:'surname',label:'姓',section:'identity',required:true,source:'B2:F3'},
  {id:'givenName',label:'名',section:'identity',required:true,source:'B2:F3'},
+ {id:'documentNumber',label:'证件号码',section:'identity',required:true,source:'B4:F5'},
  {id:'gender',label:'性别',section:'identity',required:true,options:opts(['男','女']),source:'B4:F5'},
  {id:'education',label:'学历',section:'identity',required:true,options:choices.education,source:'B6:F6 / 附件一'},
  {id:'marital',label:'婚姻状态',section:'identity',required:true,options:opts(['已婚','未婚']),source:'B7:F8'},
@@ -29,12 +30,12 @@ export const fields:Field[]=[
  {id:'company',label:'公司 / 商店名称',section:'employment',required:true,source:'B21:F21'},
  {id:'industry',label:'行业',section:'employment',required:true,options:choices.industry,source:'B22:F22 / 附件三'},
  {id:'position',label:'职位',section:'employment',required:true,options:choices.position,source:'B23:F23 / 附件二'},
- {id:'income',label:'月收入区间',section:'employment',required:true,options:choices.income,source:'B24:F24 / 附件六'},
- {id:'tenure',label:'工作年限',section:'employment',required:true,options:choices.tenure,source:'B25:F25 / 附件四'},
- {id:'supervisorName',label:'部门上司姓名',section:'employment',source:'B26:F26'},
- {id:'supervisorPhone',label:'部门上司电话（含国家区号）',section:'employment',kind:'phone',source:'B27:F27'},
- {id:'vehicle',label:'车辆类型',section:'employment',options:opts(['摩托车','嘟嘟车','汽车','无']),source:'B29:F32'},
- {id:'housing',label:'住房类型',section:'employment',options:opts(['租房','个人房产','无']),source:'B36:F38'},
+ {id:'income',label:'月收入区间',section:'income',required:true,options:choices.income,source:'B24:F24 / 附件六'},
+ {id:'tenure',label:'工作年限',section:'income',required:true,options:choices.tenure,source:'B25:F25 / 附件四'},
+ {id:'supervisorName',label:'部门上司姓名',section:'income',source:'B26:F26'},
+ {id:'supervisorPhone',label:'部门上司电话（含国家区号）',section:'income',kind:'phone',source:'B27:F27'},
+ {id:'vehicle',label:'车辆类型',section:'assets',options:opts(['摩托车','嘟嘟车','汽车','无']),source:'B29:F32'},
+ {id:'housing',label:'住房类型',section:'assets',options:opts(['租房','个人房产','无']),source:'B36:F38'},
  {id:'bankName',label:'选择银行',section:'bank',required:true,options:[...opts(['ABA Bank','ACLEDA Bank']),{value:'Wing',label:'Wing Bank'}],source:'B41:F41'},
  {id:'bankAccount',label:'银行账号',section:'bank',required:true,source:'B42:F42'},
  {id:'bankHolder',label:'账户姓名',section:'bank',required:true,source:'B43:F43'},
@@ -43,16 +44,16 @@ export const slots=[
  {id:'idFront',label:'身份证正面',section:'identity',required:true,points:5,source:'B11:F11'},
  {id:'idBack',label:'身份证反面',section:'identity',required:true,points:5,source:'B12:F12'},
  {id:'selfie',label:'个人自拍照',section:'identity',required:true,points:5,source:'B13:F13'},
- {id:'incomeProof',label:'收入 / 工作证明',section:'employment',required:true,points:5,source:'B28:F28'},
- {id:'vehicleInvoice',label:'购车发票',section:'employment',required:false,points:10,source:'D33:F33'},
- {id:'vehicleContract',label:'购车合同',section:'employment',required:false,points:20,source:'D34:F34'},
- {id:'vehiclePhoto',label:'车辆照片',section:'employment',required:false,points:5,source:'D35:F35'},
- {id:'rentContract',label:'租房合同',section:'employment',required:false,points:10,source:'D39:F39'},
- {id:'propertyCertificate',label:'房屋产权证',section:'employment',required:false,points:20,source:'D40:F40'},
+ {id:'incomeProof',label:'收入 / 工作证明',section:'income',required:true,points:5,source:'B28:F28'},
+ {id:'vehicleInvoice',label:'购车发票',section:'assets',required:false,points:10,source:'D33:F33'},
+ {id:'vehicleContract',label:'购车合同',section:'assets',required:false,points:20,source:'D34:F34'},
+ {id:'vehiclePhoto',label:'车辆照片',section:'assets',required:false,points:5,source:'D35:F35'},
+ {id:'rentContract',label:'租房合同',section:'assets',required:false,points:10,source:'D39:F39'},
+ {id:'propertyCertificate',label:'房屋产权证',section:'assets',required:false,points:20,source:'D40:F40'},
  {id:'signature',label:'手写签名',section:'consent',required:false,points:5,source:'B46:F46'},
 ] as const;
 export type Slot=typeof slots[number]['id'];
-export type FileRef={id:string;slot:Slot;name:string;type:string;size:number;sha256:string};
+export type FileRef={id:string;publicRef?:string;slot:Slot;name:string;type:string;size:number;sha256:string};
 export type Profile={values:Record<string,string>;files:Partial<Record<Slot,FileRef>>;consent:boolean;declarationVersion:string;location?:{lat:number;lon:number;accuracy:number;capturedAt:string;source?:'device'|'google_geocoding';formattedAddress?:string}};
 export const vehicleSlots:Slot[]=['vehicleInvoice','vehicleContract','vehiclePhoto'];
 export function hasVehicle(p:Profile){return ['摩托车','嘟嘟车','汽车'].includes(p.values.vehicle)}

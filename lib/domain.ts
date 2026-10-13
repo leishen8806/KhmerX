@@ -1,12 +1,13 @@
 import type {Postloan} from './postloan/core';
 import {syncSettlements} from './postloan/core.ts';
 import type {Bill} from './pricing';
+import {publicIdentifier,type PublicChannel} from './public-id.ts';
 export type Role='mini'|'ops'|'lender';
 export type Status='registered'|'kyc_pending'|'needs_info'|'kyc_approved'|'decision_pending'|'approved'|'rejected'|'signed'|'active'|'closed';
 export type Bot={tokenConfigured?:boolean;telegramId?:string;phoneVerification?:boolean;passwordSetup?:boolean;id:string;label:string;username:string;enabled:boolean;envKey:string};
 export type Entry={id:string;loanId:string;kind:string;cents:number;debit:string;credit:string;at:string};
 export type Event={id:string;loanId:string;action:string;role:Role;note:string;at:string};
-export type Loan={billing?:Bill;billConfirmedAt?:string;approvalActor?:string;approvalCheckedBy?:string;fundingActor?:string;fundingCheckedBy?:string;id:string;customerId?:string;kycCaseId?:string;kycRevision?:number;phoneMasked?:string;name:string;botId:string;amount:number;fee:number;status:Status;createdAt:string;dueAt?:string;signedAt?:string;signature?:string;contract?:string;paid:number;wallet:number;note:string;demoDays:number;kyc:{income:number;contacts:string[];document:string}};
+export type Loan={billing?:Bill;publicRef?:string;sourceChannel?:PublicChannel;billConfirmedAt?:string;approvalActor?:string;approvalCheckedBy?:string;fundingActor?:string;fundingCheckedBy?:string;id:string;customerId?:string;kycCaseId?:string;kycRevision?:number;phoneMasked?:string;name:string;botId:string;amount:number;fee:number;status:Status;createdAt:string;dueAt?:string;signedAt?:string;signature?:string;contract?:string;paid:number;wallet:number;note:string;demoDays:number;kyc:{income:number;contacts:string[];document:string}};
 export type State={activeBotId?:string;postloan?:Postloan;loans:Loan[];bots:Bot[];events:Event[];entries:Entry[];notifications:{id:string;loanId:string;botId:string;text:string;at:string;status:string}[];requests:string[];requestDigests?:Record<string,string>};
 export function requestFingerprint(input:Record<string,unknown>){return JSON.stringify(Object.entries(input).filter(([key])=>key!=='requestId').sort(([a],[b])=>a.localeCompare(b)))}
 export function businessBot(s:State){return s.activeBotId?s.bots.find(b=>b.id===s.activeBotId&&b.enabled):s.bots.find(b=>b.enabled)}
@@ -41,7 +42,9 @@ export function applyAction(input:State,p:any,now=new Date().toISOString()):Stat
   const amount=Number(p.amount);if(![3000,5000,10000,50000].includes(amount))throw Error('请选择 30、50、100 或 500 USD 测试额度');
   const name=text(p.name,50).toUpperCase();if(name.length<2)throw Error('请填写测试姓名');
   if(p.consent!==true)throw Error('请先确认测试资料授权');
-  const loan:Loan={id:id(),name,botId:p.botId,amount,fee:200,status:'registered',createdAt:now,paid:0,wallet:0,note:'注册完成，请继续提交测试 KYC',demoDays:0,kyc:{income:30000,contacts:['演示亲属 · TEST-001','演示朋友 · TEST-002'],document:'示例身份证与收入证明（合成测试资料）'}};
+  const sourceChannel:PublicChannel=['TG','H5','AP','AD','IN','SY'].includes(p.sourceChannel)?p.sourceChannel:'SY';
+  const internalId=id();
+  const loan:Loan={id:internalId,publicRef:publicIdentifier('O',sourceChannel,new Date(now)),sourceChannel,name,botId:p.botId,amount,fee:200,status:'registered',createdAt:now,paid:0,wallet:0,note:'注册完成，请继续提交测试 KYC',demoDays:0,kyc:{income:30000,contacts:['演示亲属 · TEST-001','演示朋友 · TEST-002'],document:'示例身份证与收入证明（合成测试资料）'}};
   s.loans.unshift(loan);s.events.unshift({id:id(),loanId:loan.id,action:'create',role:'mini',note:'测试用户注册完成',at:now});
  }else{
   const l=s.loans.find(l=>l.id===p.loanId);if(!l)throw Error('申请不存在');
@@ -85,12 +88,12 @@ export function customerState(state:State,customerId:string):State{
  const loans=state.loans.filter(l=>l.customerId===customerId),ids=new Set(loans.map(l=>l.id));
  return {...state,postloan:undefined,loans,bots:state.bots.filter(b=>b.enabled).map(b=>({...b,envKey:''})),events:state.events.filter(e=>ids.has(e.loanId)),entries:state.entries.filter(e=>ids.has(e.loanId)),notifications:state.notifications.filter(e=>ids.has(e.loanId)),requests:[]};
 }
-export function customerAction(state:State,input:any,customer:{id:string;phoneMasked:string},options:{allowInternalSettlement?:boolean}={}):State{
+export function customerAction(state:State,input:any,customer:{id:string;phoneMasked:string;channel?:PublicChannel},options:{allowInternalSettlement?:boolean}={}):State{
  if(!input||roles[input.action]!=='mini'||input.role&&input.role!=='mini')throw Error('客户会话无权执行此操作');
  if(input.action!=='create'&&!state.loans.some(l=>l.id===input.loanId&&l.customerId===customer.id))throw Error('申请不存在或不属于当前客户');
  if(!options.allowInternalSettlement&&['repay','withdraw'].includes(input.action))throw Error('还款或提现需通过机构审核及受支持的支付渠道处理');
  if(typeof input.requestId!=='string'||input.requestId.length<8||input.requestId.length>100)throw Error('请求编号无效');
- const p={...input,role:'mini',requestId:customer.id.slice(0,16)+':'+input.requestId.slice(0,80)};
+ const p={...input,role:'mini',sourceChannel:customer.channel||'H5',requestId:customer.id.slice(0,16)+':'+input.requestId.slice(0,80)};
  const next=applyAction(state,p);if(next===state)return state;
  if(p.action==='create'){next.loans[0].customerId=customer.id;next.loans[0].phoneMasked=customer.phoneMasked;next.loans[0].kyc={income:0,contacts:[],document:'身份资料单独提交并由授权人员人工审核'};next.loans[0].note='注册完成，请填写身份资料并等待人工审核'}
  return next;

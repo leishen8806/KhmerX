@@ -8,6 +8,7 @@ import {PasswordRecovery} from '@/components/password-recovery';
 import {MiniClient} from '@/components/mini-client';
 import {MiniNavigationProvider} from '@/components/mini-shell';
 import {MiniRouteLoading} from '@/components/mini-route-loading';
+import {apiFetch,ApiClientError} from '@/lib/api-client';
 type Session={phoneMasked:string;mode:'demo'|'telegram';expiresAt:number;phoneVerified?:boolean;verificationCompleted?:boolean;hasPassword?:boolean};
 type Challenge={challengeId:string;expiresAt:number;retryAt:number;demoCode?:string;phoneMasked:string};
 export default function H5Login(){
@@ -27,12 +28,12 @@ export default function H5Login(){
   const raw=window.location.hash.startsWith('#')?window.location.hash.slice(1):'';
   return new URLSearchParams(raw).get('tgWebAppData')||'';
  };
- const load=useCallback(async()=>{const r=await fetch('/api/h5/auth',{cache:'no-store'}),d:any=await r.json();if(!r.ok)throw Error(d.error);setSession(d.session);if(!d.session)setView('register');setCompany(d.company||'');setMode(d.mode);setPolicy(d.policy);return d},[]);
+ const load=useCallback(async()=>{const {data:d}=await apiFetch<any>('/api/h5/auth',{cache:'no-store'});setSession(d.session);if(!d.session)setView('register');setCompany(d.company||'');setMode(d.mode);setPolicy(d.policy);return d},[]);
  useEffect(()=>{load().then(async d=>{
    if(d.mode==='telegram'&&!d.session){
     const initData=telegramInitData();
     if(initData){
-     try{const r=await fetch('/api/h5/auth/telegram',{method:'POST',headers:{'X-Telegram-Init-Data':initData}}),a:any=await r.json();if(!r.ok)throw Error(a.error);setSession(a.session);setPolicy(a.policy);setView(complete(a.session,a.policy)?'workspace':'security');return}catch{setError('Telegram 登录暂时不可用，请关闭后重新打开 Mini App。');setView('telegram');return}
+     try{const {data:a}=await apiFetch<any>('/api/h5/auth/telegram',{method:'POST',headers:{'X-Telegram-Init-Data':initData}});setSession(a.session);setPolicy(a.policy);setView(complete(a.session,a.policy)?'workspace':'security');return}catch{setError('Telegram 登录暂时不可用，请关闭后重新打开 Mini App。');setView('telegram');return}
     }else {setError('当前未从 Telegram 打开，将通过 Verification Codes 完成手机号验证。');setView('verify');}
    }
    if(!((d.mode==='telegram'&&!d.session)&&!telegramInitData()))setView((screen==='login'||new URLSearchParams(window.location.search).get('view')==='login')?'register':d.session?(complete(d.session,d.policy)?'workspace':'security'):'register')
@@ -41,8 +42,8 @@ export default function H5Login(){
  useEffect(()=>{if(ready&&session){setView(screen==='login'?'register':complete(session,policy)?'workspace':'security');setError('');setNotice('')}},[screen]);
  // Refresh channel requirements when returning from backend configuration.
  useEffect(()=>{const refresh=()=>{if(document.visibilityState==='visible')void load().catch(e=>setError(e.message))};window.addEventListener('focus',refresh);document.addEventListener('visibilitychange',refresh);return()=>{window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',refresh)}},[load]);
- useEffect(()=>{if(!ready||!session||busy)return;if((view==='security'||view==='verify')&&!policy.phoneVerification&&!policy.passwordSetup){setView('workspace');setChallenge(null);setCode('');setError('');setNotice('')}else if(view==='verify'&&!policy.phoneVerification){setView(complete(session,policy)?'workspace':'security');setChallenge(null);setCode('')}else if(view==='workspace'&&!complete(session,policy))setView('security')},[ready,session,busy,policy,view]);
- async function post(path:string,body:any){const r=await fetch('/api/h5/auth/'+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),d:any=await r.json();if(!r.ok)throw Object.assign(Error(d.error),{status:r.status});return d}
+ useEffect(()=>{if(!ready||!session||busy)return;if(view==='verify'&&!policy.phoneVerification){setView(complete(session,policy)?'workspace':'security');setChallenge(null);setCode('')}else if(view==='workspace'&&!complete(session,policy))setView('security')},[ready,session,busy,policy,view]);
+ async function post(path:string,body:any){try{return (await apiFetch<any>('/api/h5/auth/'+path,{method:'POST',body:JSON.stringify(body)})).data}catch(error){if(error instanceof ApiClientError)throw Object.assign(Error(error.message),{status:error.status,code:error.code});throw error}}
  async function run(action:()=>Promise<void>){setBusy(true);setError('');setNotice('');try{await action()}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
  function navigate(next:string){if(next==='workspace'&&screen==='login'){router.replace('/h5');return}setView(next);setError('');setNotice('');setPassword('');setConfirm('');setCurrentPassword('');setChallenge(null);setCode('');setConsent(false)}
  const logout=()=>run(async()=>{await post('logout',{});setSession(null);setView('register');router.replace('/h5/login')});

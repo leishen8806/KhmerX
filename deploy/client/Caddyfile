@@ -1,0 +1,27 @@
+{
+    auto_https off
+    admin off
+}
+
+:80 {
+    root * /srv
+    encode gzip
+
+    # Keep browser requests same-origin. The API upstream is supplied by the
+    # deployment environment; the client image never contains database keys.
+    @api path /api/*
+    handle @api {
+        reverse_proxy {$PAYEASE_API_UPSTREAM}
+    }
+
+    # Vinext currently still renders page routes on the server. Serve the
+    # separated browser assets locally and send page misses back to the API
+    # service until the client-rendering spike is complete.
+    @static file
+    handle @static {
+        file_server
+    }
+    handle {
+        reverse_proxy {$PAYEASE_API_UPSTREAM}
+    }
+}

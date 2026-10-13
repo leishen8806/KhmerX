@@ -8,7 +8,10 @@ export const kycFieldGroupFor=(field:string):KycFieldGroup=>{
  if(['contact1Name','contact1Relation','contact1Phone','contact2Name','contact2Relation','contact2Phone','contact3Name','contact3Relation','contact3Phone'].includes(field))return 'contacts';
  if(['bankName','bankAccount','bankHolder'].includes(field))return 'bank';
  if(['address','province','district','location'].includes(field))return 'address';
- if(['workType','company','industry','position','income','tenure','supervisorName','supervisorPhone','vehicle','housing'].includes(field))return 'employment';
+ if(['documentNumber'].includes(field))return 'identity';
+ if(['workType','company','industry','position'].includes(field))return 'employment';
+ if(['income','tenure','supervisorName','supervisorPhone'].includes(field))return 'employment';
+ if(['vehicle','housing'].includes(field))return 'employment';
  return 'identity';
 };
 export function canSee(m:Member,a:Assignment|undefined,kind:'summary'|'kyc'='summary'){

@@ -1,5 +1,6 @@
 import {validateInitData} from './telegram.ts';
 import {codeForError} from './error-codes.ts';
+import {attachCustomerRef} from './public-id-store.ts';
 /** App-owned customer verification inside the existing private Sites workspace. */
 export type AuthMode='demo'|'telegram';
 export type AuthConfig={mode:AuthMode;secret:string;gatewayToken?:string;allowDemo?:boolean};
@@ -86,6 +87,7 @@ export async function verifyCode(r:AuthRuntime,owner:string,browserToken:string,
  const account=canonical;
  await r.db.prepare(`INSERT INTO h5_accounts (customer_id,owner,phone_key,telegram_user_hash,telegram_verified,phone_mask,mode,browser_hash,phone_verified,password_hash,created_at,verification_completed,channel_id)
  VALUES (?,?,?,?,0,?,?,?,?,NULL,?,1,?) ON CONFLICT(customer_id) DO UPDATE SET phone_key=excluded.phone_key,phone_mask=excluded.phone_mask,browser_hash=excluded.browser_hash,phone_verified=excluded.phone_verified,verification_completed=1,channel_id=COALESCE(h5_accounts.channel_id,excluded.channel_id),password_hash=CASE WHEN h5_accounts.verification_completed=0 THEN NULL ELSE h5_accounts.password_hash END`).bind(customerId,owner,row.phone_key,current?.telegram_user_hash||null,row.phone_mask,row.mode,browserHash,row.mode==='telegram'?1:0,now(r),row.mode==='telegram'?(current?.channel_id||null):null).run();
+ await attachCustomerRef(r.db,owner,customerId,row.mode,row.mode==='telegram'?(current?.channel_id||null):null,new Date().toISOString());
  if(!account?.verification_completed)await r.db.prepare('DELETE FROM h5_sessions WHERE owner=? AND customer_id=?').bind(owner,customerId).run();
  const generation=await r.db.prepare('SELECT credential_version FROM h5_accounts WHERE customer_id=? AND owner=?').bind(customerId,owner).first<{credential_version:number}>();
  const token=randomToken(),expiresAt=now(r)+SESSION_TTL;
@@ -106,6 +108,7 @@ export async function registerPhone(r:AuthRuntime,owner:string,browserToken:stri
  SELECT ?,?,?,?,?,?,0,NULL,?,? WHERE NOT EXISTS(SELECT 1 FROM h5_sessions WHERE owner=? AND customer_id=?) AND NOT EXISTS(SELECT 1 FROM kyc_cases WHERE owner=? AND customer_id=?) AND NOT EXISTS(SELECT 1 FROM team_assignments WHERE tenant_id=? AND customer_id=?) AND NOT EXISTS(SELECT 1 FROM demo_workspaces w,json_each(w.payload,'$.loans') l WHERE w.owner=? AND json_extract(l.value,'$.customerId')=?)`).bind(id,owner,id,maskPhone(phone),r.config.mode,browserHash,now(r),channelId||null,owner,id,owner,id,owner,id,owner,id).run();
  const a=await r.db.prepare('SELECT * FROM h5_accounts WHERE customer_id=? AND owner=?').bind(id,owner).first<Account>();
  if(!a)throw new AuthError('账号创建失败，请稍后重试',409);
+ await attachCustomerRef(r.db,owner,id,a.mode,channelId||null,new Date().toISOString());
  if(a.browser_hash!==browserHash&&!allowPhoneOnly)throw new AuthError('请使用验证码或密码登录；无法仅凭手机号进入已有账号',409);
  return issueAccountSession(r,a);
 }
@@ -124,6 +127,7 @@ export async function loginTelegram(r:AuthRuntime,owner:string,browserToken:stri
  await r.db.prepare('UPDATE h5_accounts SET browser_hash=?,telegram_user_hash=?,telegram_verified=1,channel_id=COALESCE(channel_id,?),verification_completed=CASE WHEN phone_verified=1 THEN verification_completed ELSE 0 END WHERE customer_id=? AND owner=?').bind(browserHash,customerId,channelId||null,customerId,owner).run();
  const account=await r.db.prepare('SELECT * FROM h5_accounts WHERE customer_id=? AND owner=?').bind(customerId,owner).first<Account>();
  if(!account)throw new AuthError('Telegram 账号创建失败，请稍后重试',409);
+ await attachCustomerRef(r.db,owner,customerId,account.mode,account.channel_id||channelId||null,new Date().toISOString());
  return issueAccountSession(r,account);
 }
 async function passwordHash(password:string,salt:string,iterations=PASSWORD_ITERATIONS){const key=await crypto.subtle.importKey('raw',encoder.encode(password),'PBKDF2',false,['deriveBits']);return Array.from(new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',salt:encoder.encode(salt),iterations,hash:'SHA-256'},key,256)),x=>x.toString(16).padStart(2,'0')).join('')}

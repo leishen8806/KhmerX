@@ -1,10 +1,11 @@
 import {audit,db,staff} from '@/lib/team/server';
 import {failure,json} from '@/lib/h5-auth';
 import {AuthError} from '@/lib/h5-auth-core';
+import {assertAllowedOrigin} from '@/lib/request-security';
 
 export const dynamic='force-dynamic';
 const text=(value:unknown,max=120)=>typeof value==='string'?value.trim().slice(0,max):'';
-const sameOrigin=(request:Request)=>{const origin=request.headers.get('origin');if(origin&&origin!==new URL(request.url).origin)throw new AuthError('不允许跨站操作',403,undefined,'CROSS_SITE_REQUEST')};
+const sameOrigin=(request:Request)=>{try{assertAllowedOrigin(request,false)}catch{throw new AuthError('不允许跨站操作',403,undefined,'CROSS_SITE_REQUEST')}};
 const canManage=(role:string)=>['admin','ops','dept_admin'].includes(role);
 
 export async function GET(){try{const s=await staff();if(!s||!canManage(s.member.role))throw new AuthError('当前岗位没有客户标签权限',403);const tags=await db().prepare('SELECT id,name,color,active,created_at,updated_at FROM team_customer_tags WHERE tenant_id=? AND active=1 ORDER BY name').bind(s.tenant.id).all();const links=await db().prepare(`SELECT l.tag_id,l.customer_id FROM team_customer_tag_links l WHERE l.tenant_id=? AND EXISTS (SELECT 1 FROM team_customer_tags t WHERE t.id=l.tag_id AND t.tenant_id=l.tenant_id AND t.active=1) AND EXISTS (SELECT 1 FROM team_assignments a WHERE a.tenant_id=l.tenant_id AND a.customer_id=l.customer_id)`).bind(s.tenant.id).all();return json({tags:tags.results,links:links.results})}catch(e){return failure(e)}}

@@ -1,0 +1,16 @@
+services:
+  client:
+    build:
+      context: ../..
+      dockerfile: deploy/client/Dockerfile
+    restart: unless-stopped
+    environment:
+      PAYEASE_API_UPSTREAM: ${PAYEASE_API_UPSTREAM:-http://host.docker.internal:4300}
+    ports:
+      - "127.0.0.1:4310:80"
+    mem_limit: 128m
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
