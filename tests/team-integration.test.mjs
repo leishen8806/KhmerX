@@ -124,7 +124,13 @@ test('Telegram signed subscription, tenant isolation, one-time delivery and unsu
  const current=await store.readState(A),l=current.state.loans.find(l=>l.customerId===customerId);l.status='active';l.dueAt=new Date(Date.now()+3*86400000).toISOString();sql.prepare('UPDATE demo_workspaces SET payload=? WHERE owner=?').run(JSON.stringify(current.state),A);await post.runCompany(A);
  let calls=0;context.fetch=async(url,init)=>{calls++;assert.equal(JSON.parse(init.body).chat_id,123456);return Response.json({ok:true,result:{message_id:11,chat:{id:123456}}})};
  await notify.dispatchCompany(B);assert.equal(calls,0);await notify.dispatchCompany(A);await notify.dispatchCompany(A);assert.equal(calls,1);assert.equal(sql.prepare("SELECT COUNT(*) AS n FROM telegram_outbox WHERE owner=? AND status='sent'").get(A).n,1);
+ const reminderLoan=l,resubscribeNotification=`postloan-reminder:${reminderLoan.id}:resubscribe`;const withSecondReminder=await store.readState(A);withSecondReminder.state.notifications.push({id:resubscribeNotification,loanId:reminderLoan.id,createdAt:new Date().toISOString()});sql.prepare('UPDATE demo_workspaces SET payload=? WHERE owner=?').run(JSON.stringify(withSecondReminder.state),A);sql.prepare("INSERT INTO telegram_outbox (id,owner,notification_id,loan_id,subscription_id,status,attempts,next_at,updated_at,reason) VALUES (?,?,?,?,?,'pending',0,0,?,'测试待发送')").run(crypto.randomUUID(),A,resubscribeNotification,reminderLoan.id,`${A}:${customerId}:${botId}`,new Date().toISOString());
  await notify.bindNotifications(A,customerId,{action:'unsubscribe',botId});assert.equal((await notify.notificationSettings(A,customerId)).channels.find(b=>b.id===botId).bound,false);
+ // Re-subscribing must reactivate the cancelled outbox row despite the
+ // unique (owner, notification_id) index, otherwise the same reminder is
+ // silently lost forever after an unsubscribe/subscribe cycle.
+ const fieldsAgain={...fields,query_id:'resubscribe-qa'};const textAgain=Object.entries(fieldsAgain).sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>k+'='+v).join('\n');const hashAgain=createHmac('sha256',secret).update(textAgain).digest('hex');const initDataAgain=new URLSearchParams({...fieldsAgain,hash:hashAgain}).toString();
+ await notify.bindNotifications(A,customerId,{action:'subscribe',botId,consent:true,initData:initDataAgain});await notify.dispatchCompany(A);assert.equal(calls,2);assert.equal(sql.prepare("SELECT status FROM telegram_outbox WHERE owner=? AND notification_id=?").get(A,resubscribeNotification).status,'sent');
  user=reviewer1;await assert.rejects(notify.notificationAdmin());user=owner;
 });
 
