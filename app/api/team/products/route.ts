@@ -11,7 +11,7 @@ function configOf(p:any):{minCents:number;maxCents:number;terms:number[];pricing
  const pricing=validatePricing({...p.pricing,version:Number(p.pricing?.version||0),feeModel:'single'});
  return {minCents,maxCents,terms:Array.from(new Set<number>(terms)).sort((a,b)=>a-b),pricing};
 }
-async function context(){const s=await staff();if(!s)throw new Error('请先选择公司');return s}
+async function context(){const s=await staff();if(!s)throw new Error('请先选择公司');return {...s,userId:s.user.userId}}
 export async function GET(){try{const s=await context();const rows=await db().prepare(`SELECT p.*,v.version,v.config_json,v.status AS version_status,v.change_reason,v.created_at AS version_created_at FROM loan_products p LEFT JOIN loan_product_versions v ON v.product_id=p.id AND v.version=p.current_version WHERE p.tenant_id=? ORDER BY p.updated_at DESC`).bind(s.tenant.id).all<any>();return json({products:rows.results.map(r=>({...r,config:r.config_json?JSON.parse(r.config_json):null,config_json:undefined}))})}catch(e){return failure(e)}}
 export async function POST(request:Request){try{const p=await input(request),s:any=await context();const role=s.member.role;if(!rolesWrite.includes(role)&&!['admin','audit'].includes(role))throw new Error('无权管理贷款产品');const now=new Date().toISOString();
  if(p.action==='product_create'){
