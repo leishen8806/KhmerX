@@ -11,7 +11,16 @@
     # deployment environment; the client image never contains database keys.
     @api path /api/*
     handle @api {
-        reverse_proxy {$PAYEASE_API_UPSTREAM}
+        reverse_proxy {$PAYEASE_API_UPSTREAM} {
+            # Identity headers belong to the trusted gateway only. Never pass
+            # browser-supplied values to the API upstream.
+            header_up -oai-authenticated-user-id
+            header_up -oai-authenticated-user-email
+            header_up -oai-authenticated-user-full-name
+            header_up -oai-authenticated-user-full-name-encoding
+            header_up -x-payease-identity-proof
+            header_up -x-payease-identity-proof-ts
+        }
     }
 
     # Vinext currently still renders page routes on the server. Serve the
@@ -22,6 +31,13 @@
         file_server
     }
     handle {
-        reverse_proxy {$PAYEASE_API_UPSTREAM}
+        reverse_proxy {$PAYEASE_API_UPSTREAM} {
+            header_up -oai-authenticated-user-id
+            header_up -oai-authenticated-user-email
+            header_up -oai-authenticated-user-full-name
+            header_up -oai-authenticated-user-full-name-encoding
+            header_up -x-payease-identity-proof
+            header_up -x-payease-identity-proof-ts
+        }
     }
 }
