@@ -104,7 +104,20 @@ async function backfillPublicIdentifiers(){
  for(const row of (await db.prepare('SELECT owner,revision,payload FROM demo_workspaces').all()).results||[]){let state;try{state=JSON.parse(String(row.payload))}catch{continue}let changed=false;for(const loan of Array.isArray(state.loans)?state.loans:[]){const channel=loan.sourceChannel||accountMap.get(row.owner+'|'+String(loan.customerId||''))||'SY',order=await claimPublicRef('O',channel,loan.id,row.owner,loan.createdAt||new Date().toISOString());if(loan.publicRef!==order||loan.sourceChannel!==channel){loan.publicRef=order;loan.sourceChannel=channel;changed=true}if(loan.billing){const bill=await claimPublicRef('B',channel,loan.id+':bill',row.owner,loan.createdAt||new Date().toISOString());if(loan.billing.publicRef!==bill){loan.billing.publicRef=bill;changed=true}}}if(changed){await db.prepare('UPDATE demo_workspaces SET payload=? WHERE owner=? AND revision=?').bind(JSON.stringify(state),row.owner,row.revision).run();workspaces++;}}
  console.log(JSON.stringify({event:'public_reference_backfill',customers,kycs,files,tickets,audits,workspaces}));
 }
-await backfillPublicIdentifiers();
+// D1 persistence can briefly retain SQLite's writer lock while a previous
+// container is being replaced. Retry only the idempotent boot backfills so a
+// transient lock does not cause a restart loop or make the service unavailable.
+async function retryBootTask(name,task){
+ for(let attempt=0;attempt<6;attempt++){
+  try{return await task()}catch(error){
+   const message=String(error?.message||error);
+   if(!/SQLITE_BUSY|database is locked|D1_ERROR/i.test(message)||attempt===5)throw error;
+   const delay=250*(attempt+1);console.warn(JSON.stringify({event:'boot_retry',task:name,attempt:attempt+1,delay}));
+   await new Promise(resolve=>setTimeout(resolve,delay));
+  }
+ }
+}
+await retryBootTask('public_reference_backfill',backfillPublicIdentifiers);
 // Bind legacy JSON loans to an already approved KYC revision when one exists.
 // Loans that cannot be proven are recorded as quarantined instead of being
 // silently upgraded; the funding guard will continue to reject any new
@@ -127,7 +140,7 @@ async function backfillLegacyLoanBindings(){
  }
  console.log(JSON.stringify({event:'legacy_loan_backfill',linked,quarantined,unscoped}));
 }
-await backfillLegacyLoanBindings();
+await retryBootTask('legacy_loan_backfill',backfillLegacyLoanBindings);
 for(const company of cfg.companies){
  const t=company.id,dept=t+':ops',institution=t+':institution',post=t+':postloan';
  await db.batch([
