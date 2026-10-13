@@ -68,6 +68,29 @@ async function backfillPublicIdentifiers(){
  console.log(JSON.stringify({event:'public_reference_backfill',customers,kycs,files,tickets,audits,workspaces}));
 }
 await backfillPublicIdentifiers();
+// Bind legacy JSON loans to an already approved KYC revision when one exists.
+// Loans that cannot be proven are recorded as quarantined instead of being
+// silently upgraded; the funding guard will continue to reject any new
+// disbursement until an operator completes the review.
+async function backfillLegacyLoanBindings(){
+ let linked=0,quarantined=0,unscoped=0;
+ for(const row of (await db.prepare('SELECT owner,revision,payload FROM demo_workspaces').all()).results||[]){
+  let state;try{state=JSON.parse(String(row.payload))}catch{continue}
+  let changed=false;
+  for(const loan of Array.isArray(state.loans)?state.loans:[]){
+   if(loan.kycCaseId&&loan.kycRevision!=null)continue;
+   const processed=await db.prepare('SELECT outcome FROM legacy_loan_backfill WHERE tenant_id=? AND loan_id=?').bind(row.owner,loan.id).first();
+   if(processed?.outcome==='linked'&&!loan.kycCaseId)continue;
+   if(!loan.customerId){unscoped++;await db.prepare('INSERT OR IGNORE INTO legacy_loan_backfill(tenant_id,loan_id,outcome,detail,processed_at) VALUES (?,?,?,?,?)').bind(row.owner,loan.id,'unscoped','历史贷款缺少客户绑定，需人工核对',new Date().toISOString()).run();continue}
+   const kyc=await db.prepare("SELECT id,revision FROM kyc_cases WHERE owner=? AND customer_id=? AND status='approved' ORDER BY updated_at DESC LIMIT 1").bind(row.owner,loan.customerId).first();
+   if(kyc){loan.kycCaseId=String(kyc.id);loan.kycRevision=Number(kyc.revision);changed=true;linked++;await db.prepare('INSERT OR REPLACE INTO legacy_loan_backfill(tenant_id,loan_id,outcome,kyc_case_id,detail,processed_at) VALUES (?,?,?,?,?,?)').bind(row.owner,loan.id,'linked',kyc.id,'已绑定最近一次人工审核通过的 KYC 版本',new Date().toISOString()).run()}
+   else{quarantined++;await db.prepare('INSERT OR IGNORE INTO legacy_loan_backfill(tenant_id,loan_id,outcome,detail,processed_at) VALUES (?,?,?,?,?)').bind(row.owner,loan.id,'quarantined','历史贷款未找到可核验的已通过 KYC，禁止新增放款',new Date().toISOString()).run()}
+  }
+  if(changed)await db.prepare('UPDATE demo_workspaces SET payload=? WHERE owner=? AND revision=?').bind(JSON.stringify(state),row.owner,row.revision).run();
+ }
+ console.log(JSON.stringify({event:'legacy_loan_backfill',linked,quarantined,unscoped}));
+}
+await backfillLegacyLoanBindings();
 for(const company of cfg.companies){
  const t=company.id,dept=t+':ops',institution=t+':institution',post=t+':postloan';
  await db.batch([
