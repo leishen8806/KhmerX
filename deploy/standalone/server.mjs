@@ -42,6 +42,7 @@ if(cfg.bindings?.KHMERX_TEST_MODE==='true')throw new Error('KHMERX_TEST_MODE mus
 if(cfg.bindings?.PAYEASE_IDENTITY_PROOF_REQUIRED!==undefined&&cfg.bindings.PAYEASE_IDENTITY_PROOF_REQUIRED!=='true')throw new Error('PAYEASE_IDENTITY_PROOF_REQUIRED must be true for standalone production boot');
 const mf=new Miniflare({modules,modulesRoot:moduleRoot,compatibilityDate:'2026-05-15',compatibilityFlags:['nodejs_compat'],assets:{directory:'/app/dist/client',binding:'ASSETS',routerConfig:{has_user_worker:true}},d1Databases:{DB:'payease'},d1Persist:'/data/d1',r2Buckets:{BUCKET:'payease'},r2Persist:'/data/r2',bindings:cfg.bindings,host:'127.0.0.1'});
 const db=await mf.getD1Database('DB');
+const bucket=await mf.getR2Bucket('BUCKET');
 await db.prepare('CREATE TABLE IF NOT EXISTS standalone_migrations (name TEXT PRIMARY KEY)').run();
 const migrationFiles=readdirSync('/app/drizzle').filter(n=>/^\d.*\.sql$/.test(n)).sort();
 const migrationNames=new Set(migrationFiles);
@@ -56,6 +57,21 @@ for(const name of migrationFiles){
  const parts=splitSql(readFileSync('/app/drizzle/'+name,'utf8'));
  await db.batch([...parts.map(s=>db.prepare(s)),db.prepare('INSERT INTO standalone_migrations VALUES (?)').bind(name)]);
 }
+// A worker crash can happen after the pending KYC row is inserted but before
+// the encrypted object is committed. Remove only old pending rows on boot;
+// recent uploads remain available for a retry and ready objects are untouched.
+async function cleanupPendingKycFiles(){
+ const cutoff=new Date(Date.now()-30*60*1000).toISOString();
+ const rows=(await db.prepare('SELECT id FROM kyc_files WHERE ready=0 AND created_at<? LIMIT 200').bind(cutoff).all()).results||[];
+ let cleaned=0;
+ for(const row of rows){
+  await bucket.delete('kyc/'+String(row.id)).catch(()=>{});
+  const result=await db.prepare('DELETE FROM kyc_files WHERE id=? AND ready=0 AND created_at<?').bind(String(row.id),cutoff).run();
+  cleaned+=Number(result.meta?.changes||0);
+ }
+ if(rows.length)console.log(JSON.stringify({event:'kyc_pending_cleanup',scanned:rows.length,cleaned}));
+}
+await cleanupPendingKycFiles();
 // Public references are operator-facing aliases. Historical rows may predate
 // the alias columns, so backfill them on boot in an idempotent transaction-like
 // sequence while preserving every internal UUID/hash and JSON payload field.
