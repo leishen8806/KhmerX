@@ -20,7 +20,8 @@ export async function assertEmergencyAccess(id:string,scope:string,action:string
  if(!granted.includes(scope))throw new AuthError('当前应急授权不包含该业务范围',403);
  if(!row||row.status!=='active'||Number(row.expires_at)<=Date.now())throw new AuthError('应急授权不存在、已失效或已过期',403);
  if(row.requester_id!==s.member.id)throw new AuthError('应急授权仅限申请人执行',403);
- const consumed=await db().prepare('UPDATE team_emergency_access SET status=\'consumed\',consumed_at=?,consumed_action=?,consumed_loan_id=?,consumed_cents=? WHERE id=? AND tenant_id=? AND status=\'active\' AND requester_id=?').bind(Date.now(),action,loanId||null,typeof cents==='number'?cents:null,id,s.tenant.id,s.member.id).run();
- if(consumed.meta.changes!==1)throw new AuthError('应急授权已被使用或已失效',409);
+ // Do not consume before business validation. The caller must include the
+ // returned grant id in the same database batch as the actual operation so a
+ // failed validation does not burn the authorization.
  return {id,scope,action,expiresAt:new Date(Number(row.expires_at)).toISOString(),tenantId:s.tenant.id,actor:s.user.userId};
 }
