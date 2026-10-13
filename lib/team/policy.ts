@@ -18,7 +18,8 @@ export function canSee(m:Member,a:Assignment|undefined,kind:'summary'|'kyc'='sum
  if(!m.active||!a||m.tenant_id!==a.tenant_id)return false;
  if(kind==='summary'&&['admin','audit'].includes(m.role))return true;
  if(['admin','audit'].includes(m.role))return true;
- if(['ops','dept_admin'].includes(m.role))return kind==='summary'&&m.unit_id===a.department_id;
+ if(m.role==='ops')return kind==='summary'&&m.unit_id===a.department_id;
+ if(m.role==='dept_admin')return m.unit_id===a.department_id;
  if(m.role==='kyc')return m.unit_id===a.department_id&&m.id===a.reviewer_id;
  if(['finance','finance_checker'].includes(m.role))return kind==='summary'&&m.unit_id===(a.funding_institution_id||a.institution_id);
  if(['lender','checker'].includes(m.role))return kind==='summary'&&!!a.institution_id&&m.unit_id===a.institution_id;
