@@ -15,7 +15,7 @@ export async function POST(request:Request){
   // Only company Admin/Audit staff may probe them; the no-company path is
   // retained exclusively for the explicit local test mode.
   if(!company&&(env as unknown as Record<string,string>).KHMERX_TEST_MODE!=='true')return json({error:'无权查看机器人状态',code:'BOT_ACCESS_FORBIDDEN'},403);
-  if(company){const team=await staff();if(!team||!['admin','audit'].includes(team.member.role))return json({error:'无权查看机器人状态',code:'BOT_ACCESS_FORBIDDEN'},403)}
+  if(company){let team;try{team=await staff()}catch{return json({error:'无权查看机器人状态',code:'BOT_ACCESS_FORBIDDEN'},403)}if(!team||!['admin','audit'].includes(team.member.role))return json({error:'无权查看机器人状态',code:'BOT_ACCESS_FORBIDDEN'},403)}
   const p=await request.json() as {botId:string;initData?:string};const {state}=await readState(company?.id||u.userId);const bot=state.bots.find(b=>b.id===p.botId&&b.enabled);
   if(!bot)throw Error('机器人未启用');const token=company?await channelToken(company.id,bot.id):(env as unknown as Record<string,string>)[bot.envKey];
   if(!token)return json({connected:false,message:company?'请由公司管理员在业务渠道中配置 Token':'请在部署环境中配置机器人 Token'});
