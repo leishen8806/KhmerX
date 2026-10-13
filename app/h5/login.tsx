@@ -9,7 +9,6 @@ import {MiniClient} from '@/components/mini-client';
 import {MiniNavigationProvider} from '@/components/mini-shell';
 import {MiniRouteLoading} from '@/components/mini-route-loading';
 import {apiFetch,ApiClientError} from '@/lib/api-client';
-import {AuthLocaleBridge} from '@/components/auth-locale';
 type Session={phoneMasked:string;mode:'demo'|'telegram';expiresAt:number;phoneVerified?:boolean;verificationCompleted?:boolean;hasPassword?:boolean};
 type Challenge={challengeId:string;expiresAt:number;retryAt:number;demoCode?:string;phoneMasked:string};
 export default function H5Login(){
