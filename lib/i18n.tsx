@@ -94,6 +94,23 @@ export function legacyText(text:string,locale:Locale){const value=i18nValue(loca
   // @ts-ignore legacy aliases below intentionally contain a repeated source key
   Object.assign(kyc,{
    '完善身份与工作资料':['Complete identity and work information','បំពេញព័ត៌មានអត្តសញ្ញាណ និងការងារ'],
+   // Mini App KYC category cards render these values as separate text nodes.
+   // Keep the exact card copy in the legacy dictionary so language switching
+   // translates the label, amount, and state consistently instead of leaving
+   // a mixed Chinese/English card behind.
+   '个人身份资料':['Personal identity','ព័ត៌មានអត្តសញ្ញាណផ្ទាល់ខ្លួន'],
+   '紧急联系人资料':['Emergency contacts','ព័ត៌មានអ្នកទំនាក់ទំនងបន្ទាន់'],
+   '工作收入资料':['Work and income','ព័ត៌មានការងារ និងចំណូល'],
+   '车辆房屋资料':['Vehicle and housing','ព័ត៌មានយានយន្ត និងលំនៅដ្ឋាន'],
+   '使用 Google 地图定位':['Use Google Maps','ប្រើ Google Maps'],
+   '最高可获得 30 USD额度':['Up to 30 USD','រហូតដល់ 30 USD'],
+   '最高可获得 50 USD额度':['Up to 50 USD','រហូតដល់ 50 USD'],
+   '最高可获得 100 USD额度':['Up to 100 USD','រហូតដល់ 100 USD'],
+   '最高可获得 200 USD额度':['Up to 200 USD','រហូតដល់ 200 USD'],
+   '审核必要项':['Required for review','តម្រូវសម្រាប់ការពិនិត្យ'],
+   '进行中':['In progress','កំពុងដំណើរការ'],
+   '待完善':['Incomplete','មិនទាន់ពេញលេញ'],
+   'KYC 资料步骤':['KYC steps','ជំហាន KYC'],
    '基本身份':['Basic identity','ព័ត៌មានអត្តសញ្ញាណមូលដ្ឋាន'],'个人身份资料 · 最高 30 USD':['Personal identity · up to 30 USD','ព័ត៌មានអត្តសញ្ញាណផ្ទាល់ខ្លួន · រហូតដល់ 30 USD'],'个人情况':['Personal details','ព័ត៌មានផ្ទាល់ខ្លួន'],'居住地址':['Residential address','អាសយដ្ឋានលំនៅដ្ឋាន'],'紧急联系人资料 · 最高 50 USD':['Emergency contacts · up to 50 USD','ព័ត៌មានអ្នកទំនាក់ទំនងបន្ទាន់ · រហូតដល់ 50 USD'],'紧急联系人一':['Emergency contact 1','អ្នកទំនាក់ទំនងបន្ទាន់ ១'],'紧急联系人二':['Emergency contact 2','អ្នកទំនាក់ទំនងបន្ទាន់ ២'],'紧急联系人三（选填）':['Emergency contact 3 (optional)','អ្នកទំនាក់ទំនងបន្ទាន់ ៣ (ជាជម្រើស)'],'工作收入资料 · 最高 100 USD':['Work and income · up to 100 USD','ព័ត៌មានការងារ និងចំណូល · រហូតដល់ 100 USD'],'工作资料':['Employment information','ព័ត៌មានការងារ'],'收入资料':['Income information','ព័ត៌មានចំណូល'],'车辆房屋资料 · 最高 200 USD':['Vehicle and housing · up to 200 USD','ព័ត៌មានយានយន្ត និងលំនៅដ្ឋាន · រហូតដល់ 200 USD'],'资产资料':['Assets information','ព័ត៌មានទ្រព្យសម្បត្តិ'],'证件类型':['Document type','ប្រភេទឯកសារ'],'证件号码':['Document number','លេខឯកសារអត្តសញ្ញាណ'],'证件号码不能为空':['Document number is required','ត្រូវបំពេញលេខឯកសារអត្តសញ្ញាណ'],
    '可分步填写并保存草稿。提交后资料锁定，补件退回后可修改。':['Complete step by step and save a draft. After submission, the record is locked; returned cases can be edited.','បំពេញជាជំហានៗ និងរក្សាទុកសេចក្តីព្រាង។ បន្ទាប់ពីដាក់ស្នើ ឯកសារនឹងត្រូវចាក់សោ ហើយអាចកែបាននៅពេលត្រូវបំពេញបន្ថែម។'],
    'KYC 人工审核':['Manual KYC review','ការពិនិត្យ KYC ដោយបុគ្គលិក'],
