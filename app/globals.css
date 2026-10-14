@@ -252,3 +252,9 @@ body:has(.mini-app) .auth-locale{display:none}
 .kyc-case-card .kyc-case-primary span,.kyc-case-card .kyc-case-routing span,.kyc-case-card>.fine{min-width:0;overflow-wrap:anywhere}
 .kyc-case-card{padding-inline:32px!important}
 @media(max-width:700px){.kyc-case-card{padding-inline:20px!important}}
+/* Mini App bank options: three full-width horizontal rows. */
+.mini-app .kyc-bank-options{grid-template-columns:1fr!important;gap:8px!important}
+.mini-app .kyc-bank-option{min-width:0;min-height:92px;flex-direction:row!important;justify-content:flex-start;gap:12px;padding:12px;font-size:14px;text-align:left}
+.mini-app .kyc-bank-logo{width:72px!important;height:56px!important}
+.mini-app .kyc-bank-option img{max-width:64px!important;max-height:48px!important}
+@media(max-width:480px){.mini-app .kyc-bank-options{grid-template-columns:1fr!important}.mini-app .kyc-bank-option{min-height:82px;padding:8px 12px;font-size:13px}.mini-app .kyc-bank-logo{width:72px!important;height:52px!important}.mini-app .kyc-bank-option img{max-width:58px!important;max-height:42px!important}}
