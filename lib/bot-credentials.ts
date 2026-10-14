@@ -5,6 +5,17 @@ import {encryptBytes,decryptBytes} from '@/lib/kyc/server';
 import {AuthError} from '@/lib/h5-auth-core';
 import {tokenKey} from '@/lib/notifications/core';
 const context=(owner:string,botId:string)=>'bot-token:'+owner+':'+botId;
+/**
+ * Return active companies that have a credential for a Telegram channel.
+ * Mini Apps opened directly from Telegram do not carry the staff/company
+ * cookie, so the signed initData itself is used to select the matching bot.
+ */
+export async function telegramCredentialOwners(botId:string){
+ const rows=(await db().prepare(`SELECT c.id FROM team_companies c
+   JOIN telegram_bot_credentials b ON b.owner=c.id AND b.bot_id=?
+   WHERE c.active=1 ORDER BY c.id`).bind(botId).all<{id:string}>()).results;
+ return rows.map(row=>row.id);
+}
 export async function channelToken(owner:string,botId:string){
  const key=tokenKey(owner,botId),row=await db().prepare('SELECT token_encrypted FROM telegram_bot_credentials WHERE owner=? AND bot_id=?').bind(owner,botId).first<{token_encrypted:string}>();
  if(!row)return (env as unknown as Record<string,string>)[key]||'';
