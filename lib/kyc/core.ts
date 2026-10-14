@@ -37,8 +37,8 @@ export const fields:Field[]=[
  {id:'vehicle',label:'车辆类型',section:'assets',options:opts(['摩托车','嘟嘟车','汽车','无']),source:'B29:F32'},
  {id:'housing',label:'住房类型',section:'assets',options:opts(['租房','个人房产','无']),source:'B36:F38'},
  {id:'bankName',label:'选择银行',section:'bank',required:true,options:[...opts(['ABA Bank','ACLEDA Bank']),{value:'Wing',label:'Wing Bank'}],source:'B41:F41'},
- {id:'bankAccount',label:'银行账号',section:'bank',required:true,source:'B42:F42'},
  {id:'bankHolder',label:'账户姓名',section:'bank',required:true,source:'B43:F43'},
+ {id:'bankAccount',label:'银行账号',section:'bank',required:true,source:'B42:F42'},
 ];
 export const slots=[
  {id:'idFront',label:'身份证正面',section:'identity',required:true,points:5,source:'B11:F11'},

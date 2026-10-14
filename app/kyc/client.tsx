@@ -35,7 +35,7 @@ export default function KycClient({review=false,mini=false}:{review?:boolean;min
   {id:'employment',label:'工作资料',Icon:BriefcaseBusiness,dataSection:'employment',fieldIds:['workType','company','industry','position']},
   {id:'income',label:'收入资料',Icon:BriefcaseBusiness,dataSection:'income',fieldIds:['income','tenure','supervisorName','supervisorPhone'],slot:'incomeProof' as Slot},
   {id:'assets',label:'资产资料',Icon:Building2,dataSection:'assets',fieldIds:['vehicle','housing']},
-  {id:'bank',label:'收款账户',Icon:Building2,dataSection:'bank'},
+  {id:'bank',label:'收款账户',Icon:Building2,dataSection:'bank',fieldIds:['bankName','bankHolder','bankAccount']},
   {id:'consent',label:'授权确认',Icon:FileSignature,dataSection:'consent'}
  ] as const;
  const navSections=review?sections:clientSteps;
