@@ -23,29 +23,22 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-  clamav:
-    image: clamav/clamav:1.4
-    restart: unless-stopped
-    volumes:
-      - /opt/payease/clamav:/var/lib/clamav
-    # ClamAV loads the full signature database into memory; 768 MB causes
-    # clamd to be OOM-killed during startup on the production VPS.
-    mem_limit: 1536m
-    expose:
-      - "3310"
   scanner:
     build: ../clamav-gateway
     restart: unless-stopped
-    depends_on:
-      clamav:
-        condition: service_started
     environment:
-      CLAMD_HOST: clamav
+      # Use the healthy, independently managed ClamAV service.  The local
+      # standalone clamd was repeatedly OOM-killed on the 4 GB VPS, leaving
+      # every KYC upload with a scanner-unavailable error.
+      CLAMD_HOST: oa-system-clamav-1
       CLAMD_PORT: "3310"
       SCAN_TOKEN_FILE: /run/scanner-secrets/scanner-token
     volumes:
       - /opt/payease/data:/data:ro
       - /opt/payease/scanner-secrets:/run/scanner-secrets:ro
+    networks:
+      - default
+      - oa
     expose:
       - "8080"
     healthcheck:
@@ -54,3 +47,12 @@ services:
       timeout: 5s
       retries: 30
       start_period: 30s
+
+networks:
+  # Keep the existing standalone network so the payease service can reach
+  # scanner by its service name.
+  default:
+    name: standalone_default
+  oa:
+    external: true
+    name: oa-system_default
