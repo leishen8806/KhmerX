@@ -39,10 +39,10 @@ export default function KycClient({review=false,mini=false,initialSection}:{revi
   {id:'consent',label:'资料授权确认（审核必要项）',Icon:FileSignature,dataSection:'consent'}
  ] as const;
  const clientStepGroups=[
-  {id:'identity',label:'个人身份资料',amount:'最高可获得\n30 USD额度',Icon:UserRound,steps:['personal','identityDetails','address','idFront','idBack','selfie']},
-  {id:'contacts',label:'紧急联系人资料',amount:'最高可获得\n50 USD额度',Icon:UsersRound,steps:['contact1','contact2','contact3']},
-  {id:'employment',label:'工作收入资料',amount:'最高可获得\n100 USD额度',Icon:BriefcaseBusiness,steps:['employment','income']},
-  {id:'assets',label:'车辆房屋资料',amount:'最高可获得\n200 USD额度',Icon:Building2,steps:['assets']},
+  {id:'identity',label:'个人身份资料',amount:'最高可获得 30 USD额度',Icon:UserRound,steps:['personal','identityDetails','address','idFront','idBack','selfie']},
+  {id:'contacts',label:'紧急联系人资料',amount:'最高可获得 50 USD额度',Icon:UsersRound,steps:['contact1','contact2','contact3']},
+  {id:'employment',label:'工作收入资料',amount:'最高可获得 100 USD额度',Icon:BriefcaseBusiness,steps:['employment','income']},
+  {id:'assets',label:'车辆房屋资料',amount:'最高可获得 200 USD额度',Icon:Building2,steps:['assets']},
   {id:'bank',label:'收款账户资料',amount:'审核必要项',Icon:Building2,steps:['bank']},
   {id:'consent',label:'资料授权确认',amount:'审核必要项',Icon:FileSignature,steps:['consent']}
  ] as const;
