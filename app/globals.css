@@ -265,7 +265,8 @@ body:has(.mini-app) .auth-locale{display:none}
 .customer-kyc .kyc-step-label{overflow-wrap:anywhere}
 @media(max-width:480px){.mini-app .customer-kyc .kyc-steps{gap:6px}.mini-app .customer-kyc .kyc-step-button{min-height:48px;padding:10px 12px;font-size:13px}.mini-app .customer-kyc .kyc-step-label{white-space:normal}}
 .customer-kyc .kyc-steps{display:flex;flex-direction:column;gap:10px;overflow:visible;padding:0;margin-bottom:20px}
-.customer-kyc .kyc-group-button{display:flex;align-items:center;justify-content:flex-start;gap:12px;width:100%;min-height:72px;padding:12px 16px;border:1px solid #d8e2f2;border-radius:14px;background:#fff;color:#172b4d;text-align:left;box-shadow:0 2px 8px #17203308;white-space:normal}
+.customer-kyc .kyc-group-button{display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:12px;width:100%;height:auto;min-height:72px;padding:12px 16px;border:1px solid #d8e2f2;border-radius:14px;background:#fff;color:#172b4d;text-align:left;box-shadow:0 2px 8px #17203308;white-space:normal;overflow:hidden}
+.customer-kyc .kyc-group-button::after{content:none!important;display:none!important}
 .customer-kyc .kyc-group-button:hover{border-color:#8eb1ed;background:#f8faff;transform:none}
 .customer-kyc .kyc-group-button[data-state=active]{border-color:#2f72e6;background:#eef5ff;color:#155bd7;box-shadow:0 4px 14px #2f72e626}
 .customer-kyc .kyc-group-button[data-state=complete]{border-color:#b9e2c7;background:#f3fbf5;color:#237344}
@@ -279,4 +280,4 @@ body:has(.mini-app) .auth-locale{display:none}
 .customer-kyc .kyc-group-copy em{display:block;width:100%;font-size:12px;font-style:normal;color:#8798b1}
 .customer-kyc .kyc-group-button[data-state=complete] .kyc-group-copy em{color:#299151}
 .customer-kyc .kyc-group-arrow{font-size:26px;line-height:1;color:#8b9bb4;margin-left:auto}
-@media(max-width:480px){.mini-app .customer-kyc .kyc-steps{gap:8px}.mini-app .customer-kyc .kyc-group-button{min-height:68px;padding:11px 12px;border-radius:13px}.mini-app .customer-kyc .kyc-group-copy strong{font-size:15px}.mini-app .customer-kyc .kyc-group-copy small{font-size:11px}.mini-app .customer-kyc .kyc-group-icon{width:34px;height:34px;flex-basis:34px}}
+@media(max-width:480px){.mini-app .customer-kyc .kyc-steps{gap:8px}.mini-app .customer-kyc .kyc-group-button{height:auto;min-height:68px;padding:11px 12px;border-radius:13px}.mini-app .customer-kyc .kyc-group-copy strong{font-size:15px}.mini-app .customer-kyc .kyc-group-copy small{font-size:11px}.mini-app .customer-kyc .kyc-group-icon{width:34px;height:34px;flex-basis:34px}}
