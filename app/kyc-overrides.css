@@ -78,7 +78,7 @@ button.kyc-group-button:not(:last-child)::after {
 .mini-app .customer-kyc .kyc-group-copy em {
   order: 4;
   position: absolute !important;
-  right: 45px;
+  right: 25px;
   top: 50%;
   transform: translateY(-50%);
   width: auto !important;
