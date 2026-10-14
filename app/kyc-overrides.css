@@ -3,13 +3,18 @@
   display: flex !important;
   flex-direction: row !important;
   align-items: center !important;
+  position: static !important;
+  flex: 0 0 auto !important;
   height: auto !important;
   min-height: 68px !important;
   overflow: hidden !important;
 }
-.customer-kyc .kyc-group-button::after {
+.customer-kyc .kyc-group-button::after,
+.customer-kyc .kyc-group-button:not(:last-child)::after {
   content: none !important;
   display: none !important;
+  position: static !important;
+  background: none !important;
 }
 .customer-kyc .kyc-group-copy {
   display: flex !important;
