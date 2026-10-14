@@ -258,3 +258,9 @@ body:has(.mini-app) .auth-locale{display:none}
 .mini-app .kyc-bank-logo{width:72px!important;height:56px!important}
 .mini-app .kyc-bank-option img{max-width:64px!important;max-height:48px!important}
 @media(max-width:480px){.mini-app .kyc-bank-options{grid-template-columns:1fr!important}.mini-app .kyc-bank-option{min-height:82px;padding:8px 12px;font-size:13px}.mini-app .kyc-bank-logo{width:72px!important;height:52px!important}.mini-app .kyc-bank-option img{max-width:58px!important;max-height:42px!important}}
+
+/* KYC client flow: keep the large information types in a vertical list. */
+.customer-kyc .kyc-steps{display:flex;flex-direction:column;align-items:stretch;gap:8px}
+.customer-kyc .kyc-step-button{justify-content:flex-start;min-height:52px;text-align:left}
+.customer-kyc .kyc-step-label{overflow-wrap:anywhere}
+@media(max-width:480px){.mini-app .customer-kyc .kyc-steps{gap:6px}.mini-app .customer-kyc .kyc-step-button{min-height:48px;padding:10px 12px;font-size:13px}.mini-app .customer-kyc .kyc-step-label{white-space:normal}}

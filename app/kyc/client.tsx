@@ -23,20 +23,20 @@ export default function KycClient({review=false,mini=false}:{review?:boolean;min
  const [amending,setAmending]=useState(false);
  const [record,setRecord]=useState<RecordView|null>(null),[profile,setProfile]=useState<Profile>(emptyProfile),[section,setSection]=useState(review?'identity':'personal'),[cases,setCases]=useState<any[]>([]),[error,setError]=useState(''),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[loaded,setLoaded]=useState(false),[dirty,setDirty]=useState(false),[checks,setChecks]=useState<Record<string,boolean>>({}),[reason,setReason]=useState(''),[decision,setDecision]=useState('needs_info'),[filter,setFilter]=useState('submitted'),[vehicleKind,setVehicleKind]=useState<Slot|''>('');
  const clientSteps=[
-  {id:'personal',label:'基本身份',Icon:UserRound,dataSection:'identity',fieldIds:['surname','givenName','documentNumber']},
+  {id:'personal',label:'个人身份资料 · 最高 30 USD',Icon:UserRound,dataSection:'identity',fieldIds:['surname','givenName','documentType','documentNumber']},
   {id:'identityDetails',label:'个人情况',Icon:UserRound,dataSection:'identity',fieldIds:['gender','education','marital']},
   {id:'address',label:'居住地址',Icon:MapPin,dataSection:'identity',fieldIds:['province','district','address']},
   {id:'idFront',label:'身份证正面',Icon:IdCard,dataSection:'identity',slot:'idFront' as Slot},
   {id:'idBack',label:'身份证反面',Icon:IdCard,dataSection:'identity',slot:'idBack' as Slot},
   {id:'selfie',label:'个人自拍照',Icon:Camera,dataSection:'identity',slot:'selfie' as Slot},
-  {id:'contact1',label:'紧急联系人一',Icon:UsersRound,dataSection:'contacts',fieldIds:['contact1Relation','contact1Name','contact1Phone']},
+  {id:'contact1',label:'紧急联系人资料 · 最高 50 USD',Icon:UsersRound,dataSection:'contacts',fieldIds:['contact1Relation','contact1Name','contact1Phone']},
   {id:'contact2',label:'紧急联系人二',Icon:UsersRound,dataSection:'contacts',fieldIds:['contact2Relation','contact2Name','contact2Phone']},
   {id:'contact3',label:'紧急联系人三（选填）',Icon:UsersRound,dataSection:'contacts',fieldIds:['contact3Relation','contact3Name','contact3Phone']},
-  {id:'employment',label:'工作资料',Icon:BriefcaseBusiness,dataSection:'employment',fieldIds:['workType','company','industry','position']},
+  {id:'employment',label:'工作收入资料 · 最高 100 USD',Icon:BriefcaseBusiness,dataSection:'employment',fieldIds:['workType','company','industry','position']},
   {id:'income',label:'收入资料',Icon:BriefcaseBusiness,dataSection:'income',fieldIds:['income','tenure','supervisorName','supervisorPhone'],slot:'incomeProof' as Slot},
-  {id:'assets',label:'资产资料',Icon:Building2,dataSection:'assets',fieldIds:['vehicle','housing']},
-  {id:'bank',label:'收款账户',Icon:Building2,dataSection:'bank',fieldIds:['bankName','bankHolder','bankAccount']},
-  {id:'consent',label:'授权确认',Icon:FileSignature,dataSection:'consent'}
+  {id:'assets',label:'车辆房屋资料 · 最高 200 USD',Icon:Building2,dataSection:'assets',fieldIds:['vehicle','housing']},
+  {id:'bank',label:'收款账户资料（审核必要项）',Icon:Building2,dataSection:'bank',fieldIds:['bankName','bankHolder','bankAccount']},
+  {id:'consent',label:'资料授权确认（审核必要项）',Icon:FileSignature,dataSection:'consent'}
  ] as const;
  const navSections=review?sections:clientSteps;
  const activeSection=navSections.find(s=>s.id===section)||navSections[0];
@@ -74,6 +74,7 @@ export default function KycClient({review=false,mini=false}:{review?:boolean;min
   document.addEventListener('click',leave,true);
   return()=>document.removeEventListener('click',leave,true);
  },[mini,dirty,busy,profile,record]);
+ useEffect(()=>{if(loaded&&!profile.values.documentType)setProfile(p=>({...p,values:{...p.values,documentType:'柬埔寨身份证'}}))},[loaded,profile.values.documentType]);
  const editable=!review&&!!record&&['draft','needs_info'].includes(record.status);
  const score=completeness(profile,record?.phoneVerified===true),problems=missing(profile);
  const change=(id:string,value:string)=>{setDirty(true);setProfile(p=>{const next={...p,values:{...p.values,[id]:fields.find(f=>f.id===id)?.kind==='phone'&&value.trim()==='+855'?'':value,...(id==='province'?{district:''}:{})},files:{...p.files}};if(['vehicle','housing'].includes(id))for(const slot of slots)if(!slotVisible(slot.id,next))delete next.files[slot.id];return next});setMessage('')};
