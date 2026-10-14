@@ -57,18 +57,30 @@ button.kyc-group-button:not(:last-child)::after {
   margin-top: 12px !important;
 }
 .mini-app .customer-kyc .kyc-group-copy {
-  display: contents !important;
+  display: flex !important;
+  flex: 1 1 auto !important;
+  flex-wrap: wrap !important;
+  align-items: baseline !important;
+  column-gap: 8px !important;
+  row-gap: 2px !important;
+  min-width: 0 !important;
+  padding-right: 104px !important;
 }
-.mini-app .customer-kyc .kyc-group-copy strong { order: 1; flex: 1 1 auto; min-width: 0; }
+.mini-app .customer-kyc .kyc-group-button { position: relative !important; }
+.mini-app .customer-kyc .kyc-group-copy strong { order: 1; flex: 0 0 100%; min-width: 0; }
 .mini-app .customer-kyc .kyc-group-copy small {
   order: 2;
   flex: 0 0 100%;
   width: 100%;
   white-space: pre-line;
 }
-.mini-app .customer-kyc .kyc-group-arrow { order: 3; margin-left: auto; }
+.mini-app .customer-kyc .kyc-group-arrow { order: 3; position: absolute !important; right: 76px; top: 50%; transform: translateY(-50%); margin: 0 !important; }
 .mini-app .customer-kyc .kyc-group-copy em {
   order: 4;
+  position: absolute !important;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
   width: auto !important;
   flex: 0 0 auto;
   white-space: nowrap;
