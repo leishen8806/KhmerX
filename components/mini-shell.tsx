@@ -26,6 +26,7 @@ export function MiniShell({screen,children}:{screen:string;children:ReactNode}){
  const languageRef=useRef(language);languageRef.current=language;
  const [enabledLanguages,setEnabledLanguages]=useState<Record<Locale,boolean>>({en:true,km:true,zh:true});
  const [languageOpen,setLanguageOpen]=useState(false);
+ useEffect(()=>{document.querySelector('.auth-locale')?.remove()},[]);
  useEffect(()=>{void apiFetch<AuthBootstrap>('/api/h5/auth',{cache:'no-store'}).then(({data:d})=>{const flags=d?.languages;if(!flags)return;const next={en:flags.en!==false,km:flags.km!==false,zh:flags.zh!==false};setEnabledLanguages(next);if(!next[language]){const fallback=next.en?'en':next.km?'km':'zh';setLanguage(fallback);window.localStorage.setItem('payease-language',fallback)}}).catch(()=>undefined)},[]);
  const chooseLanguage=(next:Locale)=>{if(!enabledLanguages[next])return;
   // Apply the visible copy before React/API work starts. This prevents a
