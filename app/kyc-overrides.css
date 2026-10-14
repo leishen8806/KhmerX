@@ -1,0 +1,23 @@
+/* Cache-busted KYC card layout overrides for embedded Telegram WebViews. */
+.customer-kyc .kyc-group-button {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  height: auto !important;
+  min-height: 68px !important;
+  overflow: hidden !important;
+}
+.customer-kyc .kyc-group-button::after {
+  content: none !important;
+  display: none !important;
+}
+.customer-kyc .kyc-group-copy {
+  display: flex !important;
+  flex: 1 !important;
+  flex-wrap: wrap !important;
+  min-width: 0 !important;
+}
+.customer-kyc .kyc-group-copy em {
+  display: block !important;
+  width: 100% !important;
+}
