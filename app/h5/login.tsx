@@ -18,7 +18,7 @@ export default function H5Login(){
  const [ready,setReady]=useState(false),[company,setCompany]=useState(''),[mode,setMode]=useState('demo'),[session,setSession]=useState<Session|null>(null),[view,setView]=useState('register'),[phone,setPhone]=useState('+855'),[password,setPassword]=useState(''),[confirm,setConfirm]=useState(''),[currentPassword,setCurrentPassword]=useState(''),[code,setCode]=useState(''),[challenge,setChallenge]=useState<Challenge|null>(null),[consent,setConsent]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [miniScreen,setMiniScreen]=useState(screen),[miniQuery,setMiniQuery]=useState(()=>typeof window==='undefined'?'':window.location.search);
  useEffect(()=>{setMiniScreen(screen);setMiniQuery(window.location.search)},[screen]);
- const navigateMini=(href:string)=>{const target=new URL(href,window.location.origin);const parts=target.pathname.split('/').filter(Boolean);setMiniScreen(parts[0]==='h5'?(parts[1]||'home'):'home');setMiniQuery(target.search)};
+ const navigateMini=(href:string)=>{const target=new URL(href,window.location.origin);const parts=target.pathname.split('/').filter(Boolean);const nextScreen=parts[0]==='h5'?(parts[1]||'home'):'home';setMiniScreen(nextScreen);setMiniQuery(target.search)};
  const complete=(s:Session|null,p:{phoneVerification:boolean;passwordSetup:boolean})=>!!s&&(!p.phoneVerification||!!s.verificationCompleted)&&(!p.passwordSetup||!!s.hasPassword);
  const telegramInitData=()=>{
   const runtime=(window as any).Telegram?.WebApp?.initData;
