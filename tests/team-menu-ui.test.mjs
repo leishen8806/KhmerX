@@ -10,7 +10,7 @@ test('service backend menu keeps merged customer and KYC entries unique',()=>{
   assert.doesNotMatch(source,/\['待补件','\/team\/kyc'/);
   assert.doesNotMatch(source,/\['补件任务','\/team\/kyc'/);
   assert.match(source,/\['资金限额','\/team\/funding','funding'\]/);
-  assert.doesNotMatch(source,/\['资金监管','\/team\/funding','funding'\]/);
+  assert.match(source,/\['资金监管','\/team\/funding','funding'\]/);
   assert.doesNotMatch(source,/\['每日放款限额','\/team\/funding','funding'\]/);
   assert.doesNotMatch(source,/\['每月放款限额','\/team\/funding','funding'\]/);
   assert.doesNotMatch(source,/\['20% 资金预警','\/team\/funding','funding'\]/);
