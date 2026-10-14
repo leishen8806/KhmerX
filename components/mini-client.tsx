@@ -43,7 +43,7 @@ export function MiniClient({screen,queryString='',phone,company,onLogout,onSecur
  let content;
  if(securityOpen)content=<section className="mini-card mini-empty mini-security-panel"><LockKeyhole size={32}/><h1>账户安全</h1><p>当前账户已通过 Telegram 身份登录。</p><p className="mini-muted">如需修改密码或恢复方式，请从账号设置页面操作。</p><Button variant="outline" onClick={()=>setSecurityOpen(false)}>返回我的</Button></section>;
  else if(screen==='kyc'&&kycLocked)content=<section className="mini-card mini-empty"><ShieldCheck size={32}/><h1>身份资料审核中</h1><p>预计 24 小时内完成审核。</p><Button variant="outline" onClick={()=>navigate?.('/h5')}>返回首页</Button></section>;
- else if(screen==='kyc')content=<KycClient mini/>;
+ else if(screen==='kyc'){const group=query.get('group');const firstStep:Record<string,string>={identity:'personal',contacts:'contact1',employment:'employment',assets:'assets',bank:'bank',consent:'consent'};content=<KycClient mini initialSection={group?firstStep[group]:undefined}/>}
  else if(screen==='sign')content=<LoanSign mini queryString={query.toString()}/>;
  else if(screen==='contract')content=<Contract mini queryString={query.toString()}/>;
  else if(!data)content=<section className="mini-card mini-data-loading" role="status"><LoaderCircle size={28} className="spin" aria-hidden="true"/><h2>正在加载</h2><p>同步你的账户与借款信息…</p></section>;
