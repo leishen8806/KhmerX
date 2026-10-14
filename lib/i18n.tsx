@@ -11,11 +11,11 @@ export const localeLabels:Record<Locale,string>={en:'English',km:'ភាសា�
 export const messages:Record<Locale,Record<string,string>>={
   zh:{
     kycUploadLimit:'单份材料不能超过 10 MB',kycUploadDetail:'单份不超过 10 MB。图片支持 JPG/PNG，证明材料可使用 PDF。PDF 以下载方式查看。',
-    home:'首页',records:'借款记录',me:'我的',apply:'申请借款',bill:'费用确认',sign:'确认签约',status:'借款进度',repay:'还款',withdraw:'提现',kyc:'身份认证',
+    home:'首页',records:'借款记录',me:'我的',apply:'申请借款',bill:'费用确认',sign:'确认签约',status:'借款进度',repay:'还款',withdraw:'提现',kyc:'实名资料',
     back:'返回',language:'切换语言',notifications:'站内信息',loading:'正在加载',syncing:'同步你的账户与借款信息…',reload:'重新加载',
-    hello:'你好，{name}',simpleFinance:'Simple finance for everyday life.',highest:'最高可申请金额',chooseTerm:'可选 14 天或 28 天 · 签约前展示完整费用',completeKyc:'完成身份认证',applyLoan:'申请借款',viewProgress:'查看借款进度',
-    threeSteps:'申请只需三步',identityReview:'身份资料审核',chooseAmount:'选择金额，确认账单并签约',approvalDisbursement:'等待审批与放款',
-    noLoans:'还没有借款记录',completeBeforeApply:'完成身份认证后，即可申请借款。',startApply:'开始申请',inProgress:'你有一笔进行中的申请',finishCurrent:'请先完成当前借款，再发起新申请。',continue:'继续当前申请',
+    hello:'你好，{name}',simpleFinance:'Simple finance for everyday life.',highest:'最高可申请金额',chooseTerm:'可选 14 天或 28 天 · 签约前展示完整费用',completeKyc:'完成实名资料',applyLoan:'申请借款',viewProgress:'查看借款进度',
+    threeSteps:'申请只需三步',identityReview:'实名资料审核',chooseAmount:'选择金额，确认账单并签约',approvalDisbursement:'等待审批与放款',
+    noLoans:'还没有借款记录',completeBeforeApply:'完成实名资料后，即可申请借款。',startApply:'开始申请',inProgress:'你有一笔进行中的申请',finishCurrent:'请先完成当前借款，再发起新申请。',continue:'继续当前申请',
     accountSecurity:'账户安全',logout:'退出登录',testAccount:'测试账户',viewProfile:'查看资料',approved:'已审核通过',repaymentReminder:'Telegram 还款提醒',currentLoan:'当前借款',
     feeDetails:'费用明细',loanAgreement:'已签借款协议',loadingProfile:'正在读取已审核资料…',nextBill:'下一步将展示实际到账、全部扣费及到期应还金额。',
     confirmBill:'我已核对实际到账、费用、期限与应还总额',confirmTest:'确认使用虚构资料进行测试资金申请',nextBillButton:'下一步：查看结算账单',reviewBill:'核对结算账单',continueSign:'确认账单，继续签约',
