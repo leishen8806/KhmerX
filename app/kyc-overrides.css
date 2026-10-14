@@ -26,3 +26,27 @@
   display: block !important;
   width: 100% !important;
 }
+
+/* The grouped cards may retain the legacy step class in an already-mounted
+   client tree; neutralize every legacy connector/layout rule explicitly. */
+button.kyc-step-button.kyc-group-button,
+button.kyc-group-button {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  position: static !important;
+  flex: 0 0 auto !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 68px !important;
+  padding: 11px 12px !important;
+  overflow: hidden !important;
+}
+button.kyc-step-button.kyc-group-button::after,
+button.kyc-step-button.kyc-group-button:not(:last-child)::after,
+button.kyc-group-button::after,
+button.kyc-group-button:not(:last-child)::after {
+  content: none !important;
+  display: none !important;
+  background: none !important;
+}
