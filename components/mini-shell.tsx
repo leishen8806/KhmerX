@@ -25,6 +25,7 @@ export function MiniShell({screen,children}:{screen:string;children:ReactNode}){
  const [language,setLanguage]=useState<Locale>(()=>{if(typeof window==='undefined')return 'en';const query=new URLSearchParams(window.location.search).get('lang');const saved=window.localStorage.getItem('payease-language');return supported(query)?query:supported(saved)?saved:defaultLocale()});
  const languageRef=useRef(language);languageRef.current=language;
  const [enabledLanguages,setEnabledLanguages]=useState<Record<Locale,boolean>>({en:true,km:true,zh:true});
+ useEffect(()=>{document.querySelector<HTMLDetailsElement>('.mini-icon-menu')?.removeAttribute('open')},[screen]);
  useEffect(()=>{void apiFetch<AuthBootstrap>('/api/h5/auth',{cache:'no-store'}).then(({data:d})=>{const flags=d?.languages;if(!flags)return;const next={en:flags.en!==false,km:flags.km!==false,zh:flags.zh!==false};setEnabledLanguages(next);if(!next[language]){const fallback=next.en?'en':next.km?'km':'zh';setLanguage(fallback);window.localStorage.setItem('payease-language',fallback)}}).catch(()=>undefined)},[]);
  const chooseLanguage=(next:Locale)=>{if(!enabledLanguages[next])return;
   // Apply the visible copy before React/API work starts. This prevents a
