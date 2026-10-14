@@ -50,3 +50,26 @@ button.kyc-group-button:not(:last-child)::after {
   display: none !important;
   background: none !important;
 }
+
+/* Final Mini App card alignment: amount wraps below the title and the state
+   remains to the right of the chevron. */
+.mini-app .customer-kyc .kyc-steps:has(.kyc-group-button) {
+  margin-top: 12px !important;
+}
+.mini-app .customer-kyc .kyc-group-copy {
+  display: contents !important;
+}
+.mini-app .customer-kyc .kyc-group-copy strong { order: 1; flex: 1 1 auto; min-width: 0; }
+.mini-app .customer-kyc .kyc-group-copy small {
+  order: 2;
+  flex: 0 0 100%;
+  width: 100%;
+  white-space: pre-line;
+}
+.mini-app .customer-kyc .kyc-group-arrow { order: 3; margin-left: auto; }
+.mini-app .customer-kyc .kyc-group-copy em {
+  order: 4;
+  width: auto !important;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
