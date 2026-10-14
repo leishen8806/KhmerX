@@ -74,11 +74,11 @@ button.kyc-group-button:not(:last-child)::after {
   width: 100%;
   white-space: pre-line;
 }
-.mini-app .customer-kyc .kyc-group-arrow { order: 3; position: absolute !important; right: 76px; top: 50%; transform: translateY(-50%); margin: 0 !important; }
+.mini-app .customer-kyc .kyc-group-arrow { order: 3; position: absolute !important; right: 14px; top: 50%; transform: translateY(-50%); margin: 0 !important; }
 .mini-app .customer-kyc .kyc-group-copy em {
   order: 4;
   position: absolute !important;
-  right: 14px;
+  right: 54px;
   top: 50%;
   transform: translateY(-50%);
   width: auto !important;
