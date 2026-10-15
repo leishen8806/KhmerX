@@ -442,13 +442,14 @@ test('KYC encryption envelope carries key id and survives active-key rotation',a
  }finally{if(previous===undefined)delete env.KYC_DATA_KEY_ID;else env.KYC_DATA_KEY_ID=previous;}
 });
 
-test('invite binding cannot create non-admin SSO without MFA',async()=>{
+test('invite binding creates a restricted MFA setup session for non-admin staff',async()=>{
  const auth=await mod('@/app/api/team/auth/route');const memberId='invite-mfa-'+crypto.randomUUID(),email='invite-mfa@example.test',token='invite-token-qa';
  sql.prepare("INSERT INTO team_members (id,tenant_id,user_id,email,role,active,version,mfa_enabled) VALUES (?,?,?,?,?,1,0,0)").run(memberId,A,'pending:invite-mfa',email,'ops');
  const issuer=sql.prepare('SELECT id FROM team_members WHERE tenant_id=? AND user_id=?').get(A,'owner').id;
  sql.prepare("INSERT INTO team_invites (token_hash,tenant_id,email,role,unit_id,issuer,expires_at,used) VALUES (?,?,?,?,?,?,?,0)").run(await (await mod('@/lib/h5-auth-core')).digest(token),A,email,'ops',null,issuer,Date.now()+3600000);
  user={userId:'invite-mfa-user',email};selected='';extraCookies='';
  const response=await auth.POST(new Request('http://localhost/api/team/auth',{method:'POST',headers:{origin:'http://localhost','content-type':'application/json'},body:JSON.stringify({action:'bind_invite',company:'synthetic-a',inviteToken:token,portal:'business'})}));
- assert.equal(response.status,403);assert.equal((await response.json()).code,'MFA_REQUIRED_FOR_INVITE');
+ assert.equal(response.status,200);assert.equal((await response.json()).mfaSetupRequired,true);extraCookies=response.headers.get('set-cookie')+';payease_staff_company='+A+';payease_staff_mode=sso;payease_staff_portal=business;payease_staff_mfa_setup='+memberId;selected=A;
+ const teamRoute=await mod('@/app/api/team/route');const limited=await teamRoute.GET();assert.equal(limited.status,200);assert.equal((await limited.json()).mfaSetupRequired,true);await assert.rejects(team.manage({action:'add_unit',kind:'department',name:'blocked before MFA'}));const enrollment=await team.manage({action:'mfa_enroll_start'});assert.match(enrollment.mfa.secret,/^[A-Z2-7]{32}$/);
  user=owner;
 });
