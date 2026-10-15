@@ -1,0 +1,1 @@
+import{u as e}from"./h5-auth-CD0B0Jmp.js";import{i as t,t as n}from"./server-DfuiwkT-.js";var r=`force-dynamic`;async function i(r){if(!await n(r))return e({error:`Unauthorized`,code:`JOB_UNAUTHORIZED`},401);try{let n=await t();return e(n,n.ok?200:503)}catch{return e({error:`贷后检查失败，请重试`,code:`POSTLOAN_JOB_FAILED`},503)}}export{i as POST,r as dynamic};
