@@ -51,6 +51,22 @@ async function requireRoleApproval(s:any,role:TeamRole,approvalId:unknown){
  return id;
 }
 export async function manage(p:any){const u=await identity();
+ if(p.action==='platform_bootstrap_admin'){
+  const operator=await platformAdmin();
+  const company=txt(p.company,40).toLowerCase(),email=txt(p.email,254).toLowerCase();
+  if(!/^[a-z0-9][a-z0-9-]{2,39}$/.test(company)||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))throw new AuthError('请填写有效的公司代码和管理员邮箱');
+  const tenant=await db().prepare('SELECT id,slug FROM team_companies WHERE slug=? AND active=1').bind(company).first<any>();
+  if(!tenant)throw new AuthError('公司代码无效',404,'COMPANY_NOT_FOUND');
+  const existing=await db().prepare('SELECT id,active FROM team_members WHERE tenant_id=? AND lower(email)=?').bind(tenant.id,email).first<any>();
+  if(existing)throw new AuthError(existing.active?'该邮箱已是当前公司的员工，请直接使用现有账号':'该邮箱曾属于当前公司，需先由管理员恢复或清理后再引导');
+  const memberId=crypto.randomUUID(),pendingUser='pending:platform:'+crypto.randomUUID(),now=new Date().toISOString(),expires=Date.now()+24*3600000;
+  await db().batch([
+   db().prepare('INSERT INTO team_members (id,tenant_id,user_id,email,role,unit_id,active,version) VALUES (?,?,?,?,?,?,1,0)').bind(memberId,tenant.id,pendingUser,email,'admin',null),
+   db().prepare('INSERT INTO team_platform_bootstrap (member_id,tenant_id,email,created_by,created_at,expires_at,used_at) VALUES (?,?,?,?,?,?,NULL)').bind(memberId,tenant.id,email,operator.userId,now,expires),
+   db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),tenant.id,operator.email,'platform_admin_bootstrap',JSON.stringify({memberId,email,expiresAt:new Date(expires).toISOString(),mode:'verified_sso'}),now)
+  ]);
+  return {ok:true,company:tenant.slug,email,expiresAt:expires};
+ }
  if(p.action==='create_company'){await platformAdmin();const name=txt(p.name),slug=txt(p.slug,40),enabled={en:p.en!==false,km:p.km!==false,zh:p.zh!==false};if(!name||! /^[a-z0-9][a-z0-9-]{2,39}$/.test(slug))throw new AuthError('请填写公司名称及 3–40 位小写字母/数字入口代码');if(!Object.values(enabled).some(Boolean))throw new AuthError('至少启用一种客户端语言');const id='t_'+crypto.randomUUID(),dept=crypto.randomUUID(),now=new Date().toISOString();await db().batch([db().prepare('INSERT INTO team_companies (id,name,slug,active,default_department,client_en_enabled,client_km_enabled,client_zh_enabled) VALUES (?,?,?,1,?,?,?,?)').bind(id,name,slug,dept,enabled.en?1:0,enabled.km?1:0,enabled.zh?1:0),db().prepare('INSERT INTO team_units (id,tenant_id,name,kind) VALUES (?,?,?,?)').bind(dept,id,'运营一部','department'),db().prepare('INSERT INTO team_members (id,tenant_id,user_id,email,role,active,version) VALUES (?,?,?,?,?,1,0)').bind(crypto.randomUUID(),id,u.userId,u.email.toLowerCase(),'admin'),db().prepare('INSERT INTO team_funding_settings(tenant_id,daily_cents,monthly_cents,warning_percent,timezone,version,updated_at,updated_by) VALUES (?,?,?,?,?,?,?,?)').bind(id,defaultFundingLimits.dailyCents,defaultFundingLimits.monthlyCents,defaultFundingLimits.warningPercent,defaultFundingLimits.timezone,0,now,u.userId),audit(id,u.userId,'create_company',{name,languages:enabled,fundingDefaults:defaultFundingLimits})]);return {companyId:id,languages:enabled}}
  const s=await staff(),mfaAction=['mfa_enroll_start','mfa_enroll_confirm','mfa_disable','mfa_recovery_generate'].includes(String(p.action));if(!s||(!mfaAction&&s.member.role!=='admin'))throw new AuthError('仅当前公司管理员可管理组织',403);const tenant=s.tenant.id;
  if(p.action==='mfa_enroll_start'){
