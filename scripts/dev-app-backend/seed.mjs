@@ -6,6 +6,11 @@ import { migrateDev } from './migrate-dev.mjs';
 const t = PUBLIC_COMPANY_ID;
 const db = openDevDb();
 console.log('dev migrations applied:', migrateDev(db));
+// The harness is disposable and may be started repeatedly during local
+// acceptance. Clear only authentication throttling state so a prior failed
+// run cannot make the next run start with a 429. Business/KYC records remain
+// intact for replay and audit checks.
+db.exec('DELETE FROM h5_browser_tokens; DELETE FROM h5_limits;');
 const dept = t + ':ops', institution = t + ':institution', post = t + ':postloan';
 db.exec('BEGIN');
 db.prepare('INSERT OR IGNORE INTO team_companies(id,name,slug,active,default_department,auto_assign) VALUES (?,?,?,1,?,1)')
