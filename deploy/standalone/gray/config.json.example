@@ -1,0 +1,32 @@
+{
+  "host": "testpayease.khmerx.org",
+  "publicClientHosts": [
+    "testpayease.khmerx.org"
+  ],
+  "adminHosts": [
+    "testadmin.khmerx.org"
+  ],
+  "apiHosts": [
+    "testapi.khmerx.org"
+  ],
+  "accessUser": "replace-with-gray-basic-user",
+  "accessPassword": "replace-with-gray-basic-password",
+  "sessionSecret": "replace-with-a-random-32-byte-secret",
+  "companies": [
+    {
+      "id": "gray-public-company",
+      "name": "KhmerX Gray"
+    }
+  ],
+  "bindings": {
+    "PAYEASE_ENV": "gray",
+    "KHMERX_TEST_MODE": "false",
+    "PAYEASE_IDENTITY_PROOF_REQUIRED": "true",
+    "PAYEASE_AUTH_SECRET": "replace-with-a-random-secret",
+    "PAYEASE_IDENTITY_PROOF_SECRET": "replace-with-a-random-secret",
+    "KYC_SCAN_TOKEN": "replace-with-scanner-token",
+    "POSTLOAN_JOB_SECRET": "replace-with-a-random-secret",
+    "PAYEASE_LIMIT_SCALE": "1",
+    "PAYEASE_GATEWAY_RATE_SCALE": "1"
+  }
+}
