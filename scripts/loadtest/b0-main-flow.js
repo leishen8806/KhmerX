@@ -3,14 +3,22 @@ import { check, fail, sleep } from 'k6';
 import { Counter, Rate, Trend } from 'k6/metrics';
 import encoding from 'k6/encoding';
 
-const base = String(__ENV.BASE_URL || 'http://127.0.0.1:5173').replace(/\/$/, '');
+const originIp = String(__ENV.ORIGIN_IP || '').trim();
+const hostHeader = String(__ENV.LOADTEST_HOST || '').trim().toLowerCase();
+const originScheme = String(__ENV.ORIGIN_SCHEME || 'http').toLowerCase();
+const configuredBase = String(__ENV.BASE_URL || 'http://127.0.0.1:5173').replace(/\/$/, '');
+const base = originIp ? `${originScheme}://${originIp}` : configuredBase;
 const parsedMatch = base.match(/^([a-z][a-z0-9+.-]*):\/\/([^/]+)/i);
 if (!parsedMatch) throw new Error('BASE_URL 必须包含 http:// 或 https://');
 const parsed = { protocol: `${parsedMatch[1].toLowerCase()}:`, hostname: parsedMatch[2].replace(/^.*@/, '').replace(/:\d+$/, '').toLowerCase() };
 const blocked = new Set(['payease.khmerx.org', 'admin.khmerx.org', 'api.khmerx.org']);
-if (blocked.has(parsed.hostname) || (parsed.protocol === 'https:' && parsed.hostname.endsWith('khmerx.org'))) {
+const allowedHosts = new Set(String(__ENV.LOADTEST_ALLOWED_HOSTS || 'localhost,127.0.0.1,10.0.2.2').split(',').map(value => value.trim().toLowerCase()).filter(Boolean));
+const localTarget = new Set(['localhost', '127.0.0.1', '10.0.2.2']).has(parsed.hostname);
+if (blocked.has(parsed.hostname) || blocked.has(hostHeader) || (originIp && !allowedHosts.has(originIp.toLowerCase())) || (hostHeader && !allowedHosts.has(hostHeader)) || (!localTarget && !allowedHosts.has(parsed.hostname))) {
   throw new Error('B0 仅允许本地或预发环境，已拒绝生产目标主机');
 }
+if ((originIp && !hostHeader) || (!originIp && hostHeader)) throw new Error('--origin-ip 与 --host 必须同时提供');
+const requestOrigin = hostHeader ? `${originScheme}://${hostHeader}` : base;
 
 const requestLatency = new Trend('b0_request_latency', true);
 const requestErrors = new Rate('b0_request_errors');
@@ -18,8 +26,11 @@ const statusCounts = new Counter('b0_http_status_total');
 const codeCounts = new Counter('b0_error_code_total');
 const uploads = new Counter('b0_upload_total');
 const uploadFailures = new Counter('b0_upload_failure_total');
+const uploadSuccess = new Rate('b0_upload_success');
+const writeConflictRetries = new Counter('b0_write_conflict_retry_total');
+const staleUpdateErrors = new Counter('b0_stale_update_total');
 const statusMetrics = Object.fromEntries([200, 400, 401, 403, 409, 429, 500, 503].map(status => [status, new Counter(`b0_status_${status}`)]));
-const codeMetrics = Object.fromEntries(['AUTH_REQUIRED', 'BROWSER_TOKEN_RATE_LIMITED', 'CROSS_SITE_REQUEST', 'INVALID_REQUEST', 'STATE_MUTATION_FAILED', 'KYC_SCAN_REQUIRED'].map(code => [code, new Counter(`b0_code_${code}`)]));
+const codeMetrics = Object.fromEntries(['AUTH_REQUIRED', 'BROWSER_TOKEN_RATE_LIMITED', 'CROSS_SITE_REQUEST', 'INVALID_REQUEST', 'CONFLICT', 'KYC_REVISION_CONFLICT', 'STATE_MUTATION_FAILED', 'KYC_SCAN_REQUIRED'].map(code => [code, new Counter(`b0_code_${code}`)]));
 let activeJar;
 
 const stages = __ENV.STAGES === 'true';
@@ -29,7 +40,7 @@ const duration = String(__ENV.DURATION || '3m');
 export const options = once ? {
   scenarios: { main: { executor: 'per-vu-iterations', vus, iterations: 1, maxDuration: '5m' } },
   thresholds: { b0_request_errors: ['rate<0.05'] },
-  summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(90)', 'p(95)', 'p(99)'],
+  summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(50)', 'p(90)', 'p(95)', 'p(99)'],
 } : stages ? {
   scenarios: { main: { executor: 'ramping-vus', startVUs: 0, stages: [
     { target: 100, duration: '3m' }, { target: 100, duration: '3m' },
@@ -37,16 +48,17 @@ export const options = once ? {
     { target: 600, duration: '3m' }, { target: 600, duration: '3m' },
   ], gracefulRampDown: '30s' } },
   thresholds: { b0_request_errors: ['rate<0.05'], b0_upload_failure_total: ['count<1'] },
-  summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(90)', 'p(95)', 'p(99)'],
+  summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(50)', 'p(90)', 'p(95)', 'p(99)'],
 } : {
   scenarios: { main: { executor: 'constant-vus', vus, duration, gracefulStop: '30s' } },
   thresholds: { b0_request_errors: ['rate<0.05'] },
-  summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(90)', 'p(95)', 'p(99)'],
+  summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(50)', 'p(90)', 'p(95)', 'p(99)'],
 };
 
 const common = {
   headers: {
-    Origin: base,
+    Origin: requestOrigin,
+    ...(hostHeader ? { Host: hostHeader } : {}),
     Accept: 'application/json',
     'Cache-Control': 'no-store',
     ...( __ENV.K6_USER_ID ? { 'oai-authenticated-user-id': String(__ENV.K6_USER_ID) } : {}),
@@ -69,16 +81,27 @@ function record(res, name) {
       codeCounts.add(1, { endpoint: name, code: String(body.code) });
       if (codeMetrics[body.code]) codeMetrics[body.code].add(1);
     }
+    if (typeof body.error === 'string' && /刚刚更新|stale|updated by another|revision/i.test(body.error)) staleUpdateErrors.add(1, { endpoint: name });
   } else requestErrors.add(false, { endpoint: name });
   return body;
 }
 
 function request(method, path, body, name, extra = {}) {
-  const params = { ...common, ...extra, jar: activeJar, headers: { ...common.headers, ...(extra.headers || {}) } };
+  const { retryConflicts = 0, ...requestOptions } = extra;
   const binary = body instanceof Uint8Array || body instanceof ArrayBuffer;
-  if (body !== undefined && !binary) { params.headers['Content-Type'] = 'application/json'; body = JSON.stringify(body); }
-  const response = http.request(method, `${base}${path}`, body, params);
-  return { response, body: record(response, name) };
+  const payload = body !== undefined && !binary ? JSON.stringify(body) : body;
+  for (let attempt = 0; ; attempt += 1) {
+    const params = { ...common, ...requestOptions, jar: activeJar, headers: { ...common.headers, ...(requestOptions.headers || {}) } };
+    if (body !== undefined && !binary) params.headers['Content-Type'] = 'application/json';
+    const response = http.request(method, `${base}${path}`, payload, params);
+    const responseBody = record(response, name);
+    if (response.status === 409 && attempt < Number(retryConflicts)) {
+      writeConflictRetries.add(1, { endpoint: name });
+      sleep(0.05);
+      continue;
+    }
+    return { response, body: responseBody };
+  }
 }
 
 function syntheticProfile(files) {
@@ -119,12 +142,14 @@ export default function () {
       headers: { 'Content-Type': 'image/jpeg', 'x-kyc-slot': slot },
     });
     uploads.add(1, { slot });
-    if (!check(uploaded.response, { [`upload ${slot}`]: r => r.status === 200 })) uploadFailures.add(1, { slot });
+    const uploadOk = check(uploaded.response, { [`upload ${slot}`]: r => r.status === 200 });
+    uploadSuccess.add(uploadOk, { slot });
+    if (!uploadOk) uploadFailures.add(1, { slot });
     must(uploaded.response.status === 200 && uploaded.body.id, `上传 ${slot} 失败: ${uploaded.response.status}`);
     files[slot] = uploaded.body;
   }
 
-  const submitted = request('POST', '/api/kyc', { action: 'submit', revision: kyc.body.revision, profile: syntheticProfile(files) }, 'kyc_submit');
+  const submitted = request('POST', '/api/kyc', { action: 'submit', revision: kyc.body.revision, profile: syntheticProfile(files) }, 'kyc_submit', { retryConflicts: 2 });
   must(check(submitted.response, { 'kyc submit': r => r.status === 200 }), `KYC提交失败: ${submitted.response.status}`);
   for (let i = 0; i < 3; i += 1) {
     const state = request('GET', '/api/h5/state', undefined, 'state_poll');
@@ -134,13 +159,17 @@ export default function () {
 }
 
 export function handleSummary(data) {
-  const reportPath = String(__ENV.REPORT_PATH || '/tmp/b0-latest.json');
+  const reportPath = String(__ENV.REPORT_PATH || 'scripts/loadtest/reports/b0-latest.json');
   const latency = data.metrics.b0_request_latency?.values || {};
+  const p50 = latency['p(50)'] ?? latency.med;
+  const totalDurationMs = data.state?.testRunDuration ?? null;
   const report = { generatedAt: new Date().toISOString(), baseUrl: base, vus: once ? vus : (stages ? '100→300→600' : vus), duration: once ? 'one iteration' : (stages ? '18m' : duration),
-    requestLatency: { ...latency, 'p(50)': latency.med }, requestErrors: data.metrics.b0_request_errors?.values || {},
-    uploads: data.metrics.b0_upload_total?.values || {}, uploadFailures: data.metrics.b0_upload_failure_total?.values || {},
+    requestsPerSecond: data.metrics.b0_http_status_total?.values?.rate ?? null, totalDurationMs,
+    requestLatency: { ...latency, 'p(50)': p50 }, requestErrors: data.metrics.b0_request_errors?.values || {},
+    uploads: data.metrics.b0_upload_total?.values || {}, uploadSuccessRate: data.metrics.b0_upload_success?.values || {}, uploadFailures: data.metrics.b0_upload_failure_total?.values || {},
+    writeConflictRetries: data.metrics.b0_write_conflict_retry_total?.values || {}, staleUpdateErrors: data.metrics.b0_stale_update_total?.values || {},
     statusCounts: data.metrics.b0_http_status_total?.values || {}, codeCounts: data.metrics.b0_error_code_total?.values || {},
     statusBreakdown: Object.fromEntries(Object.keys(statusMetrics).map(status => [status, data.metrics[`b0_status_${status}`]?.values?.count || 0])),
     codeBreakdown: Object.fromEntries(Object.keys(codeMetrics).map(code => [code, data.metrics[`b0_code_${code}`]?.values?.count || 0])), checks: data.metrics.checks?.values || {} };
-  return { stdout: `B0 ${report.vus} VU\nrequest p50=${report.requestLatency['p(50)'] ?? 'n/a'}ms p95=${report.requestLatency['p(95)'] ?? 'n/a'}ms p99=${report.requestLatency['p(99)'] ?? 'n/a'}ms\nerror rate=${report.requestErrors.rate ?? 'n/a'} upload failures=${report.uploadFailures.count ?? 0}\n`, [reportPath]: JSON.stringify(report, null, 2) };
+  return { stdout: `B0 ${report.vus} VU\nrps=${report.requestsPerSecond ?? 'n/a'} p50=${report.requestLatency['p(50)'] ?? 'n/a'}ms p95=${report.requestLatency['p(95)'] ?? 'n/a'}ms p99=${report.requestLatency['p(99)'] ?? 'n/a'}ms\nerror rate=${report.requestErrors.rate ?? 'n/a'} upload success=${report.uploadSuccessRate.rate ?? 'n/a'} conflict retries=${report.writeConflictRetries.count ?? 0}\n`, [reportPath]: JSON.stringify(report, null, 2) };
 }
