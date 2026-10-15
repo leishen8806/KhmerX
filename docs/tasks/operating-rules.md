@@ -38,5 +38,6 @@
 
 ## 6. 工作目录与提交（避免混在一起）
 - 每人独立克隆；每个任务一个 `git worktree`；Codex 会话只绑定自己的 worktree。
-- 提交身份用本人名字；小步提交并立即 `git push`，Claude 只能评审已推送的分支。
+- 大旺没有独立 GitHub 账号、在技术负责人的电脑上工作：给他单独一个克隆目录（例如 `KhmerX-dawang`），在该目录里 `git config user.name "大旺"`、`git config user.email "dawang@khmerx.invalid"`；苏晨同理。推送仍用这台电脑的账号，所以提交说明末尾加一行 `Line: client`（或 `Line: server`）来区分是谁写的。
+- 小步提交并立即 `git push`，Claude 只能评审已推送的分支。
 - 一个分支只放一个任务的改动，禁止 `git add -A` 把别的任务带进来。
