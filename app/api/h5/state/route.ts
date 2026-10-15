@@ -7,7 +7,7 @@ import {route} from '@/lib/http/route';
 import {customerState} from '@/lib/domain';
 export const dynamic='force-dynamic';
 export const GET=route({handler:async(request:Request)=>{
- const {ownerId,session}=await customer(request),data=await readState(ownerId);
+ const {ownerId,session}=await customer(request),data=await readState(ownerId,session.customerId);
  return json({...data,kyc:await findCase(ownerId,session.customerId).then(k=>k?{status:k.status}:null),pricing:ownerId.startsWith('t_')?await pricingFor(ownerId):null,state:customerState(data.state,session.customerId)});
 }});
 export const POST=route({origin:'required',handler:async(request:Request)=>{
