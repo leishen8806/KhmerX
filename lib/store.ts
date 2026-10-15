@@ -2,13 +2,13 @@ import {validLoanContract} from '@/lib/loan-signing';
 import {calculateBill} from './pricing';
 import {ensureAssignment,assignment,pricingFor} from '@/lib/team/server';
 import {env} from 'cloudflare:workers';
-import {initialState,applyAction,type State} from './domain';
-import {customerAction} from './domain';
+import {initialState,applyAction,type State,customerAction,customerState} from './domain';
 import {findCase,payload,reviewer,KycError} from './kyc/server';
 import {publicIdentifier} from './public-id.ts';
 import {channelForAccount,claimPublicIdentifier} from './public-id-store.ts';
 import {serializeWorkspacePayload} from './workspace-payload.ts';
 import {ApiError} from './http/api-error';
+import {customerRowsMode,readCustomerShard,writeCustomerShard} from './customer-shards';
 function db(){if(!env.DB)throw Error('测试数据库暂不可用');return env.DB}
 async function hydratePublicRefs(owner:string,state:State,revision:number){
  let changed=false;
@@ -24,20 +24,32 @@ async function hydratePublicRefs(owner:string,state:State,revision:number){
  if(changed)await db().prepare('UPDATE demo_workspaces SET payload=? WHERE owner=? AND revision=?').bind(serializeWorkspacePayload(state),owner,revision).run();
  return state;
 }
-export async function readState(owner:string):Promise<{state:State;revision:number}>{
+async function readLegacyState(owner:string,hydrate=true):Promise<{state:State;revision:number}>{
  const row=await db().prepare('SELECT revision,payload FROM demo_workspaces WHERE owner=?').bind(owner).first<{revision:number;payload:string}>();
  const result=row?{state:JSON.parse(row.payload) as State,revision:row.revision}:{state:initialState(),revision:0};
- if(row)result.state=await hydratePublicRefs(owner,result.state,result.revision);
+ if(row&&hydrate)result.state=await hydratePublicRefs(owner,result.state,result.revision);
  const credentials=(await db().prepare('SELECT bot_id,telegram_id,label,username FROM telegram_bot_credentials WHERE owner=?').bind(owner).all<{bot_id:string;telegram_id:string;label:string;username:string}>()).results;
  for(const bot of result.state.bots){const saved=credentials.find(c=>c.bot_id===bot.id);bot.tokenConfigured=!!saved;if(saved){bot.label=saved.label;bot.username=saved.username;bot.telegramId=saved.telegram_id}}
  return result;
 }
+export async function readState(owner:string,customerId?:string):Promise<{state:State;revision:number}>{
+ const mode=customerRowsMode();
+ if(mode==='on'&&customerId){
+  const tenant=await readLegacyState(owner,false);
+  const row=await readCustomerShard(db(),owner,customerId);
+  if(!row)return {state:customerState(tenant.state,customerId),revision:0};
+  const shard=JSON.parse(row.payload) as Pick<State,'loans'|'events'|'entries'|'notifications'|'requests'|'requestDigests'>;
+  return {state:{...tenant.state,...shard},revision:row.revision};
+ }
+ return readLegacyState(owner);
+}
 // The settlement override is an internal post-loan test/worker capability only;
 // H5 routes never pass it and customer requests cannot set function arguments.
 export async function mutate(owner:string,p:any,customer?:{id:string;phoneMasked:string;channel?:'TG'|'H5'|'AP'|'AD'|'IN'|'SY'},options:{allowInternalSettlement?:boolean}={}){
+ const rowsMode=customerRowsMode();
  await db().prepare('INSERT OR IGNORE INTO demo_workspaces (owner,revision,payload) VALUES (?,0,?)').bind(owner,JSON.stringify(initialState())).run();
  for(let i=0;i<4;i++){
-  const {state,revision}=await readState(owner);
+  const {state,revision}=await readState(owner,rowsMode==='on'?customer?.id:undefined);
   const loan=state.loans.find(l=>l.id===p.loanId);if(customer&&p.action==='create'&&state.loans.some(l=>l.customerId===customer.id&&!['closed','rejected'].includes(l.status)))throw new KycError('请先完成当前申请，再发起新的申请',409);
   // Customer ownership must be checked before consulting another customer's case.
   if(customer&&p.action!=='create'&&loan?.customerId!==customer.id)throw new KycError('申请不存在或不属于当前客户',404);
@@ -70,8 +82,15 @@ export async function mutate(owner:string,p:any,customer?:{id:string;phoneMasked
     next.events[0].note=updated.note;next.notifications[0].text=updated.note;
    }
   }
+  if(rowsMode==='on'&&customer){
+   if(await writeCustomerShard(db(),owner,customer.id,next,revision,p.requestId))return {state:next,revision:revision+1};
+   continue;
+  }
   const result=await db().prepare("UPDATE demo_workspaces SET payload=?,revision=revision+1 WHERE owner=? AND revision=? AND (? IS NULL OR EXISTS(SELECT 1 FROM kyc_cases WHERE id=? AND owner=? AND revision=? AND status='approved'))").bind(serializeWorkspacePayload(next),owner,revision,creationCase?.id||null,creationCase?.id||null,owner,creationCase?.revision??0).run();
-  if(result.meta.changes===1)return {state:next,revision:revision+1};
+  if(result.meta.changes===1){
+   if(rowsMode==='shadow'&&customer)void writeCustomerShard(db(),owner,customer.id,next,revision,p.requestId,false).catch(error=>console.error('[customer-shards] shadow write failed',error));
+   return {state:next,revision:revision+1};
+  }
  }
  throw new ApiError(409,'CONFLICT','其他操作刚刚更新了记录，请重试');
 }
