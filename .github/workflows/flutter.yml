@@ -1,0 +1,41 @@
+name: Flutter client
+
+on:
+  push:
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/flutter.yml'
+  pull_request:
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/flutter.yml'
+
+concurrency:
+  group: flutter-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze-and-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.29.3'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
