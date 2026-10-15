@@ -11,13 +11,14 @@ import {createHmac} from 'node:crypto';
 const root=path.resolve('.');
 const sql=new DatabaseSync(':memory:');sql.exec('PRAGMA foreign_keys=ON');
 for(const f of fs.readdirSync('drizzle').filter(f=>f.endsWith('.sql')).sort())sql.exec(fs.readFileSync('drizzle/'+f,'utf8'));
+let batchChain=Promise.resolve();
 const DB={
  prepare(query){return {bind(...args){const s=sql.prepare(query);return {
   async first(){return s.get(...args)||null},
   async all(){return {results:s.all(...args)}},
   async run(){const r=s.run(...args);return {meta:{changes:Number(r.changes)}}}
  }}}},
- async batch(statements){sql.exec('BEGIN');try{const out=[];for(const s of statements)out.push(await s.run());sql.exec('COMMIT');return out}catch(e){sql.exec('ROLLBACK');throw e}}
+ async batch(statements){const pending=batchChain.then(async()=>{sql.exec('BEGIN');try{const out=[];for(const s of statements)out.push(await s.run());sql.exec('COMMIT');return out}catch(e){sql.exec('ROLLBACK');throw e}});batchChain=pending.catch(()=>{});return pending}
 };
 const blobs=new Map();const env={DB,BUCKET:{async put(k,v){blobs.set(k,v)},async get(k){const v=blobs.get(k);return v?{async arrayBuffer(){return v.buffer.slice(v.byteOffset,v.byteOffset+v.byteLength)}}:null},async delete(k){blobs.delete(k)}},KYC_DATA_SECRET:'synthetic-only-'.repeat(5),KYC_REVIEWER_EMAILS:'owner@example.test',PAYEASE_AUTH_SECRET:'synthetic-auth-'.repeat(5),PAYEASE_AUTH_MODE:'demo',KHMERX_TEST_MODE:'true'};
 let user={userId:'owner',email:'owner@example.test'},selected='',extraCookies='';const context=vm.createContext({console,crypto,TextEncoder,TextDecoder,Headers,Request,Response,URL,URLSearchParams,AbortSignal,Uint8Array,ArrayBuffer,Buffer,Date,structuredClone,atob,btoa,setTimeout,clearTimeout});
@@ -451,4 +452,58 @@ test('invite binding cannot create non-admin SSO without MFA',async()=>{
  const response=await auth.POST(new Request('http://localhost/api/team/auth',{method:'POST',headers:{origin:'http://localhost','content-type':'application/json'},body:JSON.stringify({action:'bind_invite',company:'synthetic-a',inviteToken:token,portal:'business'})}));
  assert.equal(response.status,403);assert.equal((await response.json()).code,'MFA_REQUIRED_FOR_INVITE');
  user=owner;
+});
+
+test('Q7 cutover preserves employee approvals, tenant funding limits, receipts and frozen JSON',async()=>{
+ selected=A;user=owner;extraCookies='';
+ const rows=await mod('@/lib/customer-shards'),funding=await mod('@/lib/funding-limits'),targets=[];
+ const bytes=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jX1sAAAAASUVORK5CYII=','base64'));
+ for(const id of ['q7-customer-a','q7-customer-b']){
+  await approvedCustomer(id);const c={id,phoneMasked:'SYNTHETIC'};
+  const created=await store.mutate(A,{action:'create',name:'SYNTHETIC Q7',amount:5000,consent:true,requestId:crypto.randomUUID()},c),loan=created.state.loans[0];
+  await store.mutate(A,{action:'confirm_bill',loanId:loan.id,billConfirmed:true,quoteId:loan.billing.quoteId,requestId:crypto.randomUUID()},c);
+  await signing.saveLoanSignature(A,id,loan.id,bytes);
+  await store.mutate(A,{action:'apply',loanId:loan.id,billConfirmed:true,quoteId:loan.billing.quoteId,requestId:crypto.randomUUID()},c);
+  sql.prepare('UPDATE team_assignments SET institution_id=?,funding_institution_id=?,repayment_institution_id=? WHERE tenant_id=? AND customer_id=?').run(inst,inst,inst,A,id);targets.push(loan);
+ }
+ const legacy=await store.readState(A);
+ for(const id of new Set(legacy.state.loans.map(x=>x.customerId).filter(Boolean)))await rows.writeCustomerShard(DB,A,id,legacy.state,0);
+ const frozen=sql.prepare('SELECT payload FROM demo_workspaces WHERE owner=?').get(A).payload;
+ env.CUSTOMER_ROWS='on';
+ try{
+  for(const loan of targets){user=lender;await flow.staffAction({action:'approve',loanId:loan.id,requestId:crypto.randomUUID()});user=checker;await flow.staffAction({action:'approval_check',loanId:loan.id,requestId:crypto.randomUUID()});user=finance;await flow.staffAction({action:'disburse_request',loanId:loan.id,requestId:crypto.randomUUID()})}
+  user=owner;const current=await fundingSettings.fundingSettingsForTenant(A),usage=funding.fundingUsage(await rows.tenantFundingEntries(DB,A)),net=targets[0].billing.net;
+  await fundingSettings.fundingSettingsSave({...current,dailyCents:usage.dayCents+net,monthlyCents:Math.max(usage.monthCents+2*net,usage.dayCents+2*net)});
+  user=financeChecker;const outcomes=await Promise.allSettled(targets.map(loan=>flow.staffAction({action:'disburse',loanId:loan.id,requestId:crypto.randomUUID()})));
+  assert.equal(outcomes.filter(x=>x.status==='fulfilled').length,1);assert.equal(outcomes.find(x=>x.status==='rejected').reason.status,409);
+  const loser=targets[outcomes.findIndex(x=>x.status==='rejected')];
+  await assert.rejects(flow.staffAction({action:'disburse',loanId:loser.id,requestId:crypto.randomUUID()}),e=>e.code==='FUNDING_LIMIT_EXCEEDED');
+  user=owner;const settings=await fundingSettings.fundingSettingsForTenant(A);await fundingSettings.fundingSettingsSave({...settings,dailyCents:usage.dayCents+2*net});
+  const fund={action:'admin_disburse',loanId:loser.id,note:'Synthetic shard funding',requestId:crypto.randomUUID()};await flow.staffAction(fund);await flow.staffAction(fund);
+  const repay={action:'admin_repay',loanId:loser.id,cents:100,reference:'Q7-SYNTHETIC-RECEIPT',note:'Synthetic shard receipt',requestId:crypto.randomUUID()};await flow.staffAction(repay);await flow.staffAction({...repay,requestId:crypto.randomUUID()});
+  const saved=await store.readState(A,loser.customerId);assert.equal(saved.state.loans[0].paid,100);assert.equal(saved.state.entries.filter(x=>x.kind==='\u6d4b\u8bd5\u653e\u6b3e').length,1);
+  assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM team_repayment_ledger WHERE tenant_id=? AND reference=?').get(A,repay.reference).n,1);
+  const page=await flow.scopedState({pageSize:1});assert.equal(page.state.loans.length,1);assert.equal(page.pagination.pageSize,1);assert(!('customerLoans' in page));assert(!JSON.stringify(page).includes('profileHash'));assert.equal(Object.keys(page.state.requestDigests).length,0);
+  selected=B;await assert.rejects(flow.staffAction({...repay,requestId:crypto.randomUUID()}));selected=A;user=reviewer2;await assert.rejects(flow.staffAction({...repay,requestId:crypto.randomUUID()}));user=owner;
+  assert.equal(sql.prepare('SELECT payload FROM demo_workspaces WHERE owner=?').get(A).payload,frozen);
+ }finally{delete env.CUSTOMER_ROWS;selected=A;user=owner;extraCookies=''}
+});
+test('Q7 actual state route pages 5000 customers and CSV export retains every page',async()=>{
+ user=owner;extraCookies='';const P=(await team.manage({action:'create_company',name:'Synthetic pagination',slug:'synthetic-q7-pagination'})).companyId;selected=P;
+ const department=sql.prepare('SELECT default_department FROM team_companies WHERE id=?').get(P).default_department;
+ const blank={loans:[],bots:[],events:[],entries:[],notifications:[],requests:[],requestDigests:{}};
+ sql.prepare('INSERT INTO demo_workspaces(owner,revision,payload) VALUES(?,0,?)').run(P,JSON.stringify(blank));
+ const account=sql.prepare('INSERT INTO h5_accounts(customer_id,owner,phone_mask,mode,created_at) VALUES(?,?,?,?,?)'),assignment=sql.prepare('INSERT INTO team_assignments(tenant_id,customer_id,department_id,version) VALUES(?,?,?,0)'),shard=sql.prepare('INSERT INTO customer_workspaces VALUES(?,?,0,?,?)'),index=sql.prepare('INSERT INTO loan_index VALUES(?,?,?,?,?,?)');
+ sql.exec('BEGIN');for(let i=0;i<5000;i++){const id=`q7-perf-${i}`,at=new Date(i*1000).toISOString(),loan={id:`q7-loan-${i}`,customerId:id,createdAt:at,name:'SYNTHETIC',status:'signed',amount:5000,fee:0,paid:0,wallet:0,botId:'bot-1',note:'',demoDays:0,kyc:{income:0,contacts:[],document:''}};account.run(id,P,'SYNTHETIC','demo',i);assignment.run(P,id,department);shard.run(P,id,JSON.stringify({...blank,loans:[loan]}),at);index.run(P,loan.id,id,loan.status,at,at)}account.run('q7-no-loan',P,'SYNTHETIC','demo',99999);assignment.run(P,'q7-no-loan',department);sql.exec('COMMIT');
+ await kyc.initialize(P,'q7-no-loan',false);const route=await mod('@/app/api/state/route');
+ const before=await (await route.GET(new Request('http://localhost/api/state'))).json();assert(!('pagination' in before));
+ env.CUSTOMER_ROWS='on';
+ try{
+  const timings=[];let body;
+  for(let i=0;i<20;i++){const start=performance.now(),response=await route.GET(new Request('http://localhost/api/state'));body=await response.json();timings.push(performance.now()-start);assert.equal(response.status,200)}
+  const p95=timings.sort((a,b)=>a-b)[18];console.log(`Q7 local route + SQLite: 5000 customers, first-page p95=${p95.toFixed(2)}ms`);assert(p95<500);
+  assert.equal(body.state.loans.length,50);assert.equal(body.pagination.total,5000);assert.equal(body.customers.length,50);assert.equal(body.customerPagination.total,5001);assert(body.kycOrders.some(x=>x.customer_id==='q7-no-loan'));
+  const next=await (await route.GET(new Request('http://localhost/api/state?page=2&pageSize=50'))).json();assert(!next.state.loans.some(x=>body.state.loans.some(y=>x.id===y.id)));
+  const exported=await reports.exportCustomerSummary({report:'loan_cashflow',requestId:'q7-export-complete'});assert.equal(exported.count,5000);assert.match(exported.csv,/loan_id_masked/);
+ }finally{delete env.CUSTOMER_ROWS;selected=A;user=owner}
 });
