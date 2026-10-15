@@ -26,7 +26,6 @@ final class BaseHeadersInterceptor extends Interceptor {
 
     options.headers['User-Agent'] = _userAgent;
     options.headers['Accept'] = _accept;
-    options.headers['Origin'] = config.origin;
 
     super.onRequest(options, handler);
   }
