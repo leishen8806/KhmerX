@@ -13,6 +13,9 @@ export async function POST(request:Request){
   // bounded D1 limiter and key it by tenant + customer so one account
   // cannot exhaust the provider quota for the whole company.
   const now=Math.floor(Date.now()/1000),limitKey=`geocode|${c.owner}|${c.customerId}`;
+  // Keep the shared limiter table bounded. Authentication traffic performs
+  // the same pruning, but geocoding can be used independently of login.
+  await db().prepare('DELETE FROM h5_limits WHERE window_start+3600<=? AND next_allowed<=?').bind(now,now).run();
   const limited=await db().prepare(`INSERT INTO h5_limits (key,window_start,count,next_allowed) VALUES (?, ?, 1, ?)
    ON CONFLICT(key) DO UPDATE SET count=CASE WHEN window_start+60<=? THEN 1 ELSE count+1 END,
    window_start=CASE WHEN window_start+60<=? THEN ? ELSE window_start END,next_allowed=?
