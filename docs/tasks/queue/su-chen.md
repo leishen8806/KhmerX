@@ -16,7 +16,7 @@
 | 1 | Q1 S2 返修（PR #16） | 第 1 天 | — | 已修，等待合并 |
 | 2 | Q2 S4b 返修（PR #14） | 第 1 天 | — | 已修，等待合并 |
 | 3 | Q14 Flutter CI 返修（PR #8，`Line: app`） | 第 2 天 | — | ☐ |
-| 4 | L1 压测脚本推送与补齐（原 P1+P8，`Line: client`） | 第 2–3 天 | — | ☐ |
+| 4 | L1-A fixture + L1-B rows 场景（见 L1 契约修订，`Line: server`） | 第 2–3 天 | — | ☐ |
 | 5 | Q4 灰度机部署模板与脚本（并由苏晨在服务器上部署） | 第 2–4 天 | Q2 | ☐ |
 | 6 | L2 灰度机压测执行与报告（原 P10，人工 + 脚本） | 第 3 天首轮；第 11–12 天复测 | Q4、L1 | ☐ |
 | 7 | Q5 S6 客户分片（表 + 仓储 + shadow） | 第 5 天 | Q1，ARC-01-lite | ☐ |
@@ -171,23 +171,13 @@ PR 小于 400 行。
 
 ---
 
-## L1 压测脚本推送与补齐（原 P1 + P8）　分支 `feat/client/B0`
-合并要求：把已有的 `scripts/loadtest/`（B0、B0b）推送成一个分支；再补 P8 的"按客户分片"场景。若这些脚本只在别的电脑上，先把它们拷过来再推送（先确认目录里有哪些文件）。
-先读：你已有的 `scripts/loadtest/` 全部内容、`docs/tasks/codex-prompts/day1.md` 中 B0 与 B0b 的要求。
-```
-【任务】把 B0、B0b 的脚本推送成一个分支并修正以下问题，只改 scripts/loadtest/。
-1. 采样脚本 sample-resources.sh 必须在跑应用容器的服务器（159.223.77.134）上运行，README 里不得写成在 165.22.108.5 运行；--origin-ip/--host 参数属于压测脚本而不是采样脚本，若误加到采样脚本请移除。
-2. 压测脚本支持 --origin-ip 与 --host：直连源站 IP 并带 Host 头；主机白名单仍用 LOADTEST_ALLOWED_HOSTS，生产域名一律拒绝。
-3. 报告输出到 scripts/loadtest/reports/，必须包含：每秒请求数、p50/p95/p99、按状态码和 code 分类（尤其 409、CONFLICT、STATE_MUTATION_FAILED）、写冲突重试次数、上传成功率、总用时。
-4. README 写清"谁在哪台机器上运行什么"：压测在 165.22.108.5（发起）、采样在 159.223.77.134（被测）。
-自查：脚本自检、shellcheck、git diff --check。PR 小于 400 行。
-```
+## L1 压测：fixture 与 rows 场景（已按契约修订，拆为 L1-A / L1-B）
+**唯一依据：`docs/tasks/codex-prompts/L1-rows-loadtest-revision.md`**（契约 v2，冻结两种场景、虚构账号/会话 fixture、重试与统计口径、安全顺序、验收）。旧版"600 虚拟客户 创建→保存资料→提交"的描述作废：KYC 保存/提交不写客户分片，B0 的 600 VU 只对应 100 个身份。
 
-补充（原 P8）：
-```
-【任务】在 scripts/loadtest/ 增加场景：单租户 600 虚拟客户并发"创建 → 保存资料 → 提交 → 状态轮询"，输出 409 CONFLICT 比例、写重试次数与按客户的状态一致性检查（每个客户最终状态都应是预期状态）；增加 --scenario 参数（baseline、rows）；报告新增"最终状态不一致的客户数"。
-验收：本地 50 用户可跑通；报告字段齐全。
-```
+- **L1-A**　分支 `feat/server/L1-A`（`Line: server`）：fixture、manifest、预检、清理。提示词见契约 §10。
+- **L1-B**　分支 `feat/server/L1-B`（`Line: server`，依赖 L1-A 评审通过，可堆叠）：rows 场景、统计、本地 50 客户验收。提示词见契约 §10。
+- 范围：**仅本地 harness 与单元测试**；灰度执行与 fixture 写入由人工完成，Codex 不得操作 159.223.77.134 / 165.22.108.5。灰度运行另被 Q4 返修（灰度 config 样例无法启动，契约 OPEN-2）阻塞。
+- 已有 B0/B0b 脚本的推送（原 P1 的 README 机器分工、--origin-ip/--host、报告字段）若 main 尚缺，另用小 PR 处理，不得与 L1-A/L1-B 混合；`b0-main-flow.js` 在 L1-B 中不得修改。
 
 ---
 
