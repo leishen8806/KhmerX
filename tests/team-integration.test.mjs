@@ -421,6 +421,17 @@ test('state mutation rejects non-JSON and malformed envelopes',async()=>{
  assert.equal(malformed.status,400);assert.equal((await malformed.json()).code,'INVALID_REQUEST');
 });
 
+test('KYC encryption envelope carries key id and survives active-key rotation',async()=>{
+ const previous=env.KYC_DATA_KEY_ID;
+ try{
+  env.KYC_DATA_KEY_ID='qa-key-a';const plain=Uint8Array.from([7,11,19,23]),encrypted=await kyc.encryptBytes(plain,'qa:file:context');
+  assert.equal(encrypted[0],0x4b);assert.equal(encrypted[1],0x02);
+  const keyLength=encrypted[2];assert.equal(new TextDecoder().decode(encrypted.slice(3,3+keyLength)),'qa-key-a');
+  assert.deepEqual(Array.from(await kyc.decryptBytes(encrypted,'qa:file:context')),Array.from(plain));
+  env.KYC_DATA_KEY_ID='qa-key-b';assert.deepEqual(Array.from(await kyc.decryptBytes(encrypted,'qa:file:context')),Array.from(plain));
+ }finally{if(previous===undefined)delete env.KYC_DATA_KEY_ID;else env.KYC_DATA_KEY_ID=previous;}
+});
+
 test('invite binding cannot create non-admin SSO without MFA',async()=>{
  const auth=await mod('@/app/api/team/auth/route');const memberId='invite-mfa-'+crypto.randomUUID(),email='invite-mfa@example.test',token='invite-token-qa';
  sql.prepare("INSERT INTO team_members (id,tenant_id,user_id,email,role,active,version,mfa_enabled) VALUES (?,?,?,?,?,1,0,0)").run(memberId,A,'pending:invite-mfa',email,'ops');
