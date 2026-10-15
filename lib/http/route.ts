@@ -68,6 +68,11 @@ export function errorResponse(e: unknown, requestId: string): Response {
 export async function readJsonBody(request: Request, max = 4096): Promise<Record<string, unknown>> {
   requireOrigin(request);
   if (!request.headers.get('content-type')?.startsWith('application/json')) throw new ApiError(415, 'INVALID_REQUEST', '请求格式无效');
+  const declared = request.headers.get('content-length');
+  if (declared !== null) {
+    const length = Number(declared);
+    if (Number.isFinite(length) && length > max) throw new ApiError(413, 'PAYLOAD_TOO_LARGE', '请求过大');
+  }
   const raw = await request.text();
   if (raw.length > max) throw new ApiError(413, 'PAYLOAD_TOO_LARGE', '请求过大');
   try {

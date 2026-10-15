@@ -10,7 +10,8 @@ import {cleanProfile,emptyProfile,missing,completeness,validateReview,fields,Kyc
 import {assertAllowedOrigin} from '@/lib/request-security';
 import {channelForAccount,claimPublicIdentifier} from '@/lib/public-id-store';
 import {errorResponse} from '@/lib/http/route';
-import {resolveRequestId} from '@/lib/http/request-id';
+import {requestIdOf,resolveRequestId} from '@/lib/http/request-id';
+import {isTestMode} from '@/lib/runtime-guards';
 export {json,KycError};
 export type CasePayload={profile:Profile;phoneVerified:boolean;ruleVersion:string;submittedAt?:string;signedLoan?:{billing?:Bill;borrowerName:string;profileHash:string;loanId:string;signatureId:string;signatureHash:string;termsVersion:string;termsHash:string;termsSnapshot:typeof loanTerms.blocks;principal:number;fee:number;currency:string;termDays:number;signedAt:string;contractHash:string};review?:{decision:string;reason:string;checklist:Record<string,boolean>;actor:string;at:string;revision:number}};
 export type CaseRow={id:string;owner:string;customer_id:string;revision:number;status:KycStatus;payload:string;updated_at:string;public_ref?:string|null;source_channel?:string|null};
@@ -19,7 +20,7 @@ export function db(){if(!env.DB)throw new KycError('KYC 数据库暂不可用',5
 export function bucket(){if(!env.BUCKET)throw new KycError('私有材料存储尚未配置',503);return env.BUCKET}
 export async function scanFile(bytes:Uint8Array){
  const values=settings(),url=values.KYC_SCAN_URL?.trim();
-  if(!url){if(values.KHMERX_TEST_MODE==='true')return;throw new KycError('文件安全扫描服务尚未配置，请联系管理员',503,'KYC_SCAN_REQUIRED');}
+  if(!url){if(isTestMode())return;throw new KycError('文件安全扫描服务尚未配置，请联系管理员',503,'KYC_SCAN_REQUIRED');}
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),30000);
  try{
   const scanHeaders:Record<string,string>={'content-type':'application/octet-stream','cache-control':'no-store'};if(values.KYC_SCAN_TOKEN)scanHeaders.authorization='Bearer '+values.KYC_SCAN_TOKEN;
@@ -49,13 +50,13 @@ export async function encryptBytes(bytes:Uint8Array,context:string){const keyId=
 export async function decryptBytes(bytes:Uint8Array,context:string){if(bytes[0]===KYC_ENVELOPE&&bytes[1]===KYC_ENVELOPE_VERSION&&bytes[2]>0&&bytes[2]<=64&&bytes.length>15+bytes[2]){const length=bytes[2],keyId=new TextDecoder().decode(bytes.slice(3,3+length)),offset=3+length,iv=bytes.slice(offset,offset+12);return new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv,additionalData:encoder.encode(context)},await derivedKey(keyId),bytes.slice(offset+12)))}const iv=bytes.slice(0,12);return new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv,additionalData:encoder.encode(context)},await legacyKey(),bytes.slice(12)))}
 async function seal(value:unknown,context:string){const b=await encryptBytes(encoder.encode(JSON.stringify(value)),context);return btoa(String.fromCharCode(...b))}
 async function unseal<T>(value:string,context:string){const b=Uint8Array.from(atob(value),c=>c.charCodeAt(0));return JSON.parse(new TextDecoder().decode(await decryptBytes(b,context))) as T}
-export async function reviewer(){const team=await staff();if(team){if(!['admin','kyc','dept_admin','audit'].includes(team.member.role))throw new KycError('当前岗位没有 KYC 材料查看权限',403);return {...team.user,userId:team.tenant.id,actorId:team.user.userId,team}}if(settings().KHMERX_TEST_MODE!=='true')throw new KycError('生产环境必须使用管理后台 KYC 审核岗位',403);const u=await getChatGPTUser();if(!u)throw new KycError('请先登录工作区',401);const allowed=(settings().KYC_REVIEWER_EMAILS||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);if(!allowed.includes(u.email.toLowerCase()))throw new KycError('当前账号未获 KYC 审核授权',403);return {...u,actorId:u.userId,team:null}}
+export async function reviewer(){const team=await staff();if(team){if(!['admin','kyc','dept_admin','audit'].includes(team.member.role))throw new KycError('当前岗位没有 KYC 材料查看权限',403);return {...team.user,userId:team.tenant.id,actorId:team.user.userId,team}}if(!isTestMode())throw new KycError('生产环境必须使用管理后台 KYC 审核岗位',403);const u=await getChatGPTUser();if(!u)throw new KycError('请先登录工作区',401);const allowed=(settings().KYC_REVIEWER_EMAILS||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);if(!allowed.includes(u.email.toLowerCase()))throw new KycError('当前账号未获 KYC 审核授权',403);return {...u,actorId:u.userId,team:null}}
 export async function context(request:Request){const c=await customer(request);return {owner:c.ownerId,customerId:c.session.customerId,verified:c.session.phoneVerified===true}}
 export function origin(request:Request){try{assertAllowedOrigin(request,true)}catch{throw new KycError('不允许跨站操作',403,'CROSS_SITE_REQUEST')}}
 export async function boundedBody(request:Request,max:number){if(Number(request.headers.get('content-length')||0)>max)throw new KycError('上传内容过大',413);const reader=request.body?.getReader();if(!reader)return new Uint8Array();const chunks:Uint8Array[]=[];let size=0;while(true){const r=await reader.read();if(r.done)break;size+=r.value.length;if(size>max){await reader.cancel();throw new KycError('上传内容过大',413)}chunks.push(r.value)}const out=new Uint8Array(size);let offset=0;for(const c of chunks){out.set(c,offset);offset+=c.length}return out}
 export async function body(request:Request){origin(request);if(!request.headers.get('content-type')?.startsWith('application/json'))throw new KycError('请求格式无效',415);try{const value=JSON.parse(new TextDecoder().decode(await boundedBody(request,50000)));if(!value||typeof value!=='object'||Array.isArray(value))throw new KycError('请求格式无效');return value}catch(e){if(e instanceof KycError)throw e;throw new KycError('请求格式无效')}}
 export function failed(e:unknown,request?:Request){
- return errorResponse(e,request?resolveRequestId(request):crypto.randomUUID());
+ return errorResponse(e,request?requestIdOf(request)??resolveRequestId(request):crypto.randomUUID());
 }
 export async function findCase(owner:string,customerId:string){return db().prepare('SELECT * FROM kyc_cases WHERE owner=? AND customer_id=?').bind(owner,customerId).first<CaseRow>()}
 export async function getCase(owner:string,id:string){const row=await db().prepare('SELECT * FROM kyc_cases WHERE owner=? AND id=?').bind(owner,id).first<CaseRow>();if(!row)throw new KycError('资料不存在或不可访问',404);return row}

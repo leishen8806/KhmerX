@@ -9,7 +9,11 @@ test('standalone gateway has bounded overload and upload protection', () => {
   assert.match(source, /PAYEASE_MAX_UPLOADS/);
   assert.match(source, /PAYEASE_MAX_BODY_BYTES/);
   assert.match(source, /Retry-After/);
-  assert.match(source, /code:'SERVICE_UNAVAILABLE'/);
-  assert.match(source, /code:'REQUEST_TOO_LARGE'/);
+  assert.match(source, /'SERVICE_UNAVAILABLE'/);
+  assert.match(source, /'PAYLOAD_TOO_LARGE'/);
+  assert.match(source, /'X-Request-Id':requestId/);
+  assert.match(source, /server\.headersTimeout=30000/);
+  assert.match(source, /server\.requestTimeout=60000/);
+  assert.match(source, /req\.setTimeout\(isUpload\?60000:30000\)/);
   assert.match(source, /startsWith\('\/api\/kyc\/files'\)/);
 });

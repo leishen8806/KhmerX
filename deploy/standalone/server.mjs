@@ -165,12 +165,15 @@ const maxUploads=Math.max(1,Number(process.env.PAYEASE_MAX_UPLOADS||4));
 const maxBodyBytes=Math.max(1,Number(process.env.PAYEASE_MAX_BODY_BYTES||15*1024*1024));
 const overloadRetryAfter=Math.max(1,Number(process.env.PAYEASE_OVERLOAD_RETRY_AFTER_SECONDS||3));
 let inFlight=0,uploadInFlight=0;
-const rejectOverload=res=>{res.writeHead(503,{'Content-Type':'application/json','Cache-Control':'no-store','Retry-After':String(overloadRetryAfter)});res.end(JSON.stringify({error:'Service temporarily unavailable',code:'SERVICE_UNAVAILABLE',params:{retryAfterSeconds:overloadRetryAfter}}));};
+const gatewayError=(res,status,code,error,retryAfter)=>{const requestId=randomUUID(),headers={'Content-Type':'application/json','Cache-Control':'no-store','X-Request-Id':requestId};if(retryAfter!==undefined)headers['Retry-After']=String(retryAfter);res.writeHead(status,headers);res.end(JSON.stringify({error,code,requestId,...(retryAfter===undefined?{}:{params:{retryAfterSeconds:retryAfter}})}));};
+const rejectOverload=res=>gatewayError(res,503,'SERVICE_UNAVAILABLE','Service temporarily unavailable',overloadRetryAfter);
 const server=createServer(async(req,res)=>{
  let slot=false,uploadSlot=false,released=false;
  const release=()=>{if(released)return;released=true;if(slot)inFlight--;if(uploadSlot)uploadInFlight--;};
  res.once('finish',release);res.once('close',release);
  try{
+ const isUpload=req.url?.startsWith('/api/kyc/files');
+ req.setTimeout(isUpload?60000:30000);
  const expected='Basic '+Buffer.from(cfg.accessUser+':'+cfg.accessPassword).toString('base64');
  const jobRequest=req.url==='/api/jobs/postloan'&&req.method==='POST'&&eq(req.headers.authorization||'','Bearer '+cfg.bindings.POSTLOAN_JOB_SECRET);
  const host=req.headers.host;
@@ -188,11 +191,10 @@ const server=createServer(async(req,res)=>{
    res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});
    return res.end(JSON.stringify({status:'ready',buildId}));
   }catch{
-   res.writeHead(503,{'Content-Type':'application/json','Cache-Control':'no-store'});
-   return res.end(JSON.stringify({status:'not_ready'}));
+   gatewayError(res,503,'SERVICE_UNAVAILABLE','Service temporarily unavailable',overloadRetryAfter);
+   return;
   }
  }
- const isUpload=req.url?.startsWith('/api/kyc/files');
  if(inFlight>=maxInFlight||(isUpload&&uploadInFlight>=maxUploads)){rejectOverload(res);return;}
  inFlight++;slot=true;if(isUpload){uploadInFlight++;uploadSlot=true;}
  if(![cfg.host,'admin.khmerx.org','api.khmerx.org','payease.khmerx.org','payeas.khmerx.org'].includes(host)){res.writeHead(400);return res.end('Invalid host');}
@@ -221,12 +223,14 @@ const server=createServer(async(req,res)=>{
  if(cfg.companies.length===1&&!/(?:^|;\s*)payease_company=/.test(cookies)){cookies+='; payease_company='+cfg.companies[0].id;headers.set('cookie',cookies);}
  const url=(secure?'https://':'http://')+host+(req.url||'/');
  const method=req.method||'GET';let body;
- if(!['GET','HEAD'].includes(method)){const chunks=[];let size=0;for await(const c of req){size+=c.length;if(size>maxBodyBytes){res.writeHead(413,{'Content-Type':'application/json','Cache-Control':'no-store'});return res.end(JSON.stringify({error:'Request too large',code:'REQUEST_TOO_LARGE'}));}chunks.push(c);}body=Buffer.concat(chunks);}
+ if(!['GET','HEAD'].includes(method)){const chunks=[];let size=0;for await(const c of req){size+=c.length;if(size>maxBodyBytes){gatewayError(res,413,'PAYLOAD_TOO_LARGE','Request too large');return;}chunks.push(c);}body=Buffer.concat(chunks);}
  const response=await mf.dispatchFetch(url,{method,headers,body,redirect:'manual'});
  res.statusCode=response.status;for(const [k,v]of response.headers)if(!['set-cookie','transfer-encoding','connection'].includes(k))res.setHeader(k,v);
  const securityHeaders={'X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'strict-origin-when-cross-origin','Permissions-Policy':'camera=(self), geolocation=(self), microphone=(self), payment=()','Content-Security-Policy':"default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' https://telegram.org 'unsafe-inline' 'unsafe-eval'; connect-src 'self' https://*.khmerx.org https://api.telegram.org https://gatewayapi.telegram.org"};for(const [k,v] of Object.entries(securityHeaders))if(!res.hasHeader(k))res.setHeader(k,v);if(secure&&!res.hasHeader('Strict-Transport-Security'))res.setHeader('Strict-Transport-Security','max-age=31536000; includeSubDomains');
  const set=response.headers.getSetCookie();if(fresh)set.push('payease_visitor='+value+'; Path=/; HttpOnly; SameSite=Strict; Max-Age=2592000'+(secure?'; Secure':''));if(set.length)res.setHeader('Set-Cookie',set);
  if(response.body)Readable.fromWeb(response.body).pipe(res);else res.end();
- }catch(e){console.error(e.message);if(!res.headersSent)res.writeHead(503);res.end('Service temporarily unavailable');}});
+ }catch(e){console.error(e instanceof Error?e.stack||e:e);if(!res.headersSent)gatewayError(res,503,'SERVICE_UNAVAILABLE','Service temporarily unavailable',overloadRetryAfter);}});
+server.headersTimeout=30000;
+server.requestTimeout=60000;
 server.listen(4300,'0.0.0.0',()=>console.log('PayEase test server ready'));
 for(const signal of ['SIGTERM','SIGINT'])process.on(signal,()=>{server.close(async()=>{await mf.dispose();process.exit(0)});});

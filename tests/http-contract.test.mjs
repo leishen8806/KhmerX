@@ -38,6 +38,8 @@ const {ApiError}=await mod('@/lib/http/api-error');
 const codes=await mod('@/lib/error-codes');
 const {AuthError}=await mod('@/lib/h5-auth-core');
 const {KycError}=await mod('@/lib/kyc/core');
+const {failure:authFailure,json:authJson}=await mod('@/lib/h5-auth');
+const {failed:kycFailed}=await mod('@/lib/kyc/server');
 const routes={
  state:await mod('@/app/api/state/route'),
  bots:await mod('@/app/api/bots/route'),
@@ -66,6 +68,16 @@ test('ARC-00 §2/§8.2: a client UUID is reused for the header and the failure b
  assert.equal(b.requestId,clientId,'client-supplied valid UUID must be reused');
  assert.equal(r.headers.get(REQUEST_ID_HEADER),clientId);
  assert.match(b.requestId,/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+});
+
+test('S2: route-attached request id is reused by auth and KYC failure helpers without client header',async()=>{
+ const handled=http.route({handler:async(request)=>authFailure(new ApiError(409,'CONFLICT','冲突'),request)});
+ const r=await handled(new Request('http://localhost/api/x'));
+ const b=await r.json();assertEnvelope(r,b,{code:'CONFLICT'});
+ const direct=authJson({error:'冲突',code:'CONFLICT'},409,{},new Request('http://localhost/api/x'));
+ const directBody=await direct.json();assert.equal(direct.headers.get(REQUEST_ID_HEADER),directBody.requestId);
+ const kyc=await kycFailed(new ApiError(409,'CONFLICT','冲突'),new Request('http://localhost/api/x')).json();
+ assert.match(kyc.requestId,/^[0-9a-f-]{36}$/);
 });
 
 test('ARC-00 §8.3: unknown exceptions become 500 INTERNAL_ERROR without leaking text; stack lands in the log',async()=>{
@@ -145,9 +157,9 @@ test('S2: all five migrated routes shape known failures as envelopes, never 503'
  // state: unsupported content-type is a request-local validation error
  let r=await routes.state.POST(new Request('http://localhost/api/state',{method:'POST',headers:{origin:'http://localhost','content-type':'text/plain'},body:'{}'}));
  let b=await r.json();assert.notEqual(r.status,503);assertEnvelope(r,b,{code:'INVALID_REQUEST'});
- // bots: unknown/unconfigured bot stays a 4xx validation failure
+ // bots: unknown/unconfigured bot is an unexpected server failure
  r=await routes.bots.POST(new Request('http://localhost/api/bots',{method:'POST',headers:{origin:'http://localhost','content-type':'application/json'},body:'{}'}));
- b=await r.json();assert.notEqual(r.status,503);assertEnvelope(r,b,{code:'BOT_VERIFICATION_FAILED'});
+ b=await r.json();assert.equal(r.status,500);assertEnvelope(r,b,{code:'INTERNAL_ERROR'});
  // h5/state: unauthenticated customer is 401, not 503
  r=await routes.h5state.POST(new Request('http://localhost/api/h5/state',{method:'POST',headers:{origin:'http://localhost','content-type':'application/json'},body:'{}'}));
  b=await r.json();assert.notEqual(r.status,503);assertEnvelope(r,b,{code:'AUTH_REQUIRED'});
