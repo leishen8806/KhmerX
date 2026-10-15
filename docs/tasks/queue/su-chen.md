@@ -1,6 +1,6 @@
 # 苏晨的任务队列（服务端与数据线）
 
-通用规则见 `_common.md`。状态栏：☐ 未开始　◐ 进行中　☑ 已合并。每张卡完成后把状态改成 ☑ 并写 PR 链接。
+通用规则见 `_common.md`。**App（Flutter）线自 2026-10-15 起也由苏晨负责（决策清单 D-20）**：Q14、Q15 提交说明末尾写 `Line: app`，分支用 `feat/app/…`；Q14 沿用已有的 PR #8 分支。状态栏：☐ 未开始　◐ 进行中　☑ 已合并。每张卡完成后把状态改成 ☑ 并写 PR 链接。
 
 | 序 | 卡 | 期限 | 依赖 | 状态 |
 |---|---|---|---|---|
@@ -17,6 +17,8 @@
 | 11 | Q11 灰度自动关闭/恢复 | 第 10 天 | Q4 | ☐ |
 | 12 | Q12 按压测报告调优 | 第 11–12 天 | 压测报告 | ☐ |
 | 13 | Q13 S3 安全收口（上生产前） | 第 15 天后 | — | ☐ |
+| 14 | Q14 Flutter CI 返修（PR #8，App 线） | 第 2 天 | — | ☐ |
+| 15 | Q15 Flutter 错误映射与上传重试（App 线） | 第 9–10 天（可顺延，不阻塞服务端主线） | Q1 | ☐ |
 
 人工操作（不是 Codex 任务，苏晨在服务器上做）：第 2–3 天按 Q4 的产物在 159.223.77.134 部署并让 `testapi.khmerx.org` 不再返回 521；第 4 天在 165.22.108.5 部署扫描服务；第 5 天配置备份并做一次恢复演练；第 12 天配合压测做资源采样。
 
@@ -134,3 +136,18 @@ PR 小于 400 行。
 
 ## Q13 S3 安全收口（上生产前）　分支 `feat/server/S3`
 灰度阶段后移（决策清单 D-11）。内容见 `docs/tasks/codex-prompts/day1.md` 的 S3 提示词；在 Q1 合并后基于最新 `origin/main` 重新开始，不要使用本地混杂的未提交改动。
+
+## Q14 Flutter CI 返修（PR #8）　分支沿用 PR #8 的分支
+先读：`.github/workflows/flutter.yml`、`mobile/pubspec.yaml`、`mobile/pubspec.lock`（末尾的 `sdks:`）。
+```
+【任务】PR #8 返修：把 .github/workflows/flutter.yml 的 flutter-version 从 '3.29.3' 改为 '3.47.0'（channel: stable）。原因：pubspec.lock 要求 Dart >=3.12、Flutter >=3.44，3.29.3 上 flutter pub get 会失败。在 PR 描述写明原因；合并后用一个故意引入分析错误的临时分支证明 CI 会失败（贴日志或截图后删除该分支）。
+验收：PR 上 flutter pub get、flutter analyze、flutter test 全绿；故意出错的分支会让检查失败。提交说明末尾写 Line: app。
+```
+
+## Q15 Flutter 错误映射与上传重试（App 线）　分支 `feat/app/D5`
+先读：`mobile/lib/core/error/`、`mobile/lib/core/network/`、`mobile/lib/features/kyc/presentation/kyc_controller.dart`、`mobile/lib/l10n/*.arb`、ARC-00 §5–§7、Q8 的上传限制（图片 5MB、PDF 10MB）。
+```
+【任务】1) 错误映射增加 INTERNAL_ERROR、VALIDATION_FAILED、ACCOUNT_ALREADY_REGISTERED、PAYLOAD_TOO_LARGE，并在 en/km/zh 三份 arb 里补文案；2) 在失败提示里显示 requestId（服务端错误时）；3) 上传遇到 503/429 带 retryAfterSeconds 时退避重试最多 3 次，界面显示"正在重试"；4) 大小限制常量与服务端一致（图片 5MB、PDF 10MB）；5) 补测试。
+注意：mobile 下 Dart 源码不得出现中日韩文字（走 l10n）；本卡不改服务端。
+验收：flutter analyze 0 问题；flutter test 全绿。PR 小于 400 行。提交说明末尾写 Line: app。
+```
