@@ -8,6 +8,7 @@ import {findCase,payload,reviewer,KycError} from './kyc/server';
 import {publicIdentifier} from './public-id.ts';
 import {channelForAccount,claimPublicIdentifier} from './public-id-store.ts';
 import {serializeWorkspacePayload} from './workspace-payload.ts';
+import {ApiError} from './http/api-error';
 function db(){if(!env.DB)throw Error('测试数据库暂不可用');return env.DB}
 async function hydratePublicRefs(owner:string,state:State,revision:number){
  let changed=false;
@@ -72,5 +73,5 @@ export async function mutate(owner:string,p:any,customer?:{id:string;phoneMasked
   const result=await db().prepare("UPDATE demo_workspaces SET payload=?,revision=revision+1 WHERE owner=? AND revision=? AND (? IS NULL OR EXISTS(SELECT 1 FROM kyc_cases WHERE id=? AND owner=? AND revision=? AND status='approved'))").bind(serializeWorkspacePayload(next),owner,revision,creationCase?.id||null,creationCase?.id||null,owner,creationCase?.revision??0).run();
   if(result.meta.changes===1)return {state:next,revision:revision+1};
  }
- throw Error('其他操作刚刚更新了记录，请重试');
+ throw new ApiError(409,'CONFLICT','其他操作刚刚更新了记录，请重试');
 }

@@ -1,7 +1,16 @@
 /** Stable API error identifiers. Clients must localize by code, not by error text. */
 export type ApiErrorCode=string;
+/** ARC-00 §7 additions. Explicit call sites must throw ApiError with these codes;
+ * codeForError below stays as the transitional fallback only. */
+export const INTERNAL_ERROR='INTERNAL_ERROR';
+export const VALIDATION_FAILED='VALIDATION_FAILED';
+export const ACCOUNT_ALREADY_REGISTERED='ACCOUNT_ALREADY_REGISTERED';
 export function codeForError(message:string,status=400):ApiErrorCode{
  const m=message.toLowerCase();
+ // Registering with an existing account must return ACCOUNT_ALREADY_REGISTERED so
+ // clients can branch on the code instead of the Chinese prose (ARC-00 §7). The
+ // message text is frozen for the legacy web client (`请使用验证码或密码登录`).
+ if(status===409&&m.includes('仅凭手机号进入已有账号'))return ACCOUNT_ALREADY_REGISTERED;
  if(status===401||m.includes('登录已失效')||m.includes('请先登录')||m.includes('请先进入'))return 'AUTH_REQUIRED';
  if(status===403||m.includes('无权')||m.includes('没有权限')||m.includes('没有此公司的员工权限')||m.includes('不允许跨站'))return 'FORBIDDEN';
  if(status===404||m.includes('不存在')||m.includes('未找到'))return 'NOT_FOUND';
