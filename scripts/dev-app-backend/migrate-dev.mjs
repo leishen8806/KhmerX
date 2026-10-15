@@ -7,7 +7,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { openDevDb, ROOT } from './common.mjs';
-import { splitSqlStatements } from '../lib/split-sql.mjs';
+import { splitSql as splitSqlStatements } from '../../deploy/standalone/sql-split.mjs';
 
 const ALREADY = /already exists|duplicate column name|no such (table|column)|UNIQUE constraint failed/i;
 
@@ -19,7 +19,15 @@ export function migrateDev(db = openDevDb()) {
   let applied = 0;
   for (const f of files) {
     if (done.has(f)) continue;
-    for (const stmt of splitSqlStatements(readFileSync(join(dir, f), 'utf8'))) {
+    const sql = readFileSync(join(dir, f), 'utf8');
+    // Some retired migrations intentionally contain comments only. Do not
+    // feed those files to the SQL splitter as if the prose were SQL.
+    if (!sql.replace(/--[^\n]*/g, '').trim()) {
+      db.prepare('INSERT OR IGNORE INTO dev_migrations(name) VALUES (?)').run(f);
+      applied++;
+      continue;
+    }
+    for (const stmt of splitSqlStatements(sql)) {
       try {
         db.exec(stmt);
       } catch (e) {
