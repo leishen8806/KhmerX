@@ -25,3 +25,4 @@
 | D-18 | CODEOWNERS / GitHub 用户名 | 不启用 CODEOWNERS（大旺使用技术负责人的电脑，没有独立账号）；用分支前缀 `feat/server/`、`feat/client/` 区分两条线，提交说明末尾加 `Line: server` 或 `Line: client`；已删除占位的 `.github/CODEOWNERS` | 已确认 |
 | D-19 | 本机身份 | 每条线用独立克隆目录并在该目录里设置本人名字（`git config user.name`），见 operating-rules §6 | 已确认 |
 | D-20 | App（Flutter）负责人 | 自 2026-10-15 起 App 端的修复与开发由苏晨负责；大旺不再改 `mobile/**`；App 提交说明末尾写 `Line: app`，分支前缀 `feat/app/` | 已确认 |
+| D-21 | 执行人 | 自 2026-10-15 起全部任务（服务端、客户端、App）由苏晨一个人执行；任务分三档（必做 / 有余力 / 延期），严格按档位顺序，见 `queue/su-chen.md` | 已确认 |
