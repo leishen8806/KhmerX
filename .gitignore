@@ -38,6 +38,18 @@ yarn-error.log*
 next-env.d.ts
 /dist/
 /dist-separated/
+build/
+**/build/
+**/.dart_tool/
+*.apk
+*.bak
+*.log
+.tmp-*
+*.jks
+key.properties
+.env
+.env.*
+!.env.example
 /.wrangler/
 # Checkout-local execution profile and tool state; never publish them.
 /.sites-runtime/
