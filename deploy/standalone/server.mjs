@@ -4,6 +4,7 @@ import {readFileSync,readdirSync,existsSync,writeFileSync} from 'node:fs';
 import {randomUUID,randomBytes,createHmac,timingSafeEqual,pbkdf2Sync} from 'node:crypto';
 import {Readable} from 'node:stream';
 import {splitSql} from './sql-split.mjs';
+import {maintenanceResponse} from './maintenance.mjs';
 import {hostRules,isAllowedHost,isPublicClientHost,isAdminHost,isApiHost,resolveClientIp} from './hosts.mjs';
 const moduleRoot='/app/dist/server';
 // macOS AppleDouble resource-fork files (._*.js) are not JavaScript. Exclude
@@ -189,6 +190,8 @@ const server=createServer(async(req,res)=>{
  if(inFlight>=maxInFlight||(isUpload&&uploadInFlight>=maxUploads)){rejectOverload(res);return;}
  inFlight++;slot=true;if(isUpload){uploadInFlight++;uploadSlot=true;}
  if(!isAllowedHost(host,hosts,cfg.host)){res.writeHead(400);return res.end('Invalid host');}
+ const maintenance=maintenanceResponse(req,cfg.bindings?.GRAY_CLOSED_FILE||process.env.GRAY_CLOSED_FILE||'/data/gray-closed',cfg.bindings?.GRAY_RETRY_AFTER_SECONDS||300);
+ if(maintenance){res.writeHead(maintenance.status,maintenance.headers);return res.end(maintenance.body);}
  const publicClient=isPublicClientHost(host,hosts);
  if(!jobRequest&&!publicClient&&!eq(req.headers.authorization||'',expected)){res.writeHead(401,{'WWW-Authenticate':'Basic realm="PayEase private test"','Cache-Control':'no-store'});return res.end('Private test environment');}
  const secure=true;

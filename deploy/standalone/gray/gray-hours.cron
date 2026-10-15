@@ -1,0 +1,3 @@
+# Server timezone MUST be Asia/Phnom_Penh. Install manually after checking timedatectl.
+45 17 * * 6 root bash /opt/payease/app/deploy/standalone/gray/gray-hours.sh close --apply
+45 8 * * 1 root bash /opt/payease/app/deploy/standalone/gray/gray-hours.sh open --apply

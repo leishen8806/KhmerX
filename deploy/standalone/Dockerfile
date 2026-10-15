@@ -3,7 +3,7 @@ WORKDIR /app
 COPY deploy/standalone/package.json ./package.json
 COPY deploy/standalone/package-lock.json ./package-lock.json
 RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
-COPY deploy/standalone/server.mjs ./server.mjs
+COPY deploy/standalone/*.mjs ./
 COPY dist ./dist
 COPY drizzle ./drizzle
 ENV NODE_ENV=production
