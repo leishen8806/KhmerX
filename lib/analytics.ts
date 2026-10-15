@@ -7,5 +7,5 @@ export function trackEvent(eventName:EventName,metadata:Record<string,unknown>={
  if(typeof window==='undefined')return;
  const route=window.location.pathname.slice(0,160)||'/h5',locale=(document.documentElement.lang||'en').slice(0,2);
  const safe=Object.fromEntries(Object.entries(metadata).filter(([key,value])=>!/(phone|identity|idcard|passport|bank|file|token|secret|address|name)/i.test(key)&&['string','number','boolean'].includes(typeof value)).slice(0,12));
- void apiFetch('/api/analytics/events',{method:'POST',body:JSON.stringify({eventName,route,locale,source,sessionIdHash:sessionId(),metadata:safe}),keepalive:true}).catch(()=>undefined);
+ void apiFetch('/api/analytics/events',{method:'POST',body:JSON.stringify({eventName,route,locale,source,sessionIdHash:sessionId(),metadata:safe}),keepalive:true,notifyAuth:false}).catch(()=>undefined);
 }
