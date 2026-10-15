@@ -14,23 +14,33 @@ if (!['needs_info', 'approved', 'rejected', 'submitted', 'status'].includes(deci
   console.error('decision must be needs_info | approved | rejected | submitted | status');
   process.exit(1);
 }
-const secret = (readEnvLocal().KYC_DATA_SECRET || process.env.KYC_DATA_SECRET || '').trim();
+const secret = (readEnvLocal().KYC_DATA_SECRET || process.env.KYC_DATA_SECRET || (process.env.KHMERX_TEST_MODE === 'true' ? 'local-harness-kyc-secret-change-me-32' : '')).trim();
 if (secret.length < 32) { console.error('KYC_DATA_SECRET (>= 32 chars) not found in .env.local'); process.exit(1); }
 
 const enc = new TextEncoder();
-const keyBytes = await crypto.subtle.digest('SHA-256', enc.encode('payease-kyc-v1:' + secret));
-const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+const legacyKeyBytes = await crypto.subtle.digest('SHA-256', enc.encode('payease-kyc-v1:' + secret));
+const legacyKey = await crypto.subtle.importKey('raw', legacyKeyBytes, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+const derivedKey = async (keyId) => {
+  const base = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HKDF' }, false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: enc.encode('payease-kyc-salt:' + keyId), info: enc.encode('payease-kyc-aes-gcm-v2') }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+};
 const b64ToBytes = (s) => Uint8Array.from(Buffer.from(s, 'base64'));
 async function unseal(value, context) {
   const b = b64ToBytes(value);
-  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b.slice(0, 12), additionalData: enc.encode(context) }, key, b.slice(12));
+  let key, offset = 0;
+  if (b[0] === 0x4b && b[1] === 0x02 && b[2] > 0 && b[2] <= 64) {
+    const length = b[2], keyId = new TextDecoder().decode(b.slice(3, 3 + length));
+    key = await derivedKey(keyId); offset = 3 + length;
+  } else key = legacyKey;
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b.slice(offset, offset + 12), additionalData: enc.encode(context) }, key, b.slice(offset + 12));
   return JSON.parse(new TextDecoder().decode(plain));
 }
 async function seal(value, context) {
+  const keyId = 'v2', key = await derivedKey(keyId), id = enc.encode(keyId);
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const cipher = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: enc.encode(context) }, key, enc.encode(JSON.stringify(value))));
-  const out = new Uint8Array(12 + cipher.length);
-  out.set(iv); out.set(cipher, 12);
+  const out = new Uint8Array(3 + id.length + 12 + cipher.length);
+  out.set([0x4b, 0x02, id.length]); out.set(id, 3); out.set(iv, 3 + id.length); out.set(cipher, 15 + id.length);
   return Buffer.from(out).toString('base64');
 }
 

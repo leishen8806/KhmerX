@@ -56,7 +56,7 @@ for (const slot of ['idFront', 'idBack', 'selfie', 'incomeProof']) {
   files[slot] = { id: ref.id };
 }
 const values = {
-  surname: 'SMOKE', givenName: 'TEST', gender: T.male, education: first('education'), marital: T.single,
+  surname: 'SMOKE', givenName: 'TEST', documentType: '柬埔寨身份证', documentNumber: 'SMOKE-12025550131', gender: T.male, education: first('education'), marital: T.single,
   province: region.value, district: region.districts[0].value, address: 'Test street 1',
   contact1Relation: T.parent, contact1Name: 'ONE', contact1Phone: '+85512345671',
   contact2Relation: T.friend, contact2Name: 'TWO', contact2Phone: '+85512345672',
