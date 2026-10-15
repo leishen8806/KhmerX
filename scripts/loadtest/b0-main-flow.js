@@ -3,14 +3,29 @@ import { check, fail, sleep } from 'k6';
 import { Counter, Rate, Trend } from 'k6/metrics';
 import encoding from 'k6/encoding';
 
-const base = String(__ENV.BASE_URL || 'http://127.0.0.1:5173').replace(/\/$/, '');
+const originIp = String(__ENV.ORIGIN_IP || '').trim();
+const hostHeader = String(__ENV.LOADTEST_HOST || '').trim().toLowerCase();
+const originScheme = String(__ENV.ORIGIN_SCHEME || 'https').toLowerCase();
+const configuredBase = String(__ENV.BASE_URL || 'http://127.0.0.1:5173').replace(/\/$/, '');
+const base = originIp ? `${originScheme}://${hostHeader}` : configuredBase;
 const parsedMatch = base.match(/^([a-z][a-z0-9+.-]*):\/\/([^/]+)/i);
-if (!parsedMatch) throw new Error('BASE_URL 必须包含 http:// 或 https://');
-const parsed = { protocol: `${parsedMatch[1].toLowerCase()}:`, hostname: parsedMatch[2].replace(/^.*@/, '').replace(/:\d+$/, '').toLowerCase() };
-const blocked = new Set(['payease.khmerx.org', 'admin.khmerx.org', 'api.khmerx.org']);
-if (blocked.has(parsed.hostname) || (parsed.protocol === 'https:' && parsed.hostname.endsWith('khmerx.org'))) {
-  throw new Error('B0 仅允许本地或预发环境，已拒绝生产目标主机');
+if (!parsedMatch) throw new Error('BASE_URL must include http:// or https://');
+const parsed = { protocol: `${parsedMatch[1].toLowerCase()}:`, hostname: parsedMatch[2].replace(/^.*@/, '').replace(/:\d+$/, '').toLowerCase().replace(/\.$/, '') };
+if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('BASE_URL must use HTTP or HTTPS');
+const blocked = ['payease.khmerx.org', 'admin.khmerx.org', 'api.khmerx.org'];
+const allowedHosts = new Set(String(__ENV.LOADTEST_ALLOWED_HOSTS || 'localhost,127.0.0.1,10.0.2.2').split(',').map(value => value.trim().toLowerCase().replace(/\.$/, '')).filter(Boolean));
+if ((originIp && !hostHeader) || (!originIp && hostHeader)) throw new Error('--origin-ip 与 --host 必须同时提供');
+const targetHost = (hostHeader || parsed.hostname).replace(/\.$/, '');
+const isProductionHost = host => blocked.some(value => host === value || host.endsWith(`.${value}`));
+const validIpv4 = value => /^(?:\d{1,3}\.){3}\d{1,3}$/.test(value) && value.split('.').every(part => Number(part) <= 255);
+if (!/^[a-z0-9.-]+$/.test(targetHost) || (originIp && !validIpv4(originIp)) || isProductionHost(targetHost) || isProductionHost(parsed.hostname)) {
+  throw new Error('B0 refuses invalid targets and production hosts, regardless of LOADTEST_ALLOWED_HOSTS');
 }
+if (!allowedHosts.has(targetHost) || (originIp && !allowedHosts.has(originIp.toLowerCase()))) {
+  throw new Error('B0 target host and origin IP must be listed in LOADTEST_ALLOWED_HOSTS');
+}
+const hostOverrides = originIp ? { [targetHost]: originIp } : undefined;
+const requestOrigin = hostHeader ? `${originScheme}://${hostHeader}` : base;
 
 const requestLatency = new Trend('b0_request_latency', true);
 const requestErrors = new Rate('b0_request_errors');
@@ -18,9 +33,15 @@ const statusCounts = new Counter('b0_http_status_total');
 const codeCounts = new Counter('b0_error_code_total');
 const uploads = new Counter('b0_upload_total');
 const uploadFailures = new Counter('b0_upload_failure_total');
-const statusMetrics = Object.fromEntries([200, 400, 401, 403, 409, 429, 500, 503].map(status => [status, new Counter(`b0_status_${status}`)]));
-const codeMetrics = Object.fromEntries(['AUTH_REQUIRED', 'BROWSER_TOKEN_RATE_LIMITED', 'CROSS_SITE_REQUEST', 'INVALID_REQUEST', 'STATE_MUTATION_FAILED', 'KYC_SCAN_REQUIRED'].map(code => [code, new Counter(`b0_code_${code}`)]));
+const uploadSuccess = new Rate('b0_upload_success');
+const writeConflictResponses = new Counter('b0_write_conflict_response_total');
+const stateMutationFailures = new Counter('b0_state_mutation_failed_total');
+const statusMetrics = Object.fromEntries([200, 201, 204, 400, 401, 403, 404, 409, 413, 415, 422, 429, 500, 502, 503, 504].map(status => [status, new Counter(`b0_status_${status}`)]));
+statusMetrics.other = new Counter('b0_status_other');
+const codeMetrics = Object.fromEntries(['ACCOUNT_ALREADY_REGISTERED', 'AUTH_REQUIRED', 'BROWSER_TOKEN_RATE_LIMITED', 'COMPANY_NOT_FOUND', 'CONFLICT', 'CROSS_SITE_REQUEST', 'IDEMPOTENCY_PAYLOAD_MISMATCH', 'INTERNAL_ERROR', 'INVALID_ARGUMENT', 'INVALID_FILE', 'INVALID_KYC', 'INVALID_PHONE', 'INVALID_REQUEST', 'INVALID_VERIFICATION_CODE', 'KYC_REVISION_CONFLICT', 'KYC_SCAN_REQUIRED', 'NOT_FOUND', 'PAYLOAD_TOO_LARGE', 'RATE_LIMITED', 'SERVICE_UNAVAILABLE', 'STATE_MUTATION_FAILED', 'VALIDATION_FAILED', 'WORKSPACE_PAYLOAD_LIMIT'].map(code => [code, new Counter(`b0_code_${code}`)]));
+codeMetrics.other = new Counter('b0_code_other');
 let activeJar;
+const startedAt = Date.now();
 
 const stages = __ENV.STAGES === 'true';
 const once = __ENV.ONCE === 'true';
@@ -29,7 +50,8 @@ const duration = String(__ENV.DURATION || '3m');
 export const options = once ? {
   scenarios: { main: { executor: 'per-vu-iterations', vus, iterations: 1, maxDuration: '5m' } },
   thresholds: { b0_request_errors: ['rate<0.05'] },
-  summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(90)', 'p(95)', 'p(99)'],
+  summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(50)', 'p(90)', 'p(95)', 'p(99)'],
+  hosts: hostOverrides,
 } : stages ? {
   scenarios: { main: { executor: 'ramping-vus', startVUs: 0, stages: [
     { target: 100, duration: '3m' }, { target: 100, duration: '3m' },
@@ -37,16 +59,19 @@ export const options = once ? {
     { target: 600, duration: '3m' }, { target: 600, duration: '3m' },
   ], gracefulRampDown: '30s' } },
   thresholds: { b0_request_errors: ['rate<0.05'], b0_upload_failure_total: ['count<1'] },
-  summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(90)', 'p(95)', 'p(99)'],
+  summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(50)', 'p(90)', 'p(95)', 'p(99)'],
+  hosts: hostOverrides,
 } : {
   scenarios: { main: { executor: 'constant-vus', vus, duration, gracefulStop: '30s' } },
   thresholds: { b0_request_errors: ['rate<0.05'] },
-  summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(90)', 'p(95)', 'p(99)'],
+  summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(50)', 'p(90)', 'p(95)', 'p(99)'],
+  hosts: hostOverrides,
 };
 
 const common = {
   headers: {
-    Origin: base,
+    Origin: requestOrigin,
+    ...(hostHeader ? { Host: hostHeader } : {}),
     Accept: 'application/json',
     'Cache-Control': 'no-store',
     ...( __ENV.K6_USER_ID ? { 'oai-authenticated-user-id': String(__ENV.K6_USER_ID) } : {}),
@@ -60,24 +85,27 @@ const jpeg = encoding.b64decode('/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP/////////////
 function record(res, name) {
   requestLatency.add(res.timings.duration, { endpoint: name });
   statusCounts.add(1, { endpoint: name, status: String(res.status) });
-  if (statusMetrics[res.status]) statusMetrics[res.status].add(1);
+  (statusMetrics[res.status] || statusMetrics.other).add(1);
   let body = {};
   try { body = res.json() || {}; } catch (_) { /* non-JSON failures are recorded below */ }
   if (res.status >= 400) {
     requestErrors.add(true, { endpoint: name });
     if (body.code) {
       codeCounts.add(1, { endpoint: name, code: String(body.code) });
-      if (codeMetrics[body.code]) codeMetrics[body.code].add(1);
+      (codeMetrics[body.code] || codeMetrics.other).add(1);
+      if (body.code === 'STATE_MUTATION_FAILED') stateMutationFailures.add(1, { endpoint: name });
     }
+    if (res.status === 409 && ['kyc_save', 'kyc_submit', 'h5_state_write'].includes(name)) writeConflictResponses.add(1, { endpoint: name });
   } else requestErrors.add(false, { endpoint: name });
   return body;
 }
 
 function request(method, path, body, name, extra = {}) {
-  const params = { ...common, ...extra, jar: activeJar, headers: { ...common.headers, ...(extra.headers || {}) } };
   const binary = body instanceof Uint8Array || body instanceof ArrayBuffer;
-  if (body !== undefined && !binary) { params.headers['Content-Type'] = 'application/json'; body = JSON.stringify(body); }
-  const response = http.request(method, `${base}${path}`, body, params);
+  const payload = body !== undefined && !binary ? JSON.stringify(body) : body;
+  const params = { ...common, ...extra, jar: activeJar, headers: { ...common.headers, ...(extra.headers || {}) } };
+  if (body !== undefined && !binary) params.headers['Content-Type'] = 'application/json';
+  const response = http.request(method, `${base}${path}`, payload, params);
   return { response, body: record(response, name) };
 }
 
@@ -119,12 +147,17 @@ export default function () {
       headers: { 'Content-Type': 'image/jpeg', 'x-kyc-slot': slot },
     });
     uploads.add(1, { slot });
-    if (!check(uploaded.response, { [`upload ${slot}`]: r => r.status === 200 })) uploadFailures.add(1, { slot });
+    const uploadOk = check(uploaded.response, { [`upload ${slot}`]: r => r.status === 200 });
+    uploadSuccess.add(uploadOk, { slot });
+    if (!uploadOk) uploadFailures.add(1, { slot });
     must(uploaded.response.status === 200 && uploaded.body.id, `上传 ${slot} 失败: ${uploaded.response.status}`);
     files[slot] = uploaded.body;
   }
 
-  const submitted = request('POST', '/api/kyc', { action: 'submit', revision: kyc.body.revision, profile: syntheticProfile(files) }, 'kyc_submit');
+  const profile = syntheticProfile(files);
+  const saved = request('POST', '/api/kyc', { action: 'save', revision: kyc.body.revision, profile }, 'kyc_save');
+  must(check(saved.response, { 'kyc save': r => r.status === 200 }), `KYC保存失败: ${saved.response.status}`);
+  const submitted = request('POST', '/api/kyc', { action: 'submit', revision: saved.body.revision, profile }, 'kyc_submit');
   must(check(submitted.response, { 'kyc submit': r => r.status === 200 }), `KYC提交失败: ${submitted.response.status}`);
   for (let i = 0; i < 3; i += 1) {
     const state = request('GET', '/api/h5/state', undefined, 'state_poll');
@@ -134,13 +167,21 @@ export default function () {
 }
 
 export function handleSummary(data) {
-  const reportPath = String(__ENV.REPORT_PATH || '/tmp/b0-latest.json');
+  const reportPath = String(__ENV.REPORT_PATH || 'scripts/loadtest/reports/b0-latest.json');
   const latency = data.metrics.b0_request_latency?.values || {};
-  const report = { generatedAt: new Date().toISOString(), baseUrl: base, vus: once ? vus : (stages ? '100→300→600' : vus), duration: once ? 'one iteration' : (stages ? '18m' : duration),
-    requestLatency: { ...latency, 'p(50)': latency.med }, requestErrors: data.metrics.b0_request_errors?.values || {},
-    uploads: data.metrics.b0_upload_total?.values || {}, uploadFailures: data.metrics.b0_upload_failure_total?.values || {},
+  const p50 = latency['p(50)'] ?? latency.med;
+  const totalDurationMs = Math.max(Date.now() - startedAt, 1);
+  const totalRequests = data.metrics.http_reqs?.values?.count ?? data.metrics.b0_http_status_total?.values?.count ?? 0;
+  const requestsPerSecond = totalRequests / (totalDurationMs / 1000);
+  const report = { generatedAt: new Date().toISOString(), baseUrl: base, host: hostHeader || parsed.hostname, originIp: originIp || null, vus: once ? vus : (stages ? '100→300→600' : vus), duration: once ? 'one iteration' : (stages ? '18m' : duration),
+    requestsPerSecond, totalRequests, totalDurationMs,
+    requestLatency: { ...latency, 'p(50)': p50 }, requestErrors: data.metrics.b0_request_errors?.values || {},
+    uploads: data.metrics.b0_upload_total?.values || {}, uploadSuccessRate: data.metrics.b0_upload_success?.values || {}, uploadFailures: data.metrics.b0_upload_failure_total?.values || {},
+    writeConflictResponses: data.metrics.b0_write_conflict_response_total?.values?.count || 0,
+    writeConflictRetries: { scriptRetryCount: 0, serverOptimisticRetryCount: null, note: 'The script does not retry writes; the API does not expose successful optimistic-lock retry attempts.' },
+    stateMutationFailureCount: data.metrics.b0_state_mutation_failed_total?.values?.count || 0,
     statusCounts: data.metrics.b0_http_status_total?.values || {}, codeCounts: data.metrics.b0_error_code_total?.values || {},
     statusBreakdown: Object.fromEntries(Object.keys(statusMetrics).map(status => [status, data.metrics[`b0_status_${status}`]?.values?.count || 0])),
     codeBreakdown: Object.fromEntries(Object.keys(codeMetrics).map(code => [code, data.metrics[`b0_code_${code}`]?.values?.count || 0])), checks: data.metrics.checks?.values || {} };
-  return { stdout: `B0 ${report.vus} VU\nrequest p50=${report.requestLatency['p(50)'] ?? 'n/a'}ms p95=${report.requestLatency['p(95)'] ?? 'n/a'}ms p99=${report.requestLatency['p(99)'] ?? 'n/a'}ms\nerror rate=${report.requestErrors.rate ?? 'n/a'} upload failures=${report.uploadFailures.count ?? 0}\n`, [reportPath]: JSON.stringify(report, null, 2) };
+  return { stdout: `B0 ${report.vus} VU\nrps=${report.requestsPerSecond.toFixed(3)} requests=${totalRequests} elapsed=${totalDurationMs}ms p50=${report.requestLatency['p(50)'] ?? 'n/a'}ms p95=${report.requestLatency['p(95)'] ?? 'n/a'}ms p99=${report.requestLatency['p(99)'] ?? 'n/a'}ms\nerror rate=${report.requestErrors.rate ?? 'n/a'} upload success=${report.uploadSuccessRate.rate ?? 'n/a'} write 409=${report.writeConflictResponses} script retries=0 (server retry count unavailable)\n`, [reportPath]: JSON.stringify(report, null, 2) };
 }

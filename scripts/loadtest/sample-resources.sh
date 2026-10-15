@@ -6,8 +6,6 @@ set -euo pipefail
 
 interval=2
 output=""
-origin_ip=""
-host_name=""
 
 usage() {
   cat <<'EOF'
@@ -16,8 +14,6 @@ Usage: sample-resources.sh [options]
 Options:
   --output FILE       CSV output path (default: reports/resources-UTC.csv)
   --interval SECONDS Sampling interval, at least 1 (default: 2)
-  --origin-ip IP     Load-test origin IP to record as metadata
-  --host HOST        Host header/domain to record as metadata
   -h, --help         Show this help
 
 The sampler runs until interrupted. It writes one vmstat row and one row per
@@ -33,12 +29,6 @@ while [[ $# -gt 0 ]]; do
     --interval)
       [[ $# -ge 2 ]] || { echo "--interval requires a value" >&2; exit 2; }
       interval=$2; shift 2 ;;
-    --origin-ip)
-      [[ $# -ge 2 ]] || { echo "--origin-ip requires a value" >&2; exit 2; }
-      origin_ip=$2; shift 2 ;;
-    --host)
-      [[ $# -ge 2 ]] || { echo "--host requires a value" >&2; exit 2; }
-      host_name=$2; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -81,7 +71,7 @@ write_csv_row() {
   printf '%s\n' "$row" >>"$output"
 }
 
-printf '%s\n' 'timestamp_utc,source,origin_ip,host,container,cpu_pct,mem_usage,mem_pct,net_io,block_io,pids,r,b,swpd,free,buff,cache,si,so,bi,bo,in,cs,us,sy,id,wa,st' >"$output"
+printf '%s\n' 'timestamp_utc,source,container,cpu_pct,mem_usage,mem_pct,net_io,block_io,pids,r,b,swpd,free,buff,cache,si,so,bi,bo,in,cs,us,sy,id,wa,st' >"$output"
 echo "Writing resource samples to $output (interval=${interval}s); press Ctrl-C to stop." >&2
 
 while :; do
@@ -90,13 +80,13 @@ while :; do
   docker stats --no-stream --format '{{.Name}}|{{.CPUPerc}}|{{.MemUsage}}|{{.MemPerc}}|{{.NetIO}}|{{.BlockIO}}|{{.PIDs}}' 2>/dev/null \
     | while IFS='|' read -r container cpu mem_usage mem_pct net_io block_io pids; do
       [[ -n "$container" ]] || continue
-        write_csv_row "$timestamp" docker "$origin_ip" "$host_name" "$container" "$cpu" "$mem_usage" "$mem_pct" "$net_io" "$block_io" "$pids" \
+        write_csv_row "$timestamp" docker "$container" "$cpu" "$mem_usage" "$mem_pct" "$net_io" "$block_io" "$pids" \
           "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" ""
       done
 
   vm_line=$(vmstat -n 1 2 | tail -n 1 | awk '{$1=$1; print}')
   read -r r b swpd free buff cache si so bi bo in cs us sy id wa st <<<"$vm_line" || true
-  write_csv_row "$timestamp" vmstat "$origin_ip" "$host_name" "" "" "" "" "" "" "" \
+  write_csv_row "$timestamp" vmstat "" "" "" "" "" "" "" \
     "$r" "$b" "$swpd" "$free" "$buff" "$cache" "$si" "$so" "$bi" "$bo" "$in" "$cs" "$us" "$sy" "$id" "$wa" "$st"
 
   sleep "$interval"
