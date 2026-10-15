@@ -66,8 +66,10 @@ test('KYC approval → amount application → fee confirmation → signature →
 test('admin directly creates, changes, disables and re-enables members; old invitations are rejected',async()=>{
  selected=A;user=owner;
  const m=sql.prepare('SELECT * FROM team_members WHERE email=?').get(reviewer1.email);
+ const session=await (await mod('@/lib/team/auth')).createSsoSession(m.id,reviewer1.userId);
+ assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM team_staff_sessions WHERE member_id=?').get(m.id).n,1);
  const update={action:'update_member',memberId:m.id,role:'kyc',unitId:dept,active:false,version:m.version,reason:'Synthetic disable'};
- await team.manage(update);user=reviewer1;await assert.rejects(team.staff());
+ await team.manage(update);assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM team_staff_sessions WHERE member_id=?').get(m.id).n,0);user=reviewer1;extraCookies=`; payease_staff_mode=sso; payease_staff_session=${session.token}; payease_staff_company=${A}`;await assert.rejects(team.staff());extraCookies='';
  user=owner;await assert.rejects(team.manage(update));
  await team.manage({...update,active:true,version:m.version+1});user=reviewer1;await team.staff();
  assert.equal((await team.assignment(A,'customer-1')).reviewer_id,null);
