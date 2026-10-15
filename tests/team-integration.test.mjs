@@ -39,7 +39,7 @@ test('break-glass requires a second admin, expires in 30 minutes and is auditabl
 test('audit integrity manifests tolerate append-only audit records and detect prefix changes',async()=>{const integrity=await mod('@/lib/team/audit-integrity');selected=A;user=owner;const manifest=await integrity.createManifest();const verified=await integrity.verifyManifest(manifest.id);assert.equal(verified.match,true);await team.manage({action:'add_unit',kind:'department',name:'Integrity test unit'});const appended=await integrity.verifyManifest(manifest.id);assert.equal(appended.match,true);assert.equal(appended.appendOnly,true);assert.equal(appended.appendedRows>0,true);assert.notEqual(appended.currentDigest,appended.manifestDigest)});
 test('company creation and editing persist client language availability',async()=>{const created=sql.prepare('SELECT client_en_enabled,client_km_enabled,client_zh_enabled FROM team_companies WHERE id=?').get(A);assert.equal(created.client_en_enabled,1);assert.equal(created.client_km_enabled,1);assert.equal(created.client_zh_enabled,0);selected=A;user=owner;await team.manage({action:'client_language_config',en:true,km:false,zh:true});const edited=sql.prepare('SELECT client_en_enabled,client_km_enabled,client_zh_enabled FROM team_companies WHERE id=?').get(A);assert.equal(edited.client_en_enabled,1);assert.equal(edited.client_km_enabled,0);assert.equal(edited.client_zh_enabled,1);await assert.rejects(team.manage({action:'client_language_config',en:false,km:false,zh:false}),/至少启用一种/)});
 test('platform company lifecycle changes are audited and block active loans',async()=>{selected='';user=owner;const before=await team.teamData();assert(before.companies.some(c=>c.id===B));await team.manage({action:'platform_update_company',companyId:B,name:'Synthetic B paused',active:false,en:true,km:true,zh:false,reason:'Synthetic platform pause'});assert.equal(sql.prepare('SELECT active,name FROM team_companies WHERE id=?').get(B).active,0);assert.equal(sql.prepare('SELECT name FROM team_companies WHERE id=?').get(B).name,'Synthetic B paused');await team.manage({action:'platform_update_company',companyId:B,name:'Synthetic B',active:true,en:true,km:true,zh:true,reason:'Synthetic platform restore'});assert.equal(sql.prepare('SELECT active FROM team_companies WHERE id=?').get(B).active,1);assert.equal(sql.prepare("SELECT count(*) AS n FROM team_audit WHERE tenant_id=? AND action='platform_update_company'").get(B).n,2);});
-test('role catalog keeps scope, duties and high-risk policy aligned',()=>{assert.equal(policy.roleUnitKind('lender'),'institution');assert.equal(policy.roleUnitKind('kyc'),'department');assert.equal(policy.roleUnitKind('collector'),'postloan');assert.equal(policy.roleUnitKind('admin'),null);assert.equal(policy.roleCatalog.finance_checker.highRisk,true);assert.match(policy.roleCatalog.kyc.description,/KYC/);});
+test('role catalog keeps scope, duties and high-risk policy aligned',()=>{assert.equal(policy.roleLabels.checker,'持牌机构复核员');assert.equal(policy.roleUnitKind('lender'),'institution');assert.equal(policy.roleUnitKind('kyc'),'department');assert.equal(policy.roleUnitKind('collector'),'postloan');assert.equal(policy.roleUnitKind('admin'),null);assert.equal(policy.roleCatalog.finance_checker.highRisk,true);assert.match(policy.roleCatalog.kyc.description,/KYC/);});
 test('company funding settings are isolated, versioned and admin-only',async()=>{selected='';user=owner;const C=(await team.manage({action:'create_company',name:'Synthetic C',slug:'synthetic-c'})).companyId;assert.equal(sql.prepare('SELECT daily_cents,monthly_cents,warning_percent FROM team_funding_settings WHERE tenant_id=?').get(C).daily_cents,1000000);selected=A;user=owner;const before=await fundingSettings.fundingSettingsData();assert.equal(before.settings.dailyCents,1000000);assert.equal(before.settings.monthlyCents,3000000);await assert.rejects(fundingSettings.fundingSettingsSave({dailyCents:4000000,monthlyCents:3000000,warningPercent:20,version:before.settings.version}),error=>error.code==='FUNDING_SETTINGS_INVALID');const saved=await fundingSettings.fundingSettingsSave({dailyCents:1200000,monthlyCents:3600000,warningPercent:20,version:before.settings.version});assert.equal(saved.settings.dailyCents,1200000);assert.equal(saved.settings.version,before.settings.version+1);await assert.rejects(fundingSettings.fundingSettingsSave({dailyCents:1100000,monthlyCents:3300000,warningPercent:20,version:before.settings.version}),error=>error.code==='FUNDING_SETTINGS_CONFLICT');user=reviewer1;await assert.rejects(fundingSettings.fundingSettingsData(),error=>error.code==='FUNDING_SETTINGS_FORBIDDEN');selected=B;user=owner;const other=await fundingSettings.fundingSettingsData();assert.equal(other.settings.dailyCents,1000000);selected=A;user=owner;const current=await fundingSettings.fundingSettingsData();await fundingSettings.fundingSettingsSave({dailyCents:1000000,monthlyCents:3000000,warningPercent:20,version:current.settings.version});});
 test('funding risk events persist, deduplicate and close with audit state',async()=>{selected=A;user=owner;const correlation='risk-qa-'+crypto.randomUUID();const insert=fundingRisk.fundingRiskEventStatement({tenantId:A,eventType:'funding_regulatory_warning',severity:'warning',snapshot:{dailyRemainingCents:200000,monthlyRemainingCents:1200000},reason:'Synthetic funding warning evidence',correlationId:correlation,actor:'owner'});await insert.run();await fundingRisk.fundingRiskEventStatement({tenantId:A,eventType:'funding_regulatory_warning',severity:'warning',snapshot:{dailyRemainingCents:200000},reason:'Synthetic duplicate warning',correlationId:correlation,actor:'owner'}).run();assert.equal(sql.prepare('SELECT count(*) AS n FROM team_funding_risk_events WHERE tenant_id=? AND correlation_id=?').get(A,correlation).n,1);const row=sql.prepare('SELECT id FROM team_funding_risk_events WHERE tenant_id=? AND correlation_id=?').get(A,correlation);assert.equal((await fundingRisk.fundingRiskList()).find((x)=>x.id===row.id).status,'open');const acknowledged=await fundingRisk.fundingRiskTransition(row.id,'acknowledge','Synthetic acknowledgement evidence');assert.equal(acknowledged.status,'acknowledged');const resolved=await fundingRisk.fundingRiskTransition(row.id,'resolve','Synthetic resolution evidence');assert.equal(resolved.status,'resolved');await assert.rejects(fundingRisk.fundingRiskTransition(row.id,'resolve','Repeated close evidence'),error=>error.code==='FUNDING_RISK_STATE_CONFLICT');});
 test('scoped customer report export is redacted and audited',async()=>{selected=A;user=owner;const result=await reports.exportCustomerSummary({report:'customer_summary',requestId:'report-export-1'});assert.match(result.csv,/customer_id_masked,phone_masked/);assert.equal(typeof result.count,'number');const event=sql.prepare("SELECT action,detail FROM team_audit WHERE tenant_id=? AND action='report_export' ORDER BY created_at DESC LIMIT 1").get(A);assert(event);assert.match(event.detail,/\"redacted\":true/)});
@@ -309,16 +309,25 @@ test('Admin funding and repayment require prior approval, enforce isolation and 
  const receipt={action:'admin_repay',loanId:l.id,cents:1000,reference:'UAT-RECEIPT-001',note:'Synthetic receipt checked',requestId:crypto.randomUUID()};
  await flow.staffAction(receipt);await flow.staffAction({...receipt,requestId:crypto.randomUUID()});
  saved=(await store.readState(A)).state;assert.equal(saved.loans.find(x=>x.id===l.id).paid,1000);
+ const emergency=await mod('@/lib/team/emergency'),verifiedRef='UAT-PROD-001',verifiedCents=500,ownerCookies=extraCookies;
+ const emergencyRequest=await emergency.emergencyRequest({scope:['funding'],loanId:l.id,cents:verifiedCents,reason:'Synthetic verified receipt production-path check'});
+ user={userId:'emergency-admin',email:'emergency-admin@example.test'};extraCookies=ownerCookies;await emergency.emergencyApprove(emergencyRequest.id);user=owner;extraCookies=ownerCookies;
+ sql.prepare('INSERT INTO team_repayment_receipts(tenant_id,reference,loan_id,cents,actor,created_at,verified) VALUES (?,?,?,?,?,?,1)').run(A,verifiedRef,l.id,verifiedCents,'institution-verified',new Date().toISOString());
+ const auth=await mod('@/lib/team/auth'),ownerMember=sql.prepare('SELECT id FROM team_members WHERE tenant_id=? AND user_id=?').get(A,owner.userId),ownerSession=await auth.createSsoSession(ownerMember.id,owner.userId);extraCookies=`; payease_staff_mode=sso; payease_staff_session=${ownerSession.token}; payease_staff_company=${A}`;
+ env.KHMERX_TEST_MODE='false';
+ try{await flow.staffAction({...receipt,cents:verifiedCents,reference:verifiedRef,emergencyId:emergencyRequest.id,requestId:crypto.randomUUID()});}
+ finally{env.KHMERX_TEST_MODE='true';}
+ saved=(await store.readState(A)).state;assert.equal(saved.loans.find(x=>x.id===l.id).paid,1500);
  await assert.rejects(flow.staffAction({...receipt,cents:1001,requestId:crypto.randomUUID()}),/流水号/);
  await assert.rejects(flow.staffAction({...receipt,cents:999999,reference:'UAT-TOO-MUCH',requestId:crypto.randomUUID()}),/还款金额/);
  const post=await mod('@/lib/postloan/server'),target=saved.loans.find(x=>x.id===l.id);
  await post.runCompany(A,new Date(Date.parse(target.dueAt)+86400000).toISOString());
  let task=(await post.postloanData()).tasks.find(t=>t.loanId===l.id);assert(task);assert.equal(task.departmentId,(await team.assignment(A,c.id)).collection_unit_id);
  await post.postloanAction({action:'note',taskId:task.id,version:task.updatedAt,requestId:crypto.randomUUID(),outcome:'contacted',note:'Synthetic Admin collection followup'});
- await flow.staffAction({...receipt,cents:target.amount+target.fee-1000,reference:'UAT-RECEIPT-002',requestId:crypto.randomUUID()});
+ await flow.staffAction({...receipt,cents:target.amount+target.fee-1500,reference:'UAT-RECEIPT-002',requestId:crypto.randomUUID()});
  task=(await post.postloanData()).tasks.find(t=>t.loanId===l.id);assert.equal(task.status,'closed');assert.equal(task.balance,0);
- assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM team_repayment_receipts WHERE tenant_id=? AND loan_id=?').get(A,l.id).n,2);
- assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM team_repayment_ledger WHERE tenant_id=? AND loan_id=?').get(A,l.id).n,2);
+ assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM team_repayment_receipts WHERE tenant_id=? AND loan_id=?').get(A,l.id).n,3);
+ assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM team_repayment_ledger WHERE tenant_id=? AND loan_id=?').get(A,l.id).n,3);
 });
 test('independent staff password login, tenant scope, logout, expiry and disabled accounts',async()=>{
  selected=A;user=owner;extraCookies='';const auth=await mod('@/lib/team/auth');
@@ -393,12 +402,44 @@ test('existing SSO Admin can use company password without inheriting other compa
  await auth.logoutStaff(extraCookies);await assert.rejects(team.identity(),/失效/);extraCookies='';assert.equal((await team.staff()).member.role,'admin');await team.platformAdmin();
 });
 
+test('SSO staff memberships remain switchable across companies without widening password sessions',async()=>{
+ selected=A;user=owner;extraCookies='';const auth=await mod('@/lib/team/auth'),api=await mod('@/app/api/team/route');
+ const session=await auth.createSsoSession(sql.prepare('SELECT id FROM team_members WHERE tenant_id=? AND user_id=?').get(A,owner.userId).id,owner.userId);
+ extraCookies=`; payease_staff_mode=sso; payease_staff_session=${session.token}; payease_staff_company=${A}`;
+ const data=await team.teamData();assert(data.memberships.length>=2);assert(data.memberships.some((m)=>m.tenant_id===A));assert(data.memberships.some((m)=>m.tenant_id===B));
+ const entered=await api.POST(new Request('http://localhost/api/team',{method:'POST',headers:{origin:'http://localhost','content-type':'application/json'},body:JSON.stringify({action:'enter',slug:'synthetic-b'})}));assert.equal(entered.status,200);
+ extraCookies=`; payease_staff_mode=sso; payease_staff_session=${session.token}; payease_staff_company=${B}`;selected=B;assert.equal((await team.staff()).tenant.id,B);assert.equal((await team.teamData()).company.id,B);
+ await auth.logoutStaff(extraCookies);selected=A;extraCookies='';
+});
+
+test('team payload redacts MFA secret fields',async()=>{
+ selected=A;user=owner;extraCookies='';
+ const data=await team.teamData();
+ assert.equal(Object.hasOwn(data.member||{},'mfa_secret'),false);
+ assert.equal(Object.hasOwn(data.member||{},'pending_mfa_secret'),false);
+ for(const membership of data.memberships||[]){
+  assert.equal(Object.hasOwn(membership,'mfa_secret'),false);
+  assert.equal(Object.hasOwn(membership,'pending_mfa_secret'),false);
+ }
+});
+
 test('state mutation rejects non-JSON and malformed envelopes',async()=>{
  const api=await mod('@/app/api/state/route');selected='';user=owner;extraCookies='';
  const wrongType=await api.POST(new Request('http://localhost/api/state',{method:'POST',headers:{origin:'http://localhost','content-type':'text/plain'},body:'{}'}));
  assert.equal(wrongType.status,415);assert.equal((await wrongType.json()).code,'INVALID_REQUEST');
  const malformed=await api.POST(new Request('http://localhost/api/state',{method:'POST',headers:{origin:'http://localhost','content-type':'application/json'},body:'[]'}));
  assert.equal(malformed.status,400);assert.equal((await malformed.json()).code,'INVALID_REQUEST');
+});
+
+test('KYC encryption envelope carries key id and survives active-key rotation',async()=>{
+ const previous=env.KYC_DATA_KEY_ID;
+ try{
+  env.KYC_DATA_KEY_ID='qa-key-a';const plain=Uint8Array.from([7,11,19,23]),encrypted=await kyc.encryptBytes(plain,'qa:file:context');
+  assert.equal(encrypted[0],0x4b);assert.equal(encrypted[1],0x02);
+  const keyLength=encrypted[2];assert.equal(new TextDecoder().decode(encrypted.slice(3,3+keyLength)),'qa-key-a');
+  assert.deepEqual(Array.from(await kyc.decryptBytes(encrypted,'qa:file:context')),Array.from(plain));
+  env.KYC_DATA_KEY_ID='qa-key-b';assert.deepEqual(Array.from(await kyc.decryptBytes(encrypted,'qa:file:context')),Array.from(plain));
+ }finally{if(previous===undefined)delete env.KYC_DATA_KEY_ID;else env.KYC_DATA_KEY_ID=previous;}
 });
 
 test('invite binding cannot create non-admin SSO without MFA',async()=>{

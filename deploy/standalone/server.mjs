@@ -3,29 +3,8 @@ import {createServer} from 'node:http';
 import {readFileSync,readdirSync,existsSync,writeFileSync} from 'node:fs';
 import {randomUUID,randomBytes,createHmac,timingSafeEqual,pbkdf2Sync} from 'node:crypto';
 import {Readable} from 'node:stream';
+import {splitSql} from './sql-split.mjs';
 import {hostRules,isAllowedHost,isPublicClientHost,isAdminHost,isApiHost,resolveClientIp} from './hosts.mjs';
-// Split migration SQL without treating CASE ... END as a trigger block.
-// SQLite trigger bodies use BEGIN ... END; CASE expressions may be nested
-// inside them and must not close the outer statement.
-function splitSql(sql){
- const statements=[];
- const push=current=>{const text=current.trim();if(text&&text.replace(/--[^\n]*/g,'').trim())statements.push(text)};
- let current='',quote=false,blockDepth=0,caseDepth=0;
- const wordAt=i=>{const before=i===0?'':sql[i-1],m=sql.slice(i).match(/^[A-Za-z]+/),after=m?sql[i+(m[0].length)]:'';if(!m||/[A-Za-z0-9_]/.test(before)||/[A-Za-z0-9_]/.test(after))return '';return m[0].toUpperCase()};
- for(let i=0;i<sql.length;i++){
-  const ch=sql[i];
-  if(ch==="'"){if(quote&&sql[i+1]==="'"){current+=ch+sql[++i];continue}quote=!quote;current+=ch;continue}
-  if(!quote){
-   const word=wordAt(i);
-   if(word==='BEGIN'){blockDepth++;current+=word;i+=word.length-1;continue}
-   if(word==='CASE'){caseDepth++;current+=word;i+=word.length-1;continue}
-   if(word==='END'){if(caseDepth>0)caseDepth--;else blockDepth=Math.max(0,blockDepth-1);current+=word;i+=word.length-1;continue}
-  }
-  if(ch===';'&&!quote&&blockDepth===0&&caseDepth===0){push(current);current='';continue}
-  current+=ch;
- }
- push(current);return statements;
-}
 const moduleRoot='/app/dist/server';
 // macOS AppleDouble resource-fork files (._*.js) are not JavaScript. Exclude
 // them so a copied release cannot make the Workers runtime fail at boot.
@@ -215,11 +194,7 @@ const server=createServer(async(req,res)=>{
  const secure=true;
  if(isAdminHost(host,hosts)&&req.url==='/'){res.writeHead(302,{Location:'/team/login'});return res.end();}
  if(isApiHost(host,hosts)&&!req.url?.startsWith('/api/')){res.writeHead(404,{'Content-Type':'application/json'});return res.end(JSON.stringify({error:'API endpoint required'}));}
- // The standalone listener is bound behind the local reverse proxy. Do not
- // trust forwarded client headers here: a direct request can forge them and
- // rotate the limiter key on every call. The proxy-facing socket address is
- // the only transport-level value available to this process.
- const clientIp=resolveClientIp(req.socket.remoteAddress,req.headers['x-real-ip']);
+ // Only trust X-Real-IP when the connection comes from a local/private proxy.
  const clientIp=resolveClientIp(req.socket.remoteAddress,req.headers['x-real-ip']);
  if(req.url?.startsWith('/api/')){const authRoute=/^\/api\/h5\/auth(?:\/|$)/.test(req.url),formalHost=formalHosts.includes(String(host||'').toLowerCase()),scale=!formalHost&&isLocalOrGray(gatewayEnvironment)?gatewayScaleValue:1,limit=Math.max(1,Math.floor((authRoute?30:240)*scale)),windowMs=authRoute?15*60*1000:60*1000;if(!allowRate((authRoute?'auth:':'api:')+clientIp,limit,windowMs)){res.writeHead(429,{'Content-Type':'application/json','Retry-After':String(Math.ceil(windowMs/1000))});return res.end(JSON.stringify({error:'请求过于频繁，请稍后重试',code:'RATE_LIMITED'}));}}
  let cookies=req.headers.cookie||'',value=cookies.split(';').map(x=>x.trim()).find(x=>x.startsWith('payease_visitor='))?.slice(16),id=value?.split('.')[0];

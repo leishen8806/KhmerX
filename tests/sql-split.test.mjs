@@ -24,3 +24,11 @@ test('migration splitter ignores comment-only files',()=>{
  const parts=splitSql('-- retired migration\n-- intentionally left as documentation\n');
  assert.deepEqual(parts,[]);
 });
+
+test('migration splitter ignores semicolons inside SQL comments',()=>{
+ const parts=splitSql(`-- a retired statement; it must not split the next one
+CREATE TABLE first (id TEXT); /* inline; comment */ CREATE TABLE second (id TEXT);`);
+ assert.equal(parts.length,2);
+ assert.match(parts[0],/CREATE TABLE first/);
+ assert.match(parts[1],/CREATE TABLE second/);
+});

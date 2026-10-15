@@ -8,4 +8,5 @@ COPY dist-separated/api/server ./dist/server
 COPY dist-separated/client ./dist/client
 COPY dist-separated/api/drizzle ./drizzle
 ENV NODE_ENV=production
+USER node
 CMD ["node","server.mjs"]
