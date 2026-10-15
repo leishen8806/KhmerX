@@ -1,0 +1,1 @@
+import{H as e}from"./server-BXxqY_Qr.js";import{c as t,u as n}from"./h5-auth-0ACJXbLK.js";import{n as r}from"./bot-credentials-BA4MGwE2.js";async function i(i){try{return n(await r(await t(i)))}catch(t){return n({error:t instanceof e?t.message:`机器人配置未保存，请稍后重试`,code:t instanceof e?t.code||`BOT_CONFIG_INVALID`:`SERVICE_UNAVAILABLE`},t instanceof e?t.status:503)}}export{i as POST};

@@ -8,7 +8,7 @@ export const dynamic='force-dynamic';
 export async function POST(request:Request){try{
  const p=await input(request),outer=await getChatGPTUser();if(!outer)throw new AuthError('请先登录私有测试站点',401);
  const response=json({ok:true});const set=(name:string,v:string,age=28800)=>response.headers.append('Set-Cookie',cookie(request,name,v,age));
- if(p.action==='logout'){await logoutStaff(request.headers.get('cookie'));set(STAFF_SESSION,'',0);set(STAFF_MODE,'out',31536000);set(STAFF_COMPANY,'none');set(STAFF_PORTAL,'business');return response}
+ if(p.action==='logout'){await logoutStaff(request.headers.get('cookie'));set(STAFF_SESSION,'',0);set(STAFF_MODE,'out',31536000);set(STAFF_COMPANY,'none');set(STAFF_PORTAL,'business');set(STAFF_MFA_SETUP,'',0);return response}
  if(p.action==='bind_invite'){
   const email=outer.email.trim().toLowerCase(),company=String(p.company||'').trim().toLowerCase(),token=String(p.inviteToken||'').trim();if(!company||!token)throw new AuthError('请填写公司代码和邀请令牌',400,undefined,'INVITE_TOKEN_REQUIRED');
   const tenant=await db().prepare('SELECT id FROM team_companies WHERE slug=? AND active=1').bind(company).first<any>();if(!tenant)throw new AuthError('公司代码无效',403,undefined,'INVITE_COMPANY_INVALID');
