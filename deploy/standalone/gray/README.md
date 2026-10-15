@@ -113,3 +113,59 @@ docker compose -f deploy/standalone/gray/compose.gray.yaml start
 The gray host is a single point of failure. Restore `/opt/payease/data` and
 the matching `config.json` from the approved off-host backup before starting
 the stack after disk loss.
+
+## 7. Off-region backup and restore drill (Q10)
+
+Only gray data is authorized. These scripts are not installed or executed on a VPS by Codex. `backup.sh` and `restore.sh` default to dry-run; `--apply` explicitly permits snapshot/upload/pruning or downloading into a **new temporary directory**. Restore never replaces live data.
+
+Install `sqlite3`, `rclone`, `flock` (util-linux), GNU coreutils and findutils on Ubuntu. Create `/opt/payease/backup.env` manually, owned by root with mode 600, with these keys (never commit real values):
+
+```text
+SPACES_BUCKET=<dedicated-private-gray-backup-bucket>
+SPACES_REGION=nyc3
+SOURCE_REGION=sgp1
+SPACES_ENDPOINT=https://nyc3.digitaloceanspaces.com
+SPACES_ACCESS_KEY_ID=<backup-only-access-key>
+SPACES_SECRET_ACCESS_KEY=<backup-only-secret>
+DAILY_KEEP=7
+WEEKLY_KEEP=4
+```
+
+The bucket must exist, be private, and use a separate account/region per D-11. Provision limited backup credentials outside the repo. The script rejects the same source/destination region, public HTTP and arbitrary endpoints. The fixed `khmerx-gray/` prefix is the only pruning scope. Uploaded objects use private ACLs. The snapshot includes encrypted KYC objects **and sensitive configuration/SQLite files**: private access and protected credentials are mandatory; do not publish this bucket or backup logs. Optional `DATA_DIR` and `BACKUP_COMPOSE` are for isolated fixture/drill deployments; defaults are `/opt/payease/data` and this gray Compose file.
+
+Run a complete drill manually:
+
+```bash
+sudo stat -c '%U %a' /opt/payease/backup.env
+sqlite3 --version
+rclone version
+sudo bash deploy/standalone/gray/backup.sh --dry-run
+sudo bash deploy/standalone/gray/backup.sh --apply
+# Use the UTC snapshot date printed by date -u +%F (not a local-time date).
+sudo bash deploy/standalone/gray/restore.sh YYYY-MM-DD --dry-run
+sudo bash deploy/standalone/gray/restore.sh YYYY-MM-DD --apply
+```
+
+An applied backup takes a lock, verifies the app state, briefly stops a running `payease` container, copies data and runs SQLite `.backup` for every discovered SQLite file. It resumes the app before remote upload; errors also attempt to resume an app stopped by this job. Confirm this Compose service is the **only writer** to the selected data directory. Symlinks and unsupported DB filenames fail closed. Do not back up live R2 metadata and object files independently of this pause. No `docker compose down` or volume deletion is used.
+
+Each snapshot has SHA256 checksums, SQLite integrity/table-count checks and the latest known `customer_workspaces`/`kyc_cases` update timestamp (metadata-only DBs may report unavailable). The completion marker is uploaded only after remote content verification. Daily snapshots keep 7 completed dates; UTC Sunday snapshots also populate weekly storage, keeping 4 completed dates. Partial snapshots are excluded from retention counting and need manual inspection. Re-running a completed date preserves it, while retrying weekly copy/retention. For weekly restore use `BACKUP_TIER=weekly` in the protected configuration. Review the restored temporary directory and checks before any separately authorized live restore.
+
+Install the reviewed cron template only after this drill passes:
+
+```bash
+sudo touch /var/log/khmerx-gray-backup.log
+sudo chmod 600 /var/log/khmerx-gray-backup.log
+sudo install -o root -g root -m 644 deploy/standalone/gray/backup.cron /etc/cron.d/khmerx-gray-backup
+timedatectl
+```
+
+The daily job runs at 02:15 server time. Nonzero exit / `FAIL` must feed the operator's existing alerting system. Inspect application health after a failed snapshot; credentials and file contents are never printed. Log rotation should retain this root-readable log under the host's normal policy.
+
+Local fixture verification (no VPS/Spaces calls):
+
+```bash
+# Requires bash, sqlite3, coreutils, diffutils and flock in a disposable Linux container.
+bash tests/backup-restore.test.sh
+```
+
+This exercises real SQLite snapshots and checksums with fictional rows, a synthetic object and mocked Docker/rclone transport. Actual Spaces permissions, throughput and a VPS restore drill remain pending.

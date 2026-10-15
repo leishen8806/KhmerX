@@ -4,9 +4,11 @@ import {readState,mutate} from '@/lib/store';
 import {json} from '@/lib/h5-auth';
 import {route,readJsonBody} from '@/lib/http/route';
 export const dynamic='force-dynamic';
-export const GET=route({handler:async()=>{
+export const GET=route({handler:async(request)=>{
  const u=await identity();
- return json(await staff()?await scopedState():await readState(u.userId));
+ const params=new URL(request.url).searchParams;
+ const page=params.has('page')||params.has('pageSize')||params.has('status')?{page:Number(params.get('page')||1),pageSize:Number(params.get('pageSize')||50),status:params.get('status')||undefined}:undefined;
+ return json(await staff()?await scopedState(page):await readState(u.userId));
 }});
 export const POST=route({origin:'required',handler:async(request)=>{
  const u=await identity();

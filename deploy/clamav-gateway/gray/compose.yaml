@@ -1,0 +1,59 @@
+name: khmerx-gray-scanner
+x-clamd: &clamd
+  image: clamav/clamav:1.4
+  restart: unless-stopped
+  mem_limit: 3g
+  environment: {FRESHCLAM_CHECKS: "1"}
+  healthcheck:
+    test: [CMD, clamdscan, --ping=1]
+    interval: 30s
+    timeout: 10s
+    retries: 10
+    start_period: 180s
+  logging: &logs
+    driver: json-file
+    options: {max-size: 10m, max-file: "3"}
+x-gateway: &gateway
+  build: ..
+  restart: unless-stopped
+  mem_limit: 128m
+  command: [python, -c, "import os,runpy; assert os.environ.get('SCAN_TOKEN','').strip(), 'SCAN_TOKEN required'; runpy.run_path('server.py',run_name='__main__')"]
+  logging: *logs
+services:
+  clamd-a:
+    <<: *clamd
+    volumes:
+      - definitions-a:/var/lib/clamav
+  clamd-b:
+    <<: *clamd
+    volumes:
+      - definitions-b:/var/lib/clamav
+  gateway-a:
+    <<: *gateway
+    environment:
+      CLAMD_HOST: clamd-a
+      SCAN_TOKEN: ${KYC_SCAN_TOKEN:?KYC_SCAN_TOKEN required}
+    ports: ["127.0.0.1:18081:8080"]
+    depends_on: {clamd-a: {condition: service_healthy}}
+  gateway-b:
+    <<: *gateway
+    environment:
+      CLAMD_HOST: clamd-b
+      SCAN_TOKEN: ${KYC_SCAN_TOKEN:?KYC_SCAN_TOKEN required}
+    ports: ["127.0.0.1:18082:8080"]
+    depends_on: {clamd-b: {condition: service_healthy}}
+  tls:
+    image: caddy:2
+    network_mode: host
+    restart: unless-stopped
+    mem_limit: 128m
+    environment: {SCANNER_HOST: "${SCANNER_HOST:?SCANNER_HOST required}"}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - /opt/payease-scanner/tls:/run/tls:ro
+      - caddy-data:/data
+    logging: *logs
+volumes:
+  definitions-a:
+  definitions-b:
+  caddy-data:

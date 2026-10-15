@@ -66,3 +66,30 @@ CREATE INDEX loan_index_status   ON loan_index (owner, status, updated_at);
 
 ## 6. 不在本契约范围
 KYC 表（`kyc_cases` 已是按行存储）；关系型贷款表；PostgreSQL 迁移；员工视图的完整筛选与排序能力（上线后）。
+
+## 7. 员工列表接口（Q7 / S8）
+
+`GET /api/state?page=1&pageSize=50&status=active`，沿用员工会话与公司 Cookie。
+
+- `page` 默认 1；`pageSize` 默认 50，最大 200；非正数、非有限数回退默认值；正小数向下取整且至少 1。
+- `CUSTOMER_ROWS=off|shadow` 且未传分页参数时保持原响应；显式分页可用于客户端迁移。
+- `CUSTOMER_ROWS=on` 时未传参数也分页；按 `loan_index.updated_at DESC, loan_id DESC` 稳定排序，先按岗位/分单范围过滤再计数、分页。
+- `status` 只过滤贷款；未知状态返回空贷款页，不放宽岗位或公司范围。
+- `pagination` 描述贷款页；`customerPagination` 描述客户页（同一 page/pageSize，按注册时间倒序）。客户页含无贷款的注册客户及其 KYC 摘要；两套总数独立，不能将贷款页总数当客户总数。
+- `customers[].loans` 是该客户全部贷款的只读摘要；`state.loans` 仅当前贷款页。KYC/贷款详情仍按原权限处理。
+- `events`、`notifications` 仅当前贷款页关联的最近 200 条；不返回分片幂等记录、原始合同、内部聚合数组。
+- CSV 报表逐页读取后聚合，不把第一页误报为全量；`lib/team/reports.ts` 仅调整这一调用点。
+- `GET /api/team/members` 是员工名册，保留已有 page/pageSize 与权限规则，不混同为贷款列表。
+
+请求示例：
+```http
+GET /api/state?page=2&pageSize=50&status=active
+```
+响应结构示例（省略既有业务字段，非完整贷款 DTO）：
+```json
+{"revision":12,"state":{"loans":[],"events":[],"notifications":[]},"customers":[],"kycOrders":[],"scope":[],"team":{"company":"Synthetic","role":"admin","unitId":null},"pagination":{"page":2,"pageSize":50,"total":0,"pages":1},"customerPagination":{"page":2,"pageSize":50,"total":0,"pages":1}}
+```
+
+员工贷款写入先按 `(owner, loan_id)` 查索引，只更新对应客户行，分片、索引、审计在同一 batch。放款用全部客户分片的当月账目计算租户额度，并以租户 revision 串行化额度占用；旧 JSON payload 不变。Admin 资金路径纳入相同切换，保留回执账本和应急授权校验。
+
+验证边界：5000 客户的真实服务函数/路由 + 本地 SQLite 测试不是预发网络压测。保持默认 off；预发切 on 仍由人工执行。全链路开放前还需检查其他直接读取旧 JSON 的消费者，已确认 `lib/loan-signing.ts` 的新申请签名路径仍直接读写 demo_workspaces，不在本卡原范围内；不得凭员工路径测试通过就宣布客户新签约或整站切换完成。回退沿用 §4，先反向合并并对账再切 off。

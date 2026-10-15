@@ -1,6 +1,6 @@
 import {AuthError} from '@/lib/h5-auth-core';
 import {audit,staff} from './server';
-import {scopedState} from './workflow';
+import {reportState as scopedState} from './workflow';
 import {csvCell} from './csv';
 
 const reportRoles=['admin','audit','ops','dept_admin','finance','finance_checker','collection_admin','collector'];

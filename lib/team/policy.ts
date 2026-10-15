@@ -14,7 +14,10 @@ export const roleCatalog:Record<TeamRole,{description:string;unitKind:'departmen
  audit:{description:'查看审计与安全记录，不参与业务审批',unitKind:null,highRisk:true}
 };
 export const roleUnitKind=(role:TeamRole)=>roleCatalog[role].unitKind;
-export type Member={id:string;tenant_id:string;user_id:string;email:string;role:TeamRole;unit_id:string|null;active:number;version:number};
+export type Member={id:string;tenant_id:string;user_id:string;email:string;role:TeamRole;unit_id:string|null;data_scope?:'role'|'company'|'department'|'institution'|'assigned';active:number;version:number};
+export const dataScopeLabels={role:'按角色默认范围',company:'当前公司',department:'所属部门',institution:'所属持牌机构',assigned:'仅指派案件'} as const;
+export type DataScope=keyof typeof dataScopeLabels;
+export function dataScopeForRole(role:TeamRole):DataScope{return role==='admin'||role==='audit'?'company':['lender','checker','finance','finance_checker'].includes(role)?'institution':['kyc'].includes(role)?'assigned':roleUnitKind(role)==='department'?'department':roleUnitKind(role)==='postloan'?'department':'role'}
 export type Assignment={tenant_id:string;customer_id:string;department_id:string;institution_id:string|null;version:number;funding_institution_id?:string|null;repayment_institution_id?:string|null;collection_unit_id?:string|null;reviewer_id?:string|null};
 export const kycFieldGroups={identity:'身份与证件',contacts:'联系人',employment:'工作与收入',bank:'银行与钱包',address:'地址与定位'} as const;
 export type KycFieldGroup=keyof typeof kycFieldGroups;

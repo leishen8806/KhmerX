@@ -1,0 +1,19 @@
+{
+    auto_https off
+    admin off
+}
+https://{$SCANNER_HOST}:9443 {
+    tls /run/tls/scanner.crt /run/tls/scanner.key
+    @source remote_ip 159.223.77.134
+    handle @source {
+        reverse_proxy 127.0.0.1:18081 127.0.0.1:18082 {
+            lb_policy round_robin
+            health_uri /health
+            health_interval 10s
+            transport http {
+                response_header_timeout 30s
+            }
+        }
+    }
+    respond 403
+}
