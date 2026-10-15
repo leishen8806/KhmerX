@@ -1,0 +1,1 @@
+var e=`x-vinext-mw-ctx`,t=`x-vinext-prerender-secret`,n=`x-vinext-prerender-route-params`,r=`x-vinext-prerender-speculative`,i=`x-vinext-revalidate-host`,a=`x-middleware-request-`,o=`x-middleware-override-headers`,s=`x-middleware-set-cookie`,c=`x-middleware-skip`;export{e as a,r as c,c as i,i as l,a as n,n as o,s as r,t as s,o as t};
