@@ -1,0 +1,80 @@
+# Backend CR Bundle — Final Narrow Repair（after 64）
+
+```
+Document:  65-backend-cr-bundle-final-repair.md
+Date:      2026-10-09
+Owner:     Claude（契约修复；不自批）
+Status:    PROPOSED — READY FOR CODEX FINAL RE-REVIEW
+Identity:  PROJECT IDENTITY CHECK: PASS · KhmerX · E:\KhmerX\KhmerX · git@github.com:leishen8806/KhmerX.git · HEAD d916b4515a93057d7dd2a0673ebbca39a7bfd242
+Source:    64-backend-cr-bundle-rereview.md（FAIL：P0 无；P1-R1/R2/R3；P2 若干）
+Backups:   57/58/60/61/63 各有 *.pre65.bak
+Scope:     仅修 64 列出的 P1-R1/R2/R3 与指定 P2。未改 02/45/55/59；未动 DEC-1/2/3；未重设计 CR-006；未写任何后端/Flutter 代码；未修迁移代码
+Gate:      Implementation NOT AUTHORIZED · Trae = HOLD
+```
+
+## 1. 更新文件
+| 文件 | 版本 | 修复 |
+|---|---|---|
+| `57-CR-004-repayment-payment-reconciliation.md` | v3 | P1-R1（§7.1 外部来源身份/绑定/冲突）；F4/F6 事实更正；冲正指向 CR-007 §3.5.1；§15 安全门禁更正；测试 |
+| `58-CR-005-disbursement-receiving-account.md` | v3 | P1-R3（§4.0 资格 Case A/B；§6.5 `FundingExceptionResolution`、REISSUE/VOID）；terms 来源；读模型 `outcome`；§12 安全门禁更正；测试 |
+| `60-CR-007-overdue-penalty-fee-model.md` | v3 | P1-R2（§3.5.1 受控重开）；`loan_financial_terms` 取自不可变合同快照；`loan_financial_events`；`VOIDED` 独立态；安全门禁更正；测试 |
+| `61-CR-012-state-error-registry.md` | v3 | 新码 `EXTERNAL_REFERENCE_CONFLICT`、`REVERSAL_NOT_ALLOWED`；`details.reason` 白名单扩充；§6.1 Legacy→Canonical 别名表；覆盖矩阵；测试 |
+| `63-backend-cr-bundle-repair-summary.md` | 更正 | 安全门禁表、应急授权事实、迁移门禁；撤回"无 P1"自评，指向本文 |
+
+## 2. P1-R1 — 外部货币事实身份（CR-004 §7.1）
+- **唯一键**：`tenantId + channel + sourceRefNormalized`（MANUAL_TRANSFER / KHQR / BAKONG），**不含 loanId**；持久化 `ExternalSourceBinding PRIMARY KEY(tenant_id, channel, source_ref_normalized)`。
+- **账本幂等键**：`external:{tenantId}:{channel}:{sourceRefNormalized}`；内部更正/冲正用 `man:{requestId}`。
+- **首次绑定**：首个**经校验**的使用绑定到 `{loanId, amountCents, currency, customerId}`（与过账同一财务批）。MANUAL_TRANSFER 在员工确认时绑定（客户 claim 中的参考号不占用）；通道在回调验真且与 PaymentIntent 一致时绑定。
+- **再次使用**：同绑定 → 幂等返回既有过账；不同贷款/金额/币种/客户 → **不过账** + `ReconciliationRecord(EXTERNAL_REFERENCE_CONFLICT)` + **409 `EXTERNAL_REFERENCE_CONFLICT`**。
+- **跨贷款并发**：`UNIQUE` 为序列化点，恰好一批提交，另一批整体回滚后重读判定。一笔外部转账永远不能偿付两笔贷款。
+- **不弱于现状**：旧 `team_repayment_receipts PK(tenant_id, reference)` 全量回填 `ExternalSourceBinding`。
+- **测试**：同引用同绑定幂等；同引用不同贷款拒绝；同引用不同金额拒绝；并发（含跨贷款）恰好一次；回填后保护不弱于现状。
+
+## 3. P1-R2 — 已结清贷款的冲正 = 受控重开（CR-007 §3.5.1）
+- **权威**：只有共享财务结清引擎可执行 `closed → active`；无 API/控制器捷径。
+- **前置**：已批准 REVERSAL（maker-checker）+ MFA + 原因 + 原账本条目引用 + 幂等键 + 审计。
+- **原子顺序**（loan 级 `financial_version` CAS）：校验 → 追加 REVERSAL 条目 → 重算 position → remaining>0 时 `SETTLED→ACTIVE`、`settled_at=NULL`、追加 `REVERSAL_APPLIED`+`REOPENED` 事件、拖欠重算、投影 `closed→active`；否则保持 closed → `financial_version+1` → 提交。
+- **历史不可变**：`loan_financial_events` 永久保留原 `SETTLED` 事件与时间戳；仅当前标记被取代。
+- **重开后拖欠**：按**原到期日 + 绑定政策 + 当前 Asia/Phnom_Penh 日期**重算（CURRENT/DUE_TODAY/IN_GRACE/OVERDUE），**绝不**无条件 `SETTLED→CURRENT`；已结清区间不追溯计提。
+- **VOIDED**：不可经冲正重开 → `REVERSAL_NOT_ALLOWED(reason=VOIDED)`。`FUNDING_EXCEPTION`：允许冲正，不变阶段。
+- **错误码**：复用 `STAFF_DUAL_CONTROL_REQUIRED`/`MFA_STEP_UP_REQUIRED`/`IDEMPOTENCY_PAYLOAD_MISMATCH`/`NOT_FOUND`；新增唯一一个 `REVERSAL_NOT_ALLOWED`（409）。
+- **测试**：remaining=0 保持 closed；remaining>0 重开且四种日期分支；不追溯计提；重复冲正不重复入账；VOIDED 拒绝；冲正与还款并发唯一结果；`settled_at` NULL 而事件保留。
+
+## 4. P1-R3 — REISSUE 可达性与 VOID（CR-005 §4.0 / §6.5）
+- **账户确认资格**：Case A = `signed` + 正常首次放款 + 无活动指令；Case B = `phase=FUNDING_EXCEPTION` + **已批准** REISSUE 解决单 + 无其它活动指令。其余 → `DISBURSEMENT_NOT_AVAILABLE(reason)`。
+- **`FundingExceptionResolution`** `{id, loanId, type REISSUE|VOID, status, requestedBy, approvedBy, reason, createdAt, approvedAt}`；双人 + MFA + 审计。
+- **REISSUE**：新确认（新 `confirmationId`/`accountVersion`/`accountSnapshotHash`）→ 新 `DisbursementInstruction`；旧确认/旧指令仅为历史，复用 → `RECEIVING_ACCOUNT_STALE`；权威确认后清除 `FUNDING_EXCEPTION`、`terms_seq+1`、恢复生命周期（不重复 `signed→active`）。
+- **VOID**：显式终态 `VOIDED`；无重发/还款/计提/后续放款；读模型 `delinquencyState='VOIDED'`、`closedReason='FUNDING_VOID'`、`outcome='VOIDED'`——**不是 `SETTLED`**。
+- **terms 来源**：`loan_financial_terms` 只取自不可变的已接受合同/报价快照（`contract_snapshot_id` + `terms_hash`），不取工作区 JSON。
+- **测试**：见 58 §13 "REISSUE / 账户确认资格"。
+
+## 5. P2
+- **CR-012 Legacy 别名表**：61 §6.1，按 `lib/error-codes.ts: codeForError` 的真实优先级（status/文案子串）逐条映射到规范码；旧码与新码并存；OD-12.1 前只增不减；每条规则有夹具测试。
+- **应急授权事实（更正）**：一次性消费、批准需 MFA、仅申请人可用、须含 `funding` 范围；**但 `loanId/action/cents` 只在消费时记录，未对照预绑定目标校验** → **PARTIALLY CLOSED — REQUIRES HARDENING**；`admin` 不在 `highRiskRoles`。
+- **迁移门禁（更正）**：触发器 `BEGIN/END` 切分 CLOSED；`0030/0031` 审计表冲突 CLOSED；**全新卷迁移启动 CONFIRMED OPEN**（`0015` 注释含分号，`splitSql` 不识别注释）。本契约不修代码，列为后端实施/发布门禁。
+
+## 6. Security Gates（当前 HEAD；未改代码）
+| 门禁 | 分类 |
+|---|---|
+| `paymentVerified` 请求体自报 | CONFIRMED OPEN |
+| 回调重放仍插入事件 | CONFIRMED OPEN |
+| 回调无消费者 | CONFIRMED OPEN |
+| MFA 重绑 | APPEARS CLOSED — TEST REQUIRED |
+| Admin 资金双人控制 | REQUIRES RE-VERIFICATION |
+| 应急授权 | PARTIALLY CLOSED — REQUIRES HARDENING |
+| 迁移触发器切分 | CONFIRMED CLOSED |
+| 全新卷迁移启动 | CONFIRMED OPEN |
+| `0030/0031` 冲突 | CONFIRMED CLOSED |
+
+## 7. 自评（不构成批准）
+- P0：无。
+- P1：64 的 P1-R1/R2/R3 已在契约层给出冻结规则与测试；**是否关闭由 Codex 终审判定**。
+- P2 残余：D1 批回滚/UNIQUE 冲突回滚须在远程 D1 与 miniflare 两端测试证明；MFA 重绑需测试；`REVERSAL_NOT_ALLOWED`/`EXTERNAL_REFERENCE_CONFLICT` 的 ARB 文案待 UX（Codex）定稿；命名统一。
+
+## 8. Gate
+```
+Backend CR Bundle (57/58/60/61 v3 + 59 unchanged): PROPOSED — READY FOR CODEX FINAL RE-REVIEW
+Implementation: NOT AUTHORIZED
+Trae: HOLD
+Next: CODEX FINAL BACKEND CR BUNDLE RE-REVIEW
+```

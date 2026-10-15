@@ -1,0 +1,42 @@
+﻿
+10-09 04:09:07.976   522  2336 I ActivityTaskManager: START u0 {flg=0x10000000 cmp=org.khmerx.khmerx_app/.MainActivity}
+ from uid 2000
+10-09 04:09:08.025   522   551 I ActivityManager: Start proc 5008:org.khmerx.khmerx_app/u0a167 for pre-top-activity {or
+g.khmerx.khmerx_app/org.khmerx.khmerx_app.MainActivity}
+10-09 04:09:08.041  5008  5008 I merx.khmerx_ap: Late-enabling -Xcheck:jni
+10-09 04:09:08.064  5008  5008 I merx.khmerx_ap: Unquickening 12 vdex files!
+10-09 04:09:08.078  5008  5008 W merx.khmerx_ap: Unexpected CPU variant for X86 using defaults: x86_64
+10-09 04:09:08.113  5008  5008 I merx.khmerx_ap: The ClassLoaderContext is a special shared library.
+10-09 04:09:08.776  5008  5008 W merx.khmerx_ap: Accessing hidden method Landroid/view/SurfaceControl$Builder;->setHidd
+en(Z)Landroid/view/SurfaceControl$Builder; (blacklist, linking, denied)
+10-09 04:09:08.804  5008  5008 W merx.khmerx_app: type=1400 audit(0.0:56): avc: denied { read } for name="max_map_count
+" dev="proc" ino=107814 scontext=u:r:untrusted_app:s0:c167,c256,c512,c768 tcontext=u:object_r:proc_max_map_count:s0 tcl
+ass=file permissive=0 app=org.khmerx.khmerx_app
+10-09 04:09:09.025  5008  5008 D com.llfbandit.app_links: Intent { flg=0x10000000 cmp=org.khmerx.khmerx_app/.MainActivi
+ty }
+10-09 04:09:09.027  5008  5008 I TetheringManager: registerTetheringEventCallback:org.khmerx.khmerx_app
+10-09 04:09:09.068  5008  5008 W merx.khmerx_ap: Accessing hidden method Landroid/view/accessibility/AccessibilityNodeI
+nfo;->getSourceNodeId()J (greylist,test-api, reflection, allowed)
+10-09 04:09:09.068  5008  5008 W merx.khmerx_ap: Accessing hidden method Landroid/view/accessibility/AccessibilityRecor
+d;->getSourceNodeId()J (greylist, reflection, allowed)
+10-09 04:09:09.068  5008  5008 W merx.khmerx_ap: Accessing hidden field Landroid/view/accessibility/AccessibilityNodeIn
+fo;->mChildNodeIds:Landroid/util/LongArray; (greylist, reflection, allowed)
+10-09 04:09:09.068  5008  5008 W merx.khmerx_ap: Accessing hidden method Landroid/util/LongArray;->get(I)J (greylist, r
+eflection, allowed)
+10-09 04:09:11.141   448   448 I keystore: del USRPKEY_org.khmerx.khmerx_app.FlutterSecureStoragePluginKey 10167
+10-09 04:09:11.142   448   448 I keystore: del USRSKEY_org.khmerx.khmerx_app.FlutterSecureStoragePluginKey 10167
+10-09 04:09:11.142   448   448 I keystore: del USRCERT_org.khmerx.khmerx_app.FlutterSecureStoragePluginKey 10167
+10-09 04:09:11.142   448   448 I keystore: del CACERT_org.khmerx.khmerx_app.FlutterSecureStoragePluginKey 10167
+10-09 04:09:11.235   522   549 D ArtManagerInternalImpl: /data/misc/iorapd/org.khmerx.khmerx_app/1/org.khmerx.khmerx_ap
+p.MainActivity/compiled_traces/compiled_trace.pb doesn't exist
+10-09 04:09:11.236   522   549 I ActivityTaskManager: Displayed org.khmerx.khmerx_app/.MainActivity: +3s258ms
+10-09 04:09:11.236   522   549 I ActivityTaskManager: Fully drawn org.khmerx.khmerx_app/.MainActivity: +3s258ms
+10-09 04:09:11.240  5008  5008 W merx.khmerx_ap: Accessing hidden method Landroid/app/ActivityThread;->currentActivityT
+hread()Landroid/app/ActivityThread; (greylist, linking, allowed)
+10-09 04:09:11.240  5008  5008 W merx.khmerx_ap: Accessing hidden method Landroid/app/ActivityThread;->getActivity(Land
+roid/os/IBinder;)Landroid/app/Activity; (greylist, linking, allowed)
+10-09 04:09:13.029   445  5003 I iorapd  : Perfetto TraceBuffer saved to file: /data/misc/iorapd/org.khmerx.khmerx_app/
+1/org.khmerx.khmerx_app.MainActivity/raw_traces/1791518953028186300.perfetto_trace.pb
+10-09 04:09:15.471  5008  5063 D ProfileInstaller: Installing profile for org.khmerx.khmerx_app
+
+

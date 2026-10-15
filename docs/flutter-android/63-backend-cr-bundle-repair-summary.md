@@ -1,0 +1,136 @@
+# Backend CR Bundle Repair Summary
+
+```
+Document:  63-backend-cr-bundle-repair-summary.md
+Date:      2026-10-09
+Owner:     Claude（契约修复）
+Status:    PROPOSED — READY FOR CODEX FINAL RE-REVIEW（不自批；Implementation NOT AUTHORIZED；Trae = HOLD）
+Amended:   2026-10-09 据 64（FAIL）窄幅更正：安全门禁、应急授权事实、迁移门禁；P1-R1/R2/R3 的修复见 65-backend-cr-bundle-final-repair.md（v2 备份：*.pre65.bak）
+Identity:  PROJECT IDENTITY CHECK: PASS · KhmerX · E:\KhmerX\KhmerX · git@github.com:leishen8806/KhmerX.git · HEAD d916b4515a93057d7dd2a0673ebbca39a7bfd242
+Backups:   57/58/59/60/61 各有 *.pre63.bak
+Not done:  未写任何后端/Flutter 代码；未改 02、45；未发明法定费率或支付通道规则；未重开 DEC-1/2/3
+```
+
+## Source Review
+`62-backend-cr-bundle-independent-review.md`（FAIL：P0 无，P1 15 项结构性缺口）。修复顺序按 62 的建议：CR-012 → CR-007 → CR-004 → CR-005 → CR-006，并做跨合同对账。
+
+## 关键事实发现（修复依据；已读真实代码）
+| 发现 | 对设计的影响 |
+|---|---|
+| 所有权威状态（KYC、财务候选表、审计、工作区 JSON）在**同一个 D1 数据库**；D1 `batch()` 是 SQL 事务（须测试证明回滚）；现有资金路径已使用批内条件链 `INSERT … WHERE changes()=1` | "同事务"是**可行的**，62 对"跨存储不可原子"的前提需要细化：问题不是存储分裂，而是下一条 |
+| `demo_workspaces` 是**每运营主体仅一行**的 JSON（含该主体全部客户的贷款），行级 `revision` CAS，最多重试 4 次 | 把每笔财务提交绑到它会令同主体所有贷款串行化，并使财务提交因无关编辑失败 → **财务权威放到 SQL 表 + 每贷款 `financial_version`；JSON 降为可重建投影 + 读时叠加** |
+| 当前 HEAD 与旧审计相比已变化：`splitSql` 现跟踪 `BEGIN/END`；`0030/0031` 不再删除 `team_audit`；`mfa_enroll_start` 在启用 MFA 时要求步进并使用待确认密钥。**【64 更正】**`splitSql` 不识别 SQL 注释，`0015` 注释含分号 ⇒ **全新卷迁移启动失败（CONFIRMED OPEN）** | 安全门禁**不照搬旧审计**，逐项重新分类（见下，已按 64 更正） |
+| `paymentVerified` 仍由请求体自报；回调 nonce 重放仍无条件插入事件；回调无消费者 | 确认仍开放 |
+
+## CR-012 Repairs（61）
+- **重试模型**：`NO / READ_SAFE / IDEMPOTENT_ONLY / REFRESH / AFTER / USER / CONDITIONAL`；`INTERNAL_ERROR = CONDITIONAL`（GET 可重试；**变更请求不得盲目重试**，先刷新权威状态，仅在端点保证幂等时用同一幂等键+载荷重发）。
+- **全局自动重试规则**：GET/HEAD 可按类重试；POST/PUT/PATCH/DELETE 不自动重试，除非端点明确保证幂等且复用完全相同键+载荷；重试不由 HTTP 状态单独推断。
+- **UNCLASSIFIED_ERROR = INTERNAL ONLY**：记日志+计数；客户端只收 500 `INTERNAL_ERROR + traceId`；契约测试"公共响应永不含该码"。
+- **追踪 ID（关闭 OD-12.2）**：区分 **idempotency `requestId`（请求体，客户端生成）** 与 **`traceId`（网关生成，响应头 `X-Request-Id` + 错误体 `traceId`）**；入站伪造值被替换；legacy 响应里的 `requestId`（追踪用途）作为别名保留至迁移完成。
+- **HTTP 规范化**：一码一状态；`AUTH_DEMO_FORBIDDEN`/`WORKSPACE_UNAVAILABLE` → 503；`INVALID_REQUEST` → 400，新增 `UNSUPPORTED_MEDIA_TYPE` → 415；`FILE_INVALID` → 422，唯一登记的迁移例外是 `/api/kyc/files` 现状 400。
+- **新增码**：`PUSH_TOKEN_INVALID`、`DEVICE_LIMIT_REACHED`、`PUSH_REGISTRATION_UNAVAILABLE`、`NOTIFICATION_PREFERENCES_INVALID`；财务/放款：`FINANCIAL_POLICY_UNBOUND`、`ALLOCATION_POLICY_MISSING`、`RECEIVING_ACCOUNT_CONFIRMATION_EXPIRED`、`FUNDING_EXCEPTION_ACTIVE`、`REPAYMENT_CONFIRM_FORBIDDEN`、`RECONCILIATION_CONFLICT`、`DELINQUENCY_POLICY_INVALID`、`CHARGE_ADJUSTMENT_INVALID`；员工/机构码集中登记。
+- 业务对象 `failureCode` 与 HTTP 错误严格分离（§7）。
+
+## CR-007 Repairs（60）
+- **保持正交拖欠模型**（不重开）。
+- **精确宽限边界**：`T<D CURRENT；T==D DUE_TODAY；D<T≤D+G IN_GRACE；T>D+G OVERDUE`；`daysOverdue = max(0, T−(D+G))`（首个逾期日=1）；附 G=0 与 G=3 的表驱动示例。
+- **到期后部分还款不回到 CURRENT**；`remaining>0` 时状态由日期+宽限推导；`remaining==0` → 结清 → `SETTLED`（对象始终存在，已关闭贷款永不显示 CURRENT）；资金异常 → `SUSPENDED`。
+- **费用账本**：`direction DEBIT|CREDIT` + 正整数金额，不用负号表达会计方向；自动计提键 `acc:{loan}:{policyVersion}:{component}:{accrualDate}`，手工键 `man:{requestId}`，互相独立。
+- **政策版本绑定**：在**合同生成/签约之前**绑入客户合同，之后终身不可变；依赖登记到 P3/CR-001；区分"未配置政策"与"已绑定 `NONE`"；无绑定版本 → 失败关闭 `FINANCIAL_POLICY_UNBOUND`。
+- **分摊顺序**：属于不可变政策版本的有序组件列表，**本 CR 不选择具体顺序**；>1 个应付分量且顺序缺失 → 失败关闭 `ALLOCATION_POLICY_MISSING`；OD-7.3 = BLOCKS PRODUCTION FINANCIAL POSTING。
+- **共享财务权威（§3）**：`calculateFinancialPosition(loanId, asOf)`；`loan_financial_terms`/`loan_financial_state`；**loan 级财务事务 + `financial_version` CAS**（还款/计提/豁免/调整/冲正/资金确认/结清全部经此）；**唯一结清权威**；同日竞态用 `accrualBasis`（`OPENING_BALANCE`/`CLOSING_BALANCE`）确定化。
+
+## CR-004 Repairs（57）
+- **DR-1 重新裁决**：账本为 D1 SQL 权威；**不**把财务提交和工作区 JSON 放进同一事务（共享单行文档 CAS 的串行化与耦合失败），改为"账本提交 + 版本化可重建投影 + 读时叠加（账本为准）"。
+- **唯一写路径** `postRepayment()`：P6-A 与 P6-B 都只调用它；生产遗留直写（`applyAction('repay')`、`admin_repay` 直接记账分支、直写 `paid/closed/entries`）失败关闭，静态扫描证明。
+- 分摊调用绑定政策；`remaining` 来自 CR-007 position（取代 `amount+fee−paid`）。
+- ~~幂等键作用域补全为 `tenantId+loanId+channel+sourceRef`~~ **【64 P1-R1 更正，见 65】**外部货币身份 = `tenantId+channel+sourceRefNormalized`（**不含 loanId**），账本键 `external:{tenantId}:{channel}:{sourceRefNormalized}`，首次绑定后异绑定 → `EXTERNAL_REFERENCE_CONFLICT`；每一层"同键异载荷 → 409"；**回调 nonce 条件插入**；明确"幂等 + 财务版本"两者并用。
+- 超额：保持"不入账 + 异常"（接受）。
+
+## CR-005 Repairs（58）
+- **账户确认对象**：绑定 `requestId + loanId + accountRefId + accountVersion + accountSnapshotHash + kycRevision + confirmedAt + expiresAt`，全部服务端校验；指令引用该确认。
+- **过期行为冻结**：过期/KYC 或账户修订 ⇒ 无法建指令、必须对当前版本重新确认；无静默刷新；时长为必配外部值，缺失失败关闭。
+- **`signed → active`**：指令期间保持 `signed`；仅权威资金确认（在一个财务批内）触发，员工点击无效。
+- **`fundedAt/dueAt`**：默认 `fundedAt = 权威确认时间`，`dueAt = fundedAt + term`，D 为 UTC+7 本地日；**OD-5.4 = IMPLEMENTATION BLOCKER（待业主/法务确认）**；拖欠时钟在其存在前不启动。
+- **资金退回**：不新增 `Loan.status`；`phase = FUNDING_EXCEPTION`（阻断型）→ 暂停还款资格、暂停拖欠/计提、阻断结清；追加不可变的 `funding_return` 事实与冲正行，**不删除/覆盖**；解决路径 `REISSUE`（`terms_seq+1`）/`VOID`（`VOIDED`），双人审批。**【64 P1-R3 更正，见 65】**REISSUE 可达性：账户确认资格 Case A/B、`FundingExceptionResolution`、新确认→新指令；`VOIDED` 为独立终态而非结清。
+
+## CR-006 Repairs（59）
+- **设备登出 = 按安装**：普通登出只停用本设备；会话到期不销毁无关设备；**账号级安全事件**（密码重置撤销全部、账户删除、显式撤销全部、安全锁定）才使全部设备失效。
+- **安装 vs 会话**：注册属于 `customer + installation`；同安装换账号改绑，旧客户不再收到。
+- **Outbox**：同一 D1 → 业务批内条件链写 `notification_events`（同提交/同回滚）；非批路径须改为批，否则由 **reconciler** 依耐久业务事实按确定性键补建；通知失败永不回滚业务。
+- 确定性去重键 `customerId:eventKind:objectId:objectVersion|domainEventId`；错误码并入 CR-012。
+
+## Cross-Contract Authority Model（冻结）
+```
+合同/定价 + 绑定政策版本 → loan_financial_terms（不可变）
+        + loan_charge_ledger + repayment_ledger + 资金事实
+        ↓
+calculateFinancialPosition（唯一计算）
+        ↓
+loan_financial_state（阶段/版本/结清）→ 生命周期投影 → 读时叠加 → API → Android
+```
+Android、工作区 JSON、通知数据**永不**是财务权威。
+
+## Financial Transaction / Concurrency Model
+loan 级财务事务：读 `financial_version` → 在应用层确定事实 → D1 批（`UPDATE … WHERE financial_version=V` + 条件链插入账本/审计/outbox）→ CAS 失败则从权威账本重读重算（有界）→ 幂等键冲突整批回滚后返回既有结果。**幂等防重复意图，版本防并发破坏，二者并用。**覆盖：还款、计提、豁免、调整、冲正、资金确认/退回、结清。
+
+## Loan Activation / Closure Rules
+- **激活**：只有权威资金确认（CR-005）可使 `signed → active`；无客户端/员工点击推断。
+- **结清**：只有共享财务结清逻辑可使已放款贷款 `closed`；CR-004 与 CR-007 都不得单独修改 `loan.status`。
+
+## Error Coverage Matrix
+见 `61` §9：CR-004/005/006/007 每个对外可见失败均已登记（自动核对：四份 CR 中出现的全部错误码都存在于 61）。
+
+## Open Decision Classification
+| ID | 分类 |
+|---|---|
+| OD-4.1 超额 | CAN REMAIN OPEN（默认不入账+异常）；BLOCKS 超额处理上线 |
+| OD-4.2 凭证 | CAN REMAIN OPEN（默认可选）；BLOCKS 保留策略上线 |
+| OD-4.3 检查者阈值 | **BLOCKS manual-confirmation 实施**（基线检查者须冻结） |
+| OD-4.4 提供方 | **BLOCKS P6-B 实施与生产**（通用适配契约可先行） |
+| OD-4.5 凭证编号/过期时长 | P6-A 文档化默认可实施；BLOCKS 确定性 P6-B |
+| OD-5.1 银行校验 | BLOCKS 账户校验实施 |
+| OD-5.2 确认有效期时长 | 行为已冻结；时长必配，缺失失败关闭 → BLOCKS P7 实施直至配置 |
+| OD-5.3 退回资金处置 | **BLOCKS returned 转换实现与生产放款**（会计完整性已冻结） |
+| OD-5.4 fundedAt/dueAt | **IMPLEMENTATION BLOCKER**（默认已冻结，待确认） |
+| OD-5.5 参考号展示 | CAN REMAIN OPEN（默认脱敏/隐藏） |
+| OD-6.1 推送提供方 | BLOCKS 生产提供方激活 |
+| OD-6.2 设备数上限 | BLOCKS 生产容量策略（可先临时保守上限） |
+| OD-6.3 静默时段 | CAN REMAIN OPEN |
+| OD-6.4 收件箱 | NONBLOCKING（不在契约内） |
+| OD-7.1 罚息 | CAN REMAIN OPEN（`NONE`）；BLOCKS 真实罚息生产 |
+| OD-7.2 宽限天数/桶 | BLOCKS 生产拖欠策略数值 |
+| OD-7.3 分摊顺序 | **BLOCKS PRODUCTION FINANCIAL POSTING**（>1 分量） |
+| OD-7.4 日历/舍入 | BLOCKS 罚息计提实现 |
+| OD-7.5 豁免/核销 | BLOCKS 豁免/核销路径 |
+| OD-7.6（新）同日计提基数 | BLOCKS 罚息计提实现（机制已冻结） |
+| OD-12.1 别名下线时间 | PRODUCTION / DEPRECATION DECISION；不阻塞 |
+| OD-12.2 追踪 ID 归属 | **ARCHITECTURE CLOSED**（网关生成并替换入站值） |
+
+## Security Gate Classification（据当前 HEAD；**已按 64 更正**；不照搬旧审计；未修复任何代码）
+| 门禁 | 分类 |
+|---|---|
+| `paymentVerified` 自报 | **CONFIRMED OPEN** |
+| 回调重放仍插入事件 | **CONFIRMED OPEN** |
+| 回调无消费者 | **CONFIRMED OPEN** |
+| MFA 重绑 | **APPEARS CLOSED — TEST REQUIRED** |
+| Admin 资金双人控制 | **REQUIRES RE-VERIFICATION**（`admin` 不在 `highRiskRoles`） |
+| 应急授权 | **PARTIALLY CLOSED — REQUIRES HARDENING**（一次性消费 ✓、批准需 MFA ✓、仅申请人可用 ✓、须含 `funding` 范围 ✓；**但 `loanId/action/cents` 仅在消费时记录，未对照预先绑定的目标校验**。原文"一次性且绑定"有误，已撤回） |
+| 迁移器触发器 `BEGIN/END` 切分 | **CONFIRMED CLOSED** |
+| 全新卷迁移启动 | **CONFIRMED OPEN**（`0015` 注释含分号；`splitSql` 不识别注释） |
+| `0030/0031` 与只追加审计表冲突 | **CONFIRMED CLOSED** |
+| 真实还款/放款激活 | **BLOCKED** 直至上述 OPEN 门禁关闭、CR 验收 |
+
+## Remaining P0
+无。
+
+## Remaining P1（结构性歧义）
+~~无（据本修复的自评）~~ **【64 更正】**64 判定 3 项结构性 P1（P1-R1 外部引用身份含 loanId；P1-R2 已结清冲正/重开未定义；P1-R3 REISSUE 不可达）。修复见 **65**，待 Codex 终审；本文不自批。外部数值（费率、宽限天数、分摊顺序、提供方、确认时长、`fundedAt` 规则的法务确认）均以"安全默认/失败关闭/阻断实施或生产"形式登记，不属结构缺口。
+
+## Remaining P2
+- 安全门禁已按 64 更正（上表）；MFA 重绑仍需测试证明。CR-012 legacy 别名表已在 61 v3 §6.1 补齐。
+- D1 批回滚、条件链、并发交错需以自动化测试在 Workers D1 与本地 miniflare 两端证明（已写入各 CR 的测试清单）。
+- 命名/状态词汇后续统一（62 的 P2）。
+
+## Re-review Readiness
+57/58/60/61 为 v3 `PROPOSED — READY FOR CODEX FINAL RE-REVIEW`（59/CR-006 已通过复审，未改动）；`Implementation: NOT AUTHORIZED`；`Trae = HOLD`。**请重点审**：①CR-004 对 DR-1 的重新裁决（SQL 权威 + 可重建投影 + 读时叠加，而非同事务）及其理由；②CR-007 §3 共享财务权威/串行化；③CR-005 的 `signed→active` 与 `FUNDING_EXCEPTION` 语义；④CR-006 的 outbox 与 reconciler 组合；⑤CR-012 的重试分类与追踪 ID 归属。

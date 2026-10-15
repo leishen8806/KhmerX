@@ -1,0 +1,152 @@
+# Gate A — CR-012 Error Foundation · Implementation Plan
+
+```
+Document:  70-Gate-A-CR012-error-foundation-plan.md
+Date:      2026-10-09
+Owner:     Claude（规划）
+Status:    PROPOSED — READY FOR CODEX REVIEW
+Contract:  61-CR-012-state-error-registry.md v3.1（唯一需求权威）
+Master:    69-backend-implementation-master-plan.md
+Gate:      CODE NOT MODIFIED · DATABASE NOT MODIFIED · IMPLEMENTATION NOT AUTHORIZED · Trae = HOLD
+```
+
+## 1. Objective
+把现有"按 HTTP 状态 + 中文文案子串推断"的错误码体系，替换为**类型化、显式、稳定**的错误基础，满足 61 的信封、标识、重试、白名单、别名与覆盖要求。**不实现任何财务/放款/推送业务**；只注册其错误码。
+
+## 2. Scope
+**Included**：typed `ApiError` · 稳定注册表（61 §4 全部 code，含 CR-004/005/006/007） · 错误信封 · `traceId` · `X-Request-Id` · `details` 白名单（按码限定 `reason`） · 重试元数据 · legacy 别名兼容（61 §6.1） · `REQUEST_FAILED` 下线路径 · `UNCLASSIFIED_ERROR` 仅内部 · 覆盖契约测试。
+**Excluded**：财务业务实现；任何 SQL 迁移；Android/Flutter 代码；H5 前端改版；除 61 §4.10 登记项之外的 HTTP 状态破坏性变更；网关限流策略变更。
+
+## 3. 冻结规则（Gate A Critical Rules）
+| 规则 | 实施含义 |
+|---|---|
+| POST/PUT/PATCH/DELETE 不自动重试，除非端点明确保证幂等**且**复用完全相同的幂等键 + 载荷 | 注册表每码给 `retry`；服务端**不**输出任何"可重试"布尔供客户端盲用；端点幂等保证在**端点元数据**（`idempotent: true` + 幂等键字段名）中声明，与错误码分离 |
+| `INTERNAL_ERROR` 不意味着盲目重试变更 | 注册为 `500 · CONDITIONAL`；契约测试断言 Android 规则（文档化于导出注册表） |
+| `UNCLASSIFIED_ERROR` 仅内部可观测 | 只存在于日志/计数器；公共响应一律 `500 INTERNAL_ERROR`；契约测试全路由断言 |
+| `traceId` = 可观测身份；`requestId` = 业务变更幂等身份 | 两个独立类型与字段；`traceId` 只来自网关/入口，永不从请求体读取；请求体 `requestId` 永不写入响应头；静态扫描禁止 `X-Request-Id` 赋值为请求体字段 |
+
+## 4. 设计
+
+### 4.1 模块
+| 新/改 | 文件 | 内容 |
+|---|---|---|
+| 新 | `lib/errors/registry.ts` | `ERROR_REGISTRY: Record<Code,{status, retry, ui, log, reasons?: readonly string[]}>`——由 61 §4 逐行转写；`reasons` 仅对 `REPAYMENT_NOT_PAYABLE`/`DISBURSEMENT_NOT_AVAILABLE`/`REVERSAL_NOT_ALLOWED` 等设定（61 §5 按码限定） |
+| 新 | `lib/errors/api-error.ts` | `class ApiError extends Error { code; status (取自注册表，不可传入覆盖); safeMessage; details? }`；构造时校验 `code ∈ registry`、`details` 键 ∈ 白名单、`details.reason ∈ registry[code].reasons` |
+| 新 | `lib/errors/envelope.ts` | `toEnvelope(err, traceId)` → `{error, code, traceId, retryAfter?, details?}`；`classify(unknown)`：`ApiError` → 原样；`AuthError`/`KycError` → 映射（§4.3）；其他 → 记 `UNCLASSIFIED_ERROR` 日志+计数，返回 `INTERNAL_ERROR` |
+| 新 | `lib/errors/trace.ts` | `traceIdFrom(request)`：读取**网关内部头** `x-khmerx-trace-id`（仅当网关存在）；否则生成 `req_<uuid>`；**从不**读取入站 `X-Request-Id` |
+| 新 | `lib/errors/legacy-alias.ts` | 61 §6.1 别名表；`legacyCodeFor(canonical)` 仅在兼容层需要时使用；`codeForError` 降级为最后兜底并触发内部 `UNCLASSIFIED_ERROR` 计数 |
+| 改 | `lib/error-codes.ts` | 保留导出（兼容），内部改为委托 `legacy-alias`；标注 deprecated |
+| 改 | `lib/h5-auth-core.ts` | `AuthError` 改为 `ApiError` 子类（构造签名保持，`code` 缺省时经别名推断并计数），以便 290 处调用点渐进迁移 |
+| 改 | `lib/kyc/core.ts` | `KycError` 同上 |
+| 改 | `lib/h5-auth.ts` | `json()` 增加 `traceId` 头；`failure()` 改用 `classify` + `toEnvelope` |
+| 改 | `lib/kyc/server.ts` | `failed()` 同上 |
+| 改 | `app/api/state/route.ts`、`app/api/h5/state/*` | 移除对非 `KycError` 的折叠；catch 走 `classify` |
+| 改 | `app/api/institution/callback/route.ts` | 现有响应字段 `requestId`（追踪）保留为 legacy alias，同时输出 `traceId`；`X-Request-Id` 改为 traceId |
+| 改 | `app/api/**/route.ts`（全部） | catch 出口统一为 `errorResponse(e, request)` |
+| 改 | `lib/domain.ts`、`lib/store.ts`、`lib/team/*.ts`、`lib/kyc/*.ts`、`lib/notifications/*`、`lib/postloan/*` | 抛错点显式化：`throw Error('…')`（约 100 处）→ `ApiError(CODE)`；`AuthError/KycError` 补显式 `code`（约 387 处） |
+| 改 | `deploy/standalone/server.mjs` | 网关：生成 `traceId`；删除入站 `x-request-id`、`x-khmerx-trace-id`；设置内部头 `x-khmerx-trace-id` 转发；响应头 `X-Request-Id`；网关自身对 `/api/*` 的 400/401/413/429/503 改为标准信封 JSON（含 `code`、`traceId`） |
+| 新 | `scripts/export-error-registry.mjs` | 生成 `docs/flutter-android/error-registry.generated.json`（code/status/retry/ui/reasons），供 Android 与 ARB 对账；CI 校验与 61 一致 |
+
+### 4.2 traceId 来源
+```
+standalone：网关生成 → 删除入站 X-Request-Id / x-khmerx-trace-id → 内部头 x-khmerx-trace-id → Worker 采用
+hosted（无 standalone 网关）：Worker 入口总是自行生成；入站 X-Request-Id 永不采用（可记为 clientTraceHint，长度≤64、字符集受限、不回显）
+```
+内部头可被伪造的风险：standalone 网关已剥离入站同名头；hosted 下 Worker 不信任该内部头**除非**同一请求带有效的网关身份证明（`x-payease-identity-proof` 已有 HMAC 机制）——实现时二者择一并在 Codex 评审中确认（**OD-A1**）。
+
+### 4.3 遗留错误映射（迁移期）
+| 来源 | 映射 |
+|---|---|
+| `ApiError` | 原样 |
+| `AuthError/KycError` 且带显式 `code` | 若 `code ∈ registry` → 采用；否则按 61 §6.1 视为 legacy 码输出并计数 `LEGACY_CODE_EMITTED{code}` |
+| `AuthError/KycError` 无显式 `code` | 走 `codeForError` 兜底（legacy 输出）+ 计数 `INFERRED_CODE{route}` |
+| 裸 `Error` / 其他 | 日志 `UNCLASSIFIED_ERROR` + 计数 → `500 INTERNAL_ERROR` |
+| **例外**：`store.mutate` 的 `其他操作刚刚更新了记录，请重试` | 显式 `REVISION_CONFLICT`（迁移第一批完成） |
+
+> 注意现状行为差异：裸 `Error` 当前在 `/api/state` 以 400（`status||400`）返回并保留原文。Gate A 后变为 500 `INTERNAL_ERROR`——**因此必须先完成"显式化"再切换兜底**（见 §6 顺序），否则业务校验错误会被误报为 500。
+
+### 4.4 `details` 白名单
+构造期校验（开发/测试抛异常；生产剥离非法键并计数 `DETAILS_STRIPPED`）。`reason` 按码限定（61 §5）；跨码借用 → 测试失败。
+
+### 4.5 `REQUEST_FAILED` 下线路径
+1. Gate A 后新代码**不得**发出（静态扫描 + 运行时计数断言为 0 于新路由）。
+2. 旧路径残留由 `INFERRED_CODE` 计数可见；每批迁移后清零对应路由。
+3. 别名在 OD-12.1 关闭前保留，只增不减；移除需"零旧客户端流量"证据（不在 Gate A 内）。
+
+### 4.6 CR-004/005/006/007 覆盖
+注册表包含 61 §4.6/§4.7/§4.8 全部码（含 `EXTERNAL_REFERENCE_CONFLICT`、`REVERSAL_NOT_ALLOWED`、`RECEIVING_ACCOUNT_*`、`DISBURSEMENT_NOT_AVAILABLE`、`FUNDING_EXCEPTION_ACTIVE`、`ALLOCATION_POLICY_MISSING`、`FINANCIAL_POLICY_UNBOUND`、推送码）。Gate A 只登记，不抛出（对应业务在 B–F 实现）。
+
+## 5. Backward compatibility
+- `error` 文本字段保留（H5 现依赖）；`code` 从推断码变为显式码——H5 若按 `code` 分支，须在 Gate A 开工前**审计 H5 前端对 `code`/HTTP 状态的使用**（`components/**`、`app/**` 中对 `.code`/`.status` 的读取约 86 处），产出兼容清单；对仍依赖旧码的 H5 分支，使用 legacy 别名或同步改 H5（同一部署）。
+- HTTP 状态：仅允许 61 §4.10 已登记的不一致；其余状态变化（例如 `AUTH_DEMO_FORBIDDEN`→503、`INVALID_REQUEST`→400、`UNSUPPORTED_MEDIA_TYPE`→415）需在 H5 兼容清单中逐项确认无分支依赖后再切换。
+- 机构回调响应：`requestId`（追踪）与 `traceId` 并存。
+- 无 DB 变更 → 无数据兼容问题。
+
+## 6. Rollout order
+```
+A1  注册表 + ApiError + envelope + trace（新增模块，零行为变化；单测）
+A2  网关 traceId / X-Request-Id / 网关错误信封（standalone）
+A3  出口统一：json()/failure()/failed()/route catch → classify（兜底仍为 legacy 行为：裸 Error 暂保持现状态码，计数 UNCLASSIFIED_CANDIDATE）
+A4  显式化，按域分批（每批独立可回滚）：
+      A4.1 认证/会话/验证码（lib/h5-auth*, app/api/h5/auth）
+      A4.2 KYC（lib/kyc/*, app/api/kyc/*）
+      A4.3 贷款生命周期（lib/domain.ts, lib/store.ts, app/api/state, app/api/h5/state, app/api/loan）
+      A4.4 员工/机构（lib/team/*, app/api/team/*, app/api/institution/*）
+      A4.5 其余（notifications, postloan, analytics, bots, telegram, admin）
+A5  切换兜底：裸 Error → 500 INTERNAL_ERROR（前提：A4 完成且 UNCLASSIFIED_CANDIDATE 在全量测试与本地回放中为 0）
+A6  导出注册表 JSON + 与 61 一致性 CI
+```
+
+## 7. Tests（精确清单）
+| # | 测试 | 文件 |
+|---|---|---|
+| T1 | 注册表与 61 §4 一一对应（code、status、retry、ui、log）；生成 JSON 与 61 解析结果一致 | `tests/error-registry.test.mjs` |
+| T2 | 一码一状态（除 §4.10 登记例外） | 同上 |
+| T3 | `ApiError` 拒绝未注册 code、非法 `details` 键、跨码 `reason` | `tests/api-error.test.mjs` |
+| T4 | 信封：所有错误响应含 `code` 与 `traceId`；`X-Request-Id === traceId` | `tests/error-envelope.test.mjs` |
+| T5 | 入站伪造 `X-Request-Id` / `x-khmerx-trace-id` 被替换，不回显 | `tests/trace-id.test.mjs`（含网关单测：抽出 server.mjs 的头处理为可测函数） |
+| T6 | `traceId` ≠ 请求体 `requestId`；幂等 `requestId` 不出现在响应头 | 同上 |
+| T7 | 任何公共响应不含 `UNCLASSIFIED_ERROR`；裸异常 → 500 `INTERNAL_ERROR`，日志含 `UNCLASSIFIED_ERROR` | `tests/error-envelope.test.mjs` |
+| T8 | 错误体不含堆栈/SQL/员工 id/完整手机号（敏感模式正则） | 同上 |
+| T9 | 61 §6.1 别名表每条规则一例夹具：迁移后显式码覆盖；legacy 码仍可由旧路径产生 | `tests/error-codes.test.mjs`（扩展） |
+| T10 | 静态扫描：`app/**`、`lib/**` 中无裸 `throw Error(`/`throw new Error(`（白名单除外）；无新代码发出 `REQUEST_FAILED` | `tests/error-static-scan.test.mjs` |
+| T11 | 折叠回归：领域错误不再产生 `REQUEST_FAILED`；`REVISION_CONFLICT` 出自 `store.mutate` | `tests/domain.test.mjs`（扩展） |
+| T12 | 重试规则文档化：导出 JSON 中所有变更类码的 `retry` ∉ {盲目可重试}；`INTERNAL_ERROR=CONDITIONAL` | `tests/error-registry.test.mjs` |
+| T13 | CR-004/005/006/007 覆盖：57–60 中出现的全部 HTTP 错误码存在于注册表（解析契约 Markdown） | `tests/error-coverage.test.mjs` |
+| T14 | 冲正阶段矩阵（61 §4.6.1）作为注册表元数据断言（`REVERSAL_NOT_ALLOWED.reasons == [VOIDED, ALREADY_REVERSED]`） | `tests/error-registry.test.mjs` |
+| T15 | 网关自身 `/api/*` 错误为标准信封 | `tests/trace-id.test.mjs` |
+
+**Runtime tests**：本地 standalone（miniflare）跑现有 `tests/*.test.mjs` + `integration-local.py` + `h5-integration-local.py` 全绿；生产**仅只读冒烟**（未登录 GET 观察 401 信封与 `X-Request-Id`），不得触发任何写操作或真实 OTP。
+
+## 8. Rollback
+- 纯代码变更，无迁移：回滚 = 部署上一版本。
+- A4 各批独立提交，可单批回退。
+- A5（兜底切换）独立提交；若出现异常 500 激增，单独回退 A5，恢复 legacy 状态码行为。
+- 网关变更（A2）独立；回退后 Worker 入口自行生成 traceId（§4.2 hosted 路径）保证仍有 traceId。
+
+## 9. Definition of Done
+- [ ] T1–T15 全绿；现有测试套件全绿；本地集成脚本全绿
+- [ ] 静态扫描：无裸 `Error` 抛错点（白名单需逐项理由）；新代码零 `REQUEST_FAILED`
+- [ ] `INFERRED_CODE` 与 `UNCLASSIFIED_CANDIDATE` 在全量测试/回放中为 0
+- [ ] H5 兼容清单完成且每项有结论
+- [ ] 注册表导出 JSON 与 61 v3.1 一致（CI）
+- [ ] 无 DB 变更；无财务业务代码
+- [ ] Codex Gate A 验收 PASS
+
+## 10. P0 / P1 acceptance
+| 级别 | 条件 |
+|---|---|
+| P0 | 公共响应出现 `UNCLASSIFIED_ERROR` 或内部异常/SQL/堆栈；`traceId` 与幂等 `requestId` 混用或可由客户端控制；业务校验错误被误报为 500（A5 提前切换） |
+| P1 | 注册表与 61 不一致；任一 CR-004/005/006/007 码缺失；未登记的一码多状态；新代码发出 `REQUEST_FAILED`；`details` 跨码借用 `reason` |
+
+## 11. Open items
+| ID | 内容 | 分类 |
+|---|---|---|
+| OD-A1 | hosted 模式下内部 trace 头的信任方式（总是自生成 vs. 依赖身份证明） | Codex 评审决定；不阻塞 A1 |
+| OD-A2 | H5 前端对 `code`/状态的依赖清单 | Gate A 开工首项任务 |
+
+## 12. Gate
+```
+Gate A plan: PROPOSED — READY FOR CODEX REVIEW
+Implementation: NOT AUTHORIZED · Trae: HOLD
+```

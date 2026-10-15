@@ -1,0 +1,111 @@
+# CR-005 · Disbursement & Receiving Account（放款与收款账户）
+
+```
+Status:     PROPOSED（契约草案；未评审；不授权实施）
+Date:       2026-10-09
+Owner:      Claude（契约起草）
+Phase:      P7
+Decisions:  DEC-3 = APPROVED（取消客户侧钱包/提现，直接放款到收款账户）· ARC-2（放款指令创建后收款账户不可变）· DEC-1 = A
+Consumers:  Backend · Android(Flutter) · 员工后台 · 机构/银行侧 · QA · Security/Compliance
+Evidence:   真实代码事实（HEAD d916b45，2026-10-09），见 §1
+```
+
+**核心原则**：客户产品中没有钱包与提现；放款是"对一个已确认、已锁定的收款账户的一次放款指令"；Android 只读展示状态与凭证，**不从本地动作推断成功**；整数美分；服务端权威；幂等；可审计。
+
+---
+
+## 1. Problem（现状事实）
+| # | FACT | 证据 |
+|---|---|---|
+| F1 | 贷款变 `active` 仅经 `disburse` 动作：`needs(['signed'])` → `status='active'`、**`wallet = billing.net ?? amount`**、`dueAt = now + termDays×86400000`；记账 '测试放款'（net）、'放款预扣费用'（upfront）、'到期费用'（fee） | `lib/domain.ts` disburse |
+| F2 | `withdraw`：`active|closed` 且 `wallet>0` → 记 '测试提现'（'无真实转账'）并清零；客户路径被 403 | `lib/domain.ts`；`state/route.ts` |
+| F3 | 员工放款链：`approve`(approvalActor) → `approval_check`(approvalCheckedBy，→`signed`) → `disburse_request`(finance，写 fundingActor) → `disburse`(finance_checker，须异于 fundingActor/approvalActor，`assertFundingCapacity`)；另有 `admin_disburse`（Admin 单人，非测试模式需应急授权，`funding_institution_id` 必配） | `lib/team/workflow.ts`；`lib/team/admin-funds.ts` |
+| F4 | 放款限额：常量 `daily 1,000,000 / monthly 3,000,000 美分`，按 Asia/Phnom_Penh 日/月累计 '测试放款'；超限 `FUNDING_LIMIT_EXCEEDED` | `lib/funding-limits.ts` |
+| F5 | KYC 银行字段：`bankName(ABA/ACLEDA/Wing)`、`bankAccount`（自由文本，**无格式校验**）、`bankHolder`（大写）；整份 payload AES-GCM 加密；批准后客户不可改（仅 `draft/needs_info` 可保存）；员工 `amend` 强制回 `needs_info` 并使 `revision` 递增，使贷款的批准/放款守卫 409 | `lib/kyc/core.ts`；`lib/kyc/server.ts` |
+| F6 | **放款时没有"收款账户"概念**：`disburse`/`admin_disburse` 不读取 `bankAccount`；放款记录无目的账户与外部参考号 | 检索 |
+| F7 | 机构回调事件 `funding.confirmed`、`payment.failed` 存在但**无消费者**；计划函数期望 `funding` 需 `signed`、`payment.failed` 需 `signed|active` | `lib/institution-event-plans.ts` |
+| F8 | 回调入库缺陷（重放 nonce 仍插入事件）见 CR-004 F9 | — |
+
+## 2. 钱包与提现：冻结
+- `wallet`：**仅内部/测试遗留**，不对客户暴露；内部会计可保留，不设计任何客户钱包 API。
+- `withdraw`：**永不进入客户 Android App**；客户路径继续 403，直到该动作从产品模型中移除。
+- 放款成功**不得**再通过"进钱包"表达，而是"放款指令已确认到收款账户"。
+
+## 3. Receiving Account（收款账户）
+- 定义 **ReceivingAccountRef**：`{ id, source('KYC'), bankCode, accountMasked('•••• 1234'), holderMasked, version, lockedBy? }`。完整账号仅在服务端（AES-GCM）；**不向客户端返回完整账号**，也不返回不必要的银行细节。
+- 来源：KYC `bank` 分组。**新增服务端格式校验**（`bankAccount` 当前无校验，F5）——规则由银行/机构规范决定（OD-5.1）。
+- 持久化：`receiving_accounts`（加密账号、`version`、`kycCaseId/revision`、`verifiedStatus`），与 KYC 修订绑定；KYC 修订变化 ⇒ 账号引用版本失效（沿用 F5 的守卫）。
+
+## 4. Account Confirmation（最终收款账户确认）
+- 放款前，客户**必须显式确认**最终收款账户（"账户确认"为放款指令创建的**前置闸门**）。
+- 时机：贷款为 `signed`（审批通过、待放款）后；服务端提供待确认的 `ReceivingAccountRef`（掩码展示）。
+- 确认是服务端命令（`requestId` 幂等，绑定 `accountRefId + version`）；确认后的引用才可用于创建放款指令。
+- 客户在确认前可发起"账户有误"请求（走 KYC 补件/客服流程，由后端定义；**不允许在放款路径内直接改账号**）。**确认有效期**（过期需重新确认）为 OD-5.2。
+
+## 5. Account Lock（冻结 ARC-2）
+> **一旦创建 DisbursementInstruction，该次放款的 `receivingAccountId`（及其加密快照哈希）不可变。**
+- 创建之前：账号仅能在已定义的 KYC/校验策略下变更（回到 `needs_info` 流程并使批准失效）。
+- 创建之后：**不允许普通客户编辑**；任何更改必须走显式的**取消 → 重新确认 → 重新下发**流程：
+  1. 取消仅在指令 `pending`（未提交给机构/银行）时允许，记录原因与审批；
+  2. `processing` 及之后不可取消，只能等待 `confirmed/failed/returned`；
+  3. 重新下发需要新的客户账户确认与新的指令 id。
+- **禁止静默替换**；所有变更写 append-only 审计。
+
+## 6. DisbursementInstruction 与状态机
+`DisbursementInstruction { id, loanId, tenantId, amountCents(=net), currency, receivingAccountId, accountSnapshotHash, status, institutionId, externalReference?, requestedBy, checkedBy, failureCode?, createdAt, updatedAt }`
+状态：`pending → processing → confirmed | failed | returned | cancelled`
+| 自 | 到 | 触发 |
+|---|---|---|
+| — | pending | 员工 maker-checker 通过后创建指令（沿用 `disburse_request`/`disburse` 双人控制与限额；`assertFundingCapacity` 在创建时校验） |
+| pending | processing | 提交给机构/银行（记录 `externalReference`） |
+| processing | confirmed | `funding.confirmed` 回调验真通过且绑定一致，或受控人工确认（双人、含银行参考号） |
+| processing | failed | `payment.failed` 回调 / 人工标记失败 |
+| confirmed | returned | 资金被退回（新增事件 `funding.returned`，OD-5.3）；回滚放款会计并回到待重发 |
+| pending | cancelled | 取消（§5） |
+- **贷款状态联动（变更）**：`loan.status` 由 `signed → active` **仅在指令 `confirmed`** 时发生（取代当前"员工点击 `disburse` 即 `active`"的模拟）；`dueAt` 以**确认时点**为准（OD-5.4：以确认时间还是放款指令时间计息）。
+- **客户端不得从任何本地动作推断成功。**
+
+## 7. Funding Callback
+- 事件：`funding.confirmed`、`payment.failed`、（新增）`funding.returned`。
+- 认证/去重/重放防护：沿用并加强 CR-004 §11（按机构密钥；±300 秒；nonce 条件插入；`eventId`/`idempotencyKey` 唯一）。
+- **绑定校验**：`loanId`、`instructionId`、`amount == net`、`currency`、**账户绑定**（事件回显 `accountSnapshotHash` 或账户尾号校验）；任一不符 → 不推进状态，进入异常队列。
+- 消费者：与 CR-004 共用事件消费框架；动作计划沿用 `expectedStatus` 前置校验。
+- 审计：每次状态迁移写 `team_audit`（actor=system/staff、事件 id、前后状态、金额、参考号）。
+
+## 8. Receipt / Reference
+对客户可见（按需）：`status、amountCents、currency、receivingAccountMasked、externalReference（银行/机构参考号）、confirmedAt、failureCode?`。`externalReference` 若含敏感信息按脱敏展示（OD-5.5）。
+
+## 9. APIs（提案）
+**客户**：`GET /api/h5/loans/{id}/disbursement`（指令+状态+收款账户掩码）· `POST /api/h5/loans/{id}/receiving-account/confirm`（`{requestId, accountRefId, version}`）。**员工**：`POST /api/team/disbursements`（创建指令，承接现有 maker-checker）· `…/{id}/processing|confirm|fail|cancel` · `GET /api/team/disbursements?status=` · 异常队列。**机构**：`POST /api/institution/callback`。
+**不新增**任何钱包/提现客户端点。
+
+## 10. Android Read Model（P7 仅需）
+```
+disbursement: { status, amountCents, currency, receivingAccountMasked, externalReference?, confirmedAt?, failureCode?, canConfirmAccount: boolean, accountConfirmedAt? }
+```
+`failureCode ∈ {ACCOUNT_INVALID, BANK_REJECTED, TEMPORARY_FAILURE, RETURNED}`（客户安全枚举，见 CR-012）；**无钱包余额**。
+
+## 11. 向后兼容与迁移
+- `wallet` 字段与 `withdraw` 动作保留于工作区 JSON（内部/测试），客户 API 不展示；`withdraw` 客户路径继续 403。
+- 新增表：`receiving_accounts`、`disbursement_instructions`（含状态迁移审计与不可变触发器）；迁移需先修复 standalone 迁移器对触发器切分缺陷（审计 H-4）。
+- 过渡：测试模式下旧 `disburse` 行为可保留；生产模式走指令状态机。
+
+## 12. 安全与生产前置
+引用审计（以关闭时复核为准）：`admin_disburse` 的 Admin 单人资金权限（N-02）· 应急授权（现一次性绑定，F6 of CR-004）· MFA 重绑（H-1）· 回调重放入库（F8）· 迁移器缺陷（H-3/H-4）· KYC `bankAccount` 无格式校验（F5）。**真实放款不得在这些未关闭时启用。**
+
+## 13. 测试（契约）
+账户确认为创建指令的前置 · 指令创建后账号不可变 · 取消/重发流程与审计 · `funding.confirmed` 金额/账户/贷款绑定不符 → 异常 · 重复/重放回调不二次推进 · `active` 仅在 `confirmed` 后 · 限额在创建时校验 · 完整账号永不出现在客户响应/日志 · KYC 修订使账号引用失效。
+
+## 14. Open Decisions
+| ID | 决策 |
+|---|---|
+| OD-5.1 | 收款账户格式校验规则（各银行） |
+| OD-5.2 | 账户确认有效期 |
+| OD-5.3 | `funding.returned` 事件与退回后的会计/重发规则 |
+| OD-5.4 | 计息起点：指令创建 vs 资金确认 |
+| OD-5.5 | 外部参考号是否对客户展示及脱敏规则 |
+
+## 15. Gate
+```
+CR-005: PROPOSED（待 Codex 独立 CR 评审）；Implementation: NOT AUTHORIZED；Trae = HOLD
+```

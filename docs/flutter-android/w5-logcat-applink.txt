@@ -1,0 +1,7 @@
+﻿
+10-09 04:10:27.595  5008  5008 D com.llfbandit.app_links: Intent { act=android.intent.action.VIEW dat=https://khmerx.or
+g/... flg=0x10000000 pkg=org.khmerx.khmerx_app cmp=org.khmerx.khmerx_app/.MainActivity }
+10-09 04:10:27.595  5008  5008 D com.llfbandit.app_links: Handled intent: action: android.intent.action.VIEW / data: ht
+tps://khmerx.org/app?c=t_00000000-0000-0000-0000-000000000001
+
+

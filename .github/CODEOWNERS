@@ -1,0 +1,32 @@
+# 占位符：把 @TECH-LEAD / @SU-CHEN / @DA-WANG 换成真实的 GitHub 用户名。
+# 技术负责人负责合并；每个目录同时列出该线负责人。
+
+*                         @TECH-LEAD
+/docs/                    @TECH-LEAD
+/.github/                 @TECH-LEAD
+
+# 服务端与数据线（苏晨）
+/app/api/                 @SU-CHEN @TECH-LEAD
+/lib/                     @SU-CHEN @TECH-LEAD
+/drizzle/                 @SU-CHEN @TECH-LEAD
+/deploy/                  @SU-CHEN @TECH-LEAD
+/scripts/                 @SU-CHEN @TECH-LEAD
+# 热点文件：只有服务端线可改
+/lib/store.ts             @SU-CHEN @TECH-LEAD
+/lib/domain.ts            @SU-CHEN @TECH-LEAD
+
+# 客户端线（大旺）
+/app/h5/                  @DA-WANG @TECH-LEAD
+/app/kyc/                 @DA-WANG @TECH-LEAD
+/app/team/                @DA-WANG @TECH-LEAD
+/app/mini/                @DA-WANG @TECH-LEAD
+/app/workspace.tsx        @DA-WANG @TECH-LEAD
+/components/              @DA-WANG @TECH-LEAD
+/hooks/                   @DA-WANG @TECH-LEAD
+/lib/api-client.ts        @DA-WANG @TECH-LEAD
+/lib/client-id.ts         @DA-WANG @TECH-LEAD
+/lib/i18n.tsx             @DA-WANG @TECH-LEAD
+/lib/admin-i18n.tsx       @DA-WANG @TECH-LEAD
+/mobile/                  @DA-WANG @TECH-LEAD
+/scripts/dev-app-backend/ @DA-WANG @TECH-LEAD
+/scripts/apk/             @DA-WANG @TECH-LEAD
