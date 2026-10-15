@@ -1,0 +1,777 @@
+# P1 — Entry + Real Home + Read-only Loan Contract
+
+```
+Document:   45-P1-entry-home-readonly-loan-contract.md
+Date:       2026-10-08
+Owner:      Claude（Product / Requirements / Architecture / API Contract）
+Status:     APPROVED FOR IMPLEMENTATION（49）— **Delta 54（公开客户认证 / 公司解耦）已并入本文但 PROPOSED，待 Codex 快速评审；Delta 通过前 Trae = HOLD**；`52` 已作废；其余业务要求未变；实施约束 C1–C5 见 49 §4
+Delta:      54-P1-public-auth-company-decoupling.md（客户注册/登录公开；公司仅为服务端分区，客户端不选择/不持有；公司 UI 从 P1 移除；基础设施休眠保留）。52 = SUPERSEDED
+Authority:  41（Product Remap v3）· 42（PASS）· 02 v3（API 基线）· 44（PASS）
+Review:     46-P1-contract-ux-review.md（FAIL：1 个 P1 + 机械 P2，已在本版处理，见附录 B）
+Inputs:     21（Company+Auth 旧合同，仅作 Existing Engineering Asset 规范来源）· 35（缺陷证据）· 05（技术架构）· mobile/ 当前工作区（本次只读核查）
+Not done:   0 行 Flutter 代码改动；0 后端改动；不授权 Trae；不改 02/41/42/44。
+```
+
+---
+
+## 1. Status / Authority
+
+1. 本合同定义新的产品阶段 **P1 — Entry + Real Home + Read-only Loan**。产品/API 范围以 **41、42、02 v3、44** 为准；旧 `21`（G1 Company+Auth）与 `35`（G1 复验）**不再是产品 Gate**，只作为 **Existing Engineering Asset / 缺陷证据**（§6、§34）。
+2. 冲突处理优先级：`02 v3`（API 事实）> `41`（产品范围）> 本合同 > `21`。`21` 中与 P1 不冲突的技术规范（Cookie Contract、Preflight、OTP/密码/找回细节、Return Intent、错误目录）**继续生效并被本合同引用**，本合同不重写它们；与 41/02 冲突之处以本合同为准并列出（§6.3）。
+3. Foundation Change Policy（`21` §2.3）继续有效：不推翻 Riverpod/Dio/CookieJar/SecureStorage/Router/SafeLogger/Localization；Cookie 白名单语义、Origin、重试策略、Redaction 既有行为不得改变。
+4. 本合同状态 **PROPOSED**。生效顺序：Codex 合同/UX 评审 → Trae Engineering Gate → 三方批准 → Trae 实施。**在此之前 Trae = HOLD。**
+
+## 2. User Outcome
+
+```
+打开 Android App
+→ 恢复公开客户会话（无需选择机构；Delta 54）
+→ 登录或恢复有效 Session
+→ 进入真实业务首页
+→ 看到本人真实 KYC 状态
+→ 看到本人真实 Loan 状态
+→ Loans 标签：查看借款记录
+→ 打开已有贷款只读详情（含最近 5 条事件、还款摘要）
+→ Me：语言 / 修改密码 / 退出登录
+```
+整个 P1：**NO DEAD ROUTE · NO PLACEHOLDER PRIMARY ACTION · NO FAKE BUSINESS SUCCESS**。
+
+## 3. Scope
+
+| 域 | 内容 |
+|---|---|
+| Entry（公开客户会话；**Delta 54**） | 启动恢复公开会话 → 预检 → Home/Login；**无公司选择/解析/Recovery 界面**；公司基础设施（CompanyId、Tenant jar、CF-0 Guard、候选/切换/深链/扫码代码）作为**内部休眠资产**保留，不接入 P1 UI |
+| Authentication | 预检、Telegram Gateway 验证码、Pending OTP 恢复、密码登录、强制设密码、找回密码、会话恢复、401 重登/Return Intent、登出、语言可用性 |
+| Real Home | `GET /api/h5/state` 驱动；真实 KYC + Loan 状态；主/次 CTA；状态说明面板；加载/刷新/失败/离线/401/未知状态 |
+| Loans | 借款记录列表；只读借款详情；最近 5 条事件；还款摘要 |
+| Me | 语言、修改密码、退出登录 |
+| Navigation | Home / Loans / Me（3 项） |
+
+## 4. Explicit Exclusions
+
+KYC 编辑/上传/提交/重提 · 为 Home/状态展示调用 `GET /api/kyc` · 新建借款申请 · Loan Quote · Quote Confirmation · Loan Create · `confirm_bill` · 条款 · 签名 · Apply · 任何 `POST /api/h5/state` 业务动作 · `/api/loan/*` · Repay · Withdraw · 完整合同查看器 · 签名图查看 · 完整事件时间线 · 完整还款台账 · Telegram 提醒订阅 · 消息中心/铃铛 · 关于/帮助/客服 · 持久化离线借款缓存 · Telegram `initData` 静默登录 · 外链/跳转 H5 完成未开放功能。
+
+## 5. Source of Truth
+
+| 事实 | 来源 |
+|---|---|
+| 接口形状、错误形状、状态枚举、派生规则 | `02-api-contract.md` v3 |
+| 产品范围、Home 矩阵、P1/P4 边界、导航 | `41` §8.2、§10、§18、§21、附录 B；`42` |
+| Cookie/公司隔离 | `21` §5.4（CF-0/CF-6，继续有效） |
+| Auth 细节（OTP 状态机、密码、找回、Return Intent、错误目录） | `21` §5.5–5.12 |
+| 本阶段工程输入 | 本合同 §34、§35 |
+
+---
+
+## 6. Existing Engineering Assets
+
+### 6.1 Reuse Matrix
+
+| Asset | Current State（据工作区核查） | P1 Decision |
+|---|---|---|
+| Company Context（ActiveCompany、store、known companies） | 存在 | **DORMANT**（Delta 54：P1 不接入 UI；保留类型/存储/测试供未来机构路由） |
+| Cookie isolation（CF-0/CF-6 jar、注入、Guard） | 存在；CF0 测试 13 项 | **KEEP**（回归强约束）+ **EXTEND**：Guard 增加 Public 模式（出站零 `payease_company`）；jar 增加公开命名空间；+ **FIX** E10（GET 重试） |
+| Auth Repository | DTO 与 `02` 一致；登出仅成功才清本地 | **REUSE + FIX**（E3b、E5） |
+| OTP（send/verify/pending） | challengeId/retryAt 已保留；pending 恢复已有；**重发使用了掩码手机号** | **REUSE + FIX**（E3b） |
+| Password login / set-password | 存在 | **REUSE + FIX**（E.164 校验、文案本地化） |
+| Recovery | send/reset 已接线 | **REUSE**（补测试） |
+| Router | 当前无响应式刷新、无 shell/底部导航；`/feature/*` 桩；测试重复实现 redirect | **REFACTOR**（§12、§33） |
+| Locale | `MaterialApp.locale` 已绑定、受 preflight `languages` 过滤；**全局、不持久、页面全是硬编码英文** | **REUSE + FIX**（E15、E18） |
+| Deep Link（公司链接） | 存在 | **DORMANT**（Delta 54：P1 不启用；Manifest intent-filter 在 P1 不启用） |
+| Scanner（公司二维码） | 存在 | **DORMANT**（Delta 54：P1 不使用；`mobile_scanner` 去留在 P2 评估） |
+| Minimal Home / MePage / 重复 `/feature/*` / FeatureFlags(repay,withdraw) / settings LocaleNotifier 桩 | 存在 | **REMOVE / REPLACE**（E13） |
+| ErrorMapper | 不读真实 `body.code`、`retryAfter`；未知 403 误判 `crossSite` | **REFACTOR**（E9） |
+| SafeLogger / Redaction | SafeLogger 空实现；脱敏缺口 | **FIX**（E11） |
+| `Endpoints.getH5State` | 已声明、未使用 | **REUSE**（P1 使用） |
+| `Endpoints.getKyc` | 已声明、未使用 | **KEEP FOR P2 · P1 USAGE = FORBIDDEN**（定义保留；P1 运行时调用次数必须为 0） |
+
+### 6.2 与 21 的关系
+`21` §5.4（Company Cookie Contract）、§5.5（Preflight）、§5.7（OTP）、§5.8（密码/找回）、§5.9（登出）、§5.10（冷启动）、§5.11（错误目录）、§5.12（Return Intent）**继续作为 Entry/Auth 的规范性来源**；§5.13（旧 15 路由/Minimal Home）**被本合同 §12 取代**。
+
+### 6.3 与 21 的差异（以本合同为准）
+| 项 | 21 | P1 |
+|---|---|---|
+| 登录后首页 | Minimal Home | 真实 Home（§10） |
+| 路由集合 | 15 条，含 `/feature/*` | §12 Route Inventory |
+| 公司切换 | 候选确认 + 预检（新旧公司） | **Delta 54：P1 无公司切换**（见 `54` §8） |
+| `POST /api/h5/locale` | OD-G1-3 不做 | 沿用：P1 **不调用**（§23.1，OQ-2 已关闭） |
+| 语言偏好存储 | 公司级 | 沿用：公司级、持久、非敏感（E18 修复） |
+
+---
+
+## 7. Backend/API Boundary
+
+### 7.1 P1 允许调用（全部为现有端点；**不新增任何后端 API**）
+| Endpoint | 用途 |
+|---|---|
+| `GET /api/h5/auth` | 预检、会话恢复、`languages`、`policy`、`pending` |
+| `POST /api/h5/auth/send` · `verify` | Telegram Gateway 验证码 |
+| `POST /api/h5/auth/account` | `password_login`、`set_password`（强制设置 / Me 修改密码） |
+| `POST /api/h5/auth/recovery` | `send` / `reset` |
+| `POST /api/h5/auth/logout` | 登出 |
+| **`GET /api/h5/state`** | **P1 业务数据唯一来源**（KYC 状态、贷款、事件） |
+
+### 7.2 P1 禁止调用
+`/api/kyc*` 全部 · `POST /api/h5/state`（任何 action） · `/api/loan/*` · `/api/telegram` · `/api/analytics/events` · `/api/h5/auth/telegram` · `POST /api/h5/locale` · `/api/mobile/*` · 任何 Bearer 机制 · 任何 repay/withdraw 动作。违反 = P0 Scope 缺陷（§33 守卫 + §32 请求计数测试）。
+
+### 7.3 `GET /api/h5/state` 调用约定
+`GET`，无请求体，无需 `Origin` 头；公司 Cookie 经 Cookie Contract 注入；**GET 有界重试**（≤2 次，仅连接错误/超时/503，G0 既有策略）。错误形状与 `code` 语义见 `02` §1.5（`code` 可选、非封闭枚举；客户端按 HTTP 状态 + 已知 `code` + 通用回退映射）。
+
+---
+
+## 8. Domain Model
+
+> 名称为建议；职责与不变量为契约。UI **不得**直接操作 raw JSON Map；全部经 `API DTO → Mapper → Domain → Presentation`（§9）。
+
+```
+CustomerSnapshot            // 一次成功的 GET /api/h5/state 的领域快照
+  companyId : CompanyId     // 请求发出时的 ActiveCompany（租户标签）
+  fetchedAt : DateTime      // 本地接收时刻
+  revision  : int?          // 仅保留，P1 不使用
+  kyc       : KycSummary    // none | draft | submitted | needsInfo | approved | rejected | unknown(raw)
+  loans     : List<LoanSummary>   // 稳定按 createdAt 降序（缺失排最后）
+  events    : List<LoanEvent>     // 仅保留 loanId/kind/at；不保留 note/role
+
+KycSummary { status: KycStatus }      // state.kyc == null ⇒ none；未知字符串 ⇒ unknown(raw)
+
+LoanStatus = known {registered, kycPending, needsInfoLegacy, kycApproved,
+                    decisionPending, approvedLegacy, signed, active, closed, rejected}
+           | Unknown(raw: String)       // 永不抛错；永不映射到已知状态
+  isOpen = !(closed || rejected)        // Unknown 视为 open（保守：不当成已结束）
+  isCurrentPath = {kycApproved, decisionPending, signed, active, closed, rejected}
+  isLegacy      = {registered, kycPending, needsInfoLegacy, approvedLegacy}
+
+LoanSummary
+  id, status
+  amountCents, feeCents, paidCents    : int   // 服务端事实字段（整数分）
+  createdAt?, dueAt?                  : DateTime?
+  termDays      : int                 // = billing.termDays ?? 14   （服务端字段 + H5 兼容默认）
+  netReceivedCents : int              // = billing.net ?? amount
+  billing?  : BillingSummary {principalCents?, netCents?, totalCents?}
+  billConfirmed : bool                // = billConfirmedAt 存在
+  hasContract   : bool                // = contract 非空（不解析内容）
+  // —— DISPLAY DERIVATION（Domain 层纯函数，非 DTO 字段）——
+  totalDueCents  = amount + fee
+  remainingCents = max(0, amount + fee − paid)
+  shortId        = presentation derivation（§18）
+  kycApprovedStage ∈ {awaitingBillConfirm, awaitingSignature, awaitingSubmit}  // 仅 status==kycApproved
+
+LoanEvent { loanId, kind: LoanEventKind | UnknownEvent(raw), at: DateTime? }
+HomeViewModel { stateId, title, summary, primary: Cta, secondary: Cta?, statusPanel?, freshness }
+Cta { labelKey, enabled: bool, destination: Route? }       // enabled==false ⇒ destination==null
+```
+
+不变量：
+1. `Unknown` 状态/动作永不触发 CTA 变更为写入口；`LoanStatus` 到界面标签/CTA 的映射在**一处**（Mapper/决策引擎），页面不得自行 `switch` 业务含义。
+2. `remainingCents ≥ 0`；`paid > amount+fee` 时为 0。
+3. `CustomerSnapshot.companyId` 必须等于渲染时的 ActiveCompany，否则**不得渲染**（§25、§28）。
+
+## 9. State DTO Mapping
+
+### 9.1 响应（`02` §3.1）
+`{state:{loans, events, entries, notifications, bots, …}, revision, kyc:{status}|null, pricing}`
+
+### 9.2 DTO → Domain 映射表
+| 来源 | 字段 | 类型 | 缺失 | 非法 | Domain |
+|---|---|---|---|---|---|
+| root | `kyc` | `null`/`{status:string}` | `null`⇒none | status 非字符串⇒unknown("") | `KycSummary` |
+| root | `state.loans` | array | 缺失/非数组 ⇒ **整份响应判为 unknown data（失败，可重试）** | — | `List<LoanSummary>` |
+| loan | `id` | string 非空 | **丢弃该行** | 丢弃 | `id` |
+| loan | `status` | string | 视为 `Unknown("")` | 同左 | `LoanStatus` |
+| loan | `amount` | int ≥0 | **丢弃该行** | 丢弃 | `amountCents` |
+| loan | `fee`、`paid` | int ≥0 | 0 | **丢弃该行**（不显示可能错误的金额） | 同名 |
+| loan | `createdAt`、`dueAt` | ISO8601 | null | null | 同名 |
+| loan | `billing.termDays` | int | 14 | 14 | `termDays` |
+| loan | `billing.net`/`principal`/`total` | int | 摘要行隐藏 | 隐藏 | `BillingSummary` |
+| loan | `billConfirmedAt` | ISO/空 | false | false | `billConfirmed` |
+| loan | `contract` | 非空字符串 | false | false | `hasContract` |
+| event | `loanId`、`action`、`at` | string/ISO | `at` null | — | `LoanEvent`（丢弃缺 `loanId` 的事件） |
+| 其余字段 | `customerId`、`kycCaseId`、`kycRevision`、`phoneMasked`（loan 内）、`approvalActor`、`approvalCheckedBy`、`fundingActor`、`fundingCheckedBy`、`note`、`signature`、`kyc`(legacy)、`demoDays`、`wallet`、`botId`、`bots`/`activeBotId`、`entries`、`notifications`、`requests`、`pricing`、事件 `note`/`role` | — | — | — | **忽略，不进入 Domain**（含日志） |
+
+丢弃行以**脱敏计数**记入诊断（不含金额/ID）；若全部行被丢弃而响应声称有数据 → 视为 unknown data（失败态）。
+
+### 9.3 各层职责
+| 层 | 职责 |
+|---|---|
+| DTO | 只描述线上形状，宽容解析，不含业务含义 |
+| Mapper | 校验/丢弃/默认值；状态与事件字符串 → Domain 枚举（含 Unknown）；**不做**价格计算 |
+| Domain | 纯函数派生：`totalDue`、`remaining=max(0,…)`、`kycApprovedStage`、`isOpen`、未结贷款选择、最近 5 条事件（过滤/排序/取 5） |
+| Presentation | 本地化文案、金额/日期格式（USD；日期固定 UTC+7 = Asia/Phnom_Penh，无 DST）、`shortId` 展示、CTA 渲染 |
+
+### 9.4 短编号 / 事件 / 状态的归属
+- **短编号**：Presentation（DISPLAY DERIVATION）：`'#' + id 前 8 个字符大写`；不是 DTO 字段。
+- **最近 5 条事件**：Domain：`events.where(loanId==x)` → 按 `at` 降序稳定（`at` 缺失保持数组相对顺序且排在有 `at` 者之后）→ `take(5)`。
+- **事件文案映射**（对齐 H5 `eventText`）：`create`、`confirm_bill`、`apply`、`approve`、`approval_check`、`disburse`、`admin_disburse`、`withdraw`、`repay`、`admin_repay` → 各自 ARB 文案；**其它任何 action（含 `reject`）→ 通用「办理进度已更新」**。`note`/`role` 不展示。
+- **未知贷款状态**：Mapper 产出 `Unknown(raw)`；Domain 提供 `isOpen`；Presentation 渲染通用只读（§10 H16）。
+
+---
+
+## 10. Home State Decision Matrix
+
+### 10.1 决策规则（确定性；纯函数 `decide(CustomerSnapshot) → HomeViewModel`）
+1. **未结贷款** = `loans` 中第一条 `isOpen`（含 legacy/unknown）。`isOpen`：非 `closed`、非 `rejected`。
+2. 有未结贷款 → **借款驱动**（H9–H17）；KYC 仅在卡片内以一行只读文字陈述，**不出现 KYC 按钮**。
+3. 无未结贷款 → **KYC 驱动**（H1–H8、H18）；KYC `approved` 再看最近一笔贷款（无 / `closed` / `rejected`）。
+4. 每个状态 **Primary CTA 唯一**，最多一个 Secondary；不同时出现「补 KYC / 申请贷款 / 查看贷款」三个同级按钮。
+5. 金额/日期/状态来自服务端；客户端只做 §8 的显示派生，不做价格计算。
+6. 加载类状态（H19–H22）由 `AsyncValue`/新鲜度层决定，叠加在上面规则之上。
+
+### 10.2 矩阵（H1–H22）
+
+> Title/Summary 为**文案意图**（zh 基线；最终 en/km/zh ARB 文案由 Codex/文案确认，键名 `home_<id>_title/_summary`）。`Primary Enabled`：✔ 可点；✖ 禁用。「状态面板」= 页内 bottom sheet，**不是路由**（§11）。
+
+| State ID | KYC | Loan | Title | Summary | Primary CTA | Primary Enabled | Secondary | Target |
+|---|---|---|---|---|---|---:|---|---|
+| H1 | none（`null`） | 无贷款 | 尚未开始身份认证 | 完成身份认证后才能申请借款 | 开始身份认证 | ✖ | 查看当前状态 | 状态面板 |
+| H2 | draft | 无贷款 | 身份资料未提交 | 您的身份资料尚未提交审核 | 继续完善资料 | ✖ | 查看当前状态 | 状态面板 |
+| H3 | submitted | 无贷款 | 身份资料审核中 | 审核结果将在此更新 | 查看当前状态 | ✔ | — | 状态面板 |
+| H4 | needs_info | 无贷款 | 需要补充身份资料 | 审核人员需要您补充资料 | 补充资料 | ✖ | 查看当前状态 | 状态面板 |
+| H5 | rejected | 无贷款 | 身份资料未通过 | 该结果为最终结果，当前无法在 App 内重新提交 | 查看当前状态 | ✔ | — | 状态面板 |
+| H6 | approved | 无任何贷款 | 身份认证已通过 | 您已具备借款资格 | 申请借款 | ✖ | 查看借款记录 | `/loans`（Secondary） |
+| H7 | approved | 最近一笔 `closed`，无未结 | 上一笔借款已结清 | — | 查看借款记录 | ✔ | — | `/loans` |
+| H8 | approved | 最近一笔 `rejected`，无未结 | 上一笔申请未通过 | — | 查看借款详情 | ✔ | — | `/loans/:id`（该笔） |
+| H9 | 任意 | 未结 `kyc_approved`，`!billConfirmed` | 借款申请已创建 | 费用账单待确认 | 查看借款详情 | ✔ | — | `/loans/:id` |
+| H10 | 任意 | 未结 `kyc_approved`，`billConfirmed && !hasContract` | 借款申请待签约 | 协议待签署 | 查看借款详情 | ✔ | — | `/loans/:id` |
+| H11 | 任意 | 未结 `kyc_approved`，`hasContract` | 协议已签署 | 待提交审批 | 查看借款详情 | ✔ | — | `/loans/:id` |
+| H12 | 任意 | 未结 `decision_pending` | 等待机构审批 | 审批结果将在此更新 | 查看借款详情 | ✔ | — | `/loans/:id` |
+| H13 | 任意 | 未结 `signed` | 审批已通过，待放款 | — | 查看借款详情 | ✔ | — | `/loans/:id` |
+| H14 | 任意 | 未结 `active` | 还款中 | 剩余应还 `remaining` · 到期日 `dueAt`（缺失「—」） | 查看借款详情 | ✔ | — | `/loans/:id` |
+| H15 | 任意 | 未结 legacy（`registered`/`kyc_pending`/`needs_info`/`approved`） | 借款处理中 | 旧流程中的借款 | 查看借款详情 | ✔ | — | `/loans/:id` |
+| H16 | 任意 | 未结，状态值未知 | 借款状态更新中 | 暂无法显示该状态 | 查看借款详情 | ✔ | — | `/loans/:id` |
+| H17 | draft/needs_info（员工代改等）且有未结贷款 | 同 H9–H16 | 按所属借款行 | 附加一行「身份资料需补充」文字 | 查看借款详情 | ✔ | — | `/loans/:id` |
+| H18 | 未知 KYC 字符串 | 无未结贷款 | 身份资料状态更新中 | 暂无法显示该状态 | 查看当前状态 | ✔ | — | 状态面板 |
+| H19 | — | 首次加载（无内存快照） | 骨架 | — | — | — | — | — |
+| H20 | — | 刷新失败（有内存快照） | 保留旧卡片 + 错误条（最近更新时间） | — | 重试 | ✔ | — | 重新请求 |
+| H21 | — | 离线 / 超时 / 503（有内存快照） | 保留旧卡片 + 离线条 | — | 重试 | ✔ | — | 重新请求 |
+| H22 | — | 401 / 会话失效 | 会话已过期 | — | 重新登录 | ✔ | — | `/auth/login`（Return Intent=`/home`） |
+
+补充：
+- **无内存快照**时的失败/离线（冷启动即离线）：整页「无法加载 / 离线」+ 重试（不显示任何业务卡片，**不得显示假数据**）→ 该状态记为 **H21'**（无快照）。
+- H3/H5/H18 的 Primary 为可点的「查看当前状态」，故无 Secondary。
+- 「无任何贷款」= `loans` 空。H7/H8 以**最近一笔**（`createdAt` 最大）判断。
+
+### 10.3 决策表测试（§32）
+H1–H22（含 H21'）**必须表驱动测试**：输入 `(kyc, loans, freshness)` → 断言 `stateId`、title key、summary key、primary label key、`enabled`、`destination`、secondary。
+
+## 11. Future CTA Policy（OPD-1 已冻结，适用 H1/H2/H4/H6）
+
+- 对 P1 未开放的动作（KYC 编辑 P2 / 借款申请 P3）：**禁用的主按钮 + 明确说明文字 + 页内「查看当前状态」**。
+- 「查看当前状态」= **页内状态说明面板（bottom sheet）**：**不是新路由、不外链 H5、不假导航、不调用 `GET /api/kyc`**；只使用 `state.kyc.status`。
+- 面板内容**必须**包含四段（缺一不可；不得仅为 Toast/"Coming Soon"）：
+  | 段 | 内容意图 |
+  |---|---|
+  | 当前状态 | 本地化状态名（如「身份资料：待补充」） |
+  | 含义 | 这个状态意味着什么（如「审核人员需要您补充资料」；**不展示员工审核意见原文**） |
+  | 本阶段可用 | 此版本 App 内可做什么（查看状态、查看借款记录、语言、改密码…） |
+  | 暂不可用 | 此版本 App 内暂不支持的操作（如「补充资料」「申请借款」），并说明将在后续版本提供；**不提供外链**，不承诺具体日期 |
+- 面板按状态的内容键：`panel_none`、`panel_draft`、`panel_submitted`、`panel_needs_info`、`panel_rejected`、`panel_approved_noloan`、`panel_unknown`（各含上述四段 ARB 键）。
+- KYC `submitted`：只读；仅「查看当前状态」，禁止 edit/submit。
+- KYC `rejected`：终态/锁定；**不提供编辑与重提**；客服入口不出现（NEW PRODUCT ADDITION 未获批）。
+- KYC `needs_info`：显示状态 +「审核人员需要您补充资料」通用文案；**不读取/不展示 `review.reason`；不编辑；不重提**。P2 才拥有补件流程。
+- KYC `approved` + 无贷款：显示「已具备借款资格」；「申请借款」禁用并说明 P3 未开放；Secondary「查看借款记录」可点。
+- 已知并需如实说明的限制（写入发布说明/面板「暂不可用」）：处于 `none/draft/needs_info` 的用户在 P2 发布前需在 H5/Mini App 完成资料。
+
+---
+
+## 12. Navigation
+
+### 12.1 底部导航（正式、仅 3 项）
+`Home` · `Loans`（借款记录） · `Me`。**不得出现 Messages/铃铛。** 实现：`StatefulShellRoute.indexedStack` 三个分支。
+
+### 12.2 Route Inventory
+> 所有目标均为真实页面；**不存在占位目的地**。「Guard」缩写：`A`=需已认证（完成注册策略），`—`=无（Delta 54：公开模式无「活动公司」守卫）。
+
+| Route | Entry Condition | Data | Primary Action | Exit | Guard |
+|---|---|---|---|---|---|
+| `/startup` | 冷启动 | 恢复公开会话 Cookie；预检 `GET /api/h5/auth`（**无公司解析步骤**，Delta 54） | 自动分流；离线失败页「重试」 | `/auth/*` · `/home` | — |
+| `/auth/login` | 活动公司无会话 / 会话失效 | 预检（`policy`、`languages`、`pending`） | 验证码登录 / 密码登录 | `/auth/*` · `/home` | — |
+| `/auth/telegram-consent` | 选择验证码登录 | 手机号输入（E.164）、同意（默认未勾选） | 发送验证码 | `/auth/telegram-code` | — |
+| `/auth/telegram-code` | send 成功 / pending 恢复 | 内存 challenge | 验证 | `/auth/set-password` · Return Intent/`/home` | — |
+| `/auth/password` | 选择密码登录 | 手机号+密码 | 登录 | `/auth/set-password` · `/home` | — |
+| `/auth/set-password` | `authenticatedIncomplete`（强制设密码） | `policy` | 保存 | `/home` | — |
+| `/auth/recover` · `/auth/recover/code` | 忘记密码 | recovery send/reset | 发送 / 重置 | `/auth/password` | — |
+| `/home`（Tab 1） | 已认证 | `CustomerSnapshot` | §10 的 Primary CTA | `/loans/:id` · `/loans` · 状态面板 | A |
+| `/loans`（Tab 2） | 已认证 | `CustomerSnapshot.loans` | 打开借款 | `/loans/:loanId` | A |
+| `/loans/:loanId`（push，隐藏底栏） | 已认证；loanId 属于当前快照 | 快照中的该笔 + 事件 | 无写操作；返回 | 返回来源 | A |
+| `/me`（Tab 3） | 已认证 | 会话 `phoneMasked` | 进入子页 / 退出登录 | `/me/*` · `/auth/login`（登出） | A |
+| `/me/language`（push） | 点击语言 | 预检 `languages` ∩ 已打包 | 选择语言 | 返回 | A |
+| `/me/password`（push） | 点击修改密码 | 无 | 保存新密码 | 返回 | A |
+
+**被移除**：`/feature/repay/:loanId`、`/feature/withdraw/:loanId`、`/feature/repay-disabled`、`/feature/withdraw-disabled`、旧 `MePage` 的 "About / Back to Home" 条目。
+**不存在**：`/kyc*`、`/loan/*`、`/messages`、`/me/about`、`/company/*`、`/me/company`（Delta 54 移除）、任何指向未实现页的路由。
+
+### 12.3 Shell 行为
+| 项 | 规则 |
+|---|---|
+| 选中 Tab 持久 | 会话内由 shell 保持（切换 Tab 不重载快照）；冷启动默认 Home |
+| 返回键 | Home 根：系统默认（退出）；Loans/Me 根：先回到 Home；push 页：返回上一页 |
+| Deep Link | **P1 无深链**（Delta 54：公司链接处理与 intent-filter 休眠；打开 App 的外部链接只启动 App） |
+| Auth Guard | 未认证访问 `/home`·`/loans*`·`/me*` → `/auth/login`，并保存 Return Intent（仅导航位置，GET；校验同 `21` §5.12）；登录后回到安全位置 |
+| 登出/401 后 | Shell 选中 Tab 重置为 Home；push 栈清空；内存快照清除 |
+| **路由响应性（可观察行为）** | Router **必须即时、确定性地**响应：①公开会话上下文变化；②认证状态变化（登录/登出/过期）；③强制设密码要求（`passwordSetup` 且无密码）；④会话失效 / 401。表现为：状态变化后的**下一帧**内按 §12 守卫规则完成重定向，无需用户额外导航。实现机制不限定（`refreshListenable`、Riverpod 桥接、Router 重建或等价方式均可）；验收只看行为（E16） |
+
+---
+
+## 13. Entry（公开客户会话；Delta 54，取代原 Entry/Company 与 Delta 52）
+
+> 业主规则：客户注册/登录**公开**，不要求选择公司/机构/邀请链接/CompanyId/`defaultCompanyId`/二维码。详见 `54`。
+
+1. **启动**：`Launch → 恢复公开会话 → GET /api/h5/auth → authenticated ? Home : Login`；无公司解析屏、无默认机构要求、不因"没有 CompanyId"出现任何恢复/选择页。
+2. **Public 上下文**：P1 的 `ApiContext = Public`：客户端**不发送** `payease_company`；公司由网关/服务端的**公开工作区**决定（服务端 `CR-003` 目标；联调期使用现有网关兜底）。Cookie jar 使用固定公开命名空间；CF-6（仅清 `payease_h5_session`）沿用。
+3. **CF-0 Guard（调整，不删除）**：Public 模式——出站**零个** `payease_company`（出现任何一个即 fail-closed）；Tenant 模式（休眠）——沿用「恰好一个且等于该 id」及 CF0-T1…T11。
+4. **预检中的 `company`** 仅用于可选的机构名称显示；预检 403「公司不可用/工作区无效」在公开模式表示服务端配置问题 → 通用「服务暂不可用」，**不进入任何公司恢复界面**。
+5. **移除（P1 普通客户产品）**：`/company/select`、`/company/scan`、`/company/paste-link`、`/company/candidate-confirm`、Me → 公司切换、登录页「更换服务机构」；公司 App Link 处理与 Manifest intent-filter 不启用；静默公司解析、`defaultCompanyId`、Recovery 文案作废。
+6. **内部休眠资产保留**：`CompanyId`、Tenant jar、CF-0/CF-6 与其测试、候选/切换领域代码、`CompanyLinkParser`、扫码资产——不展示、不接入，供未来机构路由。
+7. 公司相关的公共端行为依赖服务端 `CR-003`（显式公开工作区配置 + 公开工作区限流策略）：**不阻塞 Android 开发/联调，阻塞公众上线**（`54` §6、§13）。
+
+## 14. Authentication
+
+规范性来源 `21` §5.5–§5.12。P1 明确事项：
+
+- **端点**：仅 §7.1 列出的现有端点；Native Android **不使用** `initData` 静默登录、Telegram 提醒绑定（MINI APP ONLY）。
+- **手机号**：UI 对输入做空格/括号/连字符清理并校验 `^\+[1-9]\d{7,14}$`；无效不发请求（E2c）。
+- **同意**：`consent` 来自用户明确勾选（默认未勾选），**不得硬编码 `true`**（E2c）。
+- **OTP**：send 响应的 `challengeId/retryAt/expiresAt/phoneMasked` 保留在**内存**；verify 使用 `challengeId`；60 秒重发倒计时仅启用按钮、**不自动重发**；`retryAfter` 规则 60/1..3600/3600（`21` §5.11.1）。
+- **重发手机号**：重发必须使用用户**输入的 E.164 手机号**（内存中、不落盘、不入日志）；**禁止使用 `phoneMasked`**（E3b）。若进程重启后只剩 pending（仅有掩码），「重发」改为「返回重新输入手机号」。
+- **Pending OTP 恢复**：预检 `pending` 非空 → 自动进入验证码页（E3c，已实现，补测试）。
+- **强制设密码**：`policy.passwordSetup && !hasPassword` → `/auth/set-password`；完成前不得进入 `/home`。
+- **找回**：`recovery send → reset`；成功后清除当前公司会话并回 `/auth/password`。
+- **所有用户可见文案**走 ARB（en/km/zh）；硬编码英文**禁止**（E15）。
+
+## 15. Session Restore
+
+1. 冷启动：`/startup` 恢复公开会话 Cookie → 预检（无公司解析）→ `authenticated:true` 且注册完成 → **获取 `GET /api/h5/state`** → `/home`；`authenticated:false` → `/auth/login`（`pending` → 验证码页）；离线 → 启动失败页（仅「重试」），**不得因本地存在 Cookie 就当作已登录**。
+2. `resume`（回到前台）：距上次预检 >5 分钟，或会话剩余 <10 分钟 → 重新预检（沿用 `21` OD-G1-9）；预检为 `authenticated:false` → 会话失效流程（H22）。
+3. 会话 24 小时绝对过期，无刷新端点。
+4. **401（任意受保护 GET，含 `GET /api/h5/state`）**：标记当前公司会话失效 → 清除内存业务快照 → 保存安全 Return Intent（仅导航位置）→ `/auth/login` → 登录成功后回到 Return Intent（GET）。**绝不重放任何 POST。**（E5）
+
+---
+
+## 16. Real Home
+
+- 结构：业务状态卡（title/summary）+ KYC 摘要行 + Loan 摘要（金额/到期日，仅借款驱动）+ 唯一 Primary CTA +（可选）Secondary + 新鲜度提示（最近更新时间 / 离线 / 刷新失败）+ 状态说明面板入口。
+- **不是贷款列表页**；不显示公司 ID（显示公司名，来自预检 `company`）。
+- 数据：只读 `CustomerSnapshot`（共享源，§28 / 任务 P1-STATE-03）。
+- 下拉刷新；失败保留旧卡片。
+- 不出现：还款/提现、联系客服、消息、铃铛。
+
+## 17. Loans Tab
+
+- 来源：`CustomerSnapshot.loans`（同一份共享快照，无额外请求）。
+- 下拉刷新；离线/失败规则同 §27。
+- 空列表：「还没有借款记录」说明文字；**不出现申请按钮**（按 §11；KYC 为 `approved` 时仍不提供可执行入口，仅说明）。
+
+## 18. Loan List
+
+```
+Data source:   state.loans（共享快照）
+Included:      全部状态（含 closed / rejected / legacy / unknown）
+Sort:          createdAt 降序（稳定；缺失 createdAt 排最后）
+Row fields:    shortId（presentation derivation：'#'+id 前8位大写）
+               createdAt（UTC+7 日期；缺失「—」）
+               term（termDays 天；billing.termDays 缺失按 14）
+               principal（amount，USD）
+               status（本地化标签；legacy→「处理中（旧流程）」；unknown→「状态更新中」；
+                       kyc_approved 按 stage 显示「待确认账单 / 待签约 / 待提交」）
+Empty:         见 §17
+Tap:           → /loans/:loanId（只读）
+Offline:       有内存快照→显示快照 + 离线条；无快照→整页离线态 + 重试
+```
+行内**不得**出现任何写操作入口。
+
+## 19. Loan Detail（只读）
+
+```
+Included sections（来自 02 §3.7 / 41 附录 B）:
+  A 头部     status 标签（同 §18）、principal
+  B 事实     term · actual received（billing.net ?? amount）· total repayment（amount+fee）
+             · paid · remaining（max(0, amount+fee−paid)）· due date（dueAt；放款前「放款后确定」；active 缺失「—」）
+  C 账单摘要  principal · actual received · total repayment（billing.principal/net/total；缺失则该行隐藏）
+  D 最近事件  §20
+Excluded:      合同/签名、完整时间线、台账 entries、账单分项（利息/服务费/预扣）、贷后提醒、wallet、员工字段、服务端 note
+Allowed actions: 无（仅返回）
+No-action states: 全部状态。kyc_approved 显示信息行「确认账单与签约暂不支持在 App 内完成」（文字，非按钮）；
+                  active 不提供还款/提现；unknown 显示通用只读
+Not found:     loanId 不在当前快照（刷新后消失/切换公司）→ 「未找到这笔借款」+ 返回借款记录
+```
+**P4 extends P1**：P4 在**同一** `/loans/:loanId` 页面上扩展（§P4 ADDS：完整时间线、合同/签名图、台账与账单分项、贷后提醒、派生到期/逾期展示）；**不得**新建第二套借款详情页或第二个 Loan 详情模型。
+
+## 20. Events
+
+- 来源：`state.events`（**平铺数组**，已按当前客户贷款过滤；服务端以 `unshift` 写入，最新在前）。
+- 规则：**按 `loanId` 过滤 → 按 `at` 降序（稳定）→ 取前 5**。无事件 → 「暂无办理记录」。
+- 展示：时间（UTC+7）+ 本地化动作文案（§9.4 映射；未知 action → 「办理进度已更新」）。**不展示 `note`/`role`**。
+
+## 21. Repayment Summary
+
+- 展示项（只读）：应还总额 `amount+fee` · 已还 `paid` · **剩余应还 `max(0, amount+fee−paid)`**（**DISPLAY DERIVATION**，不是价格/业务规则计算，不修改服务端事实字段）· 到期日。
+- `paid > amount+fee` 时剩余显示 0（不得为负）。
+- 不展示还款/提现按钮；`active` 文案说明「还款由机构渠道处理」类信息性文字（具体文案由 Codex）。
+
+## 22. Me
+
+内容（仅真实项 + Android 入口能力）：脱敏手机号（`GET /api/h5/auth` 的 `session.phoneMasked`，**仅内存**）、**语言**、**修改密码**、**退出登录**。不含：关于/帮助/客服、Telegram 提醒、消息。
+
+## 23. Locale
+
+> **Delta 54 覆盖**：P1 无公司切换/公司级作用域。语言偏好使用**单一（设备级）作用域**键（经 KeySchema，非敏感）；下文 23.1–23.3 中「按公司」「A→B」相关表述一律按此替换；其余解析规则、重启/登出/服务端可用性变化的断言不变。
+
+### 23.1 规则（OQ-2 = CLOSED：P1 仅本地界面语言）
+- 可用语言 = **预检 `languages`（服务端允许）∩ 已打包 locale（en/km/zh）**。
+- **P1 changes app UI locale locally. No `POST /api/h5/locale` in P1.**（Android 无服务端语言的消费者：Telegram 提醒为 MINI APP ONLY；`02` 中该端点保持真实可用，但 P1 不调用。）
+- `MaterialApp.locale` 实际跟随生效语言；**所有页面文案使用 `AppLocalizations`**（E15）。
+- 偏好**按公司持久**（`KeySchema` 公司级键，非敏感）；公司选定前的设备级选择使用 App 级键。
+- 服务端返回的中文文案（`error`、`note`）不作为界面文案。
+
+### 23.2 生效语言解析（确定性；不留给实现猜）
+`effective = resolve(savedPref, allowed)`，其中 `allowed` = 最近一次预检 `languages` ∩ 已打包；若 `allowed` 为空或全为 false → `{en}`。
+1. `savedPref` 存在且 ∈ `allowed` → `savedPref`；
+2. 否则设备语言 ∈ `allowed` → 设备语言；
+3. 否则按 `en → km → zh` 取第一个 ∈ `allowed`；
+4. 否则 `en`（始终已打包）。
+`savedPref` **不因回退而被覆盖或删除**（语言重新开放时可恢复）。无公司时 `allowed = {km, en} ∩ 已打包`，`savedPref` 取设备级键。
+
+### 23.3 生命周期断言（验收；对应测试 `P1-S-LOC-*`）
+| 场景 | 断言 |
+|---|---|
+| **App 重启** | 重启后恢复 ActiveCompany，并按 23.2 用该公司的已存偏好解析；预检回来之前用已存偏好（若已打包），预检到达后重新按 `allowed` 校验并必要时回退 |
+| **（Delta 54：N/A）公司切换 A→B** | 切换确认后立即对 B 执行 23.2：使用 **B 的**已存偏好（或回退）；**A 的语言不得覆盖 B**；A 的已存偏好保持不变，切回 A 时恢复 |
+| **登出** | **保留**：公司级语言偏好（非敏感）与设备级偏好；**清除**：会话、内存业务快照、预检缓存（含掩码手机号）、Return Intent、pending OTP、内存中的手机号。登出后的 Entry/Auth 页面使用**同一公司**的已存偏好（经 23.2 校验） |
+| **首次启动（尚无预检结果）** | 使用设备级偏好 → 设备语言（km/en）→ en；预检回来后按 23.2 校验 |
+| **服务端语言可用性变化** | 每次预检后重新计算 `allowed`；当前生效语言不再允许 → 按 23.2 **确定性**回退到一个已打包且允许的语言，并给出一次性本地化提示；`savedPref` 保持不变 |
+| **语言选择页** | 仅列出 `allowed`；选择后立即生效并写入当前公司的 `savedPref`（无公司则写设备级） |
+
+## 24. Password（修改密码）
+
+- 入口：`/me/password`；仅在 `hasPassword==true` 的会话上提供「当前密码 + 新密码 + 确认」；`hasPassword==false`（不应出现于已认证完成态）→ 走强制设密码流程。
+- 端点：`POST /api/h5/auth/account`，`{action:'set_password', password(12–128), currentPassword}`（`02` §2.4）。
+- 成功语义（`02`）：**其他会话被撤销，当前会话保持**；UI 提示成功并返回。
+- 错误映射：401（当前密码不正确）· 400（长度/规则）· 409（账号已更新，提示重试）· 429（限流 5/15 分钟，倒计时，遵循 `retryAfter` 规则）· 403（策略未开启 `passwordSetup`）· 离线/超时/503 → 不显示成功、不入队。
+- 日志/状态：密码不入日志、不落盘、提交后清空输入。
+
+## 25. Company Switch — **N/A in P1（Delta 54）**
+
+P1 无公司切换（用户界面与路由均不存在）。租户隔离的内存安全要求**保留且转为**：登出 / 401 / 会话失效时**立即丢弃内存 `CustomerSnapshot` 与派生展示状态**，取消在途请求（响应携带发起代次，过期则丢弃）；加载态期间不得显示上一会话的任何贷款/金额。公司切换的领域代码与测试（CF0-T3/T4 等）作为休眠资产保留。
+
+## 26. Logout
+
+- `POST /api/h5/auth/logout`（体 `{}`）**成功**后：清除当前公司会话 Cookie；**清除内存业务快照**、预检缓存（含 session/掩码手机）、Return Intent、pending OTP、内存中的 E.164 手机号；Shell 重置；进入该公司的认证流程。
+- **失败**（网络/5xx）：**不假装成功**；保持当前状态，显示失败 + 重试（**取代** `21` §5.9 的"无论成败都清除"：与已通过的 G1 验收一致，仅服务端确认成功才清除；401 表示会话本已失效 → 视为成功并清除本地）。
+- 仅清当前公司；其它公司会话保留。重新进入登录页后**不得**再看到任何贷款数据。（E17）
+
+---
+
+## 27. Error / Offline
+
+### 27.1 `GET /api/h5/state` 与页面状态
+| 条件 | 有内存快照 | 无内存快照 |
+|---|---|---|
+| 首次加载中 | — | H19 骨架 |
+| 手动/恢复刷新中 | 保留旧内容 + 顶部进度 | — |
+| 成功 | 替换快照 | 显示业务内容 |
+| 离线/连接错误 | H21 离线条 + 重试，保留旧内容 | H21' 整页离线 + 重试 |
+| 超时 / 503 / 5xx | H20 错误条 + 重试 | 整页「服务暂不可用」+ 重试 |
+| 401 | H22 → 重新登录（清快照） | 同 |
+| 403 | 注册未完成 → 对应认证页；公司工作区不可用（服务端配置问题）→ 通用「服务暂不可用」；其它 403 → 通用「无权访问」 | 同 |
+| 429 | 倒计时（`retryAfter` 规则）后启用重试；不自动重试 | 同 |
+| unknown data（`state.loans` 非数组等） | 视为失败（H20），**不渲染伪数据** | 整页「数据暂不可用」+ 重试 |
+| `REQUEST_FAILED` | **P1 无任何业务动作依赖它**（不调用 `POST /api/h5/state`）；若在其它端点出现 → 通用本地化失败，不推断原因，不新增 UI 流程 |
+
+### 27.2 写操作（Auth / 改密 / 登出 / 语言）
+**离线不得 fake success、不得入队重放**；失败显示本地化错误并保留输入（密码除外：清空）。
+
+### 27.3 错误映射
+消费 `02` §1.5：HTTP 状态 + 已知 `code`（含大写码 `AUTH_REQUIRED`、`RATE_LIMITED`、`CUSTOMER_SETTLEMENT_FORBIDDEN`、`AUTH_DEMO_FORBIDDEN`、`FUNDING_LIMIT_EXCEEDED`、`REQUEST_FAILED`…）+ 已知文案回退（`21` §5.11 目录）。`code` 可选且非封闭；未知 `code` → 按状态码通用回退；`403` 的未知 `code` **不得**默认标为 `crossSite`（E9）。
+
+## 28. Memory-only State
+
+- 业务快照（`CustomerSnapshot`、贷款、事件、金额、掩码手机）**仅内存，会话内**；**不写磁盘**（不使用 SecureKv/SharedPreferences/DB 保存任何借款/KYC 状态）。App 被杀后冷启动重新拉取。
+- **共享单一事实源**：Home、Loans、Loan Detail 读取**同一个**快照提供者（单 Notifier/AsyncNotifier，按活动公司重置）；不得各页自行请求或维护副本。
+- **租户标签**：快照携带 `companyId`；与当前 ActiveCompany 不一致时视为无快照。
+- 刷新策略（技术要求；无后端变更）：
+  | 触发 | 规则 |
+  |---|---|
+  | 初次加载 | 进入 Shell 时一次 |
+  | 手动 | 下拉刷新 / 重试；同一屏 3 秒内去重 |
+  | 恢复前台 | 距上次成功 >60 秒 才刷新 |
+  | 等待态自动刷新 | **仅当** KYC=`submitted` 或未结贷款为 `decision_pending`/`signed`，且 App 在前台、Home/Loans/详情可见：每 **30 秒**一次；其余状态**不轮询** |
+  | 全局节流 | 任意两次自动请求间隔 ≥15 秒；失败后指数退避（30→60→120 秒，上限 120），手动重试立即 |
+  | 暂停 | 后台、登出、401 后停止并取消 |
+  **已冻结策略（OQ-1 = CLOSED）**：仅等待态 · 仅前台 · 仅当前页面可见 · 间隔 30 秒 · 不做后台轮询 · 不做高频轮询 · 用户手动刷新始终允许。与 H5 的 15 秒轮询不同，此为有意收紧（电量/负载），H5 的 15 秒**不被复用**。
+
+## 29. Security
+
+- Cookie 认证、Origin、安全会话存储、SafeLogger 规则不变；**不记录** OTP/密码/Cookie/完整手机号/challengeId/会话值。
+- 金额、贷款 ID、状态**不写日志**（日志仅脱敏计数/错误类别）。
+- P1 新增：**借款/业务状态不落盘**（§28）；内存快照在登出/切换/401 时清除。
+- Android 最近任务截图 / `FLAG_SECURE`：**未冻结，不在 P1 强制**，属 **P2 NONBLOCKING**（OQ-3），不进入 P1 Gate 阻断。
+- 无 `/api/mobile/*`、无 Bearer；不实现 Telegram `initData` 流。
+
+## 30. Accessibility
+
+页面：Login（含 OTP/密码/找回/设密）、Home（含状态面板）、Loans、Loan Detail、Me、Password、Locale。
+验证矩阵：**320 / 360 / 412 dp × 字体 100% / 130% / 200% × 高棉文长文案**；主 CTA 始终可见且可滚动到；触控目标 ≥ 48dp；无溢出；禁用按钮与说明文字对读屏可理解（语义标签含"已禁用 + 原因"）；状态不只靠颜色；加载/错误状态可被读屏播报。
+证据：自动化布局测试（扩展现有 `layout_g1_test`，覆盖上列全部页面，非 Mock 的真实页面）+ 设备/模拟器截图（§31）。
+
+## 31. Android Runtime
+
+P1 Exit 必须有**真实 Android 模拟器或真机**证据（仅构建不算）：
+| 级别 | 内容 |
+|---|---|
+| R1 | 安装、冷启动、路由渲染、日志（logcat）无崩溃 |
+| R2 | 对接假服务（debug `10.0.2.2`，数据形状取自 `02` 而非客户端实现）完整旅程：登录/测试认证路径→Home→Loans→Detail→Me→语言→改密→登出 |
+| R3（可选，需项目方书面授权与指定测试账号） | 生产只读：`GET /api/h5/auth`、`GET /api/h5/state`；**不得**触发验证码发送或任何写操作 |
+证据包：环境身份（`19` §8.2；含两套 Android SDK 根路径说明）、`adb devices -l`、截图、logcat 摘录、App Link intent（`adb shell am start … https://khmerx.org/app?c=…`）、APK 信息。debug 网络配置须**仅放行 `10.0.2.2`**（E12）。
+
+## 32. Automated Tests
+
+| 层 | 内容 | ID 前缀 |
+|---|---|---|
+| Unit | DTO 解析（缺失/非法）· Mapper · 状态映射（含 Unknown）· 剩余应还 clamp · 事件过滤/排序/取5 · `isOpen` · 短编号 · Home 决策表 | `P1-U-*` |
+| Repository | Auth（保持）· `CustomerStateRepository.fetch`（形状取自 `02`）· 错误映射（大写码、REQUEST_FAILED、`retryAfter` body 优先） | `P1-R-*` |
+| State/Notifier | 加载/刷新/失败保留旧内容 · 401 清快照 · 登出清除 · 过期代次响应被丢弃 · 刷新节流 | `P1-S-*` |
+| Widget/Router | Home 矩阵渲染 · 3 标签 · 借款列表/详情 · 禁用 CTA 无导航 · 状态面板四段 · 真实 Router redirect（不得再在测试里重写 redirect） | `P1-W-*` |
+| Wire（假服务记录请求） | `Cookie` 恰好一个正确 company（沿用 CF0）· Origin · GET 路径 · **GET 重试后仍恰好一个 company cookie（CF0-T8 真测）** · 请求计数守卫 | `P1-N-*` |
+
+### 32.1 必备用例
+- **Home 决策表**：H1–H22（含 H21'）表驱动，每行断言 stateId/title/summary/primary key/enabled/destination/secondary（`P1-U-HOME-*`）。
+- **未知贷款状态**：未知字符串 → 不崩溃 → 通用状态 → 只读 → 无写 CTA → 不映射到已知（`P1-U-STATUS-*`）。
+- **剩余应还**：正常正数 / 0 / `paid==total` / `paid>total`（=0）（`P1-U-REM-*`）。
+- **最近事件**：按 loan 过滤 / 降序 / 最多 5 / 空 / `at` 缺失（`P1-U-EVT-*`）。
+- **内存清除**：登出清除；401 清除；重新登录后加载完成前绝不渲染上一会话的数据（`P1-S-MEM-*`；公司切换项 N/A，Delta 54）。
+- **`P1-KYC-GUARD-01`（`GET /api/kyc` 请求数 = 0）**：Given 任意 P1 Home 状态（no KYC / draft / submitted / needs_info / approved / rejected，对应夹具 F1–F6，另含 unknown KYC）；When Home / Loans / Loan Detail / Me / Auth 流程执行（含下拉刷新、恢复前台、状态说明面板打开、`needs_info` 状态）；Then 假服务记录的 `GET /api/kyc` 与任何 `/api/kyc*` 请求数 **== 0**。特别：`needs_info` 只能由 `GET /api/h5/state` 的 `kyc.status` 展示，**不得为展示 `review.reason` 而调用 `/api/kyc`**。
+- **范围守卫**（§33）与**请求计数**：P1 全旅程中假服务 `/api/kyc*`、`/api/loan/*`、`POST /api/h5/state`、`/api/telegram`、`/api/analytics/events`、`POST /api/h5/locale` 请求数 = 0（`P1-N-SCOPE-*`）。
+- 沿用 G0/Foundation 回归（183 项当前测试不得减少；被替换的占位 API 相关测试迁移并保留断言语义）。
+
+## 33. Architecture Guardrails
+
+在 `test/architecture_grep_test.dart` 增加（并修复其从 `Directory.current` 解析导致的空转风险：断言扫描文件数 > 阈值）：
+1. **`Endpoints.getKyc` 常量 = KEEP**（P2 需要 `GET /api/kyc`；**不得删除**）。但 P1 的 Home / Loans / Me / Auth 及其 Notifier / Repository / 页面路径**不得调用**它：`lib/` 中除 `endpoints.dart` 与其端点测试外，**不得引用** `Endpoints.getKyc`、`/api/kyc`、`/api/loan`、`postH5State` 类写入口、`repay`/`withdraw` 动作；P1 内删除的仅是 `/feature/*`、`FeatureFlags.repay/withdraw`、Minimal Home、settings 桩。**定义存在 ≠ P1 可以使用。**
+   - 静态守卫：P1 的 presentation / repository / notifier 路径不得出现 KYC 仓储或 client 的调用；**但不得因此禁止 `Endpoints.getKyc` 常量本身存在**。
+2. 不得 `launchUrl`/外链到 H5 域名（无 H5 回退）。
+3. 页面层禁止 `dio`/`Endpoints`/原始 JSON 直接使用（页面 → Notifier → Repository）。
+4. 页面层禁止字面中文/英文用户文案（须 `AppLocalizations`；沿用 CJK 守卫，并增加"用户可见字符串字面量"启发式检查）。
+5. 保持既有：legacy provider 禁令、`print(` 禁令、`'Origin'` 字面量、手写 `Cookie` 头禁令、`mobile_scanner` 限定目录。
+6. 单文件 > 600 行的页面文件触发告警（E14：拆分 `auth_placeholder.dart` 1004 行、`home_placeholder.dart` 341 行含 4 页）。
+
+---
+
+## 34. Current Flutter Gap Matrix（据工作区只读核查）
+
+| P1 Capability | Existing | Works | Contract-compliant | Action |
+|---|---:|---:|---:|---|
+| 候选公司确认前不激活 + 候选预检 | ✔ | ✔ | **N/A（休眠，Delta 54）** | **DORMANT** |
+| 已知公司切换经候选确认+预检 | ✔(直接切换) | ✔ | **N/A（休眠）** | **DORMANT** |
+| 运行中 App Link 响应 | 部分 | ✖ | **N/A（P1 无深链）** | **DORMANT** |
+| 最近公司 | ✔ | ✔ | **N/A（P1 无公司 UI）** | **DORMANT** |
+| 扫码 | ✔ | ✔ | **N/A（P1 不使用）** | **DORMANT** |
+| Auth DTO（send/verify/account/recovery/logout） | ✔ | ✔ | ✔ | **KEEP** |
+| E.164 校验、consent 来自用户 | ✖ | — | ✖ | **FIX** |
+| OTP 重发使用 E.164 | ✖(用掩码) | ✖ | ✖ | **FIX** |
+| Pending OTP 恢复 | ✔ | ✔ | ✔ | **VERIFY**（补测试） |
+| 401 全局处理 / Return Intent | 部分 | ✖ | ✖ | **FIX/ADD** |
+| Cookie 公司隔离（CF-0/CF-6） | ✔ | ✔ | ✔ | **KEEP** |
+| GET 重试 + Guard | ✔ | ✖(疑似) | ✖ | **FIX**（E10） |
+| ErrorMapper（真实 `code`/`retryAfter`） | ✔ | 部分 | ✖ | **FIX**（E9） |
+| SafeLogger / Redaction | 空实现 | ✖ | ✖ | **FIX**（E11） |
+| `GET /api/h5/state` 仓储/DTO/Domain | ✖ | — | — | **ADD** |
+| 共享 CustomerState + 刷新 + 失效 | ✖ | — | — | **ADD** |
+| Home 决策引擎 + 真实 Home | ✖(占位) | — | — | **ADD**（替换占位） |
+| 状态说明面板 | ✖ | — | — | **ADD** |
+| Loans 列表 / 详情 | ✖ | — | — | **ADD** |
+| 3 标签 Shell + 路由响应性 | ✖ | — | — | **ADD** |
+| Me（语言/改密/公司/登出） | 部分(MePage 无登出/改密) | 部分 | ✖ | **FIX/ADD** |
+| 修改密码页 | ✖ | — | — | **ADD** |
+| 语言：按公司持久 + 页面使用 ARB | 全局/不持久/页面硬编码英文 | 部分 | ✖ | **FIX**（E15、E18） |
+| 登出/切换清除状态 | 部分(漏预检缓存/ReturnIntent/pending) | 部分 | ✖ | **FIX**（E17） |
+| `/feature/*`、FeatureFlags(repay/withdraw)、Minimal Home、settings 桩 | ✔ | — | ✖ | **REMOVE** |
+| `Endpoints.getKyc` 常量 | ✔(未使用) | — | ✔ | **KEEP FOR P2 · P1 USAGE = FORBIDDEN** |
+| Android debug 网络配置 | 全局 cleartext | — | ✖ | **FIX**（E12） |
+| Android 运行证据 | ✖ | — | — | **ADD**（E6） |
+| 无障碍证据（覆盖不足） | 6 项 | 部分 | ✖ | **ADD**（E7） |
+| 页面文件拆分 | 1004/626/341 行 | — | ✖ | **FIX**（E14） |
+
+### 34.1 35 的历史缺陷现状（逐项分类）
+| 35 项 | 现状 |
+|---|---|
+| 候选在确认前激活 / 缺候选预检 | **ALREADY FIXED IN WORKTREE**（遗留 E1c 失败态、E1g 已知公司切换） |
+| 找回 `send` 未调用 | **ALREADY FIXED IN WORKTREE**（补页面测试） |
+| OTP challenge 未保留 | **ALREADY FIXED**（遗留：重发用掩码 E3b — **STILL OPEN**） |
+| Pending OTP 未自动恢复 | **ALREADY FIXED**（补测试） |
+| 扫码权限拒绝/错误/粘贴回退 | **ALREADY FIXED IN CODE**（测试弱 → VERIFY） |
+| 401 → Return Intent | **STILL OPEN** |
+| Android 运行证据 | **STILL OPEN** |
+| 无障碍证据 | **STILL OPEN**（部分自动化） |
+| 深链 App Link intent→parser→确认的测试 | **STILL OPEN** |
+| 34 对 30 的证据不一致 | **NO LONGER RELEVANT**（被新阶段取代） |
+
+---
+
+## 35. Task Cards
+
+> 每卡：Goal / Files-Layer / Dependencies / Acceptance / Tests。均**不修改后端**。Trae 不得开始，直到 §40 的 Gate 完成。
+
+### 35.1 Engineering Inputs E1–E18（每项：Requirement / Current Evidence / Required P1 Outcome / Acceptance Test）
+
+| ID | Requirement | Current Evidence | Required P1 Outcome | Acceptance Test |
+|---|---|---|---|---|
+| E1 | ~~候选/切换/深链~~ **N/A（Delta 54：休眠）** | — | 不实施；休眠资产保留，勿删除测试 | — |
+| E2 | 找回 send/reset 完整 | `auth_repository.dart:244-308`；页面已调用 | 保持；补页面级 send→reset→password 登录测试 | `P1-W-REC-*` |
+| E3 | OTP challenge 保留；重发用 E.164；pending 恢复 | `auth_placeholder.dart:296-300`（掩码）、`:31-90`（恢复） | 重发用内存 E.164；无 E.164 时「返回重输」；pending 恢复有测试 | `P1-W-OTP-*` |
+| E4 | ~~扫码~~ **N/A（Delta 54：P1 不使用）** | — | 不实施 | — |
+| E5 | 401 → 清快照 → Return Intent → 安全 GET 恢复；POST 不重放 | 无全局 401 处理 | 实现；清除登出/切换时的 Return Intent | `P1-S-401-*` |
+| E6 | Android 运行证据 | 无 | R1+R2 证据包 | `P1-RUNTIME-*` |
+| E7 | 无障碍 | `layout_g1_test` 6 项 | 覆盖 §30 全部页面 | `P1-A11Y-*` |
+| E8 | `GET /api/h5/state` 仓储+DTO+契约测试 | 无 | §8/§9 | `P1-U/R-*` |
+| E9 | ErrorMapper 对齐真实响应 | `error_mapper.dart`（小写 catalog；不读 body `retryAfter`；未知 403→crossSite） | 读 `body.code`（大小写保真）、`REQUEST_FAILED`、`retryAfter`（body→Retry-After 头→60；钳制） | `P1-R-ERR-*`（真实形状） |
+| E10 | GET 重试不复制 `cookie` 头 | `retry_interceptor.dart:~46-50` | 删除复制的 `cookie` 头/用原请求重分发；真实链 CF0-T8 | `P1-N-RETRY-*` |
+| E11 | SafeLogger 真实实现 + 脱敏缺口 | `safe_logger.dart` 空；`redaction_policy.dart` 缺口 | 输出脱敏日志；覆盖 JSON 形式与 cookie 名；`TenantContextFailure` 不存完整 Cookie | `P1-R-LOG-*` |
+| E12 | debug 仅放行 10.0.2.2 | `network_security_config.xml` 全局 cleartext、用户 CA | `base-config` 禁止明文；仅 `10.0.2.2` 例外；无用户 CA | 合并清单静态测试 |
+| E13 | 移除占位 | `HomePlaceholderPage`、`/feature/*`、FeatureFlags、settings 桩 | 全部移除/替换；更新受影响测试 | 路由清单/守卫测试 |
+| E14 | 拆分大文件 | 1004/626/341 行 | 按页面拆分，行为不变 | 现有测试保持通过 |
+| E15（新增） | 所有用户可见文案使用 ARB | 页面全是硬编码英文；ARB 64 键仅测试使用 | P1 页面全部 `AppLocalizations`；新增键三语一致 | 守卫 + `P1-W-L10N-*` |
+| E16（新增） | Router 对公司/认证/设密码/会话失效变化的即时确定性响应 + 真实 Router 测试 | 当前无响应式刷新；`app_start_test` 重写 redirect | 满足 §12.3「路由响应性」行为（机制不限）；测试使用真实 `createRouter` | `P1-W-ROUTER-*` |
+| E17（新增） | 登出/切换/401 清除全部会话级内存 | 预检缓存、ReturnIntent、pendingOtp、E.164 未清 | 统一清除钩子 | `P1-S-MEM-*` |
+| E18（新增） | 语言偏好持久化（**单一设备级作用域**，Delta 54） | `LocaleNotifier` 全局、不持久 | 经 KeySchema 存取；§23.2 解析规则 | `P1-S-LOC-*` |
+
+### 35.2 任务卡
+**Wave 0 — 审计与清理**
+- **P1-AUDIT-01 现状核对**：Goal 固化 E1–E18 基线（以工作区为准）；Files `docs`（报告）；Dep —；Acceptance 每项 STILL OPEN/FIXED 带证据；Tests —。
+- **P1-CLEAN-01 移除占位**：Goal 移除 `/feature/*`、FeatureFlags(repay/withdraw)、Minimal Home、settings 桩（**保留 `Endpoints.getKyc` 常量**）；Layer router/core/features；Dep AUDIT-01；Acceptance 守卫 §33-1 通过且 `Endpoints.getKyc` 仍存在、P1 路径无调用；Tests 更新 `route_inventory_test`/`feature_flags_test`/`app_start_test` 迁移并保留断言语义。
+- **P1-NET-01 网络与日志修复（E9–E12）**：Goal 修复重试 Guard、ErrorMapper、SafeLogger、debug 网络配置；Layer core/network、core/error、core/logging、android；Dep —；Acceptance E9–E12 测试；Tests `P1-R-ERR`、`P1-N-RETRY`、`P1-R-LOG`、清单测试。
+- **P1-L10N-01 本地化基础（E15、E18）**：Goal 页面全部使用 ARB、语言按公司持久；Layer core/localization、features/*；Dep CLEAN-01；Acceptance 无硬编码用户文案；Tests `P1-W-L10N`、`P1-S-LOC`。
+
+**Wave 1 — Entry / Auth**
+- ~~**P1-ENTRY-01**~~ **CANCELLED（Delta 54）**：公司入口 UI 从 P1 移除；相关代码休眠，不改动。
+- ~~**P1-ENTRY-03**~~ **CANCELLED（Delta 54）**：公司入口 UI 从 P1 移除；相关代码休眠，不改动。
+- ~~**P1-ENTRY-04**~~ **CANCELLED（Delta 54）**：公司入口 UI 从 P1 移除；相关代码休眠，不改动。
+- **P1-ENTRY-05 公开上下文（Delta 54）**：Goal 实现 `ApiContext.Public`（出站零 `payease_company`；Guard 双模式；jar 公开命名空间）；`/startup` 公开会话恢复；移除 `54` §8.1 的路由与 UI 及其测试；P1 不启用公司 App Link / intent-filter；Layer core/network、core/session、app/router、features/*、android；Dep L10N-01、NET-01；Acceptance `54` §7；Tests `P1-N-PUB-01/02/07`、`P1-S-PUB-03/04/08`、`P1-W-PUB-05/06`、`P1-R-PUB-09`、CF0 回归。
+- ~~**P1-ENTRY-02**~~ **CANCELLED（Delta 54）**：公司入口 UI 从 P1 移除；相关代码休眠，不改动。
+- **P1-AUTH-01 OTP/找回/密码修正（E2、E3）**：Goal E.164 校验、consent 来自 UI、重发用 E.164、pending 恢复与找回页面测试；Layer features/auth；Dep L10N-01、NET-01；Tests `P1-W-OTP`、`P1-W-REC`。
+- **P1-AUTH-02 401 与 Return Intent（E5）**：Goal 全局 401 处理（清快照→Return Intent→重登→GET 恢复）；Layer core/network、app/router；Dep NET-01；Tests `P1-S-401`。
+
+**Wave 2 — State**
+- **P1-STATE-01 DTO/Domain/Mapper**：Goal §8/§9；Layer features/customer_state/{data/dto,domain};Dep —；Acceptance 映射表全覆盖；Tests `P1-U-*`。
+- **P1-STATE-02 CustomerStateRepository**：Goal `GET /api/h5/state`，`Either<AppFailure, CustomerSnapshot>`；Dep STATE-01、NET-01；Tests `P1-R-STATE`（真实形状 fixtures F1–F12）。
+- **P1-STATE-03 共享 Notifier + 刷新 + 失效**：Goal 单事实源、租户标签、代次丢弃、§28 刷新规则、登出/401 清除；Dep STATE-02；Tests `P1-S-*`。
+
+**Wave 3 — Home / Loans**
+- **P1-HOME-01 决策引擎**：Goal 纯函数 `decide`；Layer features/home/domain；Dep STATE-01；Acceptance H1–H22 表驱动；Tests `P1-U-HOME`。
+- **P1-HOME-02 Home UI + 状态面板**：Goal §16、§11；Dep HOME-01、STATE-03、L10N-01；Tests `P1-W-HOME`。
+- **P1-LOANS-01 借款列表**：Goal §18；Dep STATE-03；Tests `P1-W-LOANS`。
+- **P1-LOANS-02 借款详情**：Goal §19–§21；Dep LOANS-01；Tests `P1-W-DETAIL`、`P1-U-REM/EVT`。
+
+**Wave 4 — Me / Nav**
+- **P1-ME-01 Me + 语言 + 登出**：Goal §22、§23、§26；Dep STATE-03、L10N-01；Tests `P1-W-ME`。
+- **P1-ME-02 修改密码**：Goal §24；Dep AUTH-01、L10N-01；Tests `P1-W-PWD`、`P1-R-PWD`。
+- **P1-NAV-01 Shell + 响应式 Router（E16）**：Goal §12；Dep HOME-02、LOANS-01、ME-01；Tests `P1-W-ROUTER/NAV`（断言 §12.3 路由响应性行为）。
+- **P1-NAV-02 失效联动（E17）**：Goal 切换/登出/401 统一清除；Dep STATE-03、NAV-01；Tests `P1-S-MEM`。
+
+**Wave 5 — 验证**
+- **P1-TEST-01 单元/仓储/状态**；**P1-TEST-02 Widget/Router**；**P1-TEST-03 Wire 与请求计数守卫**；**P1-TEST-04 架构守卫（§33）**。
+- **P1-A11Y-01**：Goal §30；Dep 全部 UI；Tests `P1-A11Y-*`。
+- **P1-RUNTIME-01**：Goal §31 R1+R2 证据包；Dep 全部。
+- **P1-REPORT-01**：Trae 提交实施报告，**唯一固定文件名 `docs/flutter-android/50-P1-implementation-report.md`**（Claude/Codex 不代写）：环境身份、E1–E18 逐项关闭证据、测试清单与输出、`analyze`/`test`/`build apk --debug`、运行证据、与 §37 逐条对照。
+
+**依赖顺序**：`AUDIT-01 → CLEAN-01 → (NET-01 ‖ L10N-01) → (ENTRY-05 ‖ AUTH-01/02 ‖ STATE-01) → STATE-02 → STATE-03 → (HOME-01/02 ‖ LOANS-01/02 ‖ ME-01/02) → NAV-01 → NAV-02 → TEST-* → A11Y-01 → RUNTIME-01 → REPORT-01`。
+
+### 35.3 假服务数据（`P1-R-STATE`/Runtime 使用）
+Fixtures 取自 `02` 的真实形状：F1 无 KYC（`kyc:null`、`loans:[]`）· F2 draft · F3 submitted · F4 needs_info · F5 rejected · F6 approved 无贷款 · F7 `kyc_approved`（三个 stage）· F8 `decision_pending` · F9 `signed` · F10 `active`（含 `paid>amount+fee` 变体）· F11 `closed`/`rejected` · F12 legacy 与 **未知状态值** · F13 含大量事件（>5、乱序、未知 action）· F14 含员工字段（须被忽略）。
+
+---
+
+## 36. Acceptance Journey
+
+1. 新装 → 启动 → 恢复公开会话 → 预检 → `/auth/login`（**全程无公司/机构界面**；已有有效会话 → `/home`）。
+2. （Delta 54：P1 无深链、无公司选择/扫码/粘贴/切换。）
+3. 验证码登录（假服务）→ 必要时强制设密码 → `GET /api/h5/state` → **真实 Home**（对 F1–F12 每个夹具显示对应 H 状态，CTA 与 enabled 正确）。
+4. 点「查看当前状态」→ 面板四段齐全，无路由变化。
+5. Loans 标签 → 列表（排序/字段正确）→ 点开 `/loans/:id` → 详情字段、剩余应还（含 clamp）、最近 5 条事件、无写入口。
+6. Me → 语言（受服务端开关）→ 立即生效 → 修改密码（成功后当前会话保持）→ 退出登录（成功后回认证；不再可见贷款数据）。
+7. 重启恢复；401 过期重新登录后回到安全位置；离线冷启动整页离线+重试；有快照离线显示快照+离线条。
+8. 全程请求计数：无禁用端点；无死路；无不可用的可点主按钮。
+
+## 37. Exit Criteria
+
+1. 所有 §12 路由已实现，**无占位主路由**。
+2. Auth/Session 可运行（含 Pending OTP、强制设密、找回、401 重登）。
+3. `GET /api/h5/state` 已集成（仓储+DTO+Domain+共享快照）。
+4. **真实 Home 由状态驱动**；H1–H22 表驱动测试全部通过。
+5. Loan List、Loan Detail 可用；未知状态安全；剩余应还 clamp 正确；最近 5 条事件正确。
+6. Future CTA 策略正确（禁用 + 说明 + 页内面板；无假导航/外链）。
+7. 3 标签导航正确；无 Messages。
+8. 登出/401 无数据泄露（内存快照清除、不展示上一会话数据）。
+9. 无 P1 禁止的 API 调用（守卫 + 请求计数）。
+10. Unit/Repository/State/Widget/Wire 测试全部通过；G0/Foundation 回归通过（当前 183 项不减少）。
+11. `flutter analyze` 0 issues；`flutter test` PASS；`flutter build apk --debug` PASS。
+12. Android 运行证据（R1+R2）PASS；§30 无障碍证据 PASS。
+13. E1–E18 全部关闭且有证据；无 P0/P1 实施缺陷。
+14. **Delta 54**：`P1-N-PUB-01/02/07`、`P1-S-PUB-03/04/08`、`P1-W-PUB-05/06`、`P1-R-PUB-09` 通过；普通启动路径无任何公司/机构界面或被禁文案；CF0 回归全部保持通过。
+15. Codex 独立复验 PASS。
+
+## 38. Known P2（不阻断 P1 Exit）
+
+- `FLAG_SECURE` / 最近任务截图策略（OQ-3）· release 签名与混淆、`targetSdk` 硬编码 34（P5）· App Link `pathPrefix` 与 `assetlinks.json`（CR-002）· 扫码"永久拒绝"启发式与打开系统设置 · 轮询参数调优 · 短编号视觉格式 · 高棉/中文文案语言学终审（P5）· 持久离线缓存（P5）· 服务端语言同步（OQ-2）· 依赖漂移与 Gradle/AGP 未来警告 · H5 死 UI 与响应字段泄露属后端/H5 清理（Android 已忽略）。
+
+## 39. Contract Open Questions
+
+> 不重开已冻结事项（OPD-1/OPD-2、导航、needs_info 边界、memory-only、P1/P4 边界、30 秒等待态刷新、本地语言、报告文件名）。
+
+| ID | 问题 | 状态 | 本合同默认 |
+|---|---|---|---|
+| OQ-3 | Android 最近任务截图 / `FLAG_SECURE` | **P2 NONBLOCKING** | P1 不强制；P2/Release 安全决策 |
+| OQ-5 | `reject` 事件是否单独文案（H5 为通用文案） | **P2 NONBLOCKING** | 与 H5 一致：通用「办理进度已更新」；不影响状态行为 |
+
+（Delta 54：OQ-E2/OQ-E3/OWN-1（`52`）作废；新增服务端依赖 **CR-003 公开客户工作区**——不阻塞 Android 开发/联调，阻塞公众上线，见 `54` §6。）
+
+（已关闭并移出：OQ-1 刷新策略 → §28 已冻结；OQ-2 语言同步 → §23.1 已冻结；OQ-4 报告文件名 → `50-P1-implementation-report.md` 已冻结。）
+
+## 40. Gate Recommendation
+
+```
+P0 OPEN: 0      P1 OPEN: 0（合同层）
+```
+1. **提交 Codex P1 合同最终快速复审**（据 46 的 1 个 P1 + 机械 P2 修订）（重点：§10 矩阵与 §11 面板内容、§12 路由与 Shell 行为、§28 刷新规则、§30 无障碍矩阵、E15–E18 新增工程输入）。
+2. 通过后：**Trae Engineering Gate**（可行性/可测试性/任务卡排期）。
+3. 三方批准后方可授权 Trae。**当前：Trae = HOLD。**
+4. 02 若需追加修订（如发现与实现不符），仍须先于实施单独走 API 评审。
+
+---
+
+## 附录　Contract Review Checklist（供 Codex 直接审核）
+
+| 检查项 | 位置 |
+|---|---|
+| Product scope / Exclusions | §2–§4 |
+| API scope（允许/禁止/无新后端） | §7 |
+| DTO → Domain 映射 | §8、§9 |
+| Home Matrix + 唯一 Primary CTA | §10 |
+| Future CTA + 状态面板四段 | §11 |
+| Navigation / Route Inventory / Shell 行为 | §12 |
+| Loan List / Detail / Events / Repayment | §18–§21 |
+| P1/P4 边界（P4 extends P1） | §19 |
+| Memory-only + 共享快照 + 刷新 | §28 |
+| 登出/401 失效（P0 隔离） | §25（N/A 公司切换）、§26 |
+| Security | §29 |
+| Accessibility | §30 |
+| Runtime | §31 |
+| Tests（含 H1–H22、Unknown、clamp、events、内存清除） | §32 |
+| 守卫（禁用 API/外链/硬编码文案） | §33 |
+| Gap Matrix + 35 缺陷分类 | §34 |
+| Task Cards + E1–E18 | §35 |
+| Exit Criteria | §37 |
+
+## 附录 B　据 46 的修订记录
+
+| 项 | Finding | Correction | Final status |
+|---|---|---|---|
+| 46-P1-1 | `Endpoints.getKyc` 在 §6.1「保留给 P2」与 §33「P1 内删除」冲突 | 统一：**`Endpoints.getKyc` = KEEP（定义保留）；P1 运行时使用 = FORBIDDEN**。§6.1、§33-1、P1-CLEAN-01、Gap Matrix 同步；新增测试 `P1-KYC-GUARD-01`（P1 全流程 `GET /api/kyc` 请求数 == 0，覆盖 none/draft/submitted/needs_info/approved/rejected，`needs_info` 只从 `GET /api/h5/state` 展示） | **CLOSED** |
+| 46-P2-1 | `refreshListenable` 不应成为长期机制契约 | §12.3 改为可观察的「路由响应性」行为（公司/认证/设密码/会话失效变化即时确定性响应），机制不限；E16、P1-NAV-01、Gap Matrix 同步 | **CLOSED** |
+| 46-P2-2 / OQ-1 | 30 秒策略应冻结而非提问 | §28 冻结：仅等待态·前台·可见·30 秒·无后台/高频轮询·手动刷新始终允许 | **CLOSED** |
+| 46-P2-3 / OQ-2 | 语言同步 | §23.1 冻结：P1 仅本地界面语言；无 `POST /api/h5/locale` | **CLOSED** |
+| 46-P2-5 / OQ-4 | 报告文件名固定 | `50-P1-implementation-report.md`（P1-REPORT-01） | **CLOSED** |
+| 46-P2-7 | 语言偏好生命周期缺断言 | 新增 §23.2 解析规则与 §23.3 断言：重启 / A→B / 登出 / 无公司 / 服务端可用性变化 / 选择页；测试 `P1-S-LOC-*` | **CLOSED** |
+| 46-P2-4 / OQ-3 | FLAG_SECURE | 保持 P2 NONBLOCKING | 保持 |
+| 46-P2-6 / OQ-5 | reject 事件文案 | 保持 P2 NONBLOCKING | 保持 |
+
+**自检**：全文不再存在「REMOVE `Endpoints.getKyc`」；OQ-1/2/4 已 CLOSED 且不在开放问题表；`refreshListenable` 不是强制内部实现；locale 重启/切换/登出断言已写入。状态仍为 **PROPOSED**。

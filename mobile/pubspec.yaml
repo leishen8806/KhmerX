@@ -1,0 +1,40 @@
+name: khmerx_app
+description: "KhmerX Android Client"
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.7.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  intl: any
+  equatable: ^2.0.7
+  dio: ^5.11.1
+  cookie_jar: ^4.0.9
+  dio_cookie_manager: ^3.5.0
+  flutter_riverpod: ^3.3.2
+  go_router: ^17.0.0
+  flutter_secure_storage: ^9.2.4
+  app_links: ^6.4.1
+  connectivity_plus: ^7.3.1
+  mobile_scanner: 7.4.2
+  image_picker: ^1.2.4
+  geolocator: ^14.0.1
+  geocoding: ^5.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  mocktail: ^1.0.5
+
+flutter:
+  uses-material-design: true
+  generate: true
+  assets:
+    - assets/kyc/options.json
+    - assets/brand/

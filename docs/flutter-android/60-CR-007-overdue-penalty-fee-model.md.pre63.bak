@@ -1,0 +1,99 @@
+# CR-007 · Overdue / Penalty / Fee Model（逾期、罚息与费用模型）
+
+```
+Status:     PROPOSED（契约草案；未评审；不授权实施）
+Date:       2026-10-09
+Owner:      Claude（契约起草）
+Phase:      P8（逾期部分）；亦为 P4 逾期展示与 P6 应还构成的前置
+Consumers:  Backend · Android(Flutter) · 贷后/催收后台 · 财务 · QA · Compliance/Legal
+Evidence:   HEAD d916b45，2026-10-09
+```
+
+**目标**：让逾期**完全由服务端权威**。Android 不计算、不发明任何逾期/罚息政策，只展示服务端字段。
+**纪律**：**不硬编码**柬埔寨具体费率或监管上限——所有数值为 `PRODUCT / LEGAL INPUT REQUIRED`（OD-7.x）。本文定义结构、状态、会计事实与规则机制。
+
+---
+
+## 1. Problem（现状事实）
+| # | FACT | 证据 |
+|---|---|---|
+| F1 | `dueAt = 放款时间 + termDays×86400000`；贷款状态在 `active` 期间**没有逾期状态** | `lib/domain.ts` disburse |
+| F2 | 日历按 UTC+7（Asia/Phnom_Penh）：`localDay()`、`dayGap()`；**到期当天不算逾期** | `lib/postloan/core.ts` |
+| F3 | 贷后任务：日差 `0` → `stage='due'`；`<0` → `stage='overdue'`，`overdueDays=-days`；仅用于催收任务，不改金额 | `lib/postloan/core.ts` |
+| F4 | `overdue` 动作（ops）：仅测试，`demoDays ∈ {0,3,4,16}`，只改 `demoDays` 与备注；`runPostloan` 不读它；不改 `dueAt` 或任何金额 | `lib/domain.ts` |
+| F5 | **不存在罚息/滞纳金字段或计算**；费用字段仅 `Loan.fee` 与 `Bill.{interest, service, upfront, deduction, net, total}`；应还 `outstanding = amount + fee − paid` | `lib/pricing.ts`；`lib/postloan/core.ts` |
+| F6 | 提醒：T-3…T-1 每贷款每到期日一条 | `lib/postloan/core.ts` |
+
+## 2. 决策：逾期建模为**独立的拖欠（delinquency）/ 账单状态，而不是贷款生命周期状态**
+选项：①新增 `Loan.status = overdue`；②账单状态；③独立拖欠状态。**选择 ③（独立 `LoanDelinquency` 记录，贷款保持 `active`）**，理由：
+1. `Loan.status` 驱动大量守卫（审批、放款、对账、KYC 版本检查）与 Android/H5 兼容；新增一级状态波及面大，且客户端旧版遇未知状态只能只读降级。
+2. 逾期是**可恢复的叠加属性**：还款后回到当期，并不改变"已放款、仍有未清余额"的本质状态。
+3. 与现有贷后任务（`due/overdue` stage）一致，可让催收与客户展示共用一个权威来源。
+4. 罚息是会计事实，应由**账本**承载，而不是状态字符串。
+5. 为不同政策（宽限期、封顶、免除）留出配置化空间。
+`overdue` 动作（测试 `demoDays`）在生产模式**停用**。
+
+## 3. 概念分层
+| 层 | 内容 |
+|---|---|
+| **业务政策（可配置、版本化）** | 宽限期、罚息模型与费率、封顶、费用类型、分摊顺序、舍入、豁免规则——`delinquency_policy`（按运营机构、带版本与生效时间） |
+| **会计事实（append-only）** | 罚息/费用的计提、豁免、调整、冲正——`loan_charge_ledger`；还款分摊由 CR-004 过账 |
+| **展示字段（只读，服务端给出）** | `daysOverdue`、`delinquencyState`、`penaltyCents`、`amountDueNowCents`… |
+
+## 4. 数据模型
+**LoanDelinquency（每笔贷款 1 条，服务端按日重算；可由事实重建）**
+`{ loanId, dueAt, graceDays, state, overdueSince?, daysOverdue, bucket, lastAccrualDate, policyVersion, updatedAt }`
+- `state ∈ { CURRENT, DUE_TODAY, IN_GRACE, OVERDUE }`；`bucket`（如 1–7、8–30…，用于催收分层，边界 OD-7.x）。
+**PolicyVersion（`delinquency_policy`）**
+`{ id, tenantId, version, effectiveFrom, graceDays, penaltyModel ∈ {NONE, FLAT_ONE_TIME, DAILY_FLAT, DAILY_RATE_BPS}, penaltyBasis ∈ {OUTSTANDING_PRINCIPAL, OUTSTANDING_TOTAL, ORIGINAL_PRINCIPAL}, rateBps?, flatCents?, maxPenaltyCents?, maxPenaltyBps?, allocationOrder, rounding ∈ {HALF_UP, FLOOR}, accrueOn ∈ {EVERY_DAY, BUSINESS_DAYS} }`——**数值由产品/法务提供，无默认值**；未配置 ⇒ `penaltyModel = NONE`（只有逾期状态，不计罚息）。
+**LoanChargeLedger（append-only，触发器保护）**
+`{ id, loanId, chargeType ∈ {PENALTY, LATE_FEE, WAIVER, ADJUSTMENT}, amountCents(带符号), accrualDate, policyVersion, reason?, actor('system'|staff), idempotencyKey UNIQUE(loanId, chargeType, accrualDate), createdAt }`
+
+## 5. 规则
+1. **到期与逾期边界**：沿用现状——到期当天（`dayGap = 0`）为 `DUE_TODAY`，**不算逾期**；`dayGap < 0` 且超过 `graceDays` 才进入 `OVERDUE`；`IN_GRACE` 为已过到期日但仍在宽限期内。时区固定 Asia/Phnom_Penh（UTC+7）。
+2. **计提**：每日定时任务（沿用 `POSTLOAN_JOB_SECRET` 保护的 cron）按生效政策为 `OVERDUE` 贷款计提罚息；**幂等**（`UNIQUE(loanId, chargeType, accrualDate)`）；可补算漏跑天数；舍入按政策。
+3. **封顶**：累计罚息不得超过 `maxPenaltyCents`/`maxPenaltyBps`（若配置）。
+4. **结算行为**：贷款 `closed` 当日停止计提；`outstanding = principal + fee + penalty/fees − paid`；**足额清偿（含罚息）才 `closed`**；部分还款按 `allocationOrder` 分摊（顺序由法务确定，OD-7.3）。
+5. **豁免/调整**：仅员工、需理由、**双人审批与 MFA**，写入负向 `WAIVER/ADJUSTMENT` 台账行；不得改写历史计提。
+6. **状态转移**：`CURRENT → DUE_TODAY → (IN_GRACE) → OVERDUE`；还款后可回到 `CURRENT`（若欠款清零于逾期前）或随余额清零 `closed`；**不自动核销/坏账**（Write-off 不在本 CR）。
+7. **与 CR-004 的接口**：过账时 `amountDueNowCents`（含罚息）为上限依据；`remainingCents` 取服务端值。
+
+## 6. API / Android Read Model
+`GET /api/h5/state` 每笔贷款新增可选对象（向后兼容，旧客户端忽略）：
+```
+repaymentBill: {
+  currency, principalCents, feeCents, penaltyCents, paidCents,
+  amountDueNowCents, remainingCents,
+  dueAt, graceDays, daysOverdue, delinquencyState ('CURRENT'|'DUE_TODAY'|'IN_GRACE'|'OVERDUE'),
+  penaltyPolicyVersion
+}
+```
+- Android **只展示**；`remainingCents` 取代客户端派生 `max(0, amount+fee−paid)`（旧派生为兼容回退）。
+- 逾期文案由 `delinquencyState` + `daysOverdue` 本地化组合，**不展示员工文本**。
+- 新字段随 P4 逾期展示启用；`Loan.status` 不新增值。
+
+## 7. 贷后任务统一
+`runPostloan` 改为读取 `LoanDelinquency`（同一日历/边界），消除与客户展示的双重计算；催收阶段（stage/bucket）由同一来源推导。
+
+## 8. 测试（契约）
+到期当天不逾期 · 宽限期边界 · 逾期天数（UTC+7 跨日）· 计提幂等（重复任务不重复入账）· 漏跑补算 · 封顶 · 部分还款后分摊与余额 · 结清当日停止计提 · 豁免双人审批 · `NONE` 政策只出状态不出罚息 · 旧客户端忽略新增字段 · 测试 `overdue` 动作在生产停用。
+
+## 9. 向后兼容与迁移
+新增表 `delinquency_policy`、`loan_charge_ledger`、`loan_delinquency`；`Loan.status` 不变；`demoDays` 保留于测试模式。迁移需先修复 standalone 迁移器触发器切分缺陷（审计 H-4）。
+
+## 10. 安全与合规前置
+真实罚息涉及消费者保护与监管上限（柬埔寨具体规则由法务确认）；在 OD-7.1/7.2 未定前，生产保持 `penaltyModel = NONE`。引用审计：员工资金/调整权限控制（N-02）、MFA（H-1）应先关闭。
+
+## 11. Open Decisions（产品/法务输入，**无假设值**）
+| ID | 决策 |
+|---|---|
+| OD-7.1 | 是否收取罚息/滞纳金；模型与费率；是否受监管上限 |
+| OD-7.2 | 宽限期天数；`bucket` 边界 |
+| OD-7.3 | 还款分摊顺序（罚息/费用/本金） |
+| OD-7.4 | 计提日历（含节假日）与舍入 |
+| OD-7.5 | 豁免/减免审批规则；是否存在核销/坏账流程（本 CR 不含） |
+
+## 12. Gate
+```
+CR-007: PROPOSED（待 Codex 独立 CR 评审）；Implementation: NOT AUTHORIZED；Trae = HOLD
+```

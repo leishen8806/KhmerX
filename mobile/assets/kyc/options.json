@@ -1,0 +1,1137 @@
+{
+  "source": "KYC规范权重.xlsx",
+  "version": "kyc-2026-09-21-v1",
+  "options": {
+    "education": [
+      {
+        "value": "None",
+        "label": "None / គ្មាន"
+      },
+      {
+        "value": "Primary",
+        "label": "Primary / បឋមសិក្សា"
+      },
+      {
+        "value": "Secondary",
+        "label": "Secondary / អនុវិទ្យាល័យ"
+      },
+      {
+        "value": "High School",
+        "label": "High School / វិទ្យាល័យ"
+      },
+      {
+        "value": "University",
+        "label": "University / មហាវិទ្យាល័យ"
+      },
+      {
+        "value": "Masters/PHD",
+        "label": "Masters/PHD / អនុបណ្ឌិតឬបណ្ឌិត"
+      }
+    ],
+    "position": [
+      {
+        "value": "Staff",
+        "label": "Staff / បុគ្គលិក"
+      },
+      {
+        "value": "Manager",
+        "label": "Manager / អ្នកគ្រប់គ្រង"
+      },
+      {
+        "value": "Boss",
+        "label": "Boss / ជាថៅកែ"
+      }
+    ],
+    "industry": [
+      {
+        "value": "Agriculture/Forestry/Fishery",
+        "label": "Agriculture/Forestry/Fishery / កសិកម្ម/រុក្ខាប្រម៉ាញ់/នេសាទ"
+      },
+      {
+        "value": "Civil Service",
+        "label": "Civil Service / មន្ត្រីរាជការស៊ីវិល"
+      },
+      {
+        "value": "Construction",
+        "label": "Construction / ស្ថាប័ត្យកម្ម/សំណង់"
+      },
+      {
+        "value": "Education",
+        "label": "Education / វិស័យអប់រំ"
+      },
+      {
+        "value": "Engineering/Machinery/Electronics",
+        "label": "Engineering/Machinery/Electronics / វិស្វកម្ម/គ្រឿងម៉ាស៊ីន/អេឡិចត្រូនិច"
+      },
+      {
+        "value": "Finance/Insurance/Accounting",
+        "label": "Finance/Insurance/Accounting / ហិរញ្ញវត្ថុ/ការធានារ៉ាប់រង/គណនេយ្យ"
+      },
+      {
+        "value": "Food/Beverages",
+        "label": "Food/Beverages / ម្ហូបអាហារ/ភេសជ្ជៈ"
+      },
+      {
+        "value": "Garment",
+        "label": "Garment / រោងចក្រសម្លៀកបំពាក់"
+      },
+      {
+        "value": "HR",
+        "label": "HR / ធនធានមនុស្ស"
+      },
+      {
+        "value": "Infrastructure",
+        "label": "Infrastructure / ហេដ្ឋារចនាសម្ព័ន្ធ"
+      },
+      {
+        "value": "IT",
+        "label": "IT / ព័ត៌មានវិទ្យា"
+      },
+      {
+        "value": "Logistics",
+        "label": "Logistics / ការដឹកជញ្ជូន"
+      },
+      {
+        "value": "Medical/Healthcare",
+        "label": "Medical/Healthcare / ថ្នាំពេទ្យ/ថែរក្សាសុខភាព"
+      },
+      {
+        "value": "NGO",
+        "label": "NGO / អង្គការក្រៅរដ្ឋាភិបាល"
+      },
+      {
+        "value": "Real Estate",
+        "label": "Real Estate / អចលនទ្រព្យ"
+      },
+      {
+        "value": "Retail",
+        "label": "Retail / អ្នកលក់ដូរ"
+      },
+      {
+        "value": "Telecommunication",
+        "label": "Telecommunication / ទូរគមនាគមន៍"
+      },
+      {
+        "value": "Tourism",
+        "label": "Tourism / ទេសចរណ៍"
+      },
+      {
+        "value": "Trading",
+        "label": "Trading / ពាណិជ្ជកម្ម"
+      },
+      {
+        "value": "Others",
+        "label": "Others / ផ្សេងៗ"
+      }
+    ],
+    "tenure": [
+      {
+        "value": "Less than 3 months",
+        "label": "Less than 3 months / តិចជាង៣ខែ"
+      },
+      {
+        "value": "4-12 months",
+        "label": "4-12 months / ៤ទៅ១២ខែ"
+      },
+      {
+        "value": "1-3 years",
+        "label": "1-3 years / ១ឆ្នាំទៅ៣ឆ្នាំ"
+      },
+      {
+        "value": "More than 3 years",
+        "label": "More than 3 years / លើស៣ឆ្នាំ"
+      }
+    ],
+    "workType": [
+      {
+        "value": "Freelancer",
+        "label": "Freelancer / អ្នកធ្វើការឯករាជ្យ"
+      },
+      {
+        "value": "Business Owner",
+        "label": "Business Owner / ម្ចាស់អាជីវកម្ម"
+      },
+      {
+        "value": "Employee",
+        "label": "Employee / បុគ្គលិកក្រុមហ៊ុន"
+      },
+      {
+        "value": "Other",
+        "label": "Other / ផ្សេងៗទៀត"
+      }
+    ],
+    "income": [
+      {
+        "value": "Less than 100 USD",
+        "label": "Less than 100 USD / តិចជាង ១០០ ដុល្លារ"
+      },
+      {
+        "value": "101-250 USD",
+        "label": "101-250 USD / ចន្លោះ ១០១ ដល់ ២៥០ ដុល្លារ"
+      },
+      {
+        "value": "251-350 USD",
+        "label": "251-350 USD / ចន្លោះ ២៥១ ដល់ ៣៥០ ដុល្លារ"
+      },
+      {
+        "value": "351-500 USD",
+        "label": "351-500 USD / ចន្លោះ ៣៥១ ដល់ ៥០០ ដុល្លារ"
+      },
+      {
+        "value": "501-700 USD",
+        "label": "501-700 USD / ចន្លោះ ៥០១ ដល់ ៧០០ ដុល្លារ"
+      },
+      {
+        "value": "701-1000 USD",
+        "label": "701-1000 USD / ចន្លោះ ៧០១ ដល់ ១,០០០ ដុល្លារ"
+      },
+      {
+        "value": "More than 1000 USD",
+        "label": "More than 1000 USD / លើសពី ១,០០០ ដុល្លារ"
+      }
+    ]
+  },
+  "regions": [
+    {
+      "value": "金边/Phnom Penh",
+      "districts": [
+        {
+          "value": "Chamkamorn",
+          "label": "桑园区 / Chamkamorn / ខណ្ឌចំការមន"
+        },
+        {
+          "value": "Daun Penh",
+          "label": "隆边区 / Daun Penh / ខណ្ឌដូនពេញ"
+        },
+        {
+          "value": "7 Makara",
+          "label": "马卡拉区 / 7 Makara / ខណ្ឌ៧មករា"
+        },
+        {
+          "value": "Toul Kork",
+          "label": "堆谷区 / Toul Kork / ខណ្ឌទួលគោក"
+        },
+        {
+          "value": "Sen Sok",
+          "label": "森速区 / Sen Sok / ខណ្ឌសែនសុខ"
+        },
+        {
+          "value": "Por Sen Chey",
+          "label": "波森芷区 / Por Sen Chey / ខណ្ឌពោធិ៍សែនជ័យ"
+        },
+        {
+          "value": "Mean Chey",
+          "label": "棉芷区 / Mean Chey / ខណ្ឌមានជ័យ"
+        },
+        {
+          "value": "Dongkor",
+          "label": "朗哥区 / Dongkor / ខណ្ឌដង្កោ"
+        },
+        {
+          "value": "Chbar Ampov",
+          "label": "铁桥头区 / Chbar Ampov / ខណ្ឌច្បារអំពៅ"
+        },
+        {
+          "value": "Chroy Changva",
+          "label": "水浄华区 / Chroy Changva / ខណ្ឌជ្រោយចង្វា"
+        },
+        {
+          "value": "Russey Keo",
+          "label": "雷西郊区 / Russey Keo / ខណ្ឌឬស្សីកែវ"
+        },
+        {
+          "value": "Prek Pnov",
+          "label": "仙市区 / Prek Pnov / ខណ្ឌព្រែកព្នៅ"
+        },
+        {
+          "value": "Kombol",
+          "label": "贡武区 / Kombol / ខណ្ឌកំបូល"
+        },
+        {
+          "value": "Beng Kengkong",
+          "label": "万景岗区 / Beng Kengkong / ខណ្ឌបឹងកេងកង"
+        }
+      ]
+    },
+    {
+      "value": "卜迭棉芷省/Banteay Mean Chey",
+      "districts": [
+        {
+          "value": "Mongkol Borei",
+          "label": "蒙哥博雷县 / Mongkol Borei / ស្រុកមង្គលបូរី"
+        },
+        {
+          "value": "Phuom Srok",
+          "label": "普农索县 / Phuom Srok / ស្រុកភ្នំស្រុក"
+        },
+        {
+          "value": "Preah Netr Preah",
+          "label": "波列内波列县 / Preah Netr Preah / ស្រុកព្រះនេត្រព្រះ"
+        },
+        {
+          "value": "Ou Chrov",
+          "label": "乌祖县 / Ou Chrov / ស្រុកអូរជ្រៅ"
+        },
+        {
+          "value": "Serei Sophorn City",
+          "label": "诗梳风市 / Serei Sophorn City / ក្រុងសិរីសោភ័ណ"
+        },
+        {
+          "value": "Thmor Pourk",
+          "label": "特莫波县 / Thmor Pourk / ស្រុកថ្មពួក"
+        },
+        {
+          "value": "Svay Chek",
+          "label": "斯外杰县 / Svay Chek / ស្រុកស្វាយចេក"
+        },
+        {
+          "value": "Malai",
+          "label": "玛莱县 / Malai / ស្រុកម៉ាឡៃ"
+        },
+        {
+          "value": "Poay Paet City",
+          "label": "波贝市 / Poay Paet City / ក្រុងប៉ោយប៉ែត"
+        }
+      ]
+    },
+    {
+      "value": "茶胶省/ Takev",
+      "districts": [
+        {
+          "value": "Angkor Borei",
+          "label": "吴哥波雷县 / Angkor Borei / ស្រុកអង្គរបូរី"
+        },
+        {
+          "value": "Bati",
+          "label": "巴迪县 / Bati / ស្រុកបាទី"
+        },
+        {
+          "value": "Bourei Cholsar",
+          "label": "伯雷楚萨县 / Bourei Cholsar / ស្រុកបូរីជលសារ"
+        },
+        {
+          "value": "Kiri Vong",
+          "label": "基里翁县 / Kiri Vong / ស្រុកគីរីវង់"
+        },
+        {
+          "value": "Koh Andet",
+          "label": "高安迭县 / Koh Andet / ស្រុកកោះអណ្ដែត"
+        },
+        {
+          "value": "Prey Kabbas",
+          "label": "波雷加巴县 / Prey Kabbas / ស្រុកព្រៃកប្បាស"
+        },
+        {
+          "value": "Samrong",
+          "label": "三隆县 / Samrong / ស្រុកសំរោង"
+        },
+        {
+          "value": "Doun Kaev City",
+          "label": "茶胶市 / Doun Kaev City / ក្រុងដូនកែវ"
+        },
+        {
+          "value": "Tram Kak",
+          "label": "德兰加县 / Tram Kak / ស្រុកត្រាំកក់"
+        },
+        {
+          "value": "Traing",
+          "label": "德楞县 / Traing / ស្រុកទ្រាំង"
+        }
+      ]
+    },
+    {
+      "value": "马德望省/Battambang",
+      "districts": [
+        {
+          "value": "Banan",
+          "label": "巴南县 / Banan / ស្រុកបាណន់"
+        },
+        {
+          "value": "Thma Koul",
+          "label": "特莫戈县 / Thma Koul / ស្រុកថ្មគោល"
+        },
+        {
+          "value": "Battambang City",
+          "label": "马德望市 / Battambang City / ក្រុងបាត់ដំបង"
+        },
+        {
+          "value": "Bavel",
+          "label": "巴韦县 / Bavel / ស្រុកបវេល"
+        },
+        {
+          "value": "Aek Phnum",
+          "label": "埃普县 / Aek Phnum / ស្រុកឯកភ្នំ"
+        },
+        {
+          "value": "Mong Reussey",
+          "label": "蒙勒塞县 / Mong Reussey / ស្រុកមោងឫស្សី"
+        },
+        {
+          "value": "Rotanak Mondol",
+          "label": "拉达纳蒙多县 / Rotanak Mondol / ស្រុករតនមណ្ឌល"
+        },
+        {
+          "value": "Sangkae",
+          "label": "桑岐县 / Sangkae / ស្រុកសង្កែ"
+        },
+        {
+          "value": "Samlout",
+          "label": "三洛县 / Samlout / ស្រុកសំឡូត"
+        },
+        {
+          "value": "Sampov Lun",
+          "label": "三坡龙县 / Sampov Lun / ស្រុកសំពៅលូន"
+        },
+        {
+          "value": "Phnum Proek",
+          "label": "普农布雷县 / Phnum Proek / ស្រុកភ្នំព្រឹក"
+        },
+        {
+          "value": "Kamrieng",
+          "label": "贡良县 / Kamrieng / ស្រុកកំរៀង"
+        },
+        {
+          "value": "Koas Krala",
+          "label": "戈格罗县 / Koas Krala / ស្រុកគាស់ក្រឡ"
+        },
+        {
+          "value": "Rukakiri",
+          "label": "鲁奇里县 / Rukakiri / ស្រុករុក្ខគិរី"
+        }
+      ]
+    },
+    {
+      "value": "磅湛省/Kampong Cham",
+      "districts": [
+        {
+          "value": "Batheay",
+          "label": "巴泰县 / Batheay / ស្រុកបាធាយ"
+        },
+        {
+          "value": "Chamkar Leu",
+          "label": "占卡勒县 / Chamkar Leu / ស្រុកចំការលើ"
+        },
+        {
+          "value": "Cheung Prey",
+          "label": "曾波雷县 / Cheung Prey / ស្រុកជើងព្រៃ"
+        },
+        {
+          "value": "Kampong Cham City",
+          "label": "磅湛市 / Kampong Cham City / ក្រុងកំពង់ចាម"
+        },
+        {
+          "value": "Kampong Siem",
+          "label": "磅暹县 / Kampong Siem / ស្រុកកំពង់សៀម"
+        },
+        {
+          "value": "Kang Meas",
+          "label": "贡密县 / Kang Meas / ស្រុកកងមាស"
+        },
+        {
+          "value": "Koh Soutin",
+          "label": "哥梳丁县 / Koh Soutin / ស្រុកកោះសូទិន"
+        },
+        {
+          "value": "Prey Chhor",
+          "label": "波雷乔县 / Prey Chhor / ស្រុកព្រៃឈរ"
+        },
+        {
+          "value": "Srey Santhor",
+          "label": "斯雷桑托县 / Srey Santhor / ស្រុកស្រីសន្ធរ"
+        },
+        {
+          "value": "Steung Trang",
+          "label": "斯登德朗县 / Steung Trang / ស្រុកស្ទឹងត្រង់"
+        }
+      ]
+    },
+    {
+      "value": "磅清扬省/Kampong Chhnang",
+      "districts": [
+        {
+          "value": "Boribo",
+          "label": "巴里宝县 / Boribo / ស្រុកបរិបូណ៌"
+        },
+        {
+          "value": "Chol Kiri",
+          "label": "乔基里县 / Chol Kiri / ស្រុកជលគិរី"
+        },
+        {
+          "value": "Kampong Chhnang City",
+          "label": "磅清扬市 / Kampong Chhnang City / ក្រុងកំពង់ឆ្នាំង"
+        },
+        {
+          "value": "Kampong Laeng",
+          "label": "磅良县 / Kampong Laeng / ស្រុកកំពង់លែង"
+        },
+        {
+          "value": "Kampong Tralach",
+          "label": "磅德拉拉县 / Kampong Tralach / ស្រុកកំពង់ត្រឡាច"
+        },
+        {
+          "value": "Rolea Bier",
+          "label": "罗列别县 / Rolea Bier / ស្រុករលាប្អៀរ"
+        },
+        {
+          "value": "Sameakki Mean Chey",
+          "label": "萨密基缅杰县 / Sameakki Mean Chey / ស្រុកសាមគ្គីមានជ័យ"
+        },
+        {
+          "value": "Toek Phos",
+          "label": "杜坡县 / Toek Phos / ស្រុកទឹកផុស"
+        }
+      ]
+    },
+    {
+      "value": "实居省/Kampong Speu Province",
+      "districts": [
+        {
+          "value": "Basedth",
+          "label": "巴塞县 / Basedth / ស្រុកបរសេដ្ឋ"
+        },
+        {
+          "value": "Chbar Mon City",
+          "label": "《实居》芝巴蒙市 / Chbar Mon City / ក្រុងច្បារមន"
+        },
+        {
+          "value": "Kong Pisei",
+          "label": "贡比塞县 / Kong Pisei / ស្រុកគងពិសី"
+        },
+        {
+          "value": "Aoral",
+          "label": "奥拉县 / Aoral / ស្រុកឱរ៉ាល់"
+        },
+        {
+          "value": "Oudong",
+          "label": "乌栋县 / Oudong / ស្រុកឧដុង្គ"
+        },
+        {
+          "value": "Phnom Sruoch",
+          "label": "普农斯罗县 / Phnom Sruoch / ស្រុកភ្នំស្រួច"
+        },
+        {
+          "value": "Samraong Tong",
+          "label": "三隆东县 / Samraong Tong / ស្រុកសំរោងទង"
+        },
+        {
+          "value": "Thpong",
+          "label": "特邦县 / Thpong / ស្រុកថ្ពង"
+        }
+      ]
+    },
+    {
+      "value": "磅通省/Kampong Thom Province",
+      "districts": [
+        {
+          "value": "Baray",
+          "label": "巴莱县 / Baray / ស្រុកបារាយណ៍"
+        },
+        {
+          "value": "Kampong Svay",
+          "label": "磅斯外县 / Kampong Svay / ស្រុកកំពង់ស្វាយ"
+        },
+        {
+          "value": "Stung Sen City",
+          "label": "东森市 / Stung Sen City / ក្រុងស្ទឹងសែន"
+        },
+        {
+          "value": "Prasat Balang",
+          "label": "波拉萨巴朗县 / Prasat Balang / ស្រុកប្រាសាទបល្ល័ង្ក"
+        },
+        {
+          "value": "Prasat Sambo",
+          "label": "波拉萨松博县 / Prasat Sambo / ស្រុកប្រាសាទសំបូរ"
+        },
+        {
+          "value": "Sandan",
+          "label": "三丹县 / Sandan / ស្រុកសណ្ដាន់"
+        },
+        {
+          "value": "Santuk",
+          "label": "三杜县 / Santuk / ស្រុកសន្ទុក"
+        },
+        {
+          "value": "Stoung",
+          "label": "斯东县 / Stoung / ស្រុកស្ទោង"
+        },
+        {
+          "value": "Taing Kork",
+          "label": "大谷县 / Taing Kork / ស្រុកតាំងគោក"
+        }
+      ]
+    },
+    {
+      "value": "贡布省/Kampot Province",
+      "districts": [
+        {
+          "value": "Angkor Chey",
+          "label": "安哥则县 / Angkor Chey / ស្រុកអង្គរជ័យ"
+        },
+        {
+          "value": "Banteay Meas",
+          "label": "班迭密县 / Banteay Meas / ស្រុកបន្ទាយមាស"
+        },
+        {
+          "value": "Chhouk",
+          "label": "楚克县 / Chhouk / ស្រុកឈូក"
+        },
+        {
+          "value": "Chum Kiri",
+          "label": "春吉里县 / Chum Kiri / ស្រុកជុំគិរី"
+        },
+        {
+          "value": "Dang Tong",
+          "label": "当东县 / Dang Tong / ស្រុកដងទង់"
+        },
+        {
+          "value": "Kampong Trach",
+          "label": "磅德拉县 / Kampong Trach / ស្រុកកំពង់ត្រាច"
+        },
+        {
+          "value": "Tuek Chhou",
+          "label": "德楚县 / Tuek Chhou / ស្រុក​ទឹក​ឈូ"
+        },
+        {
+          "value": "Kampot City",
+          "label": "贡布市 / Kampot City / ក្រុង​កំពត"
+        },
+        {
+          "value": "Bokor City",
+          "label": "卜哥市 / Bokor City / ក្រុងបូកគោ"
+        }
+      ]
+    },
+    {
+      "value": "干丹省/Kandal Province",
+      "districts": [
+        {
+          "value": "Kandal Stueng",
+          "label": "干丹斯登县 / Kandal Stueng / ស្រុកកណ្ដាលស្ទឹង"
+        },
+        {
+          "value": "Kien Svay",
+          "label": "根斯威县 / Kien Svay / ស្រុកកៀនស្វាយ"
+        },
+        {
+          "value": "Khsach Kandal",
+          "label": "克萨干丹县 / Khsach Kandal / ស្រុកខ្សាច់កណ្ដាល"
+        },
+        {
+          "value": "Koh Thum",
+          "label": "戈通县 / Koh Thum / ស្រុកកោះធំ"
+        },
+        {
+          "value": "Leuk Daek",
+          "label": "勒迭县 / Leuk Daek / ស្រុកលើកដែក"
+        },
+        {
+          "value": "Lvea Em",
+          "label": "洛维恩县 / Lvea Em / ស្រុកល្វាឯម"
+        },
+        {
+          "value": "Muk Kampul",
+          "label": "穆甘布县 / Muk Kampul / ស្រុកមុខកំពូល"
+        },
+        {
+          "value": "Ang Snoul",
+          "label": "昂斯诺县 / Ang Snoul / ស្រុកអង្គស្នួល"
+        },
+        {
+          "value": "Ponhea Lueu",
+          "label": "博涅勒县 / Ponhea Lueu / ស្រុកពញាឮ"
+        },
+        {
+          "value": "S'ang",
+          "label": "斯安县 / S'ang / ស្រុកស្អាង"
+        },
+        {
+          "value": "Ta Khmau City",
+          "label": "达克茂市/大金欧 / Ta Khmau City / ក្រុងតាខ្មៅ"
+        }
+      ]
+    },
+    {
+      "value": "白马省/Kep Province",
+      "districts": [
+        {
+          "value": "Damnak Chang'aeur",
+          "label": "丹那章厄县 / Damnak Chang'aeur / ស្រុកដំណាក់ចង្អើរ"
+        },
+        {
+          "value": "Kep City",
+          "label": "白马市 / Kep City / ក្រុងកែប"
+        }
+      ]
+    },
+    {
+      "value": "戈公省/Koh Kong Province",
+      "districts": [
+        {
+          "value": "Botum Sakor",
+          "label": "博东萨戈县 / Botum Sakor / ស្រុកបទុមសាគរ"
+        },
+        {
+          "value": "Kiri Sakor",
+          "label": "基里萨戈县 / Kiri Sakor / ស្រុកគិរីសាគរ"
+        },
+        {
+          "value": "Koh Kong",
+          "label": "戈公县 / Koh Kong / ស្រុកកោះកុង"
+        },
+        {
+          "value": "Khemarak Phoumin City",
+          "label": "凯马拉波明市 / Khemarak Phoumin City / ក្រុងខេមរភូមិន្ទ"
+        },
+        {
+          "value": "Mondol Seima",
+          "label": "蒙多塞马县 / Mondol Seima / ស្រុកមណ្ឌលសីមា"
+        },
+        {
+          "value": "Srae Ambel",
+          "label": "斯雷昂贝县 / Srae Ambel / ស្រុកស្រែអំបិល"
+        },
+        {
+          "value": "Thma Bang",
+          "label": "特莫邦县 / Thma Bang / ស្រុកថ្មបាំង"
+        }
+      ]
+    },
+    {
+      "value": "桔井省/Kratié Province",
+      "districts": [
+        {
+          "value": "Chhloung",
+          "label": "川龙县 / Chhloung / ស្រុកឆ្លូង"
+        },
+        {
+          "value": "Kratié city",
+          "label": "桔井市 / Kratié city / ក្រុងក្រចេះ"
+        },
+        {
+          "value": "Prek Prasab",
+          "label": "布雷波拉萨县 / Prek Prasab / ស្រុកព្រែកប្រសព្វ"
+        },
+        {
+          "value": "Sambour",
+          "label": "三博县 / Sambour / ស្រុកសំបូរ"
+        },
+        {
+          "value": "Snoul",
+          "label": "斯努县 / Snoul / ស្រុកស្នួល"
+        },
+        {
+          "value": "Chet Borey",
+          "label": "切波雷县 / Chet Borey / ចិត្របុរី"
+        }
+      ]
+    },
+    {
+      "value": "蒙多基里省/Mondulkiri Province",
+      "districts": [
+        {
+          "value": "Kaev Seima",
+          "label": "格塞马县 / Kaev Seima / ស្រុកកែវសីមា"
+        },
+        {
+          "value": "Kaoh Nheaek",
+          "label": "戈涅县 / Kaoh Nheaek / ស្រុកកោះញែក"
+        },
+        {
+          "value": "Ou Reang",
+          "label": "奥良县 / Ou Reang / ស្រុកអូររាំង"
+        },
+        {
+          "value": "Pechr Chenda",
+          "label": "贝真达县 / Pechr Chenda / ស្រុកពេជ្រាដា"
+        },
+        {
+          "value": "Senmonorom City",
+          "label": "森莫诺隆市 / Senmonorom City / ក្រុងសែនមនោរម្យ"
+        }
+      ]
+    },
+    {
+      "value": "奥多棉吉省/Oddar Meanchey Province",
+      "districts": [
+        {
+          "value": "Anlong Veng",
+          "label": "安隆汶县 / Anlong Veng / ស្រុកអន្លង់វែង"
+        },
+        {
+          "value": "Banteay Ampil",
+          "label": "班迭安比县 / Banteay Ampil / ស្រុកបន្ទាយអំពិល"
+        },
+        {
+          "value": "Chong Kal",
+          "label": "仲加县 / Chong Kal / ស្រុកចុងកាល់"
+        },
+        {
+          "value": "Samraong City",
+          "label": "三隆市 / Samraong City / ក្រុងសំរោង"
+        },
+        {
+          "value": "Trapeang Prasat",
+          "label": "德罗边波拉萨县 / Trapeang Prasat / ស្រុកត្រពាំងប្រាសាទ"
+        }
+      ]
+    },
+    {
+      "value": "拜林省/Pailin Province",
+      "districts": [
+        {
+          "value": "Pailin City",
+          "label": "拜林市 / Pailin City / ក្រុងប៉ៃលិន"
+        },
+        {
+          "value": "Sala Krau",
+          "label": "萨拉格劳县 / Sala Krau / ស្រុកសាលាក្រៅ"
+        }
+      ]
+    },
+    {
+      "value": "西哈努克省/Sihanoukville Province",
+      "districts": [
+        {
+          "value": "Sihanoukville City",
+          "label": "西哈努克市 / Sihanoukville City / ក្រុងព្រះសីហនុ"
+        },
+        {
+          "value": "Prey Nob",
+          "label": "波雷诺县 / Prey Nob / ព្រៃនប់"
+        },
+        {
+          "value": "Stueng Hav",
+          "label": "斯登哈县 / Stueng Hav / ស្ទឹងហាវ"
+        },
+        {
+          "value": "Kampong Seila",
+          "label": "磅塞拉县 / Kampong Seila / កំពង់សីលា"
+        },
+        {
+          "value": "Koh Rong City",
+          "label": "高龙市 / Koh Rong City / ក្រុងកោះរុង"
+        }
+      ]
+    },
+    {
+      "value": "柏威夏省/Preah Vihear Province",
+      "districts": [
+        {
+          "value": "Chey Sen",
+          "label": "则森县 / Chey Sen / ស្រុកជ័យសែន"
+        },
+        {
+          "value": "Chep",
+          "label": "切布县 / Chep / ស្រុកឆែប"
+        },
+        {
+          "value": "Choam Khsant",
+          "label": "君克汕县 / Choam Khsant / ស្រុកជាំក្សន្ត"
+        },
+        {
+          "value": "Kuleaen",
+          "label": "古伦县 / Kuleaen / ស្រុកគូលែន​"
+        },
+        {
+          "value": "Rovieng",
+          "label": "罗文县 / Rovieng / ស្រុករវៀង​"
+        },
+        {
+          "value": "Sangkom Thmei",
+          "label": "桑贡特梅县 / Sangkom Thmei / ស្រុកសង្គមថ្មី"
+        },
+        {
+          "value": "Tbaeng Meanchey",
+          "label": "特崩棉则县 / Tbaeng Meanchey / ស្រុកត្បែងមានជ័យ"
+        },
+        {
+          "value": "Preah Vihear City",
+          "label": "柏威夏市 / Preah Vihear City / ក្រុងព្រះវិហារ"
+        }
+      ]
+    },
+    {
+      "value": "菩萨省/Pursat Province់",
+      "districts": [
+        {
+          "value": "Bakan",
+          "label": "巴甘县 / Bakan / ស្រុកបាកាន"
+        },
+        {
+          "value": "Kandieng",
+          "label": "甘殿县 / Kandieng / ស្រុកកណ្តៀង"
+        },
+        {
+          "value": "Krakor",
+          "label": "格罗戈县 / Krakor / ស្រុកក្រគរ"
+        },
+        {
+          "value": "Phnum Kravanh",
+          "label": "豆蔻山县 / Phnum Kravanh / ស្រុកភ្នំក្រវាញ"
+        },
+        {
+          "value": "Pursat City",
+          "label": "菩萨市 / Pursat City / ក្រុងពោធិ៍សាត់"
+        },
+        {
+          "value": "Veal Veang",
+          "label": "韦文县 / Veal Veang / ស្រុកវាលវែង"
+        },
+        {
+          "value": "Tala Sen Chey",
+          "label": "塔拉森柴 / Tala Sen Chey / តាលាសែនជ័យ"
+        }
+      ]
+    },
+    {
+      "value": "波萝勉省/Prey Veng Province/ខេត្តព្រៃវែង",
+      "districts": [
+        {
+          "value": "Ba Phnum",
+          "label": "巴布农县 / Ba Phnum / ស្រុកបាភ្នំ"
+        },
+        {
+          "value": "Kamchay Mear",
+          "label": "贡斋密县 / Kamchay Mear / ស្រុកកំចាយមារ"
+        },
+        {
+          "value": "Kampong Trabaek",
+          "label": "磅德罗贝县 / Kampong Trabaek / ស្រុកកំពង់ត្របែក"
+        },
+        {
+          "value": "Kanhchriech",
+          "label": "甘芝列县 / Kanhchriech / ស្រុកកញ្ជ្រៀច"
+        },
+        {
+          "value": "Mesang",
+          "label": "梅桑县 / Mesang / ស្រុកមេសាង"
+        },
+        {
+          "value": "Peam Chor",
+          "label": "边佐县 / Peam Chor / ស្រុកពាមជរ​"
+        },
+        {
+          "value": "Peam Ro",
+          "label": "边罗县 / Peam Ro / ​ស្រុកពាមរ​ក៏"
+        },
+        {
+          "value": "Pea Reang",
+          "label": "别良县 / Pea Reang / ស្រុកពារាំង"
+        },
+        {
+          "value": "Preah Sdach",
+          "label": "布雷桑代县 / Preah Sdach / ស្រុកព្រះស្ដេច"
+        },
+        {
+          "value": "Prey Veng City",
+          "label": "波萝勉市 / Prey Veng City / ក្រុងព្រៃវែង"
+        },
+        {
+          "value": "Pur Rieng",
+          "label": "磅列县 / Pur Rieng / ពោធិរៀង"
+        },
+        {
+          "value": "Sithor Kandal",
+          "label": "西托干丹县 / Sithor Kandal / ស្រុកស៊ីធរកណ្ដាល"
+        },
+        {
+          "value": "Svay Antor",
+          "label": "斯外安多县 / Svay Antor / ស្រុកស្វាយអន្ទរ"
+        }
+      ]
+    },
+    {
+      "value": "腊塔纳基里省/Ratanakiri Province",
+      "districts": [
+        {
+          "value": "Andoung Meas",
+          "label": "安东密县 / Andoung Meas / ស្រុកអណ្តូងមាស"
+        },
+        {
+          "value": "Banlung City",
+          "label": "邦隆市 / Banlung City / ក្រុង​បានលុង"
+        },
+        {
+          "value": "Bor Keo",
+          "label": "博胶县 / Bor Keo / ស្រុកបរកែវ"
+        },
+        {
+          "value": "Koun Mom",
+          "label": "贡蒙县 / Koun Mom / ស្រុកកូនមុំ"
+        },
+        {
+          "value": "Lumphat",
+          "label": "隆发县 / Lumphat / ស្រុកលំផាត់"
+        },
+        {
+          "value": "Ou Chum",
+          "label": "乌准县 / Ou Chum / ស្រុកអូរជុំ"
+        },
+        {
+          "value": "Ou Ya Dav",
+          "label": "奥雅达县 / Ou Ya Dav / ស្រុកអូរយ៉ាដាវ"
+        },
+        {
+          "value": "Ta Veaeng",
+          "label": "达翁县 / Ta Veaeng / ស្រុកតាវែង"
+        },
+        {
+          "value": "Veun Sai",
+          "label": "云晒县 / Veun Sai / ស្រុកវើនសៃ"
+        }
+      ]
+    },
+    {
+      "value": "暹粒省/Siem Reap Province",
+      "districts": [
+        {
+          "value": "Angkor Chum",
+          "label": "吴哥准县 / Angkor Chum / ស្រុកអង្គរជុំ"
+        },
+        {
+          "value": "Angkor Thom",
+          "label": "大吴哥县 / Angkor Thom / ស្រុកអង្គរធំ"
+        },
+        {
+          "value": "Banteay Srei",
+          "label": "班迭斯雷县 / Banteay Srei / ស្រុកបន្ទាយស្រី"
+        },
+        {
+          "value": "Chi Kraeng",
+          "label": "芝格楞县 / Chi Kraeng / ស្រុកជីក្រែង"
+        },
+        {
+          "value": "Kralanh",
+          "label": "格罗兰县 / Kralanh / ស្រុកក្រឡាញ់"
+        },
+        {
+          "value": "Puok",
+          "label": "博县 / Puok / ស្រុកពួក"
+        },
+        {
+          "value": "Prasat Bakong",
+          "label": "波拉萨巴贡县 / Prasat Bakong / ស្រុកប្រាសាទបាគង"
+        },
+        {
+          "value": "Siem Reap City",
+          "label": "暹粒市 / Siem Reap City / ក្រុងសៀមរាប"
+        },
+        {
+          "value": "Sout Nikom",
+          "label": "索尼贡县 / Sout Nikom / ស្រុកសូទ្រនិគម"
+        },
+        {
+          "value": "Srey Snom",
+          "label": "斯雷斯南县 / Srey Snom / ស្រុកស្រីស្នំ"
+        },
+        {
+          "value": "Svay Leu",
+          "label": "斯外柳县 / Svay Leu / ស្រុកស្វាយលើ"
+        },
+        {
+          "value": "Varin",
+          "label": "瓦林县 / Varin / ស្រុកវ៉ារិន"
+        }
+      ]
+    },
+    {
+      "value": "上丁省/Stung Treng Province",
+      "districts": [
+        {
+          "value": "Sesan",
+          "label": "塞桑县 / Sesan / ស្រុកសេសាន"
+        },
+        {
+          "value": "Siem Bouk",
+          "label": "暹博县 / Siem Bouk / ស្រុកសៀមបូក"
+        },
+        {
+          "value": "Siem Pang",
+          "label": "暹邦县 / Siem Pang / ស្រុកសៀមប៉ាង"
+        },
+        {
+          "value": "Stung Treng City",
+          "label": "上丁市 / Stung Treng City / ក្រុងស្ទឹងត្រែង"
+        },
+        {
+          "value": "Thala Barivat",
+          "label": "塔拉博里瓦县 / Thala Barivat / ស្រុកថាឡាបរិវ៉ាត់"
+        },
+        {
+          "value": "Borey Ou Svay Sen Chey",
+          "label": "波雷奥塞森则 / Borey Ou Svay Sen Chey / ស្រុកបុរីអូរស្វាយសែនជ័យ"
+        }
+      ]
+    },
+    {
+      "value": "柴桢省/Svay Rieng Province",
+      "districts": [
+        {
+          "value": "Chanthrea",
+          "label": "占德列县 / Chanthrea / ស្រុកចន្រ្ទា"
+        },
+        {
+          "value": "Kampong Rou",
+          "label": "磅罗县 / Kampong Rou / ស្រុកកំពង់រោទិ៍"
+        },
+        {
+          "value": "Romdoul",
+          "label": "伦多县 / Romdoul / ស្រុករំដួល"
+        },
+        {
+          "value": "Romeas Haek",
+          "label": "罗密赫县 / Romeas Haek / ស្រុករមាសហែក"
+        },
+        {
+          "value": "Svay Chrom",
+          "label": "斯外芝伦县 / Svay Chrom / ស្រុកស្វាយជ្រំ"
+        },
+        {
+          "value": "Svay Rieng City",
+          "label": "柴桢市 / Svay Rieng City / ក្រុងស្វាយរៀង"
+        },
+        {
+          "value": "Svay Teap",
+          "label": "斯外迭县 / Svay Teap / ស្រុកស្វាយទាប"
+        },
+        {
+          "value": "Bavet City",
+          "label": "巴韦市 / Bavet City / ក្រុងបាវិត"
+        }
+      ]
+    },
+    {
+      "value": "特本克蒙省/Tbong Khmum Province",
+      "districts": [
+        {
+          "value": "Dambae",
+          "label": "丹贝县 / Dambae / ស្រុកដំបែ"
+        },
+        {
+          "value": "Krouch Chhmar",
+          "label": "格罗奇马县 / Krouch Chhmar / ស្រុកក្រូចឆ្មារ"
+        },
+        {
+          "value": "Memot",
+          "label": "棉末县 / Memot / ស្រុកមេមត់"
+        },
+        {
+          "value": "Ou Reang Ov",
+          "label": "乌良奥县 / Ou Reang Ov / ស្រុកអូររាំងឪ"
+        },
+        {
+          "value": "Ponhea Kraek",
+          "label": "博涅克列县 / Ponhea Kraek / ស្រុកពញាក្រែក"
+        },
+        {
+          "value": "Tboung Khmum",
+          "label": "特本克蒙县 / Tboung Khmum / ស្រុកត្បូងឃ្មុំ"
+        },
+        {
+          "value": "Suong City",
+          "label": "苏翁市 / Suong City / ក្រុងសួង"
+        }
+      ]
+    }
+  ]
+}

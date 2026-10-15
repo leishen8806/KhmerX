@@ -1,0 +1,287 @@
+# CR-012 · API Error Registry（稳定错误注册表；含 `/api/h5/state`）
+
+```
+Status:     PROPOSED — READY FOR CODEX RE-REVIEW（v2，据 62 修订；未自批；不授权实施）
+Version:    v2 · 2026-10-09（v1 备份：61-CR-012-state-error-registry.md.pre63.bak）
+Owner:      Claude（契约起草）
+Phase:      P3 前强烈建议；亦为 CR-004/005/006/007 的错误基础（CR-012 先行）
+Consumers:  Backend · Android(Flutter) · Web 客户端 · QA
+Evidence:   HEAD d916b45，2026-10-09；既有文档 docs/api-error-codes.md
+Closed:     OD-12.2（追踪 ID 归属）= CLOSED（§2.2）
+```
+
+**目标**：用显式、稳定、机器可读的错误语义取代不透明的 `REQUEST_FAILED`；Android 按 `code` 分支，不按本地化后端文案。
+
+---
+
+## 1. Problem（现状事实）
+| # | FACT | 证据 |
+|---|---|---|
+| F1 | `POST /api/h5/state`：内层 `try` 捕获 `mutate` 错误；`KycError` → `{error, code}` + 自身状态；**其它任何错误一律折叠**为固定 400 `{error:'操作未完成，请确认申请归属、当前状态与填写内容后重试'}`，`addErrorCode` 按文案子串推断为 `REQUEST_FAILED` | `app/api/h5/state/route.ts`；`lib/error-codes.ts` |
+| F2 | 被折叠的领域 `Error`：'申请状态已变化，请刷新后重试'、'还款金额须大于零且不超过剩余应还'、'请求编号无效'、'请求编号已绑定其他操作'、'请核对并确认当前费用账单'、金额/姓名/同意校验、CAS 耗尽 | `lib/domain.ts`；`lib/store.ts` |
+| F3 | `codeForError` 依 HTTP 状态与中文子串推断；`ApiErrorCode=string`，**不是稳定枚举** | `lib/error-codes.ts` |
+| F4 | 已有显式码：`STAFF_DUAL_CONTROL_REQUIRED`、`MFA_STEP_UP_REQUIRED`、`IDEMPOTENCY_PAYLOAD_MISMATCH`、`TELEGRAM_INITDATA_REPLAY`、`PAYMENT_RECEIPT_UNVERIFIED`、`PASSWORD_ADMIN_*`、`KYC_SCAN_REQUIRED`、`INVITE_*`、`FUNDING_DUAL_CONTROL_REQUIRED`、`CUSTOMER_SETTLEMENT_FORBIDDEN`、`CROSS_SITE_REQUEST`、`BROWSER_TOKEN_RATE_LIMITED`、`AUTH_DEMO_FORBIDDEN`、`FUNDING_LIMIT_EXCEEDED`；机构回调码 `CALLBACK_*`、`EVENT_*`、`INSTITUTION_NOT_FOUND`、`IDEMPOTENCY_KEY_INVALID` | 检索 |
+| F5 | 部分响应（如 KYC `failed()`）不带 `code` | `lib/kyc/server.ts` |
+| F6 | 机构回调响应已含 `requestId` 与 `X-Request-Id` 头（实为追踪用途） | `app/api/institution/callback/route.ts` |
+| F7 | 既有文档 `docs/api-error-codes.md` 已声明 `{code, error}` 与 14 个通用码 | 该文档 |
+
+## 2. Error Envelope 与标识（冻结）
+
+### 2.1 信封
+沿用并扩展现有标准信封（不引入 `ok:false`）：
+```
+{ "error": "<旧客户端兼容 fallback>", "code": "STABLE_CODE", "traceId": "req_…",
+  "retryAfter": 60,            // 可选
+  "details": { }               // 可选，白名单，§5 }
+```
+- 每个错误响应必须带 `code` 与 `traceId`。`error` 仅兼容，不得据此分支/展示，不含员工/内部文本。
+- 响应头 `X-Request-Id: <traceId>`（兼容命名；**值就是 traceId**）。
+
+### 2.2 两个不同的标识（冻结，**关闭 OD-12.2**）
+| 概念 | 含义 | 谁生成 | 位置 |
+|---|---|---|---|
+| **idempotencyKey / 业务 `requestId`** | 客户端为变更命令提供的幂等键 | 客户端（UUID） | **请求体**字段 `requestId`（现有 API 字段名保持不变；文档统称"幂等键"） |
+| **traceId** | 一次请求的可观测关联 ID | **最外层入口（网关）** | 响应头 `X-Request-Id` 与错误体 `traceId` |
+- **归属（权威）**：网关/最外层 API 入口是 `traceId` 的**唯一生成方**。入站的 `X-Request-Id` **一律忽略并替换**（可作为 `clientTraceHint` 记入日志，不回显、不信任）；内部服务**原样传播**同一 `traceId`；若请求未经网关直达 API，则 API 入口生成，规则相同。
+- **不得**把可观测 ID 称为 `requestId`；新响应字段只用 `traceId`。已有响应里名为 `requestId` 的追踪字段（如机构回调响应）作为 **legacy alias** 保留至迁移完成（目标移除版本由 OD-12.1 同批决定），新实现同时输出 `traceId`。
+
+## 3. 抛错与重试规范
+
+### 3.1 抛错
+1. 引入类型化错误 `ApiError(code, status, safeMessage, details?)`；所有抛错点显式给码；`AuthError`/`KycError` 统一到该类型。
+2. **取消 `/api/h5/state` 对非 `KycError` 的统一折叠**；领域层改抛 `ApiError`。
+3. **`UNCLASSIFIED_ERROR` 仅为内部可观测分类，绝不出现在公共响应**：未类型化/意外异常 → 服务端日志 `UNCLASSIFIED_ERROR` + 计数器自增 → 客户端收到 **500 `INTERNAL_ERROR` + `traceId`**。契约测试：**任何公共响应都不得出现 `code = UNCLASSIFIED_ERROR`**。
+4. `REQUEST_FAILED` 仅作旧文案兜底的兼容别名保留；新实现**不得发出**（OD-12.1 仅决定别名下线时间）。
+5. `codeForError` 子串推断降级为最后兜底并触发第 3 条的内部分类。
+
+### 3.2 重试分类（`retry` 列取值）
+| 取值 | 含义 |
+|---|---|
+| `NO` | 不自动重试 |
+| `READ_SAFE` | 仅对只读请求（GET/HEAD）可重试 |
+| `IDEMPOTENT_ONLY` | 变更请求仅当调用方**保留完全相同的幂等键 + 载荷**时可重试 |
+| `REFRESH` | 先刷新权威状态再决定 |
+| `AFTER` | 等待 `retryAfter` 后，再按请求方法/幂等规则决定 |
+| `USER` | 需用户处理 |
+| `CONDITIONAL` | 取决于请求方法，规则见 §3.3 |
+
+### 3.3 全局自动重试规则
+```
+GET / HEAD：
+  可按该错误的 retry 类自动重试（有界）。
+POST / PUT / PATCH / DELETE：
+  不自动重试，
+  除非该端点契约明确保证幂等，且重试时复用完全相同的幂等键 + 载荷。
+重试决定不得仅由 HTTP 状态推断。
+```
+- `INTERNAL_ERROR`（500）：`CONDITIONAL`——GET 可 `READ_SAFE` 重试；**变更请求不得盲目重试**（500 可能发生在变更部分或完全成功之后）：客户端应先 `REFRESH` 权威状态，仅在端点保证幂等时用同一键+载荷重发。
+- 未知的变更类错误默认**不自动重试**。
+
+## 4. 注册表
+> 列：**code · HTTP · 客户安全含义 · retry · UI 行为类 · 日志**。UI：`FIELD` 行内 · `BANNER` 横幅 · `DIALOG` 阻断 · `REAUTH` 重新认证 · `REFRESH` 强制刷新 · `SUPPORT` 引导客服 · `SILENT` 不展示。日志：`info`/`warn`/`error`/`security`。
+> **一码一状态**（规范化）：下表每个 code 只有一个标准 HTTP 状态；个别遗留不一致见 §4.9 迁移例外。
+
+### 4.1 认证 / 会话
+| code | HTTP | 含义 | retry | UI | 日志 |
+|---|---|---|---|---|---|
+| AUTH_REQUIRED | 401 | 未登录或会话失效 | USER | REAUTH | info |
+| BROWSER_TOKEN_INVALID | 401 | 登录页已失效，需刷新 | REFRESH | REFRESH | info |
+| BROWSER_TOKEN_RATE_LIMITED | 429 | 登录请求过于频繁 | AFTER | BANNER | warn |
+| REGISTRATION_INCOMPLETE | 403 | 需先完成手机验证/设置密码 | USER | DIALOG | info |
+| CROSS_SITE_REQUEST | 403 | 请求来源无效（客户端缺陷） | NO | SUPPORT | security |
+| AUTH_DEMO_FORBIDDEN | **503** | 服务未正确配置 | AFTER | BANNER | error |
+| WORKSPACE_UNAVAILABLE | **503** | 服务端工作区不可用（配置问题） | AFTER | BANNER | error |
+| RATE_LIMITED | 429 | 操作过于频繁 | AFTER | BANNER | warn |
+
+### 4.2 验证码 / 密码
+| code | HTTP | 含义 | retry | UI | 日志 |
+|---|---|---|---|---|---|
+| INVALID_PHONE | 400 | 手机号无效 | USER | FIELD | info |
+| OTP_INVALID | 400 | 验证码不正确 | USER | FIELD | info |
+| OTP_EXPIRED | 409 | 验证码已过期 | USER | BANNER | info |
+| OTP_ATTEMPTS_EXHAUSTED | 409 | 尝试次数用尽 | USER | DIALOG | warn |
+| OTP_UNDELIVERABLE | 400 | 号码无法接收验证码 | USER | DIALOG | info |
+| CONSENT_REQUIRED | 400 | 需同意授权 | USER | FIELD | info |
+| PASSWORD_INVALID | 400 | 密码不符合规则 | USER | FIELD | info |
+| CREDENTIALS_INVALID | 401 | 手机号或密码不正确 | USER | FIELD | info |
+| ACCOUNT_CONFLICT | 409 | 账号已被更新/占用 | REFRESH | DIALOG | warn |
+
+### 4.3 KYC
+| code | HTTP | 含义 | retry | UI | 日志 |
+|---|---|---|---|---|---|
+| KYC_LOCKED | 409 | 当前资料已锁定，不能修改 | NO | BANNER | info |
+| KYC_REVISION_CONFLICT | 409 | 资料已更新，请刷新 | REFRESH | REFRESH | info |
+| KYC_INCOMPLETE | 400 | 资料不完整（`details.missing` 键） | USER | FIELD | info |
+| KYC_NOT_APPROVED | 409 | 身份认证未通过 | USER | DIALOG | info |
+| KYC_REVISION_CHANGED | 409 | 审核资料版本已变化 | REFRESH | REFRESH | warn |
+| FILE_INVALID | **422** | 文件类型/内容/扫描不通过 | USER | FIELD | warn |
+| FILE_TOO_LARGE | 413 | 文件过大 | USER | FIELD | info |
+| FILE_QUOTA_EXCEEDED | 409 | 文件数量已达上限 | NO | DIALOG | info |
+| KYC_SCAN_UNAVAILABLE | 503 | 安全扫描暂不可用 | AFTER | BANNER | error |
+
+### 4.4 贷款生命周期（取代折叠的 REQUEST_FAILED）
+| code | HTTP | 含义 | retry | UI | 日志 |
+|---|---|---|---|---|---|
+| LOAN_ACTIVE_EXISTS | 409 | 已有未结束申请 | NO | DIALOG | info |
+| LOAN_NOT_FOUND | 404 | 申请不存在或不属于当前客户 | NO | DIALOG | info |
+| LOAN_STATE_CHANGED | 409 | 申请状态已变化，请刷新 | REFRESH | REFRESH | info |
+| REVISION_CONFLICT | 409 | 其他操作刚更新了记录 | REFRESH | REFRESH | info |
+| AMOUNT_INVALID | 400 | 额度不在可选范围 | USER | FIELD | info |
+| TERM_INVALID | 400 | 期限不在可选范围 | USER | FIELD | info |
+| NAME_INVALID | 400 | 姓名无效 | USER | FIELD | info |
+| BUSINESS_CHANNEL_UNAVAILABLE | 503 | 业务暂不可用 | AFTER | BANNER | error |
+| REQUEST_ID_INVALID | 400 | 幂等键无效（客户端缺陷） | NO | SUPPORT | error |
+| IDEMPOTENCY_PAYLOAD_MISMATCH | 409 | 同一幂等键绑定了不同载荷（客户端缺陷） | NO | SUPPORT | security |
+| ACTION_NOT_ALLOWED | 403 | 当前角色/状态不允许该操作 | NO | DIALOG | warn |
+
+### 4.5 报价 / 签约 / 提交（CR-001 对接）
+| code | HTTP | 含义 | retry | UI | 日志 |
+|---|---|---|---|---|---|
+| QUOTE_EXPIRED | 409 | 报价已过期，请重新获取 | USER | DIALOG | info |
+| QUOTE_PRICING_CHANGED | 409 | 价格已变化，请重新确认 | USER | DIALOG | info |
+| QUOTE_MISMATCH | 409 | 报价与本次参数不一致 | USER | DIALOG | warn |
+| QUOTE_ALREADY_USED | 409 | 报价已被使用 | REFRESH | REFRESH | info |
+| BILL_NOT_CONFIRMED | 409 | 需先确认费用 | USER | DIALOG | info |
+| TERMS_CONSENT_REQUIRED | 400 | 需阅读并同意协议 | USER | FIELD | info |
+| TERMS_VERSION_STALE | 409 | 协议版本已更新 | REFRESH | REFRESH | info |
+| SIGNATURE_INVALID | 400 | 签名文件无效 | USER | FIELD | info |
+| CONTRACT_ALREADY_SIGNED | 409 | 已保存签名合同 | NO | BANNER | info |
+| CONTRACT_REQUIRED | 409 | 需先完成签名 | USER | DIALOG | info |
+| CONTRACT_INVALID | 409 | 合同校验失败，请联系客服 | NO | SUPPORT | security |
+| FINANCIAL_POLICY_UNBOUND | 503 | 该借款的财务条款未绑定（需联系客服） | NO | SUPPORT | error |
+
+### 4.6 还款 / 放款 / 逾期（CR-004 / CR-005 / CR-007）
+| code | HTTP | 含义 | retry | UI | 日志 |
+|---|---|---|---|---|---|
+| CUSTOMER_SETTLEMENT_FORBIDDEN | 403 | 旧的客户 repay/withdraw 动作永久阻断 | NO | SILENT | warn |
+| REPAYMENT_NOT_ENABLED | 403 | 该还款方式暂未开通 | NO | BANNER | info |
+| REPAYMENT_NOT_FOUND | 404 | 还款记录不存在 | NO | DIALOG | info |
+| REPAYMENT_AMOUNT_INVALID | 400 | 还款金额无效 | USER | FIELD | info |
+| REPAYMENT_EXCEEDS_OUTSTANDING | 409 | 超过应还金额 | USER | FIELD | info |
+| REPAYMENT_NOT_PAYABLE | 409 | 当前贷款不可还款（未放款/已结清/资金异常中；`details.reason`） | REFRESH | REFRESH | info |
+| REPAYMENT_PENDING_EXISTS | 409 | 已有处理中的还款 | REFRESH | DIALOG | info |
+| REPAYMENT_EXPIRED | 409 | 还款已过期，请重新发起 | USER | DIALOG | info |
+| PAYMENT_PROVIDER_UNAVAILABLE | 503 | 支付通道暂不可用 | AFTER | BANNER | error |
+| ALLOCATION_POLICY_MISSING | 503 | 该借款缺少有效的还款分摊规则（需联系客服） | NO | SUPPORT | error |
+| RECEIVING_ACCOUNT_REQUIRED | 409 | 需先确认收款账户 | USER | DIALOG | info |
+| RECEIVING_ACCOUNT_STALE | 409 | 收款账户信息已变化，请重新确认 | USER | DIALOG | warn |
+| RECEIVING_ACCOUNT_CONFIRMATION_EXPIRED | 409 | 账户确认已过期，请重新确认 | USER | DIALOG | info |
+| DISBURSEMENT_NOT_AVAILABLE | 409 | 当前不可放款 | REFRESH | REFRESH | info |
+
+### 4.7 通知（CR-006）
+| code | HTTP | 含义 | retry | UI | 日志 |
+|---|---|---|---|---|---|
+| PUSH_TOKEN_INVALID | 400 | 推送令牌无效 | USER | SILENT | warn |
+| DEVICE_LIMIT_REACHED | 409 | 已达设备数量上限 | USER | DIALOG | info |
+| PUSH_REGISTRATION_UNAVAILABLE | 503 | 通知注册暂不可用 | AFTER | SILENT | error |
+| NOTIFICATION_PREFERENCES_INVALID | 400 | 通知偏好设置无效 | USER | FIELD | info |
+> 提供方（如 FCM）错误**不对客户端暴露**，属服务端异步事实；注册限流复用 `RATE_LIMITED`（语义：设备注册过于频繁）。
+
+### 4.8 员工 / 机构（非客户端，但属外部可见 API）
+| code | HTTP | 含义 | retry | 日志 |
+|---|---|---|---|---|
+| MFA_STEP_UP_REQUIRED | 403 | 需 MFA 步进验证 | USER | security |
+| STAFF_DUAL_CONTROL_REQUIRED | 403 | 需双人批准 | USER | security |
+| FUNDING_DUAL_CONTROL_REQUIRED | 403 | 资金操作需应急/双人授权 | USER | security |
+| FUNDING_LIMIT_EXCEEDED | 409 | 超过放款限额 | NO | warn |
+| FUNDING_EXCEPTION_ACTIVE | 409 | 贷款处于资金异常，操作被阻止 | NO | warn |
+| REPAYMENT_CONFIRM_FORBIDDEN | 403 | 无权确认还款（角色/提交人=确认人） | NO | security |
+| RECONCILIATION_CONFLICT | 409 | 对账状态冲突 | REFRESH | warn |
+| DELINQUENCY_POLICY_INVALID | 400 | 拖欠政策配置无效 | USER | warn |
+| CHARGE_ADJUSTMENT_INVALID | 400 | 费用调整/豁免参数无效 | USER | warn |
+| CALLBACK_HEADERS_INVALID | 400 | 回调头无效 | NO | warn |
+| IDEMPOTENCY_KEY_INVALID | 400 | 回调幂等键无效 | NO | warn |
+| EVENT_ENVELOPE_INVALID | 400 | 事件信封无效 | NO | warn |
+| CALLBACK_SIGNATURE_INVALID | 401 | 回调签名无效 | NO | security |
+| CALLBACK_REPLAYED | 409 | 回调重放 | NO | security |
+| EVENT_PAYLOAD_MISMATCH | 409 | 同一事件 id 载荷不同 | NO | security |
+| INSTITUTION_NOT_FOUND | 404 | 机构不存在 | NO | warn |
+| CALLBACK_NOT_CONFIGURED | 503 | 回调未配置 | AFTER | error |
+> 员工/机构接口同样适用 §2 信封与 §3 重试规则（变更类默认不自动重试）。
+
+### 4.9 通用 / 平台
+| code | HTTP | 含义 | retry | UI | 日志 |
+|---|---|---|---|---|---|
+| INVALID_REQUEST | **400** | 请求格式无效 | NO | SUPPORT | warn |
+| UNSUPPORTED_MEDIA_TYPE | **415** | 不支持的内容类型 | NO | SUPPORT | warn |
+| NOT_FOUND | 404 | 资源不存在 | NO | DIALOG | info |
+| FORBIDDEN | 403 | 无权访问 | NO | DIALOG | warn |
+| PAYLOAD_TOO_LARGE | 413 | 请求过大 | NO | SUPPORT | warn |
+| SERVICE_UNAVAILABLE | 503 | 服务暂不可用 | AFTER | BANNER | error |
+| INTERNAL_ERROR | 500 | 系统错误（无细节，带 `traceId`） | **CONDITIONAL**（§3.3） | BANNER | error |
+| REQUEST_FAILED | 400 | **旧兼容别名**（新实现不得发出） | NO | BANNER | warn |
+
+**内部可观测分类（不对外）**：`UNCLASSIFIED_ERROR`（未类型化异常）、队列/重试内部状态——**不得**出现在任何公共响应。
+
+### 4.10 HTTP 迁移例外（唯一允许的不一致）
+| 端点（现状） | 现状 | 目标 | 说明 |
+|---|---|---|---|
+| `POST /api/kyc/files` 魔数/类型校验失败 | 400 | 422（`FILE_INVALID`） | 兼容旧客户端；客户端按 `code` 分支，状态类仅用于展示；移除版本随 CR-012 实施 |
+| 旧 `AUTH_DEMO_FORBIDDEN` | 部分 503 | 503 | 无需例外 |
+除此之外**一码一状态**；若实施发现必须双映射，须在此表登记并写明移除目标。
+
+## 5. `details` 白名单
+仅允许：`field` · `missing[]`（缺项键）· `limitCents`/`minCents`/`maxCents` · `currentStatus`（贷款状态枚举）· `reason`（受控枚举，如 `FUNDING_EXCEPTION`/`SETTLED`/`NOT_FUNDED`）· `expiresAt` · `retryAfter`。**不得含**员工 id、内部异常、SQL、第三方原文、完整账号/手机号。
+
+## 6. 旧文案 → 新码映射（迁移对照）
+| 现有（被折叠）文案 | 新 code |
+|---|---|
+| 申请状态已变化，请刷新后重试 | LOAN_STATE_CHANGED |
+| 其他操作刚刚更新了记录，请重试 | REVISION_CONFLICT |
+| 请核对并确认当前费用账单 | BILL_NOT_CONFIRMED / QUOTE_MISMATCH |
+| 还款金额须大于零且不超过剩余应还 | REPAYMENT_AMOUNT_INVALID / REPAYMENT_EXCEEDS_OUTSTANDING |
+| 请求编号无效 / 已绑定其他操作 | REQUEST_ID_INVALID / IDEMPOTENCY_PAYLOAD_MISMATCH |
+| 请选择 30、50、100 或 500 USD 测试额度 | AMOUNT_INVALID |
+| 请选择 14 天或 28 天贷款期限 | TERM_INVALID |
+| 请填写测试姓名 | NAME_INVALID |
+| 请先确认测试资料授权 | CONSENT_REQUIRED |
+| 暂无可用业务机器人 | BUSINESS_CHANNEL_UNAVAILABLE |
+| 请先完成当前申请… | LOAN_ACTIVE_EXISTS |
+| 请先完成 KYC 资料审核… | KYC_NOT_APPROVED |
+
+## 7. 业务对象 `failureCode`（读模型内，非 HTTP 错误；客户安全枚举）
+| 域 | 取值 |
+|---|---|
+| 放款（CR-005 `disbursement.failureCode`） | `ACCOUNT_INVALID` · `BANK_REJECTED` · `TEMPORARY_FAILURE` · `RETURNED` |
+| 还款（CR-004 `repayments[].failureCode`） | `PROVIDER_DECLINED` · `EXPIRED` · `AMOUNT_MISMATCH` · `REJECTED_BY_REVIEW` · `CANCELLED` |
+不返回银行/通道/员工原文；新增值向后兼容（客户端未知值 → 通用「操作未成功」）。**与 §4 的 HTTP 错误码严格分离。**
+
+## 8. Android 规则
+1. 按 `code` 分支；已知码 → ARB 本地化 + 注册表 UI 类与 retry；
+2. 未知码 → 按 HTTP 状态类通用文案；
+3. **变更请求遇到 5xx/`INTERNAL_ERROR`/超时：不盲目重试**——先刷新权威状态，仅当端点契约保证幂等时用**同一幂等键+载荷**重发（沿用 `45` §27）；
+4. 不展示 `error` 文案；展示 `traceId` 仅在"联系客服"场景；
+5. `retryAfter` 沿用 `21` §5.11.1 的钳制规则；
+6. 对 `REQUEST_FAILED` 仍走通用文案，不推断原因。
+
+## 9. 跨 CR 错误覆盖矩阵
+> 每个对外可见失败要么已在 §4 注册，要么在此登记；**业务对象 `failureCode`（§7）不属于 HTTP 错误**。
+
+| CR | 操作 | code | HTTP | retry |
+|---|---|---|---|---|
+| 004 | 创建还款 | REPAYMENT_NOT_ENABLED / REPAYMENT_AMOUNT_INVALID / REPAYMENT_EXCEEDS_OUTSTANDING / REPAYMENT_NOT_PAYABLE / REPAYMENT_PENDING_EXISTS / FINANCIAL_POLICY_UNBOUND / ALLOCATION_POLICY_MISSING / PAYMENT_PROVIDER_UNAVAILABLE | 403/400/409/409/409/503/503/503 | NO/USER/USER/REFRESH/REFRESH/NO/NO/AFTER |
+| 004 | claim/cancel/查询 | REPAYMENT_NOT_FOUND / REPAYMENT_EXPIRED / IDEMPOTENCY_PAYLOAD_MISMATCH / FILE_INVALID / FILE_TOO_LARGE | 404/409/409/422/413 | NO/USER/NO/USER/USER |
+| 004 | 员工确认/驳回/冲正 | REPAYMENT_CONFIRM_FORBIDDEN / MFA_STEP_UP_REQUIRED / STAFF_DUAL_CONTROL_REQUIRED / RECONCILIATION_CONFLICT / FUNDING_EXCEPTION_ACTIVE | 403/403/403/409/409 | NO/USER/USER/REFRESH/NO |
+| 004/005 | 机构回调 | CALLBACK_HEADERS_INVALID / IDEMPOTENCY_KEY_INVALID / EVENT_ENVELOPE_INVALID / CALLBACK_SIGNATURE_INVALID / CALLBACK_REPLAYED / EVENT_PAYLOAD_MISMATCH / IDEMPOTENCY_PAYLOAD_MISMATCH / INSTITUTION_NOT_FOUND / CALLBACK_NOT_CONFIGURED | 400/400/400/401/409/409/409/404/503 | NO（503 为 AFTER） |
+| 005 | 账户确认 | RECEIVING_ACCOUNT_REQUIRED / RECEIVING_ACCOUNT_STALE / RECEIVING_ACCOUNT_CONFIRMATION_EXPIRED / IDEMPOTENCY_PAYLOAD_MISMATCH | 409/409/409/409 | USER |
+| 005 | 员工放款指令 | FUNDING_DUAL_CONTROL_REQUIRED / FUNDING_LIMIT_EXCEEDED / DISBURSEMENT_NOT_AVAILABLE / FUNDING_EXCEPTION_ACTIVE | 403/409/409/409 | USER/NO/REFRESH/NO |
+| 006 | 设备注册/注销/偏好 | PUSH_TOKEN_INVALID / DEVICE_LIMIT_REACHED / PUSH_REGISTRATION_UNAVAILABLE / NOTIFICATION_PREFERENCES_INVALID / RATE_LIMITED | 400/409/503/400/429 | USER/USER/AFTER/USER/AFTER |
+| 007 | 政策/豁免/调整（员工） | DELINQUENCY_POLICY_INVALID / CHARGE_ADJUSTMENT_INVALID / STAFF_DUAL_CONTROL_REQUIRED / MFA_STEP_UP_REQUIRED / IDEMPOTENCY_PAYLOAD_MISMATCH | 400/400/403/403/409 | USER/USER/USER/USER/NO |
+| 007 | 客户读模型 | 无新 HTTP 错误（只读字段） | — | — |
+
+## 10. 向后兼容
+`error` 与既有通用码保持；新增显式码为纯增量；`REQUEST_FAILED` 作为别名保留；老 Web 客户端不受影响；`traceId` 为新增字段；`02` 在实施后更新 §1.5 与 §3.5；`docs/api-error-codes.md` 实施时同步（本注册表为其超集）。
+
+## 11. 测试（契约）
+所有错误响应带 `code` 与 `traceId` · **任何公共响应不得出现 `UNCLASSIFIED_ERROR`** · 主流程不触发内部 `UNCLASSIFIED_ERROR` 计数 · 每个抛错点有显式码（静态扫描）· 注册表与 ARB 键一一对应 · `details` 白名单 · 一码一状态（除 §4.10 登记例外）· 变更请求遇 500 不被客户端自动重试（Android 契约测试）· `X-Request-Id` 由网关生成并等于错误体 `traceId`；入站伪造的 `X-Request-Id` 被替换 · 折叠路径回归：领域错误不再产生 `REQUEST_FAILED`。
+
+## 12. Open Decisions
+| ID | 决策 | 分类 |
+|---|---|---|
+| OD-12.1 | `REQUEST_FAILED` 与 legacy `requestId`（追踪）别名的下线时间 | **PRODUCTION / DEPRECATION DECISION**（新实现不得发出；不阻塞实施） |
+| ~~OD-12.2~~ | traceId 归属 | **CLOSED**：网关生成并替换入站值（§2.2） |
+
+## 13. Gate
+```
+CR-012 v2: PROPOSED — READY FOR CODEX RE-REVIEW；Implementation: NOT AUTHORIZED；Trae = HOLD
+```

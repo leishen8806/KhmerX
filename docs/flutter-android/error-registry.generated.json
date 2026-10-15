@@ -1,0 +1,740 @@
+{
+  "contract": "CR-012 v3.1",
+  "generatedAt": "2026-10-09T09:37:46.623Z",
+  "codes": [
+    {
+      "code": "AUTH_REQUIRED",
+      "httpStatus": 401,
+      "retry": "USER",
+      "ui": "REAUTH",
+      "log": "info"
+    },
+    {
+      "code": "BROWSER_TOKEN_INVALID",
+      "httpStatus": 401,
+      "retry": "REFRESH",
+      "ui": "REFRESH",
+      "log": "info"
+    },
+    {
+      "code": "BROWSER_TOKEN_RATE_LIMITED",
+      "httpStatus": 429,
+      "retry": "AFTER",
+      "ui": "BANNER",
+      "log": "warn"
+    },
+    {
+      "code": "REGISTRATION_INCOMPLETE",
+      "httpStatus": 403,
+      "retry": "USER",
+      "ui": "DIALOG",
+      "log": "info"
+    },
+    {
+      "code": "CROSS_SITE_REQUEST",
+      "httpStatus": 403,
+      "retry": "NO",
+      "ui": "SUPPORT",
+      "log": "security"
+    },
+    {
+      "code": "AUTH_DEMO_FORBIDDEN",
+      "httpStatus": 503,
+      "retry": "AFTER",
+      "ui": "BANNER",
+      "log": "error"
+    },
+    {
+      "code": "WORKSPACE_UNAVAILABLE",
+      "httpStatus": 503,
+      "retry": "AFTER",
+      "ui": "BANNER",
+      "log": "error"
+    },
+    {
+      "code": "RATE_LIMITED",
+      "httpStatus": 429,
+      "retry": "AFTER",
+      "ui": "BANNER",
+      "log": "warn"
+    },
+    {
+      "code": "INVALID_PHONE",
+      "httpStatus": 400,
+      "retry": "USER",
+      "ui": "FIELD",
+      "log": "info"
+    },
+    {
+      "code": "OTP_INVALID",
+      "httpStatus": 400,
+      "retry": "USER",
+      "ui": "FIELD",
+      "log": "info"
+    },
+    {
+      "code": "OTP_EXPIRED",
+      "httpStatus": 409,
+      "retry": "USER",
+      "ui": "BANNER",
+      "log": "info"
+    },
+    {
+      "code": "OTP_ATTEMPTS_EXHAUSTED",
+      "httpStatus": 409,
+      "retry": "USER",
+      "ui": "DIALOG",
+      "log": "warn"
+    },
+    {
+      "code": "OTP_UNDELIVERABLE",
+      "httpStatus": 400,
+      "retry": "USER",
+      "ui": "DIALOG",
+      "log": "info"
+    },
+    {
+      "code": "CONSENT_REQUIRED",
+      "httpStatus": 400,
+      "retry": "USER",
+      "ui": "FIELD",
+      "log": "info"
+    },
+    {
+      "code": "PASSWORD_INVALID",
+      "httpStatus": 400,
+      "retry": "USER",
+      "ui": "FIELD",
+      "log": "info"
+    },
+    {
+      "code": "CREDENTIALS_INVALID",
+      "httpStatus": 401,
+      "retry": "USER",
+      "ui": "FIELD",
+      "log": "info"
+    },
+    {
+      "code": "ACCOUNT_CONFLICT",
+      "httpStatus": 409,
+      "retry": "REFRESH",
+      "ui": "DIALOG",
+      "log": "warn"
+    },
+    {
+      "code": "KYC_LOCKED",
+      "httpStatus": 409,
+      "retry": "NO",
+      "ui": "BANNER",
+      "log": "info"
+    },
+    {
+      "code": "KYC_REVISION_CONFLICT",
+      "httpStatus": 409,
+      "retry": "REFRESH",
+      "ui": "REFRESH",
+      "log": "info"
+    },
+    {
+      "code": "KYC_INCOMPLETE",
+      "httpStatus": 400,
+      "retry": "USER",
+      "ui": "FIELD",
+      "log": "info"
+    },
+    {
+      "code": "KYC_NOT_APPROVED",
+      "httpStatus": 409,
+      "retry": "USER",
+      "ui": "DIALOG",
+      "log": "info"
+    },
+    {
+      "code": "KYC_REVISION_CHANGED",
+      "httpStatus": 409,
+      "retry": "REFRESH",
+      "ui": "REFRESH",
+      "log": "warn"
+    },
+    {
+      "code": "FILE_INVALID",
+      "httpStatus": 422,
+      "retry": "USER",
+      "ui": "FIELD",
+      "log": "warn"
+    },
+    {
+      "code": "FILE_TOO_LARGE",
+      "httpStatus": 413,
+      "retry": "USER",
+      "ui": "FIELD",
+      "log": "info"
+    },
+    {
+      "code": "FILE_QUOTA_EXCEEDED",
+      "httpStatus": 409,
+      "retry": "NO",
+      "ui": "DIALOG",
+      "log": "info"
+    },
+    {
+      "code": "KYC_SCAN_UNAVAILABLE",
+      "httpStatus": 503,
+      "retry": "AFTER",
+      "ui": "BANNER",
+      "log": "error"
+    },
+    {
+      "code": "LOAN_ACTIVE_EXISTS",
+      "httpStatus": 409,
+      "retry": "NO",
+      "ui": "DIALOG",
+      "log": "info"
+    },
+    {
+      "code": "LOAN_NOT_FOUND",
+      "httpStatus": 404,
+      "retry": "NO",
+      "ui": "DIALOG",
+      "log": "info"
+    },
+    {
+      "code": "LOAN_STATE_CHANGED",
+      "httpStatus": 409,
+      "retry": "REFRESH",
+      "ui": "REFRESH",
+      "log": "info"
+    },
+    {
+      "code": "REVISION_CONFLICT",
+      "httpStatus": 409,
+      "retry": "REFRESH",
+      "ui": "REFRESH",
+      "log": "info"
+    },
+    {
+      "code": "AMOUNT_INVALID",
+      "httpStatus": 400,
+      "retry": "USER",
+      "ui": "FIELD",
+      "log": "info"
+    },
+    {
+      "code": "TERM_INVALID",
+      "httpStatus": 400,
+      "retry": "USER",
+      "ui": "FIELD",
+      "log": "info"
+    },
+    {
+      "code": "NAME_INVALID",
+      "httpStatus": 400,
+      "retry": "USER",
+      "ui": "FIELD",
+      "log": "info"
+    },
+    {
+      "code": "BUSINESS_CHANNEL_UNAVAILABLE",
+      "httpStatus": 503,
+      "retry": "AFTER",
+      "ui": "BANNER",
+      "log": "error"
+    },
+    {
+      "code": "REQUEST_ID_INVALID",
+      "httpStatus": 400,
+      "retry": "NO",
+      "ui": "SUPPORT",
+      "log": "error"
+    },
+    {
+      "code": "IDEMPOTENCY_PAYLOAD_MISMATCH",
+      "httpStatus": 409,
+      "retry": "NO",
+      "ui": "SUPPORT",
+      "log": "security"
+    },
+    {
+      "code": "ACTION_NOT_ALLOWED",
+      "httpStatus": 403,
+      "retry": "NO",
+      "ui": "DIALOG",
+      "log": "warn"
+    },
+    {
+      "code": "QUOTE_EXPIRED",
+      "httpStatus": 409,
+      "retry": "USER",
+      "ui": "DIALOG",
+      "log": "info"
+    },
+    {
+      "code": "QUOTE_PRICING_CHANGED",
+      "httpStatus": 409,
+      "retry": "USER",
+      "ui": "DIALOG",
+      "log": "info"
+    },
+    {
+      "code": "QUOTE_MISMATCH",
+      "httpStatus": 409,
+      "retry": "USER",
+      "ui": "DIALOG",
+      "log": "warn"
+    },
+    {
+      "code": "QUOTE_ALREADY_USED",
+      "httpStatus": 409,
+      "retry": "REFRESH",
+      "ui": "REFRESH",
+      "log": "info"
+    },
+    {
+      "code": "BILL_NOT_CONFIRMED",
+      "httpStatus": 409,
+      "retry": "USER",
+      "ui": "DIALOG",
+      "log": "info"
+    },
+    {
+      "code": "TERMS_CONSENT_REQUIRED",
+      "httpStatus": 400,
+      "retry": "USER",
+      "ui": "FIELD",
+      "log": "info"
+    },
+    {
+      "code": "TERMS_VERSION_STALE",
+      "httpStatus": 409,
+      "retry": "REFRESH",
+      "ui": "REFRESH",
+      "log": "info"
+    },
+    {
+      "code": "SIGNATURE_INVALID",
+      "httpStatus": 400,
+      "retry": "USER",
+      "ui": "FIELD",
+      "log": "info"
+    },
+    {
+      "code": "CONTRACT_ALREADY_SIGNED",
+      "httpStatus": 409,
+      "retry": "NO",
+      "ui": "BANNER",
+      "log": "info"
+    },
+    {
+      "code": "CONTRACT_REQUIRED",
+      "httpStatus": 409,
+      "retry": "USER",
+      "ui": "DIALOG",
+      "log": "info"
+    },
+    {
+      "code": "CONTRACT_INVALID",
+      "httpStatus": 409,
+      "retry": "NO",
+      "ui": "SUPPORT",
+      "log": "security"
+    },
+    {
+      "code": "FINANCIAL_POLICY_UNBOUND",
+      "httpStatus": 503,
+      "retry": "NO",
+      "ui": "SUPPORT",
+      "log": "error"
+    },
+    {
+      "code": "CUSTOMER_SETTLEMENT_FORBIDDEN",
+      "httpStatus": 403,
+      "retry": "NO",
+      "ui": "SILENT",
+      "log": "warn"
+    },
+    {
+      "code": "REPAYMENT_NOT_ENABLED",
+      "httpStatus": 403,
+      "retry": "NO",
+      "ui": "BANNER",
+      "log": "info"
+    },
+    {
+      "code": "REPAYMENT_NOT_FOUND",
+      "httpStatus": 404,
+      "retry": "NO",
+      "ui": "DIALOG",
+      "log": "info"
+    },
+    {
+      "code": "REPAYMENT_AMOUNT_INVALID",
+      "httpStatus": 400,
+      "retry": "USER",
+      "ui": "FIELD",
+      "log": "info"
+    },
+    {
+      "code": "REPAYMENT_EXCEEDS_OUTSTANDING",
+      "httpStatus": 409,
+      "retry": "USER",
+      "ui": "FIELD",
+      "log": "info"
+    },
+    {
+      "code": "REPAYMENT_NOT_PAYABLE",
+      "httpStatus": 409,
+      "retry": "REFRESH",
+      "ui": "REFRESH",
+      "log": "info",
+      "reasons": [
+        "FUNDING_EXCEPTION",
+        "SETTLED",
+        "NOT_FUNDED",
+        "VOIDED"
+      ]
+    },
+    {
+      "code": "REPAYMENT_PENDING_EXISTS",
+      "httpStatus": 409,
+      "retry": "REFRESH",
+      "ui": "DIALOG",
+      "log": "info"
+    },
+    {
+      "code": "REPAYMENT_EXPIRED",
+      "httpStatus": 409,
+      "retry": "USER",
+      "ui": "DIALOG",
+      "log": "info"
+    },
+    {
+      "code": "PAYMENT_PROVIDER_UNAVAILABLE",
+      "httpStatus": 503,
+      "retry": "AFTER",
+      "ui": "BANNER",
+      "log": "error"
+    },
+    {
+      "code": "ALLOCATION_POLICY_MISSING",
+      "httpStatus": 503,
+      "retry": "NO",
+      "ui": "SUPPORT",
+      "log": "error"
+    },
+    {
+      "code": "RECEIVING_ACCOUNT_REQUIRED",
+      "httpStatus": 409,
+      "retry": "USER",
+      "ui": "DIALOG",
+      "log": "info"
+    },
+    {
+      "code": "RECEIVING_ACCOUNT_STALE",
+      "httpStatus": 409,
+      "retry": "USER",
+      "ui": "DIALOG",
+      "log": "warn"
+    },
+    {
+      "code": "RECEIVING_ACCOUNT_CONFIRMATION_EXPIRED",
+      "httpStatus": 409,
+      "retry": "USER",
+      "ui": "DIALOG",
+      "log": "info"
+    },
+    {
+      "code": "DISBURSEMENT_NOT_AVAILABLE",
+      "httpStatus": 409,
+      "retry": "REFRESH",
+      "ui": "REFRESH",
+      "log": "info",
+      "reasons": [
+        "FUNDING_EXCEPTION_NO_REISSUE",
+        "VOIDED",
+        "NOT_SIGNED",
+        "INSTRUCTION_ACTIVE"
+      ]
+    },
+    {
+      "code": "EXTERNAL_REFERENCE_CONFLICT",
+      "httpStatus": 409,
+      "retry": "NO",
+      "ui": "SUPPORT",
+      "log": "security"
+    },
+    {
+      "code": "REVERSAL_NOT_ALLOWED",
+      "httpStatus": 409,
+      "retry": "NO",
+      "ui": "DIALOG",
+      "log": "warn",
+      "reasons": [
+        "VOIDED",
+        "ALREADY_REVERSED"
+      ]
+    },
+    {
+      "code": "PUSH_TOKEN_INVALID",
+      "httpStatus": 400,
+      "retry": "USER",
+      "ui": "SILENT",
+      "log": "warn"
+    },
+    {
+      "code": "DEVICE_LIMIT_REACHED",
+      "httpStatus": 409,
+      "retry": "USER",
+      "ui": "DIALOG",
+      "log": "info"
+    },
+    {
+      "code": "PUSH_REGISTRATION_UNAVAILABLE",
+      "httpStatus": 503,
+      "retry": "AFTER",
+      "ui": "SILENT",
+      "log": "error"
+    },
+    {
+      "code": "NOTIFICATION_PREFERENCES_INVALID",
+      "httpStatus": 400,
+      "retry": "USER",
+      "ui": "FIELD",
+      "log": "info"
+    },
+    {
+      "code": "MFA_STEP_UP_REQUIRED",
+      "httpStatus": 403,
+      "retry": "USER",
+      "ui": "DIALOG",
+      "log": "security"
+    },
+    {
+      "code": "STAFF_DUAL_CONTROL_REQUIRED",
+      "httpStatus": 403,
+      "retry": "USER",
+      "ui": "DIALOG",
+      "log": "security"
+    },
+    {
+      "code": "FUNDING_DUAL_CONTROL_REQUIRED",
+      "httpStatus": 403,
+      "retry": "USER",
+      "ui": "DIALOG",
+      "log": "security"
+    },
+    {
+      "code": "FUNDING_LIMIT_EXCEEDED",
+      "httpStatus": 409,
+      "retry": "NO",
+      "ui": "DIALOG",
+      "log": "warn"
+    },
+    {
+      "code": "FUNDING_EXCEPTION_ACTIVE",
+      "httpStatus": 409,
+      "retry": "NO",
+      "ui": "DIALOG",
+      "log": "warn"
+    },
+    {
+      "code": "REPAYMENT_CONFIRM_FORBIDDEN",
+      "httpStatus": 403,
+      "retry": "NO",
+      "ui": "DIALOG",
+      "log": "security"
+    },
+    {
+      "code": "RECONCILIATION_CONFLICT",
+      "httpStatus": 409,
+      "retry": "REFRESH",
+      "ui": "DIALOG",
+      "log": "warn"
+    },
+    {
+      "code": "DELINQUENCY_POLICY_INVALID",
+      "httpStatus": 400,
+      "retry": "USER",
+      "ui": "DIALOG",
+      "log": "warn"
+    },
+    {
+      "code": "CHARGE_ADJUSTMENT_INVALID",
+      "httpStatus": 400,
+      "retry": "USER",
+      "ui": "DIALOG",
+      "log": "warn"
+    },
+    {
+      "code": "CALLBACK_HEADERS_INVALID",
+      "httpStatus": 400,
+      "retry": "NO",
+      "ui": "DIALOG",
+      "log": "warn"
+    },
+    {
+      "code": "IDEMPOTENCY_KEY_INVALID",
+      "httpStatus": 400,
+      "retry": "NO",
+      "ui": "DIALOG",
+      "log": "warn"
+    },
+    {
+      "code": "EVENT_ENVELOPE_INVALID",
+      "httpStatus": 400,
+      "retry": "NO",
+      "ui": "DIALOG",
+      "log": "warn"
+    },
+    {
+      "code": "CALLBACK_SIGNATURE_INVALID",
+      "httpStatus": 401,
+      "retry": "NO",
+      "ui": "DIALOG",
+      "log": "security"
+    },
+    {
+      "code": "CALLBACK_REPLAYED",
+      "httpStatus": 409,
+      "retry": "NO",
+      "ui": "DIALOG",
+      "log": "security"
+    },
+    {
+      "code": "EVENT_PAYLOAD_MISMATCH",
+      "httpStatus": 409,
+      "retry": "NO",
+      "ui": "DIALOG",
+      "log": "security"
+    },
+    {
+      "code": "INSTITUTION_NOT_FOUND",
+      "httpStatus": 404,
+      "retry": "NO",
+      "ui": "DIALOG",
+      "log": "warn"
+    },
+    {
+      "code": "CALLBACK_NOT_CONFIGURED",
+      "httpStatus": 503,
+      "retry": "AFTER",
+      "ui": "DIALOG",
+      "log": "error"
+    },
+    {
+      "code": "INVALID_REQUEST",
+      "httpStatus": 400,
+      "retry": "NO",
+      "ui": "SUPPORT",
+      "log": "warn"
+    },
+    {
+      "code": "UNSUPPORTED_MEDIA_TYPE",
+      "httpStatus": 415,
+      "retry": "NO",
+      "ui": "SUPPORT",
+      "log": "warn"
+    },
+    {
+      "code": "NOT_FOUND",
+      "httpStatus": 404,
+      "retry": "NO",
+      "ui": "DIALOG",
+      "log": "info"
+    },
+    {
+      "code": "FORBIDDEN",
+      "httpStatus": 403,
+      "retry": "NO",
+      "ui": "DIALOG",
+      "log": "warn"
+    },
+    {
+      "code": "PAYLOAD_TOO_LARGE",
+      "httpStatus": 413,
+      "retry": "NO",
+      "ui": "SUPPORT",
+      "log": "warn"
+    },
+    {
+      "code": "SERVICE_UNAVAILABLE",
+      "httpStatus": 503,
+      "retry": "AFTER",
+      "ui": "BANNER",
+      "log": "error"
+    },
+    {
+      "code": "INTERNAL_ERROR",
+      "httpStatus": 500,
+      "retry": "CONDITIONAL",
+      "ui": "BANNER",
+      "log": "error"
+    },
+    {
+      "code": "REQUEST_FAILED",
+      "httpStatus": 400,
+      "retry": "NO",
+      "ui": "BANNER",
+      "log": "warn"
+    }
+  ],
+  "legacyAliasMap": {
+    "CONFLICT": [
+      "LOAN_STATE_CHANGED",
+      "REVISION_CONFLICT",
+      "IDEMPOTENCY_PAYLOAD_MISMATCH",
+      "REPAYMENT_PENDING_EXISTS",
+      "EXTERNAL_REFERENCE_CONFLICT",
+      "REVERSAL_NOT_ALLOWED",
+      "DISBURSEMENT_NOT_AVAILABLE"
+    ],
+    "SERVICE_UNAVAILABLE": [
+      "PAYMENT_PROVIDER_UNAVAILABLE",
+      "ALLOCATION_POLICY_MISSING",
+      "PUSH_REGISTRATION_UNAVAILABLE",
+      "CALLBACK_NOT_CONFIGURED"
+    ],
+    "INVALID_FILE": [
+      "FILE_INVALID",
+      "FILE_TOO_LARGE",
+      "KYC_SCAN_REQUIRED"
+    ],
+    "INVALID_KYC": [
+      "KYC_NOT_APPROVED",
+      "NAME_INVALID",
+      "CONSENT_REQUIRED"
+    ],
+    "INVALID_ARGUMENT": [
+      "AMOUNT_INVALID",
+      "TERM_INVALID",
+      "REPAYMENT_AMOUNT_INVALID",
+      "REQUEST_ID_INVALID",
+      "DELINQUENCY_POLICY_INVALID"
+    ],
+    "FORBIDDEN": [
+      "CROSS_SITE_REQUEST",
+      "STAFF_DUAL_CONTROL_REQUIRED",
+      "FUNDING_DUAL_CONTROL_REQUIRED",
+      "MFA_STEP_UP_REQUIRED",
+      "CUSTOMER_SETTLEMENT_FORBIDDEN"
+    ],
+    "NOT_FOUND": [
+      "REPAYMENT_NOT_FOUND",
+      "INSTITUTION_NOT_FOUND"
+    ],
+    "PAYLOAD_TOO_LARGE": [
+      "FILE_TOO_LARGE"
+    ],
+    "RATE_LIMITED": [
+      "BROWSER_TOKEN_RATE_LIMITED"
+    ]
+  },
+  "retryRule": {
+    "GET_HEAD": "retry per classification (bounded)",
+    "POST_PUT_PATCH_DELETE": "NO automatic retry unless endpoint guarantees idempotency AND same idempotency key + same payload reused",
+    "INTERNAL_ERROR": "CONDITIONAL — GET may be READ_SAFE; mutation must not blindly retry"
+  },
+  "notes": {
+    "readSafeEmitted": [],
+    "requestFailedRetirement": "REQUEST_FAILED is a legacy compatibility alias; new code must not emit it (OD-12.1)"
+  }
+}

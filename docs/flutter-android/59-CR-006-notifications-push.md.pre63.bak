@@ -1,0 +1,99 @@
+# CR-006 · Notifications & Push（通知与推送）
+
+```
+Status:     PROPOSED（契约草案；未评审；不授权实施）
+Date:       2026-10-09
+Owner:      Claude（契约起草）
+Phase:      P8（通知部分）
+Decisions:  DEC-4（推送提供方）= 倾向 FCM，保持提供方抽象；Telegram 提醒仍为 Mini App 专属，Android 独立
+Consumers:  Backend · Android(Flutter) · QA · Security/Compliance
+Evidence:   HEAD d916b45，2026-10-09
+```
+
+**范围**：为原生 Android 提供**独立于 Telegram Mini App** 的通知投递能力（设备注册、令牌轮换、注销、多设备、提供方抽象、事件映射、去重、语言、偏好、点击目标策略）。**不假设 Telegram `initData`**。**本 CR 不定义通知中心（收件箱）UI/契约**——只定义投递；收件箱 API 若需要，另立决策。
+
+---
+
+## 1. Problem（现状事实）
+| # | FACT | 证据 |
+|---|---|---|
+| F1 | 客户 `state.notifications` 为**模拟记录**：`{id, loanId, botId, text, at, status}`；每个贷款动作追加，状态文案 '模拟已记录 · 未发送 Telegram'；无已读/类型字段；存于工作区 JSON，非 SQL 表 | `lib/domain.ts` |
+| F2 | 真正投递仅有 Telegram：`telegram_subscriptions`（加密 chat id）、`telegram_outbox`（`UNIQUE(owner, notification_id)`）、`dispatchCompany` 只入队 id 前缀 `postloan-reminder:` 的提醒，最多 5 次尝试；模板来自 `team_notification_templates`（`repayment_reminder`，km/zh/en）；语言来自 `h5_accounts.locale` | `lib/notifications/server.ts`；`drizzle/0009*` |
+| F3 | 订阅需 Mini App `initData` 与 `consent:true`（MINI APP ONLY） | `app/api/telegram/route.ts` |
+| F4 | **不存在设备/推送令牌概念**（FCM/APNs） | 检索无命中 |
+| F5 | 到期提醒：T-3…T-1 每笔贷款每个到期日一条；`postloan` cron 驱动 | `lib/postloan/core.ts` |
+
+## 2. 目标与非目标
+**目标**：设备注册；令牌轮换；登出注销；多设备；提供方抽象；事件→通知映射；去重；本地化；偏好；点击目标策略。
+**非目标**：通知中心 UI/收件箱 API；Telegram 通道改造；营销推送；富媒体。
+
+## 3. Device Registration
+`POST /api/h5/devices`（Cookie 会话 + Origin + JSON）
+```
+{ requestId, installationId(UUID，每次安装生成，App 持久), platform:'android', pushToken, tokenProvider:'fcm', appVersion, osVersion?, locale, notificationsEnabled }
+```
+- 以 `(customerId, installationId)` upsert；返回 `{deviceId, registeredAt}`。
+- **令牌轮换**：同一 `installationId` 带新 `pushToken` 即更新（旧令牌作废）。
+- **注销**：`DELETE /api/h5/devices/{installationId}`——登出时 **best-effort** 调用；并且**服务端在会话撤销时**（登出、改密撤销其它会话、找回重置、账户删除）使该客户设备令牌失效，不依赖客户端一定调用。
+- **多设备**：同一客户可有多个活动设备，投递给全部 `active` 设备；FCM 返回 `UNREGISTERED/INVALID` → 服务端置 `inactive`。
+- `pushToken` 属秘密：**加密存储**（AES-GCM，同 chat id 做法），日志不得出现；`pushToken` 的哈希用于唯一/去重。
+- 速率限制：每客户注册频率限制；单客户设备数上限（OD-6.2）。
+- 数据模型：`push_devices(id, owner, customer_id, installation_id, platform, provider, token_encrypted, token_hash, locale, enabled, status, app_version, last_seen_at, created_at, updated_at, UNIQUE(owner, customer_id, installation_id), UNIQUE(provider, token_hash))`。
+
+## 4. Provider 抽象
+```
+PushProvider { send(deviceToken, message) → { ok | retry | invalid_token | failed, providerMessageId? } }
+```
+首个实现 **FCM v1**（服务账号凭据仅在服务端环境，永不进客户端/日志）；提供方可替换。投递经**出站队列**（沿用 `telegram_outbox` 模式，新表 `push_outbox`：`UNIQUE(owner, notification_event_id, device_id)`；状态 `pending→sending→sent|retry|failed|unknown|cancelled`，最多 5 次，指数退避）。
+
+## 5. 事件 → 通知映射
+| 事件 | 触发源 | 类别 | 默认 |
+|---|---|---|---|
+| `kyc.updated`（approved / needs_info / rejected） | KYC 状态迁移 | 事务性 | 开 |
+| `loan.submitted` | `apply` 成功 | 事务性 | 开 |
+| `loan.decision`（approved→signed / rejected） | 审批 | 事务性 | 开 |
+| `disbursement.updated`（processing/confirmed/failed/returned） | CR-005 状态机 | 事务性 | 开 |
+| `repayment.confirmed` / `repayment.failed` | CR-004 过账/失败 | 事务性 | 开 |
+| `due.reminder`（T-3…T-1、到期日） | `postloan` cron | 提醒 | 开，可关 |
+| `overdue.reminder` | CR-007 逾期状态 | 提醒 | 开，可关 |
+- 事件在**业务状态迁移的同一事务**写入 `notification_events`（权威事实源），再由异步扇出到设备/渠道；**不再依赖**模拟的 `state.notifications.status` 文案。
+- 事务性类别不可全部关闭（法律/风险提示类）；提醒类可关闭。
+
+## 6. 去重与幂等
+`dedupeKey = customerId : eventKind : objectId : objectVersion`（`UNIQUE`）。同一迁移重试不重复产生事件；同一事件对同一设备至多投递一次（`push_outbox` 唯一）。提醒按"贷款+到期日+档位"去重。
+
+## 7. 内容与隐私
+- **推送正文不含 PII/金额/账号**（锁屏隐私）：仅本地化的通用文案 + 数据负载 `{ kind, objectId }`；详情在用户打开 App 并通过认证后读取。
+- 本地化：使用设备注册的 `locale`（回退 `h5_accounts.locale`，再回退 en）；文案模板可沿用 `team_notification_templates` 机制（新增事件键）。
+- 禁止在推送中放置令牌、验证码、会话信息。
+
+## 8. 偏好
+`GET/PUT /api/h5/notification-preferences`：`{ reminders: boolean, quietHours?: {…} }`（静默时段 OD-6.3）。事务性类别不可全关；偏好按客户（跨设备）存储；设备级 `enabled` 反映 OS 权限（Android 13+ `POST_NOTIFICATIONS`）。
+
+## 9. 点击目标（Deep-link 目标策略）
+推送数据负载只含**枚举目标**，不含 URL：`target ∈ { HOME, LOAN_DETAIL(loanId), REPAYMENT(repaymentId), DISBURSEMENT(loanId) }`。客户端按白名单解析；未认证 → 登录 → Return Intent（仅 GET/导航，**绝不重放写操作**）；未知目标 → HOME。
+
+## 10. 安全
+令牌加密/脱敏；FCM 凭据仅服务端；注册端点 Origin/会话校验；会话撤销即注销设备；重放/批量注册限流；`installationId` 非敏感但不可作为身份；日志仅记录 `deviceId` 与结果类别。
+
+## 11. 与既有渠道的关系
+Telegram 提醒继续独立（Mini App 专属）；同一事件可同时进入 Telegram 与 Push（各自去重）；本 CR 不改变 Telegram 订阅流程。
+
+## 12. 向后兼容
+纯增量：新端点与新表；老客户端不受影响；`state.notifications` 保持（模拟/站内记录），其"未发送 Telegram"文案不作为投递事实。
+
+## 13. 测试（契约）
+注册 upsert 与轮换 · 登出/会话撤销使令牌失效 · 多设备扇出 · 无效令牌自动停用 · 去重（同事件重试、同提醒档位）· 推送正文无金额/PII · 偏好生效（提醒可关、事务性不可全关）· 目标白名单与未认证重定向 · 令牌不入日志。
+
+## 14. Open Decisions
+| ID | 决策 |
+|---|---|
+| OD-6.1 | 推送提供方最终选择（FCM / 其它）与项目凭据归属 |
+| OD-6.2 | 单客户设备数上限与过期清理 |
+| OD-6.3 | 静默时段与提醒频率策略 |
+| OD-6.4 | 是否需要通知收件箱（另立契约，依赖 `notification_events`） |
+
+## 15. Gate
+```
+CR-006: PROPOSED（待 Codex 独立 CR 评审）；Implementation: NOT AUTHORIZED；Trae = HOLD
+```

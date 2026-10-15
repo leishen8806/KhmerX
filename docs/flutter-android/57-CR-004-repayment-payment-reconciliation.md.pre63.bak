@@ -1,0 +1,187 @@
+# CR-004 · Repayment & Payment Reconciliation（还款与支付对账）
+
+```
+Status:     PROPOSED（契约草案；未评审；不授权任何后端或 Flutter 实施）
+Date:       2026-10-09
+Owner:      Claude（契约起草）
+Phases:     P6-A（线下转账 + 人工确认）→ P6-B（KHQR/Bakong 应用内支付 + 自动对账）
+Decisions:  DEC-2 = C（混合）· ARC-1（一个权威还款账本）· DEC-1 = A（单一运营机构）— 见 55
+Consumers:  Backend · Android(Flutter) · 员工后台 · QA · Security/Compliance
+Blocks:     P6-A / P6-B。在本 CR 实施并验收之前，客户 repay 保持被阻断
+Evidence:   真实代码事实（HEAD d916b45，2026-10-09 读码），见 §1；行号为该日期
+```
+
+**核心原则**
+1. **P6-A 与 P6-B 是两个还款录入渠道，不是两套会计系统。** 二者最终都写入**同一个权威还款账本**；不存在"人工余额 vs 自动余额"。
+2. 客户端对任何还款金额/余额**不具权威性**；不得自报 `paymentVerified` 或等价信任标记。
+3. 整数最小货币单位（美分）；服务端权威；请求幂等；无离线变更队列；安全日志；可审计状态迁移；稳定机器码；租户/公开上下文分离。
+
+---
+
+## 1. Problem（现状事实）
+
+| # | FACT | 证据 |
+|---|---|---|
+| F1 | 客户 `repay`/`withdraw` 在路由层被拒：403 `CUSTOMER_SETTLEMENT_FORBIDDEN`；领域层第二道防线（`allowInternalSettlement`，无生产调用方） | `app/api/h5/state/route.ts` POST；`lib/domain.ts` `customerAction` |
+| F2 | 领域 `repay`：状态须 `active`；`cents` 为安全整数、`>0` 且 `<= amount+fee−paid`（**不允许超额**）；`paid += cents`；`paid === amount+fee` 时 `closed`；写 `entries`（'测试还款'）、`events`、`notifications` | `lib/domain.ts` repay 分支 |
+| F3 | 员工 `admin_repay`：仅 Admin；非测试模式须 `emergencyId`；`reference` 须 `/^[A-Z0-9_-]{6,80}$/`；**`paymentVerified` 为请求体里的自报布尔值**（非测试模式要求为 `true`）；通过 `applyAction('repay')` 入账 | `lib/team/admin-funds.ts` |
+| F4 | `team_repayment_receipts`：`PRIMARY KEY(tenant_id, reference)`，字段 `loan_id, cents, actor, created_at`；同参考号+同贷款+同金额 → 幂等 no-op；否则 409 | `drizzle/0013_service_routing.sql` |
+| F5 | 幂等：领域 `requestId`（8–100 字符）按**载荷摘要**绑定，相同 id 不同载荷 → 错误；`admin_*` 用 `userId:requestId` + 摘要，冲突 → 409 `IDEMPOTENCY_PAYLOAD_MISMATCH` | `lib/domain.ts`；`lib/team/admin-funds.ts` |
+| F6 | 应急授权现为**一次性且绑定**（`assertEmergencyAccess(id, scope, action, loanId, cents)`，原子置 `consumed`） | `lib/team/emergency.ts` |
+| F7 | 机构回调：HMAC-SHA256 over `[institutionId, timestamp, nonce, rawBody].join('\n')`；±300 秒；nonce TTL 600 秒；`(institution_id, idempotency_key)` 与 `(institution_id, event_id)` 去重；密钥可按机构（`INSTITUTION_CALLBACK_SECRETS_JSON`）；事件类型含 `repayment.confirmed`、`payment.failed` | `app/api/institution/callback/route.ts`；`lib/institution-callback.ts` |
+| F8 | **回调事件只存储，无消费者**：`buildInstitutionActionPlan` 仅被测试引用；事件永远停留 `received` | `lib/institution-event-plans.ts`；全仓检索 |
+| F9 | 回调入库缺陷：nonce/事件/尝试同批写入，**重放 nonce 但新 idempotency key 时事件行仍被插入**（批内无条件回滚） | `app/api/institution/callback/route.ts` |
+| F10 | **没有真实支付通道**；`wallet`/测试还款只是记账；`postloan` 只读取 `outstanding = amount+fee−paid` | `lib/postloan/core.ts` |
+| F11 | 其它写入还款的服务端路径：**无** | 检索 |
+
+## 2. Domain Model
+
+> **权威来源（Single Source of Truth）= `repayment_ledger`（新 SQL 表，append-only）。** 贷款工作区 JSON 中的 `paid`、`status`、`entries` 是该账本的**投影**，只能由唯一的过账函数在**同一 D1 批事务**内更新；不得由其它路径直接写。
+
+| 实体 | 职责 | 关键字段（契约级） |
+|---|---|---|
+| **Repayment** | 客户可见的"一笔还款意图/业务对象"，面向一次还款动作 | `id, loanId, customerId, channel, amountCents, currency('USD'), status(§8 payment), requestId, createdAt, expiresAt?` |
+| **RepaymentAttempt** | 该意图下的一次具体尝试（人工：一次转账声明；自动：一次支付）；一个 Repayment 可有多个尝试，**至多一个**产生账本过账 | `id, repaymentId, kind(MANUAL_CLAIM\|PROVIDER_PAYMENT), status, providerReference?, bankReference?, proofFileId?, createdAt` |
+| **PaymentIntent** | 自动渠道的通道侧对象，1:1 绑定一个 Attempt | `id, attemptId, provider, providerReference, amountCents, currency, qrPayload?, deeplink?, expiresAt, status` |
+| **ProviderCallback** | 经验签的通道/机构事件（可复用 `institution_callback_events`，补消费者与状态机） | `id, provider/institutionId, eventId, idempotencyKey, payloadHash, receivedAt, status(received→processing→applied\|rejected\|dead_letter)` |
+| **ReconciliationRecord** | 把"外部事实"（回调/人工确认）对到 Attempt 与账本的记录 | `id, attemptId, sourceType(CALLBACK\|MANUAL_CONFIRMATION), sourceRef, outcome(MATCHED\|AMOUNT_MISMATCH\|LOAN_MISMATCH\|DUPLICATE\|ORPHAN\|EXCEPTION), ledgerEntryId?, resolvedBy?, createdAt` |
+| **RepaymentLedgerEntry** | **权威过账**，不可变 | `id, loanId, tenantId, direction(CREDIT\|REVERSAL), amountCents, currency, channel, attemptId, sourceType, sourceRef, idempotencyKey(UNIQUE), postedBy(staff userId \| 'system'), postedAt, receiptNo` |
+| **RepaymentReceipt** | 由**已确认的账本事实**派生的凭证（视图，不单独存储金额） | `receiptNo, loanId, amountCents, currency, channel, postedAt, referenceMasked, remainingAfterCents` |
+
+- 账本不可更新/删除（触发器 `RAISE(ABORT)`，同 `team_audit` 做法）；纠错只能 `REVERSAL` 过账（含原因与双人审批）。
+- **不得**在账本之外维护第二个"已还/剩余"余额。
+- `team_repayment_receipts`（F4）并入账本：其 `(tenant_id, reference)` 唯一性迁移为账本的 `UNIQUE(tenant_id, reference_normalized)`；旧表保留只读以兼容审计。
+- **设计决策 DR-1（请评审）**：账本为 SQL 表而非 JSON `entries`，原因：需要 `UNIQUE` 幂等约束与不可变触发器；工作区 JSON 仅做投影。
+
+## 3. Channels
+
+`channel ∈ { MANUAL_TRANSFER, KHQR, BAKONG }`，由**支付通道配置**表驱动（每运营机构启用/停用、展示名、人工转账指引），**不把通道逻辑写进贷款领域**。通道适配接口（契约级）：
+```
+PaymentProvider { createIntent(attempt) ; verifyCallback(raw, headers) ; normalize(event) ; queryStatus(providerRef) }
+```
+`MANUAL_TRANSFER` 无 `createIntent`/`verifyCallback`，由员工确认产生"来源事实"。新增通道 = 新适配器 + 配置，不改账本。
+
+## 4. P6-A — 手工/线下转账流程
+
+```
+客户查看应还 + 转账指引（含系统生成的唯一付款参考码）
+→ 线下转账（App 之外）
+→ （可选）提交参考号/凭证
+→ 员工审核 → 确认 / 驳回
+→ 账本过账（唯一过账函数）
+→ 贷款已还/剩余/结清 更新
+→ 凭证
+```
+1. 创建 Repayment(`MANUAL_TRANSFER`) 时服务端绑定 `loanId、customerId、amountCents（≤ amountDue）、currency`，并生成**付款参考码** `paymentReference`（用于银行备注匹配，每 Repayment 唯一）。
+2. 客户 **claim**（提交转账声明）：可带 `bankReference` 与可选 `proofFileId`（凭证图经现有上传管线：魔数检查→扫描 fail-closed→AES-GCM 加密）。**是否必须提交凭证为 Open Decision（§17 OD-4.2）**；契约支持"无凭证、仅靠员工在银行流水中核对"。
+3. 员工确认：输入**实际到账金额**与**银行流水号**；系统校验与 Repayment 绑定一致（§7）；**员工确认不得直接改写任意余额**，只能触发**可审计的账本过账**（§9）。
+4. 驳回：状态 `failed`，带客户安全的原因码；不产生过账。
+5. 过期：Repayment 超过 `expiresAt` 无确认 → `expired`（客户可重新发起）。
+
+## 5. P6-B — KHQR/Bakong 自动流程
+
+```
+创建支付意图（服务端）→ 通道支付（KHQR/Bakong）→ 回调 → 验真 → 对账 → 账本过账 → 凭证
+```
+1. 创建 Repayment(`KHQR`/`BAKONG`)+Attempt+PaymentIntent：服务端调用通道 `createIntent`，返回 `qrPayload`/`deeplink`、`expiresAt`、`providerReference`。金额/币种/贷款/客户在服务端绑定。
+2. 客户完成通道支付；App 轮询/刷新 `GET` 状态（**不以客户端动作推断成功**）。
+3. 回调到达 → §11 验证 → `ProviderCallback` 入库 → 消费者（异步 worker）→ 对账 → 过账。
+4. 通道状态与会计状态分离（§8）。
+
+## 6. Idempotency
+
+| 键 | 作用域 | 规则 |
+|---|---|---|
+| `requestId`（客户端 UUID） | 创建 Repayment / claim | 同键同载荷 → 返回既有对象；**同键异载荷 → 409 `IDEMPOTENCY_PAYLOAD_MISMATCH`** |
+| `providerReference` | PaymentIntent | `UNIQUE(provider, providerReference)` |
+| `callback eventId` / `idempotencyKey` | ProviderCallback | 沿用 `(institution_id, event_id)` 与 `(institution_id, idempotency_key)` 唯一；同键异载荷 → 409 |
+| `ledger idempotencyKey` | RepaymentLedgerEntry | 形如 `channel:sourceRef`，`UNIQUE`；**重复过账 = 返回既有过账，不二次入账** |
+| 参考号 | MANUAL | `UNIQUE(tenant_id, reference_normalized)`（取代 F4 的覆盖范围） |
+冲突语义统一：**幂等重放 = 200 且返回原结果**；**同键异载荷 = 409 + 显式码**；**重复回调 = 200 `duplicate:true`，不重复过账**。
+
+## 7. Amount Binding
+
+服务端在创建 Attempt 时固化并校验：`loanId · repayment target（本次还款对象：全额/部分）· amountCents · currency · customerId · provider/channel`。
+- 回调/人工确认的任一不一致（金额、币种、贷款、客户、通道、参考号）→ **不过账**，记 `ReconciliationRecord(outcome=…MISMATCH)` 与异常队列。
+- **超额**：不入账、不静默吞并；`amountCents > outstanding` → 对账异常 `OVERPAYMENT`，由人工处理（退款/调整不在本 CR；**OD-4.1**）。
+- **部分还款**允许：`0 < amount ≤ outstanding`，沿用 F2 约束；`outstanding` 的构成见 **CR-007**（含罚息后可能大于 `amount+fee−paid`）。
+- **客户端不得自报** `paymentVerified` 或任何等价信任字段；`admin_repay` 请求体中的 `paymentVerified` 在生产模式**废止**（由账本来源事实取代）。
+
+## 8. 状态机
+
+**支付状态（Repayment / Attempt）**：`created → pending → confirmed | failed | expired | cancelled`
+| 自 | 到 | 触发 |
+|---|---|---|
+| created | pending | 意图生成 / claim 提交 |
+| pending | confirmed | 回调验真通过**且**对账 MATCHED，或员工确认；**并已过账** |
+| pending | failed | 通道失败回调 / 员工驳回 |
+| pending/created | expired | 超过 `expiresAt` |
+| created/pending | cancelled | 客户取消（未确认前） |
+**对账状态（ReconciliationRecord，独立于支付状态）**：`pending → reconciled | exception`。**不得把通道状态与会计状态混用**：通道已"成功"但对账 `exception` ⇒ 支付状态保持 `pending`，不过账，进入异常队列。
+
+## 9. 人工确认（权限与审计）
+- 角色：`finance` 可确认；超过阈值或冲正需 `finance_checker` 二次批准（**阈值 OD-4.3**）；**确认人 ≠ 提交人**（员工代录场景）。
+- 要求 MFA 步进验证；**禁止匿名/共享账号结算**。
+- 审计字段（append-only `team_audit` + 账本）：`actor、role、tenant/institution、repaymentId、attemptId、amountCents、bankReference、receivedAt、decision、reason、before/after 摘要、requestId`。
+- 生产模式下 `admin_repay` 仅作为本流程的受控入口（同一过账函数、同一规则），**不再**接受自报核验标志；测试模式行为单独隔离。
+
+## 10. Receipt（对 Android）
+由账本过账派生：`receiptNo, loanId, amountCents, currency, channel, postedAt, referenceMasked, remainingAfterCents`；客户只读；`remainingAfterCents` 为过账时点的服务端值。
+
+## 11. 回调安全
+沿用并加强现有机构回调（F7）：
+1. **签名**：HMAC-SHA256 over `[institutionId, timestamp, nonce, rawBody]`，**按机构/通道独立密钥**；常量时间比较；通道若有自有签名方案由 `PaymentProvider.verifyCallback` 实现。
+2. **时间窗/重放**：±300 秒；nonce 唯一。**修复 F9**：事件行写入必须**以 nonce 写入成功为条件**（同事务条件插入），重放 nonce 不得产生事件。
+3. **事件去重**：`eventId`、`idempotencyKey` 唯一；同键异载荷 409。
+4. **引用校验**：`providerReference` 必须对应现存 PaymentIntent。
+5. **金额/贷款/客户绑定**：见 §7；不一致 → 对账异常，不过账。
+6. **消费者**：新增 worker（队列 + 重试，沿用 `maxAttempts=5` 与退避），事件状态 `received → processing → applied|rejected|dead_letter`；`dead_letter` 人工重试沿用现有入口。
+7. 回调载荷、签名、密钥**不入日志**；仅记录脱敏摘要。
+
+## 12. APIs（提案；不复用 `POST /api/h5/state` 业务动作）
+**客户（Cookie 会话 + Origin + JSON；服务端按 `REPAYMENT_ENABLED[channel]` 开关）**
+| 方法 路径 | 说明 |
+|---|---|
+| `GET /api/h5/repayment/options?loan=ID` | 应还构成、启用的通道、人工转账指引 |
+| `POST /api/h5/repayments` | `{requestId, loanId, channel, amountCents}` → 创建 Repayment+Attempt；KHQR/Bakong 返回 intent；MANUAL 返回 `paymentReference` |
+| `POST /api/h5/repayments/{id}/claim` | 人工：`{requestId, bankReference?, proofFileId?}` |
+| `POST /api/h5/repayments/{id}/cancel` | 未确认前取消 |
+| `GET /api/h5/repayments?loan=ID` · `GET /api/h5/repayments/{id}` | 历史/详情（含状态、回执） |
+| `POST /api/h5/repayments/proof` | 凭证上传（走 KYC 同级上传管线与限额） |
+**员工**：`GET /api/team/repayments?status=`、`POST /api/team/repayments/{id}/confirm|reject`、`GET /api/team/reconciliation`（异常队列）、`POST …/resolve`、冲正（双人）。
+**通道/机构**：沿用 `POST /api/institution/callback`（补消费者），通道专属路径由适配器定义。
+
+## 13. Android Read Model（全部服务端权威）
+```
+repaymentSummary: { amountDueCents, paidCents, remainingCents, currency, nextDueAt?, settled:boolean }
+channels: [{ channel, enabled, minAmountCents?, instructions? }]
+repayments[]: { id, channel, amountCents, status, reconciliationState?, createdAt, expiresAt?, failureCode?, receipt? }
+receipt: { receiptNo, amountCents, currency, channel, postedAt, referenceMasked, remainingAfterCents }
+```
+- `remainingCents` 为服务端字段，**取代**客户端派生 `max(0, amount+fee−paid)`（旧派生作为兼容回退）。
+- 失败/驳回只返回**客户安全的稳定 `failureCode`**（见 CR-012），不返回员工文案或通道原文。
+
+## 14. 向后兼容
+- 当前客户 `repay`（`POST /api/h5/state`）**保持 403 `CUSTOMER_SETTLEMENT_FORBIDDEN`**，直到本 CR **实施并通过验收**；之后该动作**继续保持阻断**（新能力走专用资源），不复活旧动作。
+- 新端点默认关闭（服务端开关）；老客户端不受影响。
+- `admin_repay` 在迁移期继续可用（测试模式），生产模式切换到受控入口。
+
+## 15. 安全与生产前置（引用已有审计；不在本 CR 内重设计）
+真实资金**不得**在以下问题未关闭时启用（以关闭时的重新核查为准）：自报 `paymentVerified`（F3，本 CR 废止）· 回调重放入库缺陷（F9，本 CR 修复）· 回调无消费者（F8，本 CR 新增）· MFA 重绑（`code-audit-20261008` H-1）· Admin 单人资金（N-02：应急授权现已一次性绑定（F6），仍需复核 `admin` 角色可自建第二管理员）· standalone 迁移器对触发器切分缺陷与 `0030/0031` 与只追加审计表冲突（H-3/H-4，本 CR 需要新增触发器与迁移）。
+
+## 16. 测试（契约）
+重复回调不二次过账 · 重放 nonce 不产生事件 · 同键异载荷 409 · 金额/贷款/客户不一致 → 异常且不过账 · 超额 → `OVERPAYMENT` 异常 · 部分还款后剩余正确、足额后 `closed` · 人工确认需角色+MFA+非提交人 · 账本不可更新/删除 · 投影（`paid`/`status`）仅经过账函数 · 并发过账（CAS）无双花 · 通道失败不改余额 · 迁移 expand/contract 与回滚演练 · Android 契约（fixtures 与 §13 一致）。
+
+## 17. Open Decisions（本草案真正需要业主/法务/支付方输入）
+| ID | 决策 |
+|---|---|
+| OD-4.1 | 超额还款政策（拒收退款 / 记为客户贷方 / 抵扣下期） |
+| OD-4.2 | P6-A 是否强制提交凭证；凭证保留期 |
+| OD-4.3 | 人工确认二次批准阈值；冲正审批规则 |
+| OD-4.4 | KHQR/Bakong 具体接入方与技术规范（签名、回调、对账文件） |
+| OD-4.5 | 凭证编号规则；支付过期时长 |
+
+## 18. Gate
+```
+CR-004: PROPOSED（待 Codex 独立 CR 评审）；Implementation: NOT AUTHORIZED；Trae = HOLD
+```
