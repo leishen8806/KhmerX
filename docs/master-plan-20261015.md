@@ -249,6 +249,57 @@ PostgreSQL 迁移与多实例、Redis、队列、文件直传、**持牌机构�
 ### 12.3 运行形态（过渡）
 沿用现有技术栈但纵向扩容：一台更大的应用机（建议 8 vCPU / 16GB，独占 CPU）+ 一台扫描机；SQLite 用 Litestream 持续复制到异地对象存储。**这是单点**：机器故障需要从备份恢复（预计恢复时间约 1 小时）。这是为了赶 15 天而接受的风险，目标架构（PostgreSQL、多实例）仍按 §6 在上线后实施。
 
+### 12.3a 环境角色：两台现有 VPS 作为"灰度空间"（2026-10-15 确认）
+| 服务器 | 地址 | 角色 |
+|---|---|---|
+| `Khmerx-ubuntu-s-2vcpu-4gb-sgp1` | 159.223.77.134 | 金融服务公司系统的**灰度环境**（应用 + 数据 + 扫描同机，2 vCPU / 4GB） |
+| `Licensed-ubuntu-s-2vcpu-4gb-sgp1` | 165.22.108.5 | 持牌机构系统的灰度环境（本期不部署机构系统，先空闲；见下） |
+
+**灰度域名（均指向 159.223.77.134）**
+| 域名 | 用途 | 对应生产 |
+|---|---|---|
+| `testpayease.khmerx.org` | 小程序 / H5 | payease.khmerx.org |
+| `testadmin.khmerx.org` | 管理后台 | admin.khmerx.org |
+| `testapi.khmerx.org` | API 接口（Flutter App 的 `API_BASE_URL`） | api.khmerx.org |
+| `test.khmerx.org` | 官网（静态站） | khmerx.org |
+| `licensed.khmerx.org`（指向 165.22.108.5） | 持牌机构系统灰度域名 | 持牌机构正式域名（待定） |
+
+注：持牌机构系统在这 15 天内不部署（M4 之后），`licensed.khmerx.org` 在此期间无服务（Cloudflare 代理下会返回 521）；该机器若临时承担文件扫描，须在 M4 开始前迁走。`licensed.khmerx.org` 只是灰度用的临时域名，无需加 `test` 前缀；持牌机构后续会申请一个全新的独立域名。因此：金融服务公司侧的机构地址、回调来源校验、允许的 Origin、证书与 Cloudflare 配置都必须做成**配置项**（每家机构一条记录），不得把任何机构域名写死进代码；机构标识（`institutionId`）与签名密钥不得与域名绑定，换域名时只改配置不改代码。
+
+**这些域名需要的配套改动（新任务 S4b，苏晨，约 0.5–1 天，第 1–2 天内完成）**
+1. `deploy/standalone/server.mjs` 第 185–190 行把允许的 Host 写死为 `admin/api/payease/payeas.khmerx.org`，且"免 Basic 口令的公开主机""admin 根路径跳转到登录""api 主机只允许 `/api/`"三条规则也按这些名字判断；灰度域名必须通过配置加入（不要把 `test*` 写死进代码，也不得因此放宽生产域名的规则）。
+1a. 同一任务里加入：仅在来自 Cloudflare IP 段时信任 `CF-Connecting-IP` 作为客户端 IP（见下方 Cloudflare 要求第 2 条）。
+2. 配置 `PAYEASE_ALLOWED_ORIGINS`，加入 `https://testpayease.khmerx.org`、`https://testadmin.khmerx.org`、`https://testapi.khmerx.org`（`lib/request-security.ts` 默认只含 admin/payease）。
+3. Caddy：四个域名的 HTTPS 证书与路由（官网走静态站，其余走网关 4300）；DNS 记录已指向 159.223.77.134，防火墙放行 80/443。
+4. Telegram 灰度机器人的小程序地址设为 `https://testpayease.khmerx.org`；App 灰度包用 `--dart-define=API_BASE_URL=https://testapi.khmerx.org` 构建。
+5. 压测白名单（B0）显式加入 `testapi.khmerx.org` / `testpayease.khmerx.org`。
+
+**Cloudflare 代理（2026-10-15 已确认四条记录均为"已代理"）带来的配套要求**
+1. Cloudflare 的 SSL/TLS 模式必须是 **Full (strict)**；源站用 Cloudflare Origin CA 证书（或 Caddy 用 DNS-01 方式申请证书）。不要用 Flexible（会造成跳转死循环和明文回源）。
+2. **真实客户端 IP**：经过 Cloudflare 后，网关看到的连接地址是 Cloudflare 边缘 IP；必须改为只在请求来自 Cloudflare 官方 IP 段时才信任 `CF-Connecting-IP`，否则限流会按边缘 IP 计数，全站共用桶的问题更严重。该项并入 S4b。
+3. **源站防火墙**：DigitalOcean 防火墙只放行来自 Cloudflare IP 段的 80/443，外加压测发起机 `165.22.108.5` 和运维固定 IP；SSH 限制来源 IP。
+4. **压测不要穿过 Cloudflare**（会被其防护拦截，也测不到源站）：从 `165.22.108.5` 直连源站 IP 并带 `Host: testapi.khmerx.org` 头；B0 的主机白名单因此要允许"源站 IP + Host 头"这种方式。
+5. **WAF / Bot 规则**：对 `testapi.khmerx.org` 关闭挑战页（Flutter App 和接口客户端无法通过浏览器挑战），保持 `Cache-Control: no-store`，不要开"缓存所有内容"。
+6. 当前探测结果（我从外部访问）：四个域名均返回 **521**（Cloudflare 连不上源站），源站 80/443 未对外开放，说明源站服务尚未部署，这是预期状态，不是配置错误。
+
+**灰度环境的取舍（技术负责人 2026-10-15 决定：灰度安全不重要，只要服务器不崩溃）**
+- 灰度阶段**降级为"上生产前必须完成"**，不阻塞灰度闸门：S3 安全收口、Cloudflare "完整（严格）"+ Origin CA 证书、源站防火墙仅放行 Cloudflare、WAF 规则细化、MFA 与双人审核相关核对。
+- 灰度阶段**仍然必须做（稳定性）**：
+  1. 容器内存上限与自动重启；服务器加 2GB swap；日志轮转；磁盘与内存告警。
+  2. 网关并发上限与过载保护：超过阈值返回 503 + `Retry-After`，而不是被拖垮。
+  3. 限流（防单个来源把服务器打满，属于稳定性而非安全）；上传并发上限与请求体大小上限。
+  4. DigitalOcean 监控告警（CPU、内存、磁盘、负载）+ 外部拨测。
+  5. 每日备份（Litestream 或定时导出）到异地对象存储。
+  6. 2 vCPU / 4GB 上应用、数据与 ClamAV 同机有内存争用风险：优先把文件扫描放到空闲的 `Licensed` 机器（经令牌 + 来源 IP 限制访问），再决定压测发起机用临时机器。
+- 前提与红线：灰度**不得使用真实客户的敏感资料**（证件、人脸、手机号），除非先经法务确认；一旦灰度使用真实资料，上面降级的安全项立即恢复为必须项。
+- 另建一份"灰度捷径清单"，记录所有为灰度放宽的项，作为上生产前的整改清单，避免把灰度配置原样带进生产。
+
+- **灰度环境 ≠ 600 并发验证环境**：2 vCPU / 4GB 只能承载小规模灰度（建议上限 50–150 人，以压测实测为准）。600 人压测要在**临时放大的同构环境**里做（DigitalOcean 按小时计费，压测当天临时加大/新建，测完释放），并把结果作为"能扩到 600"的证据；不得把灰度机上的结果说成 600。
+- **压测发起机**：压测脚本（k6）从 `Licensed` 这台机器发起（同区域、不占用本机带宽），指向 `Khmerx` 灰度环境；这是临时用途，持牌机构系统（M4）开始前要释放。
+- **正式生产环境**：不在这 15 天的交付范围内（除非另行决定）。第 15 天的交付是"灰度环境上线 + 已证明可扩到 600 的压测报告 + 生产扩容方案"。
+- **需要准备**：灰度域名与 HTTPS（Telegram 小程序和 App 都要求 https）；独立的灰度 Telegram 机器人（不得复用正式机器人令牌）；灰度用户名单与开关；灰度数据的处理策略（灰度数据是否沿用到生产、是否含真实资料，需法务确认）；每日异地备份。
+- **闸门 F / G 的含义调整**：F = 灰度环境就绪；G = 灰度放量决定（50 → 150 人）；"放量到 600"需要生产环境另行建设后再评审。
+
 ### 12.4 日程（工作日）
 | 日 | 内容 |
 |---|---|
