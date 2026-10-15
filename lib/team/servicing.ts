@@ -7,7 +7,7 @@ export async function servicingSave(p:any){
  if((current?.version??-1)!==p.version)throw new AuthError('配置已变化，请刷新',409);
  if(typeof p.enabled!=='boolean')throw new AuthError('请选择自动分配状态');
  for(const [id,kind] of [[p.fundingId,'institution'],[p.repaymentId,'institution'],[p.collectionId,'postloan']]){
-  if(!await db().prepare('SELECT id FROM team_units WHERE id=? AND tenant_id=? AND kind=?').bind(id||'',s.tenant.id,kind).first())throw new AuthError('请选择本公司的正确承接机构／贷后部门');
+  if(!await db().prepare('SELECT id FROM team_units WHERE id=? AND tenant_id=? AND kind=? AND active=1').bind(id||'',s.tenant.id,kind).first())throw new AuthError('请选择本公司的启用承接机构／贷后部门');
  }
  const next={tenant_id:s.tenant.id,auto_assign:p.enabled?1:0,funding_id:p.fundingId,repayment_id:p.repaymentId,collection_id:p.collectionId,version:p.version+1};
  const result=await db().batch([
