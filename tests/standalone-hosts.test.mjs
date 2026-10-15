@@ -1,0 +1,31 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {hostRules,isAllowedHost,isPublicClientHost,isAdminHost,isApiHost,resolveClientIp} from '../deploy/standalone/hosts.mjs';
+
+test('standalone defaults preserve formal host behavior',()=>{
+ const rules=hostRules();
+ assert.equal(isAllowedHost('payease.khmerx.org',rules),true);
+ assert.equal(isAllowedHost('admin.khmerx.org',rules),true);
+ assert.equal(isAllowedHost('api.khmerx.org',rules),true);
+ assert.equal(isAllowedHost('gray.khmerx.org',rules),false);
+ assert.equal(isAllowedHost('',rules),false);
+ assert.equal(isPublicClientHost('payease.khmerx.org',rules),true);
+ assert.equal(isAdminHost('admin.khmerx.org',rules),true);
+ assert.equal(isApiHost('api.khmerx.org',rules),true);
+});
+
+test('configured gray hosts use the same host rules without code changes',()=>{
+ const suffix='khmerx.org';
+ const hosts={publicClientHosts:['client.'+suffix],adminHosts:['staff.'+suffix],apiHosts:['edge.'+suffix]};
+ const rules=hostRules(hosts);
+ assert.equal(isAllowedHost('staff.'+suffix,rules),true);
+ assert.equal(isPublicClientHost('client.'+suffix,rules),true);
+ assert.equal(isAdminHost('staff.'+suffix,rules),true);
+ assert.equal(isApiHost('edge.'+suffix,rules),true);
+});
+
+test('X-Real-IP is ignored from an untrusted socket and accepted from a local proxy',()=>{
+ assert.equal(resolveClientIp('203.0.113.10','198.51.100.7'),'203.0.113.10');
+ assert.equal(resolveClientIp('127.0.0.1','198.51.100.7'),'198.51.100.7');
+ assert.equal(resolveClientIp('10.0.0.4','198.51.100.8'),'198.51.100.8');
+});
