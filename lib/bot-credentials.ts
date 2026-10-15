@@ -16,6 +16,13 @@ export async function telegramCredentialOwners(botId:string){
    WHERE c.active=1 ORDER BY c.id`).bind(botId).all<{id:string}>()).results;
  return rows.map(row=>row.id);
 }
+/** Return configured channels so a direct Mini App launch can identify the
+ * signing bot even when Telegram did not append a channel query parameter. */
+export async function telegramCredentialChannels(){
+ const rows=(await db().prepare(`SELECT DISTINCT b.bot_id FROM telegram_bot_credentials b
+   JOIN team_companies c ON c.id=b.owner WHERE c.active=1 ORDER BY b.bot_id`).bind().all<{bot_id:string}>()).results;
+ return rows.map(row=>row.bot_id).filter(id=>/^bot-[1-9]\d*$/.test(id));
+}
 export async function channelToken(owner:string,botId:string){
  const key=tokenKey(owner,botId),row=await db().prepare('SELECT token_encrypted FROM telegram_bot_credentials WHERE owner=? AND bot_id=?').bind(owner,botId).first<{token_encrypted:string}>();
  if(!row)return (env as unknown as Record<string,string>)[key]||'';
