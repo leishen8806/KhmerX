@@ -3,6 +3,7 @@ import {getChatGPTUser} from '@/app/chatgpt-auth';
 import {input,json,failure,cookie} from '@/lib/h5-auth';
 import {db} from '@/lib/team/server';
 import {AuthError,digest} from '@/lib/h5-auth-core';
+import {env} from 'cloudflare:workers';
 export const dynamic='force-dynamic';
 export async function POST(request:Request){try{
  const p=await input(request),outer=await getChatGPTUser();if(!outer)throw new AuthError('请先登录私有测试站点',401);
@@ -19,7 +20,26 @@ export async function POST(request:Request){try{
  if(p.action==='sso'){
   const email=outer.email.trim().toLowerCase();
   const existing=await db().prepare(`SELECT m.id,m.tenant_id,m.user_id,m.role FROM team_members m WHERE m.active=1 AND (m.user_id=? OR (lower(m.email)=? AND m.role='admin' AND m.user_id LIKE 'local:%') OR (lower(m.email)=? AND m.role='admin' AND m.user_id LIKE 'pending:platform:%'))`).bind(outer.userId,email,email).all<any>();
-  const eligible=(existing.results||[]).filter((m:any)=>{if(!String(m.user_id).startsWith('pending:platform:'))return true;const expiry=Number(String(m.user_id).split(':')[2]);return Number.isFinite(expiry)&&expiry>Date.now()});
+  let eligible=(existing.results||[]).filter((m:any)=>{if(!String(m.user_id).startsWith('pending:platform:'))return true;const expiry=Number(String(m.user_id).split(':')[2]);return Number.isFinite(expiry)&&expiry>Date.now()});
+  // A platform operator may be re-authenticating with the same verified email
+  // after the private Site account was recreated. Rebind only active admins,
+  // only for an allowlisted platform email, and leave an audit trail for every
+  // company; never use this fallback for ordinary staff or local-password rows.
+  if(!eligible.length){
+   const allowlisted=((env as any).KYC_REVIEWER_EMAILS||'').split(',').map((x:string)=>x.trim().toLowerCase());
+   if(allowlisted.includes(email)){
+    const stale=await db().prepare("SELECT m.id,m.tenant_id,m.user_id,m.role FROM team_members m WHERE m.active=1 AND lower(m.email)=? AND m.role='admin' AND m.user_id NOT LIKE 'local:%' AND m.user_id NOT LIKE 'pending:%'").bind(email).all<any>();
+    if((stale.results||[]).length){
+     const now=new Date().toISOString();
+     const claims=(stale.results||[]).flatMap((m:any)=>[
+      db().prepare("UPDATE team_members SET user_id=?,version=version+1 WHERE id=? AND user_id=? AND active=1 AND role='admin'").bind(outer.userId,m.id,m.user_id),
+      db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),m.tenant_id,email,'platform_admin_identity_rebind',JSON.stringify({memberId:m.id,reason:'verified platform email re-authentication'}),now)
+     ]);
+     await db().batch(claims);
+     eligible=(stale.results||[]).map((m:any)=>({...m,user_id:outer.userId}));
+    }
+   }
+  }
   if(!eligible.length)throw new AuthError('当前站点账号没有后台员工权限',403);
   const selected=portal(p.portal);const match=eligible.find((m:any)=>m.role&&((selected==='lender'&&['checker','finance_checker'].includes(m.role))||(selected==='business'&&!['lender','checker','finance','finance_checker'].includes(m.role))));if(!match)throw new AuthError(selected==='lender'?'当前站点账号没有持牌机构复核权限，请联系管理员':'当前站点账号不属于服务机构后台，请切换到正确入口',403);
   const enabled=await db().prepare('SELECT mfa_enabled,role FROM team_members WHERE id=? AND active=1').bind(match.id).first<any>();
