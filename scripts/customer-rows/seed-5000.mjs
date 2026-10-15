@@ -1,0 +1,3 @@
+import { args, ensureReport } from './common.mjs';
+export function seed(count=5000){return Array.from({length:count},(_,i)=>{const customerId=`synthetic-customer-${String(i+1).padStart(5,'0')}`,loanId=`synthetic-loan-${String(i+1).padStart(5,'0')}`;return {customerId,loan:{id:loanId,customerId,status:'registered',createdAt:new Date(0).toISOString(),amount:5000,fee:200,paid:0}}})}
+if(import.meta.url===`file:///${process.argv[1]?.replace(/\\/g,'/')}`){const a=args();const count=Math.max(1,Number(a.count||5000));const output=a.output||'scripts/customer-rows/seed-5000.json';ensureReport(output,{generatedAt:new Date().toISOString(),count,customers:seed(count)});console.log(`wrote ${count} synthetic customers to ${output}`)}
