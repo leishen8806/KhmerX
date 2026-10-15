@@ -309,16 +309,25 @@ test('Admin funding and repayment require prior approval, enforce isolation and 
  const receipt={action:'admin_repay',loanId:l.id,cents:1000,reference:'UAT-RECEIPT-001',note:'Synthetic receipt checked',requestId:crypto.randomUUID()};
  await flow.staffAction(receipt);await flow.staffAction({...receipt,requestId:crypto.randomUUID()});
  saved=(await store.readState(A)).state;assert.equal(saved.loans.find(x=>x.id===l.id).paid,1000);
+ const emergency=await mod('@/lib/team/emergency'),verifiedRef='UAT-PROD-001',verifiedCents=500,ownerCookies=extraCookies;
+ const emergencyRequest=await emergency.emergencyRequest({scope:['funding'],loanId:l.id,cents:verifiedCents,reason:'Synthetic verified receipt production-path check'});
+ user={userId:'emergency-admin',email:'emergency-admin@example.test'};extraCookies=ownerCookies;await emergency.emergencyApprove(emergencyRequest.id);user=owner;extraCookies=ownerCookies;
+ sql.prepare('INSERT INTO team_repayment_receipts(tenant_id,reference,loan_id,cents,actor,created_at,verified) VALUES (?,?,?,?,?,?,1)').run(A,verifiedRef,l.id,verifiedCents,'institution-verified',new Date().toISOString());
+ const auth=await mod('@/lib/team/auth'),ownerMember=sql.prepare('SELECT id FROM team_members WHERE tenant_id=? AND user_id=?').get(A,owner.userId),ownerSession=await auth.createSsoSession(ownerMember.id,owner.userId);extraCookies=`; payease_staff_mode=sso; payease_staff_session=${ownerSession.token}; payease_staff_company=${A}`;
+ env.KHMERX_TEST_MODE='false';
+ try{await flow.staffAction({...receipt,cents:verifiedCents,reference:verifiedRef,emergencyId:emergencyRequest.id,requestId:crypto.randomUUID()});}
+ finally{env.KHMERX_TEST_MODE='true';}
+ saved=(await store.readState(A)).state;assert.equal(saved.loans.find(x=>x.id===l.id).paid,1500);
  await assert.rejects(flow.staffAction({...receipt,cents:1001,requestId:crypto.randomUUID()}),/流水号/);
  await assert.rejects(flow.staffAction({...receipt,cents:999999,reference:'UAT-TOO-MUCH',requestId:crypto.randomUUID()}),/还款金额/);
  const post=await mod('@/lib/postloan/server'),target=saved.loans.find(x=>x.id===l.id);
  await post.runCompany(A,new Date(Date.parse(target.dueAt)+86400000).toISOString());
  let task=(await post.postloanData()).tasks.find(t=>t.loanId===l.id);assert(task);assert.equal(task.departmentId,(await team.assignment(A,c.id)).collection_unit_id);
  await post.postloanAction({action:'note',taskId:task.id,version:task.updatedAt,requestId:crypto.randomUUID(),outcome:'contacted',note:'Synthetic Admin collection followup'});
- await flow.staffAction({...receipt,cents:target.amount+target.fee-1000,reference:'UAT-RECEIPT-002',requestId:crypto.randomUUID()});
+ await flow.staffAction({...receipt,cents:target.amount+target.fee-1500,reference:'UAT-RECEIPT-002',requestId:crypto.randomUUID()});
  task=(await post.postloanData()).tasks.find(t=>t.loanId===l.id);assert.equal(task.status,'closed');assert.equal(task.balance,0);
- assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM team_repayment_receipts WHERE tenant_id=? AND loan_id=?').get(A,l.id).n,2);
- assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM team_repayment_ledger WHERE tenant_id=? AND loan_id=?').get(A,l.id).n,2);
+ assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM team_repayment_receipts WHERE tenant_id=? AND loan_id=?').get(A,l.id).n,3);
+ assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM team_repayment_ledger WHERE tenant_id=? AND loan_id=?').get(A,l.id).n,3);
 });
 test('independent staff password login, tenant scope, logout, expiry and disabled accounts',async()=>{
  selected=A;user=owner;extraCookies='';const auth=await mod('@/lib/team/auth');
