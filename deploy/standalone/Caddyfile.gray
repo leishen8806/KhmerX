@@ -1,5 +1,5 @@
 {
-    auto_https off
+    auto_https disable_redirects
     admin off
     servers {
         # Only Cloudflare may provide CF-Connecting-IP. Keep this list in sync
@@ -10,12 +10,14 @@
 }
 
 https://testpayease.khmerx.org, https://testadmin.khmerx.org, https://testapi.khmerx.org {
+    tls internal
     reverse_proxy 127.0.0.1:4300 {
         header_up X-Real-IP {client_ip}
     }
 }
 
 https://test.khmerx.org {
+    tls internal
     root * /srv
     encode gzip
     file_server
