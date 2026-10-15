@@ -59,10 +59,9 @@ export async function manage(p:any){const u=await identity();
   if(!tenant)throw new AuthError('公司代码无效',404,'COMPANY_NOT_FOUND');
   const existing=await db().prepare('SELECT id,active FROM team_members WHERE tenant_id=? AND lower(email)=?').bind(tenant.id,email).first<any>();
   if(existing)throw new AuthError(existing.active?'该邮箱已是当前公司的员工，请直接使用现有账号':'该邮箱曾属于当前公司，需先由管理员恢复或清理后再引导');
-  const memberId=crypto.randomUUID(),pendingUser='pending:platform:'+crypto.randomUUID(),now=new Date().toISOString(),expires=Date.now()+24*3600000;
+  const memberId=crypto.randomUUID(),expires=Date.now()+24*3600000,pendingUser=`pending:platform:${expires}:${crypto.randomUUID()}`,now=new Date().toISOString();
   await db().batch([
    db().prepare('INSERT INTO team_members (id,tenant_id,user_id,email,role,unit_id,active,version) VALUES (?,?,?,?,?,?,1,0)').bind(memberId,tenant.id,pendingUser,email,'admin',null),
-   db().prepare('INSERT INTO team_platform_bootstrap (member_id,tenant_id,email,created_by,created_at,expires_at,used_at) VALUES (?,?,?,?,?,?,NULL)').bind(memberId,tenant.id,email,operator.userId,now,expires),
    db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),tenant.id,operator.email,'platform_admin_bootstrap',JSON.stringify({memberId,email,expiresAt:new Date(expires).toISOString(),mode:'verified_sso'}),now)
   ]);
   return {ok:true,company:tenant.slug,email,expiresAt:expires};

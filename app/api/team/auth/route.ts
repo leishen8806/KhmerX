@@ -18,9 +18,10 @@ export async function POST(request:Request){try{
  }
  if(p.action==='sso'){
   const email=outer.email.trim().toLowerCase();
-  const existing=await db().prepare(`SELECT m.id,m.tenant_id,m.user_id,m.role FROM team_members m WHERE m.active=1 AND (m.user_id=? OR (lower(m.email)=? AND m.role='admin' AND m.user_id LIKE 'local:%') OR (lower(m.email)=? AND m.role='admin' AND m.user_id LIKE 'pending:platform:%' AND EXISTS (SELECT 1 FROM team_platform_bootstrap b WHERE b.member_id=m.id AND b.used_at IS NULL AND b.expires_at>?)))`).bind(outer.userId,email,email,Date.now()).all<any>();
-  if(!existing.results.length)throw new AuthError('当前站点账号没有后台员工权限',403);
-  const selected=portal(p.portal);const match=existing.results.find((m:any)=>m.role&&((selected==='lender'&&['checker','finance_checker'].includes(m.role))||(selected==='business'&&!['lender','checker','finance','finance_checker'].includes(m.role))));if(!match)throw new AuthError(selected==='lender'?'当前站点账号没有持牌机构复核权限，请联系管理员':'当前站点账号不属于服务机构后台，请切换到正确入口',403);
+  const existing=await db().prepare(`SELECT m.id,m.tenant_id,m.user_id,m.role FROM team_members m WHERE m.active=1 AND (m.user_id=? OR (lower(m.email)=? AND m.role='admin' AND m.user_id LIKE 'local:%') OR (lower(m.email)=? AND m.role='admin' AND m.user_id LIKE 'pending:platform:%'))`).bind(outer.userId,email,email).all<any>();
+  const eligible=(existing.results||[]).filter((m:any)=>{if(!String(m.user_id).startsWith('pending:platform:'))return true;const expiry=Number(String(m.user_id).split(':')[2]);return Number.isFinite(expiry)&&expiry>Date.now()});
+  if(!eligible.length)throw new AuthError('当前站点账号没有后台员工权限',403);
+  const selected=portal(p.portal);const match=eligible.find((m:any)=>m.role&&((selected==='lender'&&['checker','finance_checker'].includes(m.role))||(selected==='business'&&!['lender','checker','finance','finance_checker'].includes(m.role))));if(!match)throw new AuthError(selected==='lender'?'当前站点账号没有持牌机构复核权限，请联系管理员':'当前站点账号不属于服务机构后台，请切换到正确入口',403);
   const enabled=await db().prepare('SELECT mfa_enabled,role FROM team_members WHERE id=? AND active=1').bind(match.id).first<any>();
   if(enabled?.mfa_enabled)return json({mfaRequired:true,challenge:await createMfaChallenge(match.id,outer.userId),portal:selected});
   if(enabled?.role!=='admin')throw new AuthError('非管理员账号必须先启用 MFA 才能使用单点登录',403,undefined,'MFA_REQUIRED_FOR_SSO');
@@ -30,11 +31,10 @@ export async function POST(request:Request){try{
   if(bootstrap){
    const now=new Date().toISOString();
    const claimed=await db().batch([
-    db().prepare("UPDATE team_members SET user_id=?,version=version+1 WHERE id=? AND user_id LIKE 'pending:platform:%' AND active=1").bind(outer.userId,match.id),
-    db().prepare('UPDATE team_platform_bootstrap SET used_at=? WHERE member_id=? AND used_at IS NULL AND expires_at>?').bind(now,match.id,Date.now()),
+    db().prepare("UPDATE team_members SET user_id=?,version=version+1 WHERE id=? AND user_id=? AND active=1").bind(outer.userId,match.id,match.user_id),
     db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),match.tenant_id,email,'platform_admin_bootstrap_bound',JSON.stringify({memberId:match.id,siteUserId:outer.userId}),now)
    ]);
-   if(claimed[0].meta.changes!==1||claimed[1].meta.changes!==1)throw new AuthError('管理员引导已被使用或已过期',409,'PLATFORM_BOOTSTRAP_EXPIRED');
+   if(claimed[0].meta.changes!==1)throw new AuthError('管理员引导已被使用或已过期',409,'PLATFORM_BOOTSTRAP_EXPIRED');
   }
   const sso=await createSsoSession(match.id,outer.userId);await logoutStaff(request.headers.get('cookie'));set(STAFF_SESSION,sso.token);set(STAFF_MODE,'sso');set(STAFF_COMPANY,sso.companyId);set(STAFF_PORTAL,selected);return response;
  }
