@@ -19,3 +19,8 @@ test('migration splitter respects word boundaries',()=>{
  const parts=splitSql("CREATE TABLE begin_endings (value TEXT DEFAULT 'BEGINNING'); CREATE TABLE done (id TEXT);");
  assert.equal(parts.length,2);
 });
+
+test('migration splitter ignores comment-only files',()=>{
+ const parts=splitSql('-- retired migration\n-- intentionally left as documentation\n');
+ assert.deepEqual(parts,[]);
+});
