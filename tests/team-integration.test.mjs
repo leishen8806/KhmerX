@@ -53,6 +53,7 @@ selected=A;user=owner;await team.manage({action:'kyc_field_permission',memberId:
 await team.ensureAssignment(A,'customer-1');await team.ensureAssignment(A,'customer-2');
 test('automatic assignment balances active reviewers and assigns institution',async()=>{const a=await team.assignment(A,'customer-1'),b=await team.assignment(A,'customer-2');assert(a.reviewer_id);assert.notEqual(a.reviewer_id,b.reviewer_id);assert.equal(a.institution_id,inst)});
 test('organization units support audited rename and safe lifecycle',async()=>{selected=A;user=owner;const created=await team.manage({action:'add_unit',kind:'institution',name:'Lifecycle institution'}),unit=sql.prepare("SELECT id,active FROM team_units WHERE tenant_id=? AND name='Lifecycle institution'").get(A);assert.equal(unit.active,1);await assert.rejects(team.manage({action:'add_unit',kind:'institution',name:' lifecycle institution '}),/同类型机构或部门名称已存在/);await team.manage({action:'update_unit',unitId:unit.id,name:'Lifecycle institution renamed',active:true,reason:'Synthetic rename'});assert.equal(sql.prepare('SELECT name FROM team_units WHERE id=?').get(unit.id).name,'Lifecycle institution renamed');await team.manage({action:'update_unit',unitId:unit.id,name:'Lifecycle institution renamed',active:false,reason:'Synthetic retirement'});assert.equal(sql.prepare('SELECT active FROM team_units WHERE id=?').get(unit.id).active,0);await assert.rejects(team.manage({action:'create_member',role:'lender',email:'inactive-unit@example.test',unitId:unit.id}));const audit=sql.prepare("SELECT detail FROM team_audit WHERE tenant_id=? AND action='update_unit' ORDER BY created_at DESC LIMIT 1").get(A);assert.match(audit.detail,/Synthetic retirement/);await assert.rejects(team.manage({action:'update_unit',unitId:dept,name:'Default department',active:false,reason:'Must remain default'}),/默认部门不能停用/);void created});
+test('employee list API enforces admin access and preserves server filters',async()=>{const route=await mod('@/app/api/team/members/route');const request=(params='')=>new Request(`http://localhost/api/team/members${params?`?${params}`:''}`,{headers:{origin:'http://localhost'}});selected=A;user=reviewer1;const forbidden=await route.GET(request('role=kyc'));assert.equal(forbidden.status,403);user=owner;const response=await route.GET(request(`page=1&pageSize=5&role=kyc&unitId=${encodeURIComponent(dept)}&active=1`));assert.equal(response.status,200);const body=await response.json();assert.equal(body.page,1);assert.equal(body.pageSize,5);assert(body.items.every((m)=>m.role==='kyc'&&m.unit_id===dept&&m.active===1));});
 test('database rejects cross-company units, staff and assignment references',()=>{const bdept=sql.prepare('SELECT default_department FROM team_companies WHERE id=?').get(B).default_department;assert.throws(()=>sql.prepare('UPDATE team_assignments SET department_id=? WHERE tenant_id=?').run(bdept,A),/tenant scope/);assert.throws(()=>sql.prepare('UPDATE team_members SET unit_id=? WHERE email=?').run(bdept,reviewer1.email),/tenant scope/)});
 test('department administrator can reassign within department with reason; cannot cross departments',async()=>{selected=A;user=deptManager;const a=await team.assignment(A,'customer-1'),r=sql.prepare('SELECT id FROM team_members WHERE email=?').get(reviewer1.email);await flow.assignCustomer({customerId:'customer-1',departmentId:dept,institutionId:inst,reviewerId:r.id,reason:'Synthetic reassignment',version:a.version});const updated=await team.assignment(A,'customer-1');assert.equal(updated.reviewer_id,r.id);await assert.rejects(flow.assignCustomer({customerId:'customer-1',departmentId:dept2,institutionId:inst,reason:'cross',version:updated.version}));await assert.rejects(flow.assignCustomer({customerId:'customer-1',departmentId:dept,institutionId:inst,reason:'',version:updated.version}));});
 test('employee identity cannot access another company or another reviewer case; admin and KYC supervisor can review within own scope',async()=>{selected=B;user=reviewer1;await assert.rejects(team.staff());selected=A;user=reviewer2;await assert.rejects(team.guardKyc(A,'customer-1',true));user=owner;await team.guardKyc(A,'customer-1',true);await assert.rejects(team.guardKyc(B,'customer-1',true));user=reviewer1;await team.guardKyc(A,'customer-1',true);user=deptManager;await team.guardKyc(A,'customer-1',true)});
@@ -308,16 +309,25 @@ test('Admin funding and repayment require prior approval, enforce isolation and 
  const receipt={action:'admin_repay',loanId:l.id,cents:1000,reference:'UAT-RECEIPT-001',note:'Synthetic receipt checked',requestId:crypto.randomUUID()};
  await flow.staffAction(receipt);await flow.staffAction({...receipt,requestId:crypto.randomUUID()});
  saved=(await store.readState(A)).state;assert.equal(saved.loans.find(x=>x.id===l.id).paid,1000);
+ const emergency=await mod('@/lib/team/emergency'),verifiedRef='UAT-PROD-001',verifiedCents=500,ownerCookies=extraCookies;
+ const emergencyRequest=await emergency.emergencyRequest({scope:['funding'],loanId:l.id,cents:verifiedCents,reason:'Synthetic verified receipt production-path check'});
+ user={userId:'emergency-admin',email:'emergency-admin@example.test'};extraCookies=ownerCookies;await emergency.emergencyApprove(emergencyRequest.id);user=owner;extraCookies=ownerCookies;
+ sql.prepare('INSERT INTO team_repayment_receipts(tenant_id,reference,loan_id,cents,actor,created_at,verified) VALUES (?,?,?,?,?,?,1)').run(A,verifiedRef,l.id,verifiedCents,'institution-verified',new Date().toISOString());
+ const auth=await mod('@/lib/team/auth'),ownerMember=sql.prepare('SELECT id FROM team_members WHERE tenant_id=? AND user_id=?').get(A,owner.userId),ownerSession=await auth.createSsoSession(ownerMember.id,owner.userId);extraCookies=`; payease_staff_mode=sso; payease_staff_session=${ownerSession.token}; payease_staff_company=${A}`;
+ env.KHMERX_TEST_MODE='false';
+ try{await flow.staffAction({...receipt,cents:verifiedCents,reference:verifiedRef,emergencyId:emergencyRequest.id,requestId:crypto.randomUUID()});}
+ finally{env.KHMERX_TEST_MODE='true';}
+ saved=(await store.readState(A)).state;assert.equal(saved.loans.find(x=>x.id===l.id).paid,1500);
  await assert.rejects(flow.staffAction({...receipt,cents:1001,requestId:crypto.randomUUID()}),/流水号/);
  await assert.rejects(flow.staffAction({...receipt,cents:999999,reference:'UAT-TOO-MUCH',requestId:crypto.randomUUID()}),/还款金额/);
  const post=await mod('@/lib/postloan/server'),target=saved.loans.find(x=>x.id===l.id);
  await post.runCompany(A,new Date(Date.parse(target.dueAt)+86400000).toISOString());
  let task=(await post.postloanData()).tasks.find(t=>t.loanId===l.id);assert(task);assert.equal(task.departmentId,(await team.assignment(A,c.id)).collection_unit_id);
  await post.postloanAction({action:'note',taskId:task.id,version:task.updatedAt,requestId:crypto.randomUUID(),outcome:'contacted',note:'Synthetic Admin collection followup'});
- await flow.staffAction({...receipt,cents:target.amount+target.fee-1000,reference:'UAT-RECEIPT-002',requestId:crypto.randomUUID()});
+ await flow.staffAction({...receipt,cents:target.amount+target.fee-1500,reference:'UAT-RECEIPT-002',requestId:crypto.randomUUID()});
  task=(await post.postloanData()).tasks.find(t=>t.loanId===l.id);assert.equal(task.status,'closed');assert.equal(task.balance,0);
- assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM team_repayment_receipts WHERE tenant_id=? AND loan_id=?').get(A,l.id).n,2);
- assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM team_repayment_ledger WHERE tenant_id=? AND loan_id=?').get(A,l.id).n,2);
+ assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM team_repayment_receipts WHERE tenant_id=? AND loan_id=?').get(A,l.id).n,3);
+ assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM team_repayment_ledger WHERE tenant_id=? AND loan_id=?').get(A,l.id).n,3);
 });
 test('independent staff password login, tenant scope, logout, expiry and disabled accounts',async()=>{
  selected=A;user=owner;extraCookies='';const auth=await mod('@/lib/team/auth');
@@ -390,6 +400,17 @@ test('existing SSO Admin can use company password without inheriting other compa
  extraCookies=`; payease_staff_mode=password; payease_staff_session=${login.token}; payease_staff_company=${B}`;await assert.rejects(team.staff(),/没有此公司/);
  extraCookies=`; payease_staff_mode=password; payease_staff_session=${login.token}; payease_staff_company=none`;await assert.rejects(team.staff(),/请选择/);
  await auth.logoutStaff(extraCookies);await assert.rejects(team.identity(),/失效/);extraCookies='';assert.equal((await team.staff()).member.role,'admin');await team.platformAdmin();
+});
+
+test('team payload redacts MFA secret fields',async()=>{
+ selected=A;user=owner;extraCookies='';
+ const data=await team.teamData();
+ assert.equal(Object.hasOwn(data.member||{},'mfa_secret'),false);
+ assert.equal(Object.hasOwn(data.member||{},'pending_mfa_secret'),false);
+ for(const membership of data.memberships||[]){
+  assert.equal(Object.hasOwn(membership,'mfa_secret'),false);
+  assert.equal(Object.hasOwn(membership,'pending_mfa_secret'),false);
+ }
 });
 
 test('state mutation rejects non-JSON and malformed envelopes',async()=>{
