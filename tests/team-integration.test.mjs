@@ -71,7 +71,7 @@ test('admin directly creates, changes, disables and re-enables members; old invi
  const update={action:'update_member',memberId:m.id,role:'kyc',unitId:dept,active:false,version:m.version,reason:'Synthetic disable'};
  await team.manage(update);assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM team_staff_sessions WHERE member_id=?').get(m.id).n,0);user=reviewer1;extraCookies=`; payease_staff_mode=sso; payease_staff_session=${session.token}; payease_staff_company=${A}`;await assert.rejects(team.staff());extraCookies='';
  user=owner;await assert.rejects(team.manage(update));
- await team.manage({...update,active:true,version:m.version+1});user=reviewer1;await team.staff();
+ sql.prepare("UPDATE team_members SET mfa_enabled=1,mfa_secret='stale',pending_mfa_secret='pending' WHERE id=?").run(m.id);await team.manage({...update,active:true,version:m.version+1});assert.equal(sql.prepare('SELECT mfa_enabled,mfa_secret,pending_mfa_secret FROM team_members WHERE id=?').get(m.id).mfa_enabled,0);assert.equal(sql.prepare('SELECT mfa_secret,pending_mfa_secret FROM team_members WHERE id=?').get(m.id).mfa_secret,null);user=reviewer1;await team.staff();
  assert.equal((await team.assignment(A,'customer-1')).reviewer_id,null);
  await assert.rejects(team.manage({action:'create_member',role:'admin',email:'new@example.test'}));
  user=owner;await assert.rejects(team.manage({action:'create_member',role:'kyc',email:reviewer1.email.toUpperCase(),unitId:dept}));
