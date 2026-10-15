@@ -262,6 +262,9 @@ PostgreSQL 迁移与多实例、Redis、队列、文件直传、**持牌机构�
 | `testadmin.khmerx.org` | 管理后台 | admin.khmerx.org |
 | `testapi.khmerx.org` | API 接口（Flutter App 的 `API_BASE_URL`） | api.khmerx.org |
 | `test.khmerx.org` | 官网（静态站） | khmerx.org |
+| `licensed.khmerx.org`（指向 165.22.108.5） | 持牌机构系统灰度域名 | 持牌机构正式域名（待定） |
+
+注：持牌机构系统在这 15 天内不部署（M4 之后），`licensed.khmerx.org` 在此期间无服务（Cloudflare 代理下会返回 521）；该机器若临时承担文件扫描，须在 M4 开始前迁走。灰度域名命名与 `test*` 不一致，且像生产命名，建议确认是否改为 `testlicensed.khmerx.org`，避免日后与正式域名混淆。
 
 **这些域名需要的配套改动（新任务 S4b，苏晨，约 0.5–1 天，第 1–2 天内完成）**
 1. `deploy/standalone/server.mjs` 第 185–190 行把允许的 Host 写死为 `admin/api/payease/payeas.khmerx.org`，且"免 Basic 口令的公开主机""admin 根路径跳转到登录""api 主机只允许 `/api/`"三条规则也按这些名字判断；灰度域名必须通过配置加入（不要把 `test*` 写死进代码，也不得因此放宽生产域名的规则）。
