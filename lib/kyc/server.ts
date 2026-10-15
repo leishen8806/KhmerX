@@ -9,6 +9,8 @@ import {loanTerms} from '@/lib/agreements/loan-terms';
 import {cleanProfile,emptyProfile,missing,completeness,validateReview,fields,KycError,RULE_VERSION,type Profile,type KycStatus,type FileRef,type Slot} from './core';
 import {assertAllowedOrigin} from '@/lib/request-security';
 import {channelForAccount,claimPublicIdentifier} from '@/lib/public-id-store';
+import {errorResponse} from '@/lib/http/route';
+import {resolveRequestId} from '@/lib/http/request-id';
 export {json,KycError};
 export type CasePayload={profile:Profile;phoneVerified:boolean;ruleVersion:string;submittedAt?:string;signedLoan?:{billing?:Bill;borrowerName:string;profileHash:string;loanId:string;signatureId:string;signatureHash:string;termsVersion:string;termsHash:string;termsSnapshot:typeof loanTerms.blocks;principal:number;fee:number;currency:string;termDays:number;signedAt:string;contractHash:string};review?:{decision:string;reason:string;checklist:Record<string,boolean>;actor:string;at:string;revision:number}};
 export type CaseRow={id:string;owner:string;customer_id:string;revision:number;status:KycStatus;payload:string;updated_at:string;public_ref?:string|null;source_channel?:string|null};
@@ -52,12 +54,8 @@ export async function context(request:Request){const c=await customer(request);r
 export function origin(request:Request){try{assertAllowedOrigin(request,true)}catch{throw new KycError('不允许跨站操作',403,'CROSS_SITE_REQUEST')}}
 export async function boundedBody(request:Request,max:number){if(Number(request.headers.get('content-length')||0)>max)throw new KycError('上传内容过大',413);const reader=request.body?.getReader();if(!reader)return new Uint8Array();const chunks:Uint8Array[]=[];let size=0;while(true){const r=await reader.read();if(r.done)break;size+=r.value.length;if(size>max){await reader.cancel();throw new KycError('上传内容过大',413)}chunks.push(r.value)}const out=new Uint8Array(size);let offset=0;for(const c of chunks){out.set(c,offset);offset+=c.length}return out}
 export async function body(request:Request){origin(request);if(!request.headers.get('content-type')?.startsWith('application/json'))throw new KycError('请求格式无效',415);try{const value=JSON.parse(new TextDecoder().decode(await boundedBody(request,50000)));if(!value||typeof value!=='object'||Array.isArray(value))throw new KycError('请求格式无效');return value}catch(e){if(e instanceof KycError)throw e;throw new KycError('请求格式无效')}}
-export function failed(e:unknown){
- const traceId=crypto.randomUUID();
- const response=e instanceof KycError||e instanceof AuthError
-  ?json({error:e.message,code:e.code,traceId},e.status,{'X-Request-Id':traceId})
-  :json({error:'KYC 服务暂不可用，资料未确认保存，请重试',code:'SERVICE_UNAVAILABLE',traceId},503,{'X-Request-Id':traceId});
- return response;
+export function failed(e:unknown,request?:Request){
+ return errorResponse(e,request?resolveRequestId(request):crypto.randomUUID());
 }
 export async function findCase(owner:string,customerId:string){return db().prepare('SELECT * FROM kyc_cases WHERE owner=? AND customer_id=?').bind(owner,customerId).first<CaseRow>()}
 export async function getCase(owner:string,id:string){const row=await db().prepare('SELECT * FROM kyc_cases WHERE owner=? AND id=?').bind(owner,id).first<CaseRow>();if(!row)throw new KycError('资料不存在或不可访问',404);return row}
