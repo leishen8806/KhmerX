@@ -160,6 +160,12 @@ const identitySign=x=>createHmac('sha256',cfg.bindings.PAYEASE_IDENTITY_PROOF_SE
 const eq=(a,b)=>{const x=Buffer.from(a),y=Buffer.from(b);return x.length===y.length&&timingSafeEqual(x,y)};
 const rateBuckets=new Map();
 const allowRate=(key,limit,windowMs)=>{const now=Date.now(),current=rateBuckets.get(key);if(!current||now-current.started>=windowMs){rateBuckets.set(key,{started:now,count:1});if(rateBuckets.size>10000){for(const [k,v]of rateBuckets)if(now-v.started>=windowMs)rateBuckets.delete(k)}return true}if(current.count>=limit)return false;current.count++;return true};
+const isLocalOrGray=environment=>['local','gray'].includes(String(environment||'').toLowerCase());
+const gatewayEnvironment=String(cfg.bindings?.PAYEASE_ENV||process.env.PAYEASE_ENV||'').toLowerCase();
+const gatewayScaleRaw=cfg.bindings?.PAYEASE_GATEWAY_RATE_SCALE??process.env.PAYEASE_GATEWAY_RATE_SCALE;
+const parsedGatewayScale=Number(gatewayScaleRaw??1);
+const gatewayScaleValue=isLocalOrGray(gatewayEnvironment)&&Number.isFinite(parsedGatewayScale)&&parsedGatewayScale>0?parsedGatewayScale:1;
+if(gatewayScaleRaw!==undefined&&(!isLocalOrGray(gatewayEnvironment)||!Number.isFinite(parsedGatewayScale)||parsedGatewayScale<=0))console.warn('[gateway] ignoring invalid or inactive PAYEASE_GATEWAY_RATE_SCALE');
 const server=createServer(async(req,res)=>{try{
  const expected='Basic '+Buffer.from(cfg.accessUser+':'+cfg.accessPassword).toString('base64');
  const jobRequest=req.url==='/api/jobs/postloan'&&req.method==='POST'&&eq(req.headers.authorization||'','Bearer '+cfg.bindings.POSTLOAN_JOB_SECRET);
@@ -193,7 +199,7 @@ const server=createServer(async(req,res)=>{try{
  // rotate the limiter key on every call. The proxy-facing socket address is
  // the only transport-level value available to this process.
  const clientIp=String(req.socket.remoteAddress||'unknown').split(',')[0].trim();
- if(req.url?.startsWith('/api/')){const authRoute=/^\/api\/h5\/auth(?:\/|$)/.test(req.url),limit=authRoute?30:240,windowMs=authRoute?15*60*1000:60*1000;if(!allowRate((authRoute?'auth:':'api:')+clientIp,limit,windowMs)){res.writeHead(429,{'Content-Type':'application/json','Retry-After':String(Math.ceil(windowMs/1000))});return res.end(JSON.stringify({error:'请求过于频繁，请稍后重试',code:'RATE_LIMITED'}));}}
+ if(req.url?.startsWith('/api/')){const authRoute=/^\/api\/h5\/auth(?:\/|$)/.test(req.url),formalHost=['payease.khmerx.org','payeas.khmerx.org','api.khmerx.org','admin.khmerx.org'].includes(String(host||'').toLowerCase()),scale=!formalHost&&isLocalOrGray(gatewayEnvironment)?gatewayScaleValue:1,limit=Math.max(1,Math.floor((authRoute?30:240)*scale)),windowMs=authRoute?15*60*1000:60*1000;if(!allowRate((authRoute?'auth:':'api:')+clientIp,limit,windowMs)){res.writeHead(429,{'Content-Type':'application/json','Retry-After':String(Math.ceil(windowMs/1000))});return res.end(JSON.stringify({error:'请求过于频繁，请稍后重试',code:'RATE_LIMITED'}));}}
  let cookies=req.headers.cookie||'',value=cookies.split(';').map(x=>x.trim()).find(x=>x.startsWith('payease_visitor='))?.slice(16),id=value?.split('.')[0];
  let fresh=false;if(!id||!/^[a-f0-9-]{36}$/.test(id)||!eq(value?.split('.')[1]||'',sign(id))){id=randomUUID();value=id+'.'+sign(id);fresh=true;}
  const headers=new Headers();for(const [k,v]of Object.entries(req.headers)){if(v&&!k.startsWith('oai-')&&!['host','authorization','connection','content-length','transfer-encoding','x-forwarded-proto','x-forwarded-host','x-payease-identity-proof','cf-connecting-ip','true-client-ip'].includes(k))headers.set(k,Array.isArray(v)?v.join(','):v);}headers.set('host',host);
