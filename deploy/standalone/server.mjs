@@ -3,6 +3,7 @@ import {createServer} from 'node:http';
 import {readFileSync,readdirSync,existsSync,writeFileSync} from 'node:fs';
 import {randomUUID,randomBytes,createHmac,timingSafeEqual,pbkdf2Sync} from 'node:crypto';
 import {Readable} from 'node:stream';
+import {hostRules,isAllowedHost,isPublicClientHost,isAdminHost,isApiHost,resolveClientIp} from './hosts.mjs';
 // Split migration SQL without treating CASE ... END as a trigger block.
 // SQLite trigger bodies use BEGIN ... END; CASE expressions may be nested
 // inside them and must not close the outer statement.
@@ -32,6 +33,11 @@ const modulePaths=readdirSync(moduleRoot,{recursive:true}).filter(n=>/\.m?js$/.t
 const modules=['index.js',...modulePaths.filter(n=>n!=='index.js')].map(n=>({type:'ESModule',path:moduleRoot+'/'+n}));
 const buildId=existsSync(moduleRoot+'/BUILD_ID')?readFileSync(moduleRoot+'/BUILD_ID','utf8').trim():'unknown';
 const cfg=JSON.parse(readFileSync('/data/config.json','utf8'));
+const hosts=hostRules(cfg);
+const configuredHosts=[...hosts.publicClientHosts,...hosts.adminHosts,...hosts.apiHosts].map(host=>host.toLowerCase());
+const formalHosts=['payease.khmerx.org','payeas.khmerx.org','admin.khmerx.org','api.khmerx.org'];
+const hasFormalHost=configuredHosts.some(host=>formalHosts.includes(host));
+if(hasFormalHost&&(cfg.bindings?.PAYEASE_LIMIT_SCALE!==undefined||cfg.bindings?.PAYEASE_GATEWAY_RATE_SCALE!==undefined||process.env.PAYEASE_LIMIT_SCALE!==undefined||process.env.PAYEASE_GATEWAY_RATE_SCALE!==undefined))throw new Error('Rate multipliers are forbidden when formal hosts are configured');
 // Keep the scanner credential outside the broad /data bind mount.  The
 // scanner gateway runs as nobody, while /data is intentionally root-only.
 // A dedicated secret mount lets the gateway enforce authorization without
@@ -182,21 +188,21 @@ const server=createServer(async(req,res)=>{try{
    return res.end(JSON.stringify({status:'not_ready'}));
   }
  }
- if(![cfg.host,'admin.khmerx.org','api.khmerx.org','payease.khmerx.org','payeas.khmerx.org'].includes(host)){res.writeHead(400);return res.end('Invalid host');}
- const publicClient=host==='payease.khmerx.org'||host==='payeas.khmerx.org'||host==='api.khmerx.org'||host==='admin.khmerx.org';
+ if(!isAllowedHost(host,hosts,cfg.host)){res.writeHead(400);return res.end('Invalid host');}
+ const publicClient=isPublicClientHost(host,hosts);
  if(!jobRequest&&!publicClient&&!eq(req.headers.authorization||'',expected)){res.writeHead(401,{'WWW-Authenticate':'Basic realm="PayEase private test"','Cache-Control':'no-store'});return res.end('Private test environment');}
  const secure=true;
- if(host==='admin.khmerx.org'&&req.url==='/'){res.writeHead(302,{Location:'/team/login'});return res.end();}
- if(host==='api.khmerx.org'&&!req.url?.startsWith('/api/')){res.writeHead(404,{'Content-Type':'application/json'});return res.end(JSON.stringify({error:'API endpoint required'}));}
+ if(isAdminHost(host,hosts)&&req.url==='/'){res.writeHead(302,{Location:'/team/login'});return res.end();}
+ if(isApiHost(host,hosts)&&!req.url?.startsWith('/api/')){res.writeHead(404,{'Content-Type':'application/json'});return res.end(JSON.stringify({error:'API endpoint required'}));}
  // The standalone listener is bound behind the local reverse proxy. Do not
  // trust forwarded client headers here: a direct request can forge them and
  // rotate the limiter key on every call. The proxy-facing socket address is
  // the only transport-level value available to this process.
- const clientIp=String(req.socket.remoteAddress||'unknown').split(',')[0].trim();
+ const clientIp=resolveClientIp(req.socket.remoteAddress,req.headers['x-real-ip']);
  if(req.url?.startsWith('/api/')){const authRoute=/^\/api\/h5\/auth(?:\/|$)/.test(req.url),limit=authRoute?30:240,windowMs=authRoute?15*60*1000:60*1000;if(!allowRate((authRoute?'auth:':'api:')+clientIp,limit,windowMs)){res.writeHead(429,{'Content-Type':'application/json','Retry-After':String(Math.ceil(windowMs/1000))});return res.end(JSON.stringify({error:'请求过于频繁，请稍后重试',code:'RATE_LIMITED'}));}}
  let cookies=req.headers.cookie||'',value=cookies.split(';').map(x=>x.trim()).find(x=>x.startsWith('payease_visitor='))?.slice(16),id=value?.split('.')[0];
  let fresh=false;if(!id||!/^[a-f0-9-]{36}$/.test(id)||!eq(value?.split('.')[1]||'',sign(id))){id=randomUUID();value=id+'.'+sign(id);fresh=true;}
- const headers=new Headers();for(const [k,v]of Object.entries(req.headers)){if(v&&!k.startsWith('oai-')&&!['host','authorization','connection','content-length','transfer-encoding','x-forwarded-proto','x-forwarded-host','x-payease-identity-proof','cf-connecting-ip','true-client-ip'].includes(k))headers.set(k,Array.isArray(v)?v.join(','):v);}headers.set('host',host);
+ const headers=new Headers();for(const [k,v]of Object.entries(req.headers)){if(v&&!k.startsWith('oai-')&&!['host','authorization','connection','content-length','transfer-encoding','x-forwarded-proto','x-forwarded-host','x-payease-identity-proof','cf-connecting-ip','true-client-ip','x-real-ip'].includes(k))headers.set(k,Array.isArray(v)?v.join(','):v);}headers.set('host',host);
  // Only the gateway may provide the source address used by H5 rate limits.
  // Never forward client-controlled identity headers from the public request.
  headers.set('cf-connecting-ip',clientIp);
