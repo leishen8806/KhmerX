@@ -37,7 +37,18 @@ if (!(await ping())) {
     {
       cwd: ROOT,
       stdio: 'inherit',
-      env: { ...process.env, CLOUDFLARE_INCLUDE_PROCESS_ENV: 'true', KHMERX_TEST_MODE: 'true', PAYEASE_AUTH_MODE: process.env.PAYEASE_AUTH_MODE || 'demo' },
+      env: {
+        ...process.env,
+        CLOUDFLARE_INCLUDE_PROCESS_ENV: 'true',
+        KHMERX_TEST_MODE: 'true',
+        PAYEASE_AUTH_MODE: process.env.PAYEASE_AUTH_MODE || 'demo',
+        // The local harness must always have a signing key. Production and
+        // preprod provide this through their secret store; this fallback is
+        // intentionally test-only and never used by deployed workers.
+        PAYEASE_AUTH_SECRET: process.env.PAYEASE_AUTH_SECRET || 'local-harness-auth-secret-change-me',
+        KYC_DATA_SECRET: process.env.KYC_DATA_SECRET || 'local-harness-kyc-secret-change-me-32',
+        KYC_REVIEWER_EMAILS: process.env.KYC_REVIEWER_EMAILS || 'b0-runner@example.test',
+      },
     },
   );
   for (let i = 0; i < 90 && !(await ping()); i++) await new Promise((r) => setTimeout(r, 2000));
