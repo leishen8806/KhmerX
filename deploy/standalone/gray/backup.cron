@@ -1,0 +1,3 @@
+# Install manually in /etc/cron.d/khmerx-gray-backup; run as root, never store keys here.
+# Ubuntu cron uses the server timezone. Verify timedatectl before installation.
+15 2 * * * root bash /opt/payease/app/deploy/standalone/gray/backup.sh --apply >> /var/log/khmerx-gray-backup.log 2>&1
