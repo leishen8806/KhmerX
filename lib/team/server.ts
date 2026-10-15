@@ -173,7 +173,12 @@ export async function manage(p:any){const u=await identity();
   const guard=`id=? AND tenant_id=? AND version=? AND ${actorGuard}`;
   const args=[m.id,tenant,m.version,...actorArgs];
   const statements=[];
-  if(!active||role!==m.role||unitId!==m.unit_id)statements.push(db().prepare(`UPDATE team_assignments SET reviewer_id=NULL,version=version+1 WHERE tenant_id=? AND reviewer_id=? AND EXISTS (SELECT 1 FROM team_members WHERE ${guard})`).bind(tenant,m.id,...args));
+  const permissionChanged=!active||role!==m.role||unitId!==m.unit_id;
+  if(permissionChanged)statements.push(db().prepare(`UPDATE team_assignments SET reviewer_id=NULL,version=version+1 WHERE tenant_id=? AND reviewer_id=? AND EXISTS (SELECT 1 FROM team_members WHERE ${guard})`).bind(tenant,m.id,...args));
+  // A role, scope, or status change must revoke every existing session. The
+  // member-version check already blocks stale sessions, but deleting them here
+  // makes revocation immediate and prevents disabled-account session buildup.
+  if(permissionChanged)statements.push(db().prepare('DELETE FROM team_staff_sessions WHERE member_id=?').bind(m.id));
   statements.push(db().prepare(`UPDATE team_members SET role=?,unit_id=?,active=?,version=version+1 WHERE ${guard}`).bind(role,unitId,active,...args));
   statements.push(db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) SELECT ?,?,?,?,?,? WHERE changes()=1').bind(crypto.randomUUID(),tenant,u.userId,'update_member',JSON.stringify({member:m.id,before:{role:m.role,unitId:m.unit_id,active:m.active},after:{role,unitId,active},reason:txt(p.reason,300)}),new Date().toISOString()));
   const results=await db().batch(statements);if(!results[results.length-2].meta.changes)throw new AuthError('管理权限或员工资料已变化，请刷新',409);return {ok:true}
