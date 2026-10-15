@@ -3,7 +3,7 @@ import {codeForError} from './error-codes.ts';
 import {attachCustomerRef} from './public-id-store.ts';
 /** App-owned customer verification inside the existing private Sites workspace. */
 export type AuthMode='demo'|'telegram';
-export type AuthConfig={mode:AuthMode;secret:string;gatewayToken?:string;allowDemo?:boolean};
+export type AuthConfig={mode:AuthMode;secret:string;gatewayToken?:string;allowDemo?:boolean;environment?:string;limitScale?:number;ownerLimits?:{register?:number;send?:number;password?:number}};
 type Result={meta:{changes:number}};
 export interface AuthDB {prepare(sql:string):{bind(...args:unknown[]):{first<T=Record<string,unknown>>():Promise<T|null>;run():Promise<Result>}}}
 export type AuthRuntime={db:AuthDB;config:AuthConfig;now?:()=>number;transport?:typeof fetch};
@@ -37,6 +37,9 @@ async function limit(r:AuthRuntime,key:string,max:number,window:number,delay:num
  ON CONFLICT(key) DO UPDATE SET count=CASE WHEN window_start+?<=? THEN 1 ELSE count+1 END,
  window_start=CASE WHEN window_start+?<=? THEN ? ELSE window_start END,next_allowed=?
  WHERE (window_start+?<=? OR count<?) AND next_allowed<=? RETURNING key`).bind(key,t,t+delay,window,t,window,t,t,t+delay,window,t,max,t).first();if(!row)throw new AuthError('请求过于频繁，请稍后再试',429,Math.max(delay,60))}
+export const isLocalOrGray=(environment?:string)=>['local','gray'].includes(String(environment||'').toLowerCase());
+const ownerDefaults={register:5000,send:5000,password:5000};
+function ownerLimit(r:AuthRuntime,name:keyof typeof ownerDefaults){const configured=r.config.ownerLimits?.[name]??ownerDefaults[name],base=Number(configured),scale=Number(r.config.limitScale??1);return Math.max(1,Math.floor((Number.isFinite(base)&&base>0?base:ownerDefaults[name])*(Number.isFinite(scale)&&scale>0?scale:1)))}
 async function gateway(r:AuthRuntime,method:string,body:Record<string,unknown>){
  let response:Response;try{response=await (r.transport??fetch)('https://gatewayapi.telegram.org/'+method,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+r.config.gatewayToken},body:JSON.stringify(body),signal:AbortSignal.timeout(8000)})}catch{throw new AuthError('Telegram 暂时未响应，请稍后重试；不会自动切换为模拟验证码',503)}
  let payload:any;try{payload=await response.json()}catch{throw new AuthError('验证码服务暂不可用，请稍后重试',503)}
@@ -52,7 +55,7 @@ export async function sendCode(r:AuthRuntime,owner:string,browserToken:string,in
  const phoneKey=await customerKey(r,owner,phone),browserHash=await digest(browserToken),t=now(r);
  await limit(r,'send-phone|'+phoneKey,5,3600,RESEND_DELAY);
  await limit(r,'send-browser|'+owner+'|'+browserHash,10,3600,0);
- await limit(r,'send-owner|'+owner,30,3600,0);
+ await limit(r,'send-owner|'+owner,ownerLimit(r,'send'),3600,0);
  await r.db.prepare('DELETE FROM h5_challenges WHERE owner=? AND expires_at<?').bind(owner,t-86400).run();
  await r.db.prepare('DELETE FROM h5_sessions WHERE owner=? AND expires_at<?').bind(owner,t).run();
  const id=randomToken(),code=c.mode==='demo'?'123456':null;
@@ -111,7 +114,7 @@ async function issueAccountSession(r:AuthRuntime,a:Account){const token=randomTo
 export async function registerPhone(r:AuthRuntime,owner:string,browserToken:string,input:{phone?:unknown},channelId?:string,allowPhoneOnly=false){
  config(r);const phone=normalizePhone(input.phone,'telegram'),id=await customerKey(r,owner,phone),browserHash=await digest(browserToken);
  if(r.config.mode==='telegram'&&allowPhoneOnly)throw new AuthError('Telegram 模式请先验证手机号，不能仅凭手机号注册',409);
- await limit(r,'register-browser|'+owner+'|'+browserHash,10,3600,1);await limit(r,'register-owner|'+owner,60,3600,0);
+ await limit(r,'register-browser|'+owner+'|'+browserHash,10,3600,1);await limit(r,'register-owner|'+owner,ownerLimit(r,'register'),3600,0);
  // Preserve legacy accounts: entering a number never grants access to their stored records.
  await r.db.prepare(`INSERT OR IGNORE INTO h5_accounts (customer_id,owner,phone_key,phone_mask,mode,browser_hash,phone_verified,password_hash,created_at,channel_id)
  SELECT ?,?,?,?,?,?,0,NULL,?,? WHERE NOT EXISTS(SELECT 1 FROM h5_sessions WHERE owner=? AND customer_id=?) AND NOT EXISTS(SELECT 1 FROM kyc_cases WHERE owner=? AND customer_id=?) AND NOT EXISTS(SELECT 1 FROM team_assignments WHERE tenant_id=? AND customer_id=?) AND NOT EXISTS(SELECT 1 FROM demo_workspaces w,json_each(w.payload,'$.loans') l WHERE w.owner=? AND json_extract(l.value,'$.customerId')=?)`).bind(id,owner,id,maskPhone(phone),r.config.mode,browserHash,now(r),channelId||null,owner,id,owner,id,owner,id,owner,id).run();
@@ -144,7 +147,7 @@ function passwordParts(stored:string|null){const parts=(stored||'').split(':');i
 async function passwordMatches(password:unknown,stored:string|null){const valid=typeof password==='string'&&password.length<=128,parts=passwordParts(stored);const candidate=await passwordHash(valid?password:'',parts?.salt||'0'.repeat(64),parts?.iterations||LEGACY_PASSWORD_ITERATIONS);return valid&&!!parts&&equal(candidate,parts.hash)}
 export async function loginPassword(r:AuthRuntime,owner:string,browserToken:string,input:{phone?:unknown;password?:unknown}){
  config(r);const phone=normalizePhone(input.phone,'telegram'),id=await customerKey(r,owner,phone),bh=await digest(browserToken);
- await limit(r,'password-phone|'+id,5,900,0);await limit(r,'password-browser|'+owner+'|'+bh,10,900,0);await limit(r,'password-owner|'+owner,60,900,0);
+ await limit(r,'password-phone|'+id,5,900,0);await limit(r,'password-browser|'+owner+'|'+bh,10,900,0);await limit(r,'password-owner|'+owner,ownerLimit(r,'password'),900,0);
  const a=await r.db.prepare('SELECT * FROM h5_accounts WHERE customer_id=? AND owner=?').bind(id,owner).first<Account>();
  if(!await passwordMatches(input.password,a?.password_hash||null))throw new AuthError('手机号或密码不正确，请重试或使用验证码',401);
  const parts=passwordParts(a?.password_hash||null);if(a&&parts?.version==='legacy'&&typeof input.password==='string'){const salt=randomToken(),upgraded=`${PASSWORD_VERSION}:${PASSWORD_ITERATIONS}:${salt}:${await passwordHash(input.password,salt)}`;await r.db.prepare('UPDATE h5_accounts SET password_hash=? WHERE customer_id=? AND owner=? AND password_hash=?').bind(upgraded,a.customer_id,owner,a.password_hash).run()}

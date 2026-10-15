@@ -1,0 +1,65 @@
+services:
+  payease:
+    build:
+      context: ../..
+      dockerfile: deploy/standalone/Dockerfile
+    user: "node"
+    group_add:
+      - "65534"
+    restart: unless-stopped
+    depends_on:
+      scanner:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:4300:4300"
+    volumes:
+      - /opt/payease/data:/data
+      - /opt/payease/scanner-secrets:/run/scanner-secrets:ro
+    environment:
+      SCANNER_TOKEN_PATH: /run/scanner-secrets/scanner-token
+      PAYEASE_MAX_IN_FLIGHT: "32"
+      PAYEASE_MAX_UPLOADS: "2"
+      PAYEASE_MAX_BODY_BYTES: "15728640"
+    mem_limit: 1536m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # This is the scanner gateway from the base compose file. If ClamAV is
+  # colocated on this host, give the clamd service the same 1.2G limit.
+  scanner:
+    build: ../../clamav-gateway
+    restart: unless-stopped
+    environment:
+      CLAMD_HOST: oa-system-clamav-1
+      CLAMD_PORT: "3310"
+      SCAN_TOKEN_FILE: /run/scanner-secrets/scanner-token
+    volumes:
+      - /opt/payease/data:/data:ro
+      - /opt/payease/scanner-secrets:/run/scanner-secrets:ro
+    networks:
+      - default
+      - oa
+    expose:
+      - "8080"
+    mem_limit: 1228m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+networks:
+  default:
+    name: standalone_default
+  oa:
+    external: true
+    name: oa-system_default

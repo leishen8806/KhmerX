@@ -4,6 +4,7 @@ import {readFileSync,readdirSync,existsSync,writeFileSync} from 'node:fs';
 import {randomUUID,randomBytes,createHmac,timingSafeEqual,pbkdf2Sync} from 'node:crypto';
 import {Readable} from 'node:stream';
 import {splitSql} from './sql-split.mjs';
+import {hostRules,isAllowedHost,isPublicClientHost,isAdminHost,isApiHost,resolveClientIp} from './hosts.mjs';
 const moduleRoot='/app/dist/server';
 // macOS AppleDouble resource-fork files (._*.js) are not JavaScript. Exclude
 // them so a copied release cannot make the Workers runtime fail at boot.
@@ -11,6 +12,11 @@ const modulePaths=readdirSync(moduleRoot,{recursive:true}).filter(n=>/\.m?js$/.t
 const modules=['index.js',...modulePaths.filter(n=>n!=='index.js')].map(n=>({type:'ESModule',path:moduleRoot+'/'+n}));
 const buildId=existsSync(moduleRoot+'/BUILD_ID')?readFileSync(moduleRoot+'/BUILD_ID','utf8').trim():'unknown';
 const cfg=JSON.parse(readFileSync('/data/config.json','utf8'));
+const hosts=hostRules(cfg);
+const configuredHosts=[...hosts.publicClientHosts,...hosts.adminHosts,...hosts.apiHosts].map(host=>host.toLowerCase());
+const formalHosts=['payease.khmerx.org','payeas.khmerx.org','admin.khmerx.org','api.khmerx.org'];
+const hasFormalHost=configuredHosts.some(host=>formalHosts.includes(host));
+if(hasFormalHost&&(cfg.bindings?.PAYEASE_LIMIT_SCALE!==undefined||cfg.bindings?.PAYEASE_GATEWAY_RATE_SCALE!==undefined||process.env.PAYEASE_LIMIT_SCALE!==undefined||process.env.PAYEASE_GATEWAY_RATE_SCALE!==undefined))throw new Error('Rate multipliers are forbidden when formal hosts are configured');
 // Keep the scanner credential outside the broad /data bind mount.  The
 // scanner gateway runs as nobody, while /data is intentionally root-only.
 // A dedicated secret mount lets the gateway enforce authorization without
@@ -139,7 +145,26 @@ const identitySign=x=>createHmac('sha256',cfg.bindings.PAYEASE_IDENTITY_PROOF_SE
 const eq=(a,b)=>{const x=Buffer.from(a),y=Buffer.from(b);return x.length===y.length&&timingSafeEqual(x,y)};
 const rateBuckets=new Map();
 const allowRate=(key,limit,windowMs)=>{const now=Date.now(),current=rateBuckets.get(key);if(!current||now-current.started>=windowMs){rateBuckets.set(key,{started:now,count:1});if(rateBuckets.size>10000){for(const [k,v]of rateBuckets)if(now-v.started>=windowMs)rateBuckets.delete(k)}return true}if(current.count>=limit)return false;current.count++;return true};
-const server=createServer(async(req,res)=>{try{
+const isLocalOrGray=environment=>['local','gray'].includes(String(environment||'').toLowerCase());
+const gatewayEnvironment=String(cfg.bindings?.PAYEASE_ENV||process.env.PAYEASE_ENV||'').toLowerCase();
+const gatewayScaleRaw=cfg.bindings?.PAYEASE_GATEWAY_RATE_SCALE??process.env.PAYEASE_GATEWAY_RATE_SCALE;
+const parsedGatewayScale=Number(gatewayScaleRaw??1);
+const gatewayScaleValue=isLocalOrGray(gatewayEnvironment)&&Number.isFinite(parsedGatewayScale)&&parsedGatewayScale>0?parsedGatewayScale:1;
+if(gatewayScaleRaw!==undefined&&(!isLocalOrGray(gatewayEnvironment)||!Number.isFinite(parsedGatewayScale)||parsedGatewayScale<=0))console.warn('[gateway] ignoring invalid or inactive PAYEASE_GATEWAY_RATE_SCALE');
+const maxInFlight=Math.max(1,Number(process.env.PAYEASE_MAX_IN_FLIGHT||64));
+const maxUploads=Math.max(1,Number(process.env.PAYEASE_MAX_UPLOADS||4));
+const maxBodyBytes=Math.max(1,Number(process.env.PAYEASE_MAX_BODY_BYTES||15*1024*1024));
+const overloadRetryAfter=Math.max(1,Number(process.env.PAYEASE_OVERLOAD_RETRY_AFTER_SECONDS||3));
+let inFlight=0,uploadInFlight=0;
+const gatewayError=(res,status,code,error,retryAfter)=>{const requestId=randomUUID(),headers={'Content-Type':'application/json','Cache-Control':'no-store','X-Request-Id':requestId};if(retryAfter!==undefined)headers['Retry-After']=String(retryAfter);res.writeHead(status,headers);res.end(JSON.stringify({error,code,requestId,...(retryAfter===undefined?{}:{params:{retryAfterSeconds:retryAfter}})}));};
+const rejectOverload=res=>gatewayError(res,503,'SERVICE_UNAVAILABLE','Service temporarily unavailable',overloadRetryAfter);
+const server=createServer(async(req,res)=>{
+ let slot=false,uploadSlot=false,released=false;
+ const release=()=>{if(released)return;released=true;if(slot)inFlight--;if(uploadSlot)uploadInFlight--;};
+ res.once('finish',release);res.once('close',release);
+ try{
+ const isUpload=req.url?.startsWith('/api/kyc/files');
+ req.setTimeout(isUpload?60000:30000);
  const expected='Basic '+Buffer.from(cfg.accessUser+':'+cfg.accessPassword).toString('base64');
  const jobRequest=req.url==='/api/jobs/postloan'&&req.method==='POST'&&eq(req.headers.authorization||'','Bearer '+cfg.bindings.POSTLOAN_JOB_SECRET);
  const host=req.headers.host;
@@ -157,25 +182,24 @@ const server=createServer(async(req,res)=>{try{
    res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});
    return res.end(JSON.stringify({status:'ready',buildId}));
   }catch{
-   res.writeHead(503,{'Content-Type':'application/json','Cache-Control':'no-store'});
-   return res.end(JSON.stringify({status:'not_ready'}));
+   gatewayError(res,503,'SERVICE_UNAVAILABLE','Service temporarily unavailable',overloadRetryAfter);
+   return;
   }
  }
- if(![cfg.host,'admin.khmerx.org','api.khmerx.org','payease.khmerx.org','payeas.khmerx.org'].includes(host)){res.writeHead(400);return res.end('Invalid host');}
- const publicClient=host==='payease.khmerx.org'||host==='payeas.khmerx.org'||host==='api.khmerx.org'||host==='admin.khmerx.org';
+ if(inFlight>=maxInFlight||(isUpload&&uploadInFlight>=maxUploads)){rejectOverload(res);return;}
+ inFlight++;slot=true;if(isUpload){uploadInFlight++;uploadSlot=true;}
+ if(!isAllowedHost(host,hosts,cfg.host)){res.writeHead(400);return res.end('Invalid host');}
+ const publicClient=isPublicClientHost(host,hosts);
  if(!jobRequest&&!publicClient&&!eq(req.headers.authorization||'',expected)){res.writeHead(401,{'WWW-Authenticate':'Basic realm="PayEase private test"','Cache-Control':'no-store'});return res.end('Private test environment');}
  const secure=true;
- if(host==='admin.khmerx.org'&&req.url==='/'){res.writeHead(302,{Location:'/team/login'});return res.end();}
- if(host==='api.khmerx.org'&&!req.url?.startsWith('/api/')){res.writeHead(404,{'Content-Type':'application/json'});return res.end(JSON.stringify({error:'API endpoint required'}));}
- // The standalone listener is bound behind the local reverse proxy. Do not
- // trust forwarded client headers here: a direct request can forge them and
- // rotate the limiter key on every call. The proxy-facing socket address is
- // the only transport-level value available to this process.
- const clientIp=String(req.socket.remoteAddress||'unknown').split(',')[0].trim();
- if(req.url?.startsWith('/api/')){const authRoute=/^\/api\/h5\/auth(?:\/|$)/.test(req.url),limit=authRoute?30:240,windowMs=authRoute?15*60*1000:60*1000;if(!allowRate((authRoute?'auth:':'api:')+clientIp,limit,windowMs)){res.writeHead(429,{'Content-Type':'application/json','Retry-After':String(Math.ceil(windowMs/1000))});return res.end(JSON.stringify({error:'请求过于频繁，请稍后重试',code:'RATE_LIMITED'}));}}
+ if(isAdminHost(host,hosts)&&req.url==='/'){res.writeHead(302,{Location:'/team/login'});return res.end();}
+ if(isApiHost(host,hosts)&&!req.url?.startsWith('/api/')){res.writeHead(404,{'Content-Type':'application/json'});return res.end(JSON.stringify({error:'API endpoint required'}));}
+ // Only trust X-Real-IP when the connection comes from a local/private proxy.
+ const clientIp=resolveClientIp(req.socket.remoteAddress,req.headers['x-real-ip']);
+ if(req.url?.startsWith('/api/')){const authRoute=/^\/api\/h5\/auth(?:\/|$)/.test(req.url),formalHost=formalHosts.includes(String(host||'').toLowerCase()),scale=!formalHost&&isLocalOrGray(gatewayEnvironment)?gatewayScaleValue:1,limit=Math.max(1,Math.floor((authRoute?30:240)*scale)),windowMs=authRoute?15*60*1000:60*1000;if(!allowRate((authRoute?'auth:':'api:')+clientIp,limit,windowMs)){res.writeHead(429,{'Content-Type':'application/json','Retry-After':String(Math.ceil(windowMs/1000))});return res.end(JSON.stringify({error:'请求过于频繁，请稍后重试',code:'RATE_LIMITED'}));}}
  let cookies=req.headers.cookie||'',value=cookies.split(';').map(x=>x.trim()).find(x=>x.startsWith('payease_visitor='))?.slice(16),id=value?.split('.')[0];
  let fresh=false;if(!id||!/^[a-f0-9-]{36}$/.test(id)||!eq(value?.split('.')[1]||'',sign(id))){id=randomUUID();value=id+'.'+sign(id);fresh=true;}
- const headers=new Headers();for(const [k,v]of Object.entries(req.headers)){if(v&&!k.startsWith('oai-')&&!['host','authorization','connection','content-length','transfer-encoding','x-forwarded-proto','x-forwarded-host','x-payease-identity-proof','cf-connecting-ip','true-client-ip'].includes(k))headers.set(k,Array.isArray(v)?v.join(','):v);}headers.set('host',host);
+ const headers=new Headers();for(const [k,v]of Object.entries(req.headers)){if(v&&!k.startsWith('oai-')&&!['host','authorization','connection','content-length','transfer-encoding','x-forwarded-proto','x-forwarded-host','x-payease-identity-proof','cf-connecting-ip','true-client-ip','x-real-ip'].includes(k))headers.set(k,Array.isArray(v)?v.join(','):v);}headers.set('host',host);
  // Only the gateway may provide the source address used by H5 rate limits.
  // Never forward client-controlled identity headers from the public request.
  headers.set('cf-connecting-ip',clientIp);
@@ -187,12 +211,14 @@ const server=createServer(async(req,res)=>{try{
  if(cfg.companies.length===1&&!/(?:^|;\s*)payease_company=/.test(cookies)){cookies+='; payease_company='+cfg.companies[0].id;headers.set('cookie',cookies);}
  const url=(secure?'https://':'http://')+host+(req.url||'/');
  const method=req.method||'GET';let body;
- if(!['GET','HEAD'].includes(method)){const chunks=[];let size=0;for await(const c of req){size+=c.length;if(size>15*1024*1024){res.writeHead(413);return res.end('Request too large');}chunks.push(c);}body=Buffer.concat(chunks);}
+ if(!['GET','HEAD'].includes(method)){const chunks=[];let size=0;for await(const c of req){size+=c.length;if(size>maxBodyBytes){gatewayError(res,413,'PAYLOAD_TOO_LARGE','Request too large');return;}chunks.push(c);}body=Buffer.concat(chunks);}
  const response=await mf.dispatchFetch(url,{method,headers,body,redirect:'manual'});
  res.statusCode=response.status;for(const [k,v]of response.headers)if(!['set-cookie','transfer-encoding','connection'].includes(k))res.setHeader(k,v);
  const securityHeaders={'X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'strict-origin-when-cross-origin','Permissions-Policy':'camera=(self), geolocation=(self), microphone=(self), payment=()','Content-Security-Policy':"default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' https://telegram.org 'unsafe-inline' 'unsafe-eval'; connect-src 'self' https://*.khmerx.org https://api.telegram.org https://gatewayapi.telegram.org"};for(const [k,v] of Object.entries(securityHeaders))if(!res.hasHeader(k))res.setHeader(k,v);if(secure&&!res.hasHeader('Strict-Transport-Security'))res.setHeader('Strict-Transport-Security','max-age=31536000; includeSubDomains');
  const set=response.headers.getSetCookie();if(fresh)set.push('payease_visitor='+value+'; Path=/; HttpOnly; SameSite=Strict; Max-Age=2592000'+(secure?'; Secure':''));if(set.length)res.setHeader('Set-Cookie',set);
  if(response.body)Readable.fromWeb(response.body).pipe(res);else res.end();
- }catch(e){console.error(e.message);if(!res.headersSent)res.writeHead(503);res.end('Service temporarily unavailable');}});
+ }catch(e){console.error(e instanceof Error?e.stack||e:e);if(!res.headersSent)gatewayError(res,503,'SERVICE_UNAVAILABLE','Service temporarily unavailable',overloadRetryAfter);}});
+server.headersTimeout=30000;
+server.requestTimeout=60000;
 server.listen(4300,'0.0.0.0',()=>console.log('PayEase test server ready'));
 for(const signal of ['SIGTERM','SIGINT'])process.on(signal,()=>{server.close(async()=>{await mf.dispose();process.exit(0)});});

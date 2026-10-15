@@ -6,10 +6,12 @@ import {env} from 'cloudflare:workers';
 import {headers} from 'next/headers';
 import {AuthError,randomToken,digest} from '@/lib/h5-auth-core';
 import {canSee,roleLabels,roleCatalog,roleUnitKind,kycFieldGroups,type Member,type Assignment,type TeamRole,type KycFieldGroup} from './policy';
+import {assertProductionSafe,isTestMode} from '@/lib/runtime-guards';
+assertProductionSafe();
 export const TEAM_COOKIE=STAFF_COMPANY;
 export const CUSTOMER_COMPANY_COOKIE='payease_company';
 export const db=()=>{if(!env.DB)throw new AuthError('公司数据库暂不可用',503);return env.DB};
-export async function identity(){const u=await staffIdentity();if((env as any).KHMERX_TEST_MODE==='true'&&!u.staffTenantId){await db().prepare(`UPDATE team_members SET user_id=?,version=version+1 WHERE lower(email)=? AND user_id LIKE 'pending:%' AND active=1 AND NOT EXISTS (SELECT 1 FROM team_members existing WHERE existing.tenant_id=team_members.tenant_id AND existing.user_id=?)`).bind(u.userId,u.email.toLowerCase(),u.userId).run()}return u}
+export async function identity(){const u=await staffIdentity();if(isTestMode()&&!u.staffTenantId){await db().prepare(`UPDATE team_members SET user_id=?,version=version+1 WHERE lower(email)=? AND user_id LIKE 'pending:%' AND active=1 AND NOT EXISTS (SELECT 1 FROM team_members existing WHERE existing.tenant_id=team_members.tenant_id AND existing.user_id=?)`).bind(u.userId,u.email.toLowerCase(),u.userId).run()}return u}
 async function companyByCookie(customerOnly=false){const raw=(await headers()).get('cookie');const v=customerOnly?value(raw,CUSTOMER_COMPANY_COOKIE):(value(raw,TEAM_COOKIE)??value(raw,CUSTOMER_COMPANY_COOKIE));if(!v||v==='none')return null;if(!/^t_[a-f0-9-]{36}$/.test(v))throw new AuthError('公司工作区无效',403);const t=await db().prepare('SELECT * FROM team_companies WHERE id=? AND active=1').bind(v).first<any>();if(!t)throw new AuthError('公司已停用或不可访问',403);return t}
 export const selectedCompany=()=>companyByCookie();
 export const customerCompany=()=>companyByCookie(true);
@@ -39,12 +41,12 @@ const txt=(v:any,max=80)=>typeof v==='string'?v.trim().slice(0,max):'';
 // administrators and funding/KYC approvers.
 const highRiskRoles=new Set<TeamRole>(Object.entries(roleCatalog).filter(([,v])=>v.highRisk).map(([k])=>k as TeamRole));
 export async function requireMfaStepUp(s:any,code:unknown){
- if((env as any).KHMERX_TEST_MODE==='true')return;
+ if(isTestMode())return;
  if(!s.member.mfa_enabled||!s.member.mfa_secret)throw new AuthError('请先启用 MFA 后再执行此安全操作',403,undefined,'MFA_STEP_UP_REQUIRED');
  const secret=await revealMfaSecret(s.member.mfa_secret),result=await verifyTotpWithCounter(secret,txt(code,6));if(!result)throw new AuthError('请使用当前 MFA 验证码确认此安全操作',403,undefined,'MFA_STEP_UP_REQUIRED');const claimed=await db().prepare('UPDATE team_members SET mfa_last_counter=? WHERE id=? AND mfa_enabled=1 AND (mfa_last_counter IS NULL OR mfa_last_counter<?)').bind(result.counter,s.member.id,result.counter).run();if(claimed.meta.changes!==1)throw new AuthError('当前 MFA 验证码已使用，请等待下一个时间片',403,undefined,'MFA_STEP_UP_REQUIRED');
 }
 async function requireRoleApproval(s:any,role:TeamRole,approvalId:unknown){
- if((env as any).KHMERX_TEST_MODE==='true'||!highRiskRoles.has(role))return;
+ if(isTestMode()||!highRiskRoles.has(role))return;
  const id=txt(approvalId,80);if(!id)throw new AuthError('高风险岗位变更必须经过第二名管理员批准',403,undefined,'STAFF_DUAL_CONTROL_REQUIRED');
  const row=await db().prepare('SELECT requester_id,status,scope_json,expires_at FROM team_emergency_access WHERE id=? AND tenant_id=?').bind(id,s.tenant.id).first<any>();
  if(!row||row.status!=='active'||Number(row.expires_at)<=Date.now()||row.requester_id!==s.member.id)throw new AuthError('员工权限批准已失效或不属于当前管理员',403,undefined,'STAFF_DUAL_CONTROL_REQUIRED');
@@ -159,8 +161,8 @@ export async function manage(p:any){const u=await identity();
    if(!/^\S+@\S+\.\S+$/.test(email))throw new AuthError('请填写有效的员工登录邮箱');
    if(await db().prepare('SELECT id FROM team_members WHERE tenant_id=? AND lower(email)=?').bind(tenant,email).first())throw new AuthError('该员工已存在，请直接修改其权限');
    await requireRoleApproval(s,role,p.emergencyId);
-   if(p.passwordLogin===true&&(env as any).KHMERX_TEST_MODE!=='true')throw new AuthError('生产环境不能由管理员生成或查看员工密码，请发送邀请让员工本人设置密码',403,undefined,'PASSWORD_ADMIN_ISSUE_FORBIDDEN');
-   const id=crypto.randomUUID(),password=p.passwordLogin===true?randomToken().slice(0,24):null,passwordHash=password?await makePassword(password):null,inviteToken=password||((env as any).KHMERX_TEST_MODE==='true')?null:randomToken(),inviteHash=inviteToken?await digest(inviteToken):null,inviteExpiry=inviteToken?Date.now()+7*24*3600000:null;const results=await db().batch([db().prepare(`INSERT INTO team_members (id,tenant_id,user_id,email,role,unit_id,active,version) SELECT ?,?,?,?,?,?,1,0 WHERE ${actorGuard}`).bind(id,tenant,password?'local:'+id:'pending:'+crypto.randomUUID(),email,role,unitId,...actorArgs),...(passwordHash?[db().prepare('INSERT INTO team_staff_credentials (member_id,password_hash) SELECT id,? FROM team_members WHERE id=?').bind(passwordHash,id)]:[]),...(inviteHash?[db().prepare('INSERT INTO team_invites (token_hash,tenant_id,email,role,unit_id,issuer,expires_at,used) SELECT ?,?,?,?,?,?,?,0 WHERE EXISTS (SELECT 1 FROM team_members WHERE id=? AND tenant_id=? AND active=1)').bind(inviteHash,tenant,email,role,unitId,s.member.id,inviteExpiry,id,tenant)]:[]),db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) SELECT ?,?,?,?,?,? WHERE changes()=1').bind(crypto.randomUUID(),tenant,u.userId,'create_member',JSON.stringify({member:id,email,role,unitId,invited:!!inviteToken}),new Date().toISOString())]);if(!results[0].meta.changes)throw new AuthError('管理权限已变化，请刷新',409);return {ok:true,...(password?{loginDetails:{company:s.tenant.slug,email,password}}:{inviteDetails:{company:s.tenant.slug,email,expiresAt:inviteExpiry,inviteToken}})}
+   if(p.passwordLogin===true&&!isTestMode())throw new AuthError('生产环境不能由管理员生成或查看员工密码，请发送邀请让员工本人设置密码',403,undefined,'PASSWORD_ADMIN_ISSUE_FORBIDDEN');
+   const id=crypto.randomUUID(),password=p.passwordLogin===true?randomToken().slice(0,24):null,passwordHash=password?await makePassword(password):null,inviteToken=(password||isTestMode())?null:randomToken(),inviteHash=inviteToken?await digest(inviteToken):null,inviteExpiry=inviteToken?Date.now()+7*24*3600000:null;const results=await db().batch([db().prepare(`INSERT INTO team_members (id,tenant_id,user_id,email,role,unit_id,active,version) SELECT ?,?,?,?,?,?,1,0 WHERE ${actorGuard}`).bind(id,tenant,password?'local:'+id:'pending:'+crypto.randomUUID(),email,role,unitId,...actorArgs),...(passwordHash?[db().prepare('INSERT INTO team_staff_credentials (member_id,password_hash) SELECT id,? FROM team_members WHERE id=?').bind(passwordHash,id)]:[]),...(inviteHash?[db().prepare('INSERT INTO team_invites (token_hash,tenant_id,email,role,unit_id,issuer,expires_at,used) SELECT ?,?,?,?,?,?,?,0 WHERE EXISTS (SELECT 1 FROM team_members WHERE id=? AND tenant_id=? AND active=1)').bind(inviteHash,tenant,email,role,unitId,s.member.id,inviteExpiry,id,tenant)]:[]),db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) SELECT ?,?,?,?,?,? WHERE changes()=1').bind(crypto.randomUUID(),tenant,u.userId,'create_member',JSON.stringify({member:id,email,role,unitId,invited:!!inviteToken}),new Date().toISOString())]);if(!results[0].meta.changes)throw new AuthError('管理权限已变化，请刷新',409);return {ok:true,...(password?{loginDetails:{company:s.tenant.slug,email,password}}:{inviteDetails:{company:s.tenant.slug,email,expiresAt:inviteExpiry,inviteToken}})}
   }
   const m=await db().prepare('SELECT * FROM team_members WHERE id=? AND tenant_id=?').bind(p.memberId,tenant).first<Member>();
   if(!m||m.id===s.member.id)throw new AuthError('不能修改自己的管理权限');
@@ -179,7 +181,7 @@ export async function manage(p:any){const u=await identity();
  if(p.action==='reset_member_password'){
  const memberId=txt(p.memberId,80),reason=txt(p.reason,300);
   if(!memberId||!reason)throw new AuthError('请填写重置原因');
-  if((env as any).KHMERX_TEST_MODE!=='true')throw new AuthError('生产环境不允许管理员读取或设置员工密码，请使用员工自助邀请流程',403,undefined,'PASSWORD_ADMIN_RESET_FORBIDDEN');
+  if(!isTestMode())throw new AuthError('生产环境不允许管理员读取或设置员工密码，请使用员工自助邀请流程',403,undefined,'PASSWORD_ADMIN_RESET_FORBIDDEN');
   const m=await db().prepare('SELECT id,tenant_id,email,active FROM team_members WHERE id=? AND tenant_id=?').bind(memberId,tenant).first<any>();
   if(!m||m.id===s.member.id)throw new AuthError('不能重置自己的密码');
   if(!m.active)throw new AuthError('已停用员工不能重置密码');

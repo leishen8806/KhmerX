@@ -48,7 +48,7 @@ test('local KYC: draft → submit → supplement → resubmit → approval → l
  const staleSave=await a('/api/kyc',{action:'save',revision:record.revision-1,profile:p});
  assert.equal(staleSave.status,409);
  assert.equal(typeof staleSave.d.code,'string');
- assert.equal(typeof staleSave.d.traceId,'string');
+ assert.equal(typeof staleSave.d.requestId,'string');
  saved=await a('/api/kyc',{action:'submit',revision:record.revision,profile:p});assert.equal(saved.status,200);record=saved.d;
  assert.equal((await a('/api/kyc/files',png,{headers:{'X-KYC-Slot':'selfie','X-KYC-Consent':'true','X-KYC-Agreement-Version':LOAN_TERMS_VERSION}})).status,409);
  assert.equal((await staff('/api/kyc/review',{id:record.id,revision:record.revision,decision:'approved',reason:'QA',checklist:{}})).status,400);

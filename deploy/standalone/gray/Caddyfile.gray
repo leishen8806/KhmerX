@@ -1,0 +1,3 @@
+# S4b is the source of truth for the trusted-proxy and gray host rules.
+# Keep this wrapper beside the repository checkout at /opt/payease/app.
+import /opt/payease/app/deploy/standalone/Caddyfile.gray
