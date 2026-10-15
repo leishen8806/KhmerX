@@ -85,14 +85,14 @@ export async function apiFetch<T=unknown>(path:string,init:ApiFetchInit={}){
    const failure=(body&&typeof body==='object'&&!('size' in body)?body:{}) as ApiFailure;
    const normalized={...failure,code:typeof failure.code==='string'?failure.code:'REQUEST_FAILED',requestId:failure.requestId||requestId};
    if(canRetry&&attempt<2&&[502,503,504].includes(response.status)){
-    await waitForRetry(response.status===503?retryAfterMs(response)??retryDelay(attempt):retryDelay(attempt),deadline,requestInit.signal||undefined);continue
+    const delay=response.status===503?retryAfterMs(response)??retryDelay(attempt):retryDelay(attempt);if(Date.now()+delay>=deadline)throw abortError();await waitForRetry(delay,deadline,requestInit.signal||undefined);continue
    }
    if(shouldNotifyAuth)notifyAuthRequired(normalized);
    throw new ApiClientError(messageForError(normalized,currentErrorLocale()),response.status,normalized);
   }catch(error){
    if(error instanceof ApiClientError)throw error;
    if(requestInit.signal?.aborted)throw error;
-   if(canRetry&&attempt<2){await waitForRetry(retryDelay(attempt),deadline,requestInit.signal||undefined);continue}
+   if(canRetry&&attempt<2){const delay=retryDelay(attempt);if(Date.now()+delay>=deadline)throw abortError();await waitForRetry(delay,deadline,requestInit.signal||undefined);continue}
    throw error;
   }finally{timeout.cleanup()}
  }
