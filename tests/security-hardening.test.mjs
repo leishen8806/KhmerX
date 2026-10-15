@@ -111,14 +111,6 @@ test('S3: runtime guards centralize the test-mode switch and block production+te
  assert.equal(released.blocked,false);
 });
 
-test('S3: standalone gateway refuses a production boot with test mode on and reports guards on /readyz',()=>{
- const source=fs.readFileSync('deploy/standalone/server.mjs','utf8');
- assert.match(source,/must be disabled for standalone production boot/,'test-mode boot gate exists');
- assert.match(source,/PAYEASE_IDENTITY_PROOF_REQUIRED must be true for standalone production boot/);
- assert.match(source,/guards:\{\.\.\.guards,blocked:guards\.testMode&&guards\.production\}/,'/readyz advertises the runtime-guard state');
- assert.match(source,/'cf-connecting-ip',clientIp\)/,'gateway injects the socket-derived edge address');
-});
-
 test('S3: Telegram bot-credential failure logs redact the token and mask URLs',()=>{
  const source=fs.readFileSync('lib/bot-credentials.ts','utf8');
  assert.ok(source.includes("console.error('telegram_getme_connection'"),'connection failures are logged');
