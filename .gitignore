@@ -48,3 +48,4 @@ next-env.d.ts
 
 !.env.example
 *.tsbuildinfo
+.sites-release-*.tar.gz
