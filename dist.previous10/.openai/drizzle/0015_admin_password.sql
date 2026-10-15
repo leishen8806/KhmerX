@@ -1,8 +1,0 @@
--- Retired: credentials are no longer provisioned by migrations.
--- Credentials removed; see 0030_remove_hardcoded_uat_credentials.sql.
---> statement-breakpoint
--- Historical audit entry removed with the credential cleanup migration.
---> statement-breakpoint
--- Credentials removed; see 0030_remove_hardcoded_uat_credentials.sql.
---> statement-breakpoint
--- Historical audit entry removed with the credential cleanup migration.

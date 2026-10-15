@@ -1,1 +1,0 @@
-import{K as e,rt as t}from"./server-CP5KKMZV.js";import{a as n,c as r,d as i,f as a,m as o,n as s,r as c,s as l,u}from"./h5-auth-xs1Nk-4w.js";async function d(d){try{let l=await i(),f=await r(d),p=a(),m=await e(p,l,n(d,s));return m&&await o(p,l,m.customerId,`phoneVerification`),u(await t(p,l,await c(d),f))}catch(e){return l(e)}}export{d as POST};

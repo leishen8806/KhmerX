@@ -1,1 +1,0 @@
-import{c as e,s as t,u as n}from"./h5-auth-xs1Nk-4w.js";import{n as r,r as i}from"./funding-risk-events-BLUPdkXp.js";var a=`force-dynamic`;async function o(){try{return n({items:await r()})}catch(e){return t(e)}}async function s(r){try{let t=await e(r);return n(await i(String(t.id||``),String(t.action||``),t.reason))}catch(e){return t(e)}}export{o as GET,s as POST,a as dynamic};

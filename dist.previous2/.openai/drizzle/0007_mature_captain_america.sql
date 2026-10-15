@@ -1,1 +1,0 @@
-CREATE UNIQUE INDEX `team_members_email` ON `team_members` (`tenant_id`,`email`);

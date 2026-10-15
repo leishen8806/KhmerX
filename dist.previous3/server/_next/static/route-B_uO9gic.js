@@ -1,1 +1,0 @@
-import{O as e,k as t}from"./server-TwtP3oXU.js";import{c as n,s as r,u as i}from"./h5-auth-Jp3dp95e.js";async function a(){try{return i(await e())}catch(e){return r(e)}}async function o(e){try{return i(await t(await n(e)))}catch(e){return r(e)}}export{a as GET,o as POST};

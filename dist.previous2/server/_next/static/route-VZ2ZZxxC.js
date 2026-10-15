@@ -1,1 +1,0 @@
-import{$ as e,U as t}from"./server-B6T0SVCc.js";import{a as n,c as r,d as i,f as a,i as o,n as s,s as c,t as l,u}from"./h5-auth-CO3pQyV4.js";async function d(d){try{let c=await i();await r(d),await e(a(),c,n(d,s));let f=n(d,l);return f&&await t(a(),c,f),u({authenticated:!1},200,{"Set-Cookie":o(d,s,``,0)})}catch(e){return c(e)}}export{d as POST};

@@ -1,1 +1,0 @@
-import{c as e,s as t,u as n}from"./h5-auth-xs1Nk-4w.js";import{n as r,r as i}from"./server-7dk827-k.js";var a=`force-dynamic`;async function o(){try{return n(await i())}catch(e){return t(e)}}async function s(i){try{return n(await r(await e(i)))}catch(e){return t(e)}}export{o as GET,s as POST,a as dynamic};

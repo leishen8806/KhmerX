@@ -1,1 +1,0 @@
-import{N as e,Q as t,U as n,Y as r,u as i,z as a}from"./h5-auth-CO3pQyV4.js";var o=`force-dynamic`;async function s(r){try{let a=await e(r);return i(await t(await n(a.owner,a.customerId,a.verified)))}catch(e){return a(e)}}async function c(e){try{return i(await r(e))}catch(e){return a(e)}}export{s as GET,c as POST,o as dynamic};

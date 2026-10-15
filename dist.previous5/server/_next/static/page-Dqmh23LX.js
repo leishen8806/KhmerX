@@ -1,1 +1,0 @@
-var e=`force-dynamic`;function t(){return null}export{t as default,e as dynamic};
