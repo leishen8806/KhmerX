@@ -1,4 +1,4 @@
-export const roleLabels={admin:'公司管理员',collection_admin:'贷后部门主管',collector:'贷后客服',dept_admin:'KYC 审核主管',ops:'运营分单',kyc:'KYC 审核员',lender:'机构审批员',checker:'机构复核员',finance:'放款员',finance_checker:'放款复核员',audit:'审计员'} as const;
+export const roleLabels={admin:'公司管理员',collection_admin:'贷后部门主管',collector:'贷后客服',dept_admin:'KYC 审核主管',ops:'运营分单',kyc:'KYC 审核员',lender:'机构审批员',checker:'持牌机构复核员',finance:'放款员',finance_checker:'放款复核员',audit:'审计员'} as const;
 export type TeamRole=keyof typeof roleLabels;
 export const roleCatalog:Record<TeamRole,{description:string;unitKind:'department'|'institution'|'postloan'|null;highRisk:boolean}>={
  admin:{description:'管理公司设置、员工与全部业务范围',unitKind:null,highRisk:true},
