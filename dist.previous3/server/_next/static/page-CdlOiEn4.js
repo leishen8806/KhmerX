@@ -1,0 +1,1 @@
+import{n as e}from"./navigation-errors-B9caT1GU.js";import"./navigation.react-server-CMeTokqO.js";var t=`force-dynamic`;async function n({params:t}){let{screen:n}=await t;return[`home`,`login`,`apply`,`bill`,`sign`,`status`,`repay`,`withdraw`,`records`,`me`,`kyc`,`contract`].includes(n)||e(),null}export{n as default,t as dynamic};

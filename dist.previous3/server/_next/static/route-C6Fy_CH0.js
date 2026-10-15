@@ -1,0 +1,1 @@
+import{W as e,et as t}from"./server-TwtP3oXU.js";import{a as n,c as r,d as i,f as a,m as o,n as s,r as c,s as l,u}from"./h5-auth-Jp3dp95e.js";async function d(d){try{let l=await i(),f=await r(d),p=a(),m=await e(p,l,n(d,s));return m&&await o(p,l,m.customerId,`phoneVerification`),u(await t(p,l,await c(d),f))}catch(e){return l(e)}}export{d as POST};

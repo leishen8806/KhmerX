@@ -1,0 +1,1 @@
+import{t as e}from"./framework~index~page~page~page~layout~page~page~layout~page~page~page~page~page~page~app-pa~c5aqwn5y-Cn09sqaP.js";import{n as t}from"./chatgpt-auth-CL_ZPj-o.js";import{t as n}from"./client-BGHR6QU8.js";var r=e(),i=`force-dynamic`;async function a(){return await t(`/kyc`),(0,r.jsx)(n,{})}export{a as default,i as dynamic};

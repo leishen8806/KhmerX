@@ -1,0 +1,1 @@
+var e={maxAttempts:5,backoffSeconds:[60,300,900,3600]};function t(t,n=Math.floor(Date.now()/1e3)){let r=Math.max(1,Math.floor(t));return r>=e.maxAttempts?{status:`dead_letter`,nextAt:null}:{status:`pending`,nextAt:n+e.backoffSeconds[Math.min(r-1,e.backoffSeconds.length-1)]}}export{t};

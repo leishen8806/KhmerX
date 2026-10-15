@@ -1,0 +1,1 @@
+import{B as e,Q as t,et as n}from"./server-B6T0SVCc.js";import{c as r,d as i,f as a,r as o,s,u as c}from"./h5-auth-CO3pQyV4.js";async function l(l){try{let s=await i(),u=a(),d=await r(l),f=await o(l);if(d.action===`send`)return c(await n(u,s,f,d,`reset`));if(d.action===`reset`)return c(await t(u,s,f,d));throw new e(`无效操作`)}catch(e){return s(e)}}export{l as POST};

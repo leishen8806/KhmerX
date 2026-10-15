@@ -1,0 +1,1 @@
+import{r as e}from"./navigation-errors-B9caT1GU.js";import"./navigation.react-server-CMeTokqO.js";var t=`force-dynamic`;function n(){e(`/h5`)}export{n as default,t as dynamic};
