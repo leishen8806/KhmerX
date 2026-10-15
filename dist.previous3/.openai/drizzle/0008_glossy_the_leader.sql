@@ -1,0 +1,1 @@
+ALTER TABLE `team_companies` ADD `pricing_json` text DEFAULT '' NOT NULL;
