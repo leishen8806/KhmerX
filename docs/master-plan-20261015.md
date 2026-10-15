@@ -255,6 +255,21 @@ PostgreSQL 迁移与多实例、Redis、队列、文件直传、**持牌机构�
 | `Khmerx-ubuntu-s-2vcpu-4gb-sgp1` | 159.223.77.134 | 金融服务公司系统的**灰度环境**（应用 + 数据 + 扫描同机，2 vCPU / 4GB） |
 | `Licensed-ubuntu-s-2vcpu-4gb-sgp1` | 165.22.108.5 | 持牌机构系统的灰度环境（本期不部署机构系统，先空闲；见下） |
 
+**灰度域名（均指向 159.223.77.134）**
+| 域名 | 用途 | 对应生产 |
+|---|---|---|
+| `testpayease.khmerx.org` | 小程序 / H5 | payease.khmerx.org |
+| `testadmin.khmerx.org` | 管理后台 | admin.khmerx.org |
+| `testapi.khmerx.org` | API 接口（Flutter App 的 `API_BASE_URL`） | api.khmerx.org |
+| `test.khmerx.org` | 官网（静态站） | khmerx.org |
+
+**这些域名需要的配套改动（新任务 S4b，苏晨，约 0.5–1 天，第 1–2 天内完成）**
+1. `deploy/standalone/server.mjs` 第 185–190 行把允许的 Host 写死为 `admin/api/payease/payeas.khmerx.org`，且"免 Basic 口令的公开主机""admin 根路径跳转到登录""api 主机只允许 `/api/`"三条规则也按这些名字判断；灰度域名必须通过配置加入（不要把 `test*` 写死进代码，也不得因此放宽生产域名的规则）。
+2. 配置 `PAYEASE_ALLOWED_ORIGINS`，加入 `https://testpayease.khmerx.org`、`https://testadmin.khmerx.org`、`https://testapi.khmerx.org`（`lib/request-security.ts` 默认只含 admin/payease）。
+3. Caddy：四个域名的 HTTPS 证书与路由（官网走静态站，其余走网关 4300）；DNS 记录已指向 159.223.77.134，防火墙放行 80/443。
+4. Telegram 灰度机器人的小程序地址设为 `https://testpayease.khmerx.org`；App 灰度包用 `--dart-define=API_BASE_URL=https://testapi.khmerx.org` 构建。
+5. 压测白名单（B0）显式加入 `testapi.khmerx.org` / `testpayease.khmerx.org`。
+
 - **灰度环境 ≠ 600 并发验证环境**：2 vCPU / 4GB 只能承载小规模灰度（建议上限 50–150 人，以压测实测为准）。600 人压测要在**临时放大的同构环境**里做（DigitalOcean 按小时计费，压测当天临时加大/新建，测完释放），并把结果作为"能扩到 600"的证据；不得把灰度机上的结果说成 600。
 - **压测发起机**：压测脚本（k6）从 `Licensed` 这台机器发起（同区域、不占用本机带宽），指向 `Khmerx` 灰度环境；这是临时用途，持牌机构系统（M4）开始前要释放。
 - **正式生产环境**：不在这 15 天的交付范围内（除非另行决定）。第 15 天的交付是"灰度环境上线 + 已证明可扩到 600 的压测报告 + 生产扩容方案"。
