@@ -14,12 +14,20 @@ function loadClientId(){
   return exports;
 }
 
+function loadErrorMessages(){
+  const source=readFileSync(new URL('../lib/error-messages.ts',import.meta.url),'utf8');
+  const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
+  const exports={};
+  vm.runInNewContext(js,{exports,document:undefined});
+  return exports;
+}
+
 function loadApiClient(fetchImpl,events=[],runtime={}){
   const source=readFileSync(new URL('../lib/api-client.ts',import.meta.url),'utf8');
   const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
   const exports={};
   const window={dispatchEvent:event=>events.push(event)};
-  vm.runInNewContext(js,{exports,require:name=>{if(name==='./client-id')return loadClientId();throw Error(`unexpected import ${name}`)},fetch:fetchImpl,window,CustomEvent,Headers,Response,AbortController,setTimeout:runtime.setTimeout||setTimeout,clearTimeout:runtime.clearTimeout||clearTimeout,console});
+  vm.runInNewContext(js,{exports,require:name=>{if(name==='./client-id')return loadClientId();if(name==='./error-messages')return loadErrorMessages();throw Error(`unexpected import ${name}`)},fetch:fetchImpl,window,CustomEvent,Headers,Response,AbortController,setTimeout:runtime.setTimeout||setTimeout,clearTimeout:runtime.clearTimeout||clearTimeout,console});
   return exports;
 }
 
@@ -75,6 +83,17 @@ test('notifyAuth false suppresses auth-required events, including H5 auth paths'
   await assert.rejects(api.apiFetch('/api/private',{notifyAuth:false}),{status:401});
   await assert.rejects(api.apiFetch('/api/h5/auth/telegram'),{status:401});
   assert.equal(events.length,0);
+});
+
+test('apiFetch converts coded server failures to localized copy and keeps request IDs',async()=>{
+  const api=loadApiClient(async()=>Response.json({code:'SERVICE_UNAVAILABLE',error:'database password leaked',requestId:'rid-1'},{status:503,headers:{'x-request-id':'rid-1'}}));
+  await assert.rejects(api.apiFetch('/api/private'),error=>{
+    assert.equal(error.code,'SERVICE_UNAVAILABLE');
+    assert.match(error.message,/temporarily unavailable/i);
+    assert.match(error.message,/rid-1/);
+    assert.doesNotMatch(error.message,/database password leaked/);
+    return true;
+  });
 });
 
 test('request id helper uses the real client-id implementation without crypto.randomUUID',()=>{
