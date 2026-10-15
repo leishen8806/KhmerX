@@ -1,0 +1,267 @@
+# Backend Implementation Master Plan（CR-004 / 005 / 006 / 007 / 012）
+
+```
+Document:  69-backend-implementation-master-plan.md
+Date:      2026-10-09
+Owner:     Claude（Implementation Architect / Planner；只做规划）
+Status:    PROPOSED — READY FOR CODEX REVIEW
+Identity:  PROJECT IDENTITY CHECK: PASS · KhmerX · E:\KhmerX\KhmerX · git@github.com:leishen8806/KhmerX.git · HEAD d916b4515a93057d7dd2a0673ebbca39a7bfd242
+Inputs:    57 CR-004 v3 · 58 CR-005 v3 · 59 CR-006 · 60 CR-007 v3 · 61 CR-012 v3.1 · 68 Final Delta Review（PASS；P0=0，P1=0）
+Companions:70-Gate-A-CR012-error-foundation-plan.md · 71-Gate-B-financial-foundation-plan.md
+Gate:      CODE NOT MODIFIED · DATABASE NOT MODIFIED · IMPLEMENTATION NOT AUTHORIZED · Trae = HOLD
+```
+
+> 本文是实施**规划**。不授权任何 Gate 开工；每个 Gate 开工都需要 Codex 评审通过 + 业主书面授权。契约（57–61）是唯一需求权威；本文与契约冲突时以契约为准，并须回报 Claude 修订本文。
+
+---
+
+## 0. 现状代码基线（已读真实代码，HEAD d916b45）
+
+| 区域 | 事实 | 位置 |
+|---|---|---|
+| 错误码 | `codeForError(message,status)` 按 status/中文子串推断；`addErrorCode` 在 `json()` 里补 `code`；`AuthError(message,status,retryAfter?,code?)`、`KycError(message,status,code?)`；约 290 个 `new AuthError`、97 个 `new KycError`、100 个裸 `Error(` 抛错点 | `lib/error-codes.ts`；`lib/h5-auth.ts:12-13`；`lib/h5-auth-core.ts:9`；`lib/kyc/core.ts:62` |
+| 响应出口 | 88 处 `return json(`、51 处 `failure(`、10 处 `failed(`；`app/api/state/route.ts` 用 `addErrorCode` 包装 catch | `lib/h5-auth.ts`；`lib/kyc/server.ts:41` |
+| X-Request-Id | 仅机构回调路由设置；网关 `deploy/standalone/server.mjs` 未生成 trace id；网关 429 体为手写 JSON | `app/api/institution/callback/route.ts:10`；`deploy/standalone/server.mjs` |
+| 财务状态 | 贷款、`paid`、`wallet`、`entries` 全在 `demo_workspaces.payload` JSON（每主体一行，`revision` CAS，≤4 次重试） | `lib/store.ts`；`lib/domain.ts:66-68`（`repay` 直接 `l.paid+=cents`，满额即 `status='closed'`） |
+| 员工资金 | `adminFunds`：`admin_disburse`/`admin_repay`；非测试模式要求 `emergencyId`；`paymentVerified` 取自请求体；`team_repayment_receipts(tenant_id,reference)` 唯一 | `lib/team/admin-funds.ts` |
+| 放款链 | `approve → approval_check → disburse_request → disburse`，`requireDifferent` 异人控制，`assertFundingCapacity` | `lib/team/workflow.ts`；`lib/funding-limits.ts` |
+| 贷后 | `outstanding(l)=amount+fee−paid`；`localDay` 为 UTC+7；任务按 `dueAt` 生成 | `lib/postloan/core.ts` |
+| 回调 | 事件类型 `loan.approved/rejected/funding.confirmed/repayment.confirmed/payment.failed`；动作计划 `buildInstitutionActionPlan`；无消费者 | `lib/institution-*.ts` |
+| 迁移 | 0001–0041；独立部署用 `splitSql` + `db.batch`；`splitSql` 不识别注释 → `0015` 注释中的分号导致空卷启动失败；托管（Cloudflare）`wrangler.json` 中 `migrations:[]`，托管迁移路径**未在仓库中显式出现，需在 B0 查明** | `deploy/standalone/server.mjs:18-31`；`drizzle/0015_admin_password.sql:2,6` |
+| 测试 | `node --test tests/*.test.mjs`（20 个文件，含 `migrations-integrity`、`error-codes`、`funding-limits`、`institution-*`） | `package.json` |
+
+---
+
+## 1. Gate 总览与依赖 DAG
+
+```
+                 ┌──────────────┐
+                 │ Gate A       │  CR-012 错误基础（无 DB 变更）
+                 └──────┬───────┘
+                        │（A 的错误注册表/信封是 B 的前置）
+ ┌───────────────┐      │
+ │ B0 迁移前置    │──────┤  B0：修复并验证全新卷迁移（可与 A 并行）
+ └───────────────┘      ▼
+                 ┌──────────────┐
+                 │ Gate B       │  财务基础设施（不开放还款/真实放款/罚息）
+                 └──┬────┬───┬──┘
+                    │    │   │
+          ┌─────────┘    │   └──────────┐
+          ▼              ▼              ▼
+   ┌────────────┐  ┌──────────┐   ┌──────────┐
+   │ Gate C1    │  │ Gate D   │   │ Gate E   │
+   │ 线下/人工还款│  │ 放款     │   │ 拖欠/罚息 │
+   └─────┬──────┘  └────┬─────┘   └────┬─────┘
+         ▼              │              │
+   ┌────────────┐       │              │
+   │ Gate C2    │       │              │
+   │ KHQR/Bakong│       │              │
+   └─────┬──────┘       │              │
+         └──────┬───────┴──────────────┘
+                ▼   稳定业务事件（C1/D/E 的 outbox 事件）
+         ┌──────────────┐
+         │ Gate F       │  CR-006 推送（F1 设备注册可在 A 之后提前；F2 业务通知在事件稳定后）
+         └──────────────┘
+```
+
+**严格顺序**：A → B → C1 → C2；B → D；B → E；稳定业务事件 → F2。
+**B0 是 B 的硬前置**：全新卷迁移 `CONFIRMED OPEN` 未关闭并验证前，B **不得**提交任何新财务迁移。
+
+**可并行**
+| 并行组 | 条件 |
+|---|---|
+| A ∥ B0 | 无共享文件（A 改错误出口；B0 改迁移器）；B0 不新增表 |
+| A ∥ F1（设备注册/偏好/按安装登出，CR-006 非财务部分） | F1 依赖 A 的错误码；不依赖 B |
+| C1 ∥ D ∥ E（均在 B 退出后） | 共享 B 的财务事务服务，**迁移编号由单一迁移负责人串行分配**；每 Gate 仅新增表/列，不改 B 的表结构（需改则回到 B 的变更流程） |
+| C2 | 必须在 C1 之后（复用 C1 的确认/对账/冲正路径）且 OD-4.4 提供方已定 |
+| F2 | 在至少一个产生稳定业务事件的 Gate（C1/D/E）退出后，逐类事件接入 |
+
+---
+
+## 2. 全局安全基线 → 负责 Gate
+
+| 门禁（当前 HEAD） | 分类 | 负责 Gate | 关闭要求 |
+|---|---|---|---|
+| fresh-volume migration | **CONFIRMED OPEN** | **B0（Gate B 前置）** | 迁移器识别 `--` 行注释与 `/* */` 块注释；空卷全量回放 0001→最新通过；已存在卷幂等；托管迁移路径同样回放 |
+| migration trigger splitting | CLOSED | B0（回归） | 保留 `BEGIN…END` 触发器回放测试，防回退 |
+| 0030/0031 audit conflict | CLOSED | B0（回归） | 只追加审计表在全量回放后触发器仍生效 |
+| paymentVerified（请求体自报） | **CONFIRMED OPEN** | **C1**（B 不得新增任何信任客户端/员工自报"已核验"的路径） | `admin_repay` 改为 `postRepayment()` 受控入口；"已核验"只能来自服务端事实（员工确认 maker-checker 记录或已验真回调）；请求体字段被忽略并有测试 |
+| callback replay insertion | **CONFIRMED OPEN** | **B**（共享回调摄取加固，无业务消费） | nonce/事件/尝试改为条件链插入；重放不产生事件行；测试 |
+| callback consumer absence | **CONFIRMED OPEN** | **B 建框架（所有动作计划默认 fail-closed）；C2 / D 分别接入各自事件类型** | `repayment.confirmed`/`payment.failed` 的消费者属 C2；`funding.confirmed`/returned 属 D；对应 Gate 未接入其事件类型不得退出 |
+| MFA rebinding | APPEARS CLOSED — TEST REQUIRED | **B**（B 引入冲正/重开的 maker-checker + MFA 依赖） | 自动化测试：启用 MFA 后重绑需步进；待确认密钥不替换现密钥直至确认 |
+| Admin financial dual control | REQUIRES RE-VERIFICATION | **B**（决定）→ C1/D（落实） | B：在共享财务事务中把 `admin_disburse`/`admin_repay` 定为"仅测试模式或经硬化应急授权的受控入口"，生产默认关闭；`admin` 不得绕过 maker-checker |
+| Emergency authorization | PARTIALLY CLOSED — REQUIRES HARDENING | **B** | 申请时预绑定 `loanId + action + cents(+currency)`；消费时逐项相等校验；不一致拒绝且不消费；测试 |
+
+**任何触达真实资金的 Gate（C1 生产启用、C2、D 生产启用）进入前，上表所有 OPEN/REQUIRES 项必须已关闭。**
+
+---
+
+## 3. 各 Gate 定义
+
+> Gate A、Gate B 的完整实施契约分别见 70、71；此处为总表级定义。C1/C2/D/E/F 的细化规划在 B 通过 Codex 评审后再出（各自一份 Gate 计划文档）。
+
+### Gate A — CR-012 Error Foundation（详见 70）
+| 项 | 内容 |
+|---|---|
+| Objective | 稳定、类型化的错误基础：注册表、信封、traceId/X-Request-Id、details 白名单、重试元数据、legacy 别名兼容、REQUEST_FAILED 下线路径、UNCLASSIFIED 仅内部 |
+| Included | 61 §2–§11 全部；CR-004/005/006/007 的错误码**注册**（码存在于注册表与契约测试，不实现其业务） |
+| Explicitly excluded | 任何财务/还款/放款/推送业务；DB 变更；Android 客户端代码；HTTP 状态的破坏性变更（除 61 §4.10 登记项） |
+| Dependencies | 无（可与 B0、F1 并行） |
+| Existing-code touch points | `lib/error-codes.ts`、`lib/h5-auth.ts`、`lib/h5-auth-core.ts`、`lib/kyc/core.ts`、`lib/kyc/server.ts`、`app/api/**/route.ts`、`lib/store.ts`、`lib/domain.ts`、`lib/team/*.ts`、`deploy/standalone/server.mjs`、`tests/error-codes.test.mjs` |
+| Database changes | 无 |
+| API changes | 所有错误体增加 `traceId`；`code` 由显式码取代推断码；响应头 `X-Request-Id`；`error` 文案保留（H5 兼容） |
+| Migration impact | 无 SQL 迁移；客户端兼容通过 legacy 别名表（61 §6.1） |
+| Security gates | 不得在错误体中泄露内部异常/SQL/员工 id/完整账号；`UNCLASSIFIED_ERROR` 永不外露 |
+| Automated tests | 见 70 §7 |
+| Runtime tests | 本地 standalone：全路由错误体抽样；生产仅只读冒烟（GET 401/404 观察 `traceId`/`X-Request-Id`），不得触发写操作 |
+| Rollback | 纯代码；回滚部署即可；错误体字段为增量，无数据回滚 |
+| Entry | Codex 通过 70；业主授权 |
+| Exit | 70 §9 DoD 全部满足 |
+| P0/P1 acceptance | P0：任何公共响应出现 `UNCLASSIFIED_ERROR`/内部异常文本；变更请求被客户端规则自动重试；traceId 与幂等 requestId 混用。P1：任一 CR-004/005/006/007 码未注册；一码多状态（未登记）；新代码发出 `REQUEST_FAILED` |
+
+### Gate B — Financial Foundation（详见 71）
+| 项 | 内容 |
+|---|---|
+| Objective | CR-004/005/007 共享的财务权威基础设施：不可变条款、账本、外部来源绑定、财务事件、规范财务位置、loan 级财务事务、唯一结清/重开/资金激活权威、可重建投影 |
+| Included | 71 全部；安全基线中分配给 B 的项（回调重放、回调消费框架、MFA 重绑测试、Admin 资金双人控制决定、应急授权硬化） |
+| Explicitly excluded | 客户还款端点；真实放款；罚息计提；推送；Android |
+| Dependencies | Gate A 退出；**B0 关闭全新卷迁移** |
+| Existing-code touch points | `lib/store.ts`、`lib/domain.ts`、`lib/team/admin-funds.ts`、`lib/team/workflow.ts`、`lib/team/emergency.ts`、`lib/loan-signing.ts`、`lib/postloan/core.ts`（只读适配）、`app/api/institution/callback/route.ts`、`deploy/standalone/server.mjs`（B0） |
+| Database changes | 新表（71 §4）；全部为新增，不改/不删既有表 |
+| API changes | 无新的客户可见写端点；读模型可增加只读财务字段（受特性开关） |
+| Migration impact | 0042+ 新增；回填 `team_repayment_receipts → external_source_bindings`；既有测试贷款写入 `financial_legacy_loans` 标记、冻结新财务写（71 §4） |
+| Security gates | 回调重放、MFA 重绑测试、Admin 资金双人控制、应急授权硬化 |
+| Automated tests | 71 §9（含 D1 测试门禁） |
+| Runtime tests | 本地 miniflare 全量；**远程 Workers D1 对等性测试仅在专用非生产 D1 上执行，需业主书面许可** |
+| Rollback | 迁移只增不删；以特性开关冻结财务写入（只读）；**不支持把已有 SQL 财务事实的贷款回退为 JSON 权威** |
+| Entry | A 退出；B0 已验证；Codex 通过 71；业主授权 |
+| Exit | 71 §11 |
+| P0/P1 acceptance | P0：任何路径能双过账、一笔外部转账偿付两笔贷款、绕过共享结清权威改 `closed`、启用了客户还款/真实放款/罚息。P1：D1 测试门禁任一未通过；投影不可重建；追加表可被更新/删除 |
+
+### Gate C1 — CR-004 Manual / Offline Repayment
+| 项 | 内容 |
+|---|---|
+| Objective | P6-A：客户提交线下转账声明 → 员工 maker-checker 确认 → `postRepayment()` 唯一过账 |
+| Included | `RepaymentAttempt`/claim、凭证（可选）、员工确认/驳回、`ExternalSourceBinding` 在确认时绑定、分摊（绑定政策）、超额异常、冲正（含受控重开，经 B）、对账异常队列、客户读模型 `repayments[]` |
+| Excluded | KHQR/Bakong；自动回调过账；罚息 |
+| Dependencies | B 退出；**OD-4.3 基线检查者冻结**；**OD-7.3 分摊顺序已绑定**（>1 分量时 B 的分摊 fail-closed） |
+| Touch points | `lib/team/admin-funds.ts`（`admin_repay` → `postRepayment()`；移除 `paymentVerified` 信任）、`lib/domain.ts`（`repay` 生产直写 fail-closed）、新增 `app/api/h5/repayments/*`、`app/api/team/repayments/*` |
+| DB | `repayment_attempts`、`repayment_evidence`、`reconciliation_records`（新增） |
+| API | 57 §12（客户 claim/cancel/查询；员工 confirm/reject/冲正） |
+| Migration | 新增表；旧 `team_repayment_receipts` 只读 |
+| Security | **关闭 paymentVerified**；maker-checker + MFA；确认人≠提交人 |
+| Automated tests | 57 §16 全部；外部引用四例；冲正阶段矩阵（61 §4.6.1） |
+| Runtime tests | 本地全流程；生产启用前仅在测试租户 + 测试资金 |
+| Rollback | 特性开关 `REPAYMENT_MANUAL_ENABLED=false` → 客户端点 `REPAYMENT_NOT_ENABLED`；账本保留 |
+| Entry | B 退出 + 上两项 OD |
+| Exit | 测试全绿；paymentVerified CLOSED；静态扫描证明无遗留直写 |
+| P0/P1 | P0：双过账；未核验即过账；客户自报核验生效。P1：分摊非确定；冲正不经共享权威 |
+
+### Gate C2 — CR-004 KHQR / Bakong
+| 项 | 内容 |
+|---|---|
+| Objective | P6-B：PaymentIntent + 提供方回调验真后自动过账 |
+| Included | PaymentIntent、提供方适配器、回调消费者（`repayment.confirmed`/`payment.failed`）、绑定于验真回调 |
+| Excluded | 新渠道之外的任何还款逻辑变更（复用 C1） |
+| Dependencies | C1 退出；**OD-4.4 提供方选定**；B 的回调框架 |
+| Touch points | `app/api/institution/callback/route.ts`、`lib/institution-event-plans.ts`、新增 `lib/payments/providers/*` |
+| DB | `payment_intents`（`UNIQUE(tenant_id,provider,provider_reference)`） |
+| API | 57 §12 P6-B 部分 |
+| Migration | 新增表 |
+| Security | **关闭 callback consumer absence（还款类事件）**；签名/时间窗/重放 |
+| Automated tests | 回调重复/异载荷/重放/乱序；同引用跨贷款；提供方超时 |
+| Runtime | 提供方沙箱（需业主提供并许可） |
+| Rollback | 关闭提供方开关；在途 Intent 过期；账本保留 |
+| Entry/Exit | 入：C1 退出 + OD-4.4；出：回调消费测试全绿、无未消费事件积压 |
+| P0/P1 | P0：未验真回调过账；重放二次过账。P1：Intent 与回调金额/贷款不一致未进异常 |
+
+### Gate D — CR-005 Disbursement
+| 项 | 内容 |
+|---|---|
+| Objective | 收款账户确认 → 放款指令 → 权威资金确认激活（`signed→active` 仅经 B 的资金激活权威）；退回 → `FUNDING_EXCEPTION`；REISSUE/VOID |
+| Included | 58 全部：资格 Case A/B、`FundingExceptionResolution`、确认过期、`terms_seq`、VOIDED |
+| Excluded | 银行账户格式校验数值（OD-5.1）；真实提供方（除非另行授权） |
+| Dependencies | B 退出；**OD-5.2 确认时长配置**；**OD-5.3 退回处置**；**OD-5.4 fundedAt/dueAt 确认**（IMPLEMENTATION BLOCKER） |
+| Touch points | `lib/team/workflow.ts`（`disburse` 不再直接 `active`）、`lib/team/admin-funds.ts`（`admin_disburse`）、`lib/domain.ts`、`lib/funding-limits.ts`、回调 `funding.*` |
+| DB | `receiving_account_confirmations`、`disbursement_instructions`、`funding_exception_resolutions` |
+| API | 58 §8–§10 |
+| Security | **关闭 callback consumer absence（资金类事件）**；Admin 资金双人控制落实；应急授权（已在 B 硬化）在此使用 |
+| Automated tests | 58 §13 全部 |
+| Rollback | `DISBURSEMENT_ENABLED=false`；在途指令冻结；事实保留 |
+| Entry/Exit | 入：B 退出 + OD-5.2/5.3/5.4；出：员工点击无法激活贷款（测试证明）、REISSUE/VOID 测试全绿 |
+| P0/P1 | P0：未经权威确认激活；复用旧确认/旧指令；VOIDED 显示为结清。P1：过期确认可建指令 |
+
+### Gate E — CR-007 Delinquency / Penalty
+| 项 | 内容 |
+|---|---|
+| Objective | 拖欠状态（正交于 Loan.status）与罚息计提框架；贷后改用规范财务位置 |
+| Included | 宽限边界算法、`LoanDelinquency` 读模型、计提作业（键 `acc:…`）、豁免/调整（`man:{requestId}`）、`SUSPENDED`、`VOIDED` |
+| Excluded | 真实罚息费率（OD-7.1 默认 `NONE`）；核销（OD-7.5） |
+| Dependencies | B 退出；OD-7.2 宽限天数；OD-7.4 日历/舍入（仅罚息计提实现）；OD-7.6 同日计提基数 |
+| Touch points | `lib/postloan/core.ts`（`outstanding()` → `calculateFinancialPosition`）、`lib/postloan/server.ts`、`app/api/jobs/postloan`、`scripts/run-postloan-job.mjs` |
+| DB | `delinquency_policies` 已在 B；E 新增计提运行记录 `charge_accrual_runs` |
+| API | 60 §8 读模型字段 |
+| Security | 员工豁免/调整 maker-checker + MFA |
+| Automated tests | 60 §12 全部（表驱动 G=0/G=3，重开后重算，SUSPENDED 不计提） |
+| Rollback | `PENALTY_ACCRUAL_ENABLED=false`（默认）；拖欠展示可开关；已记账费用不删除，仅可经调整冲回 |
+| Entry/Exit | 入：B 退出；出：贷后任务与规范位置一致、`NONE` 政策下零计提 |
+| P0/P1 | P0：已关闭贷款显示 CURRENT；计提追溯 SETTLED/SUSPENDED 区间。P1：同日计提非确定 |
+
+### Gate F — CR-006 Push
+| 项 | 内容 |
+|---|---|
+| Objective | F1：设备注册/偏好/按安装登出；F2：业务事件 outbox → 推送 |
+| Included | 59 全部 |
+| Excluded | 收件箱（OD-6.4）；推送内容含金额/PII（禁止） |
+| Dependencies | F1：A 退出；F2：稳定业务事件（C1/D/E 已退出的事件类型）+ OD-6.1 提供方 |
+| Touch points | `lib/notifications/*`、`app/api/h5/*`（设备端点）、各业务批（outbox 条件链） |
+| DB | `push_installations`、`notification_events`（outbox）、`notification_deliveries` |
+| API | 59 契约端点 |
+| Security | 推送内容不含 PII/金额；按安装撤销；账号级安全事件全撤销 |
+| Automated tests | 59 测试清单；outbox 同批提交/同回滚；reconciler 确定性补建 |
+| Rollback | 关闭提供方；outbox 继续积累（可回放） |
+| Entry/Exit | 入：F1 → A；F2 → 事件稳定 + OD-6.1；出：通知失败永不回滚业务（测试） |
+| P0/P1 | P0：推送泄露 PII/金额；他人设备收到通知。P1：outbox 与业务不同批 |
+
+---
+
+## 4. 实施顺序（建议）
+
+```
+1. Gate A          ∥  B0（迁移前置）  ∥  （可选）F1 设计细化
+2. Gate B          （A 退出 + B0 验证后）
+3. Gate C1 ∥ Gate D ∥ Gate E   （B 退出后；迁移编号串行分配）
+4. Gate C2         （C1 退出 + OD-4.4）
+5. Gate F2         （按事件类型逐个接入）
+```
+
+## 5. 跨 Gate 规则
+
+- **唯一财务写路径**：B 之后，任何 Gate 修改贷款财务状态只能经 B 的 loan 级财务事务服务；新代码直写 `demo_workspaces` 中的 `paid/status=closed/wallet/entries` 视为 P0。
+- **特性开关默认关闭**；生产开启需业主书面许可，且安全基线中相关项已关闭。
+- **迁移纪律**：只增不删；每个迁移在空卷全量回放 + 既有卷升级两种路径测试；迁移编号由单一负责人分配。
+- **生产测试限制**：仅只读/无副作用冒烟；不得操作真实用户账户；不得使用真实 Telegram OTP；日志不得含 OTP/密码/Cookie/完整手机号/challengeId/session。
+- **Android**：本计划不包含 Flutter 代码；Android 依赖的读模型/错误码在对应 Gate 退出后才可被 Trae 消费（Trae 继续 HOLD）。
+
+## 6. 开放决策对 Gate 的阻断（摘自 63/64 分类）
+| OD | 阻断 |
+|---|---|
+| OD-4.3 检查者阈值/基线检查者 | C1 实施 |
+| OD-4.4 提供方 | C2 |
+| OD-5.2 确认时长 | D（必配，缺失 fail-closed） |
+| OD-5.3 退回资金处置 | D 的 returned 转换 |
+| OD-5.4 fundedAt/dueAt | D（IMPLEMENTATION BLOCKER） |
+| OD-7.3 分摊顺序 | C1 生产过账（>1 分量） |
+| OD-7.1/7.2/7.4/7.6 | E 的罚息计提与生产拖欠数值 |
+| OD-6.1 推送提供方 | F2 生产 |
+| OD-12.1 别名下线 | 不阻塞 |
+
+## 7. Gate
+```
+69 Master Plan: PROPOSED — READY FOR CODEX REVIEW
+Gate A plan (70): READY FOR CODEX REVIEW
+Gate B plan (71): READY FOR CODEX REVIEW
+Code: NOT MODIFIED · Database: NOT MODIFIED
+Implementation: NOT AUTHORIZED · Trae: HOLD
+Next: CODEX GATE A/B IMPLEMENTATION PLAN REVIEW
+```

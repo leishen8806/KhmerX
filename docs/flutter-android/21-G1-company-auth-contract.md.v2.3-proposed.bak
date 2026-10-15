@@ -1,0 +1,1172 @@
+# G1 — Company + Authentication · Implementation Contract
+
+```
+Document:    21-G1-company-auth-contract.md
+Date:        2026-10-07
+Owner:       Claude（Product / Requirements / System Architecture / API Contract / Implementation Contract）
+Version:     v2.3 (2026-10-07) — 机械状态勘误（对齐 31）；v2.2：/home 边界冻结（U-4）、候选公司取消语义、RateLimitFailure 单字段、报告文件名、过期状态勘误
+Status:      PROPOSED v2.3 / READY FOR FINAL GATE CONFIRMATION   ← 未经 Codex 复审，不得视为 APPROVED（Claude 不自批）
+Builds on:   G0 Foundation（已 PASS，见 20-helix-g0-corrected-final-review.md；不重新设计）
+Governing:   02-api-contract.md（事实来源）· 04-ux-architecture.md（路由/UX）· 05-flutter-technical-architecture.md · 10 · 19
+
+G0 = PASS    G1 = CONTRACT CORRECTION    TRAE = HOLD    G2 = HOLD    G3 = BLOCKED BY CR-001
+```
+
+> **G1 的“编码开始条件”不同于“G1 = GO”。** HELIX 在 `20` 中明确要求：*“在三方 Gate Review 与 UX 就绪对账完成之前，不要开始 G1 编码。”* 本文定义 G1，**不授权编码**。编码开始条件见 §13。
+> **本文不写任何 Flutter 代码。** 文中类型/签名仅是契约级描述。
+
+---
+
+## Revision Log
+
+| 版本 | 日期 | 变更 |
+|---|---|---|
+| v1 | 2026-10-07 | 初版 PROPOSED。 |
+| **v2.3** | 2026-10-07 | **仅机械状态勘误**，无设计变更：§6 结论、`G1-I18N-01` 增补、§13.2-3 对齐 `04` §19 与 `31`（UX/ACCEPTANCE CONTRACT = READY）。 |
+| **v2.2** | 2026-10-07 | 响应 `28`（Codex Gate HOLD）中归 Claude 的边界项，以及 `27` 的 P2 勘误：**(1)** 新增 §5.17 冻结 `/home` = Minimal Authenticated Landing（U-4 CONTRACT CLOSED），G1 业务 API 范围 = 无 KYC / 无 Loan / 无 Quote / 无 `/api/h5/state`；**(2)** §5.14 候选公司流程改为“预检 → 用户确认 → 才激活”，并冻结取消语义（P2-4）；**(3)** `RateLimitFailure` 仅保留 `Duration? retryAfter`（P2-3）；**(4)** 报告文件名改为 `30-G1-implementation-report.md`（P2-2）；**(5)** 同步 §6/§12/§13 中过期的 UX 阻塞表述（P2-1）；**(6)** §6.2 向 Codex 给出 P1-UX-01/03 的契约输入（**页面/路由字段表由 Codex 在 `04` 中完成，本文不改 `04`**）。**不新增产品设计。** |
+| **v2.1** | 2026-10-07 | **CF-7 FINALIZED**：`retryAfter` default=60s, min=1s, max=3600s（§5.11.1）。UX 状态表对齐 `04`/`25`（R-3/R-5/R-12/U-4/U-5/U-6 = CLOSED；CF-8 = CONTRACT + UX CLOSED）。无其他设计变更。 |
+| **v2** | 2026-10-07 | 吸收 `22`（Codex G1 Contract Review，CONDITIONAL PASS）。下列各项为**契约层**更正；**实现层仍全部开放**（G0 代码未改，Trae HOLD）。 |
+
+**状态词说明**：CF-0/6/7/8/10 在 `22` 中是“G0 代码缺陷/缺口”。（v2.1：契约层已被 `25` 确认 CLOSED；实现层仍开放。）契约更正只能让**要求变得无歧义、可测试**，不能让代码缺陷消失。因此 v2 一律标 `CONTRACT CORRECTED v2 · IMPLEMENTATION OPEN`，**不写“FIXED”**——只有 Trae 实现 + 阻断测试通过 + Codex 复验后才可称关闭。
+
+| Finding | Gate 严重度 | v2 契约状态 | 变更要点（详见 §5.4 / §15） |
+|---|---|---|---|
+| **CF-0** 租户上下文完整性 | **P0 — Tenant Context Integrity** | CONTRACT CORRECTED v2 · IMPLEMENTATION OPEN | §5.4 重写：Rule A–D、ActiveCompany=真源/Cookie=传输、`CompanyCookieInterceptor`（CookieManager 之前）+ `CompanyContextGuardInterceptor`（之后，fail-closed）、禁止手写 `Cookie` 头、四 Cookie 关系表；Preflight/登出必须带所选公司 |
+| **CF-6** 登出/清除会话 | P1 | CONTRACT CORRECTED v2 · IMPLEMENTATION OPEN | `clearSessionFor` 必须先加载持久化再清除、主机取自 `baseUrl`；登出须在正确 `payease_company` 下调用（§5.9、`G1-COMPANY-COOKIE-03/04`） |
+| **CF-7** 错误映射 | P1 | **CONTRACT CLOSED · IMPLEMENTATION OPEN** | §5.11 目录 + §5.11.1 `retryAfter` 规则（default 60 / min 1 / max 3600）+ `G1-ERR-01` |
+| **CF-8** 语言 | P1 | **CONTRACT + UX CLOSED · IMPLEMENTATION OPEN** | §5.15 + `G1-I18N-01`；`04` 已定义 G1 本地语言选择（`25` 确认） |
+| **CF-10** Android 清单 | P1 | CONTRACT CORRECTED v2 · IMPLEMENTATION OPEN | `G1-ANDROID-01` 增补：main INTERNET、debug-only cleartext（仅 `10.0.2.2`）、CAMERA（仅扫码入口）、App Link intent-filter；架构守卫规则调整 |
+| **U-4 /home 边界（v2.2）** | 产品/架构边界 | **CONTRACT CLOSED**（§5.17） | `/home` 仅为最小认证落地页；无业务 API |
+| R-3 / R-5 / R-12 / U-4 / U-5 / U-6 | UX 阻断 | **CLOSED**（`04` 已更新；`25` 独立核实） | 本文 §6.1 保留为历史输入记录 |
+
+## 0. 摘要
+
+G1 完成后，用户可以在 Android 上：选择（或扫码/粘贴/App Link 打开）公司 → 做认证预检 → 用 Telegram Gateway 验证码建号/登录或用密码登录 → 必要时强制设置密码 → 进入首页占位页；可找回密码、登出、切换公司；冷启动恢复上次的公司与会话；会话失效后重新登录并回到原目标页。**不含** KYC、贷款、报价、签名、还款、提现、推送、生物识别、KESS。
+
+**本次对 G0 真实代码的核查发现了 1 个会让 G1 在生产上“连错公司”的缺陷（CF-0）和若干基础缺口（§3）。它们是 G1 的首批任务，不是 G1 的前置外部依赖。**
+
+---
+
+## 1. Scope
+
+### 1.1 范围内
+| 域 | 内容 |
+|---|---|
+| **Company** | 首次无公司；扫码；粘贴链接；Android App Link；最近使用公司；选择；切换；无效公司；停用公司；移除公司 |
+| **Auth** | `GET /api/h5/auth` 预检；Telegram Gateway OTP 发送与校验；密码登录；设置密码；找回密码；登出；会话恢复；会话失效；注册未完成 |
+| **Guards** | Company Guard、Auth Guard、Registration Completion Guard、Return Intent |
+| **Locale** | 语言选项受服务端 `languages` 控制；选公司前设备语言优先（km、en） |
+| **Android** | 在 Android 模拟器或真机上**实际运行**的证据（§9） |
+
+### 1.2 范围外（G1 不得出现）
+KYC 表单/上传、贷款、借款报价、签名、还款、提现、推送、生物识别、KESS；`/api/h5/state`、`/api/kyc*`、`/api/loan/*` 的任何**业务调用**；`/api/h5/locale` 的服务端同步（见 OD-G1-3）；`Telegram 深链登录`（需要新增 Bot webhook，属后端 CR）。**CR-001 保持 PROPOSED，G3 保持 BLOCKED。**
+
+### 1.3 三条用户链路
+```
+首次：打开 → 选择公司 → GET /api/h5/auth → 判断账号状态 → Telegram Gateway OTP → 创建/验证账号
+      → （policy 要求时）强制设置密码 → 首页
+老用户：启动 → 恢复 Company → 恢复 Cookie → GET /api/h5/auth → authenticated=true → （注册完成校验）→ 首页
+会话失效：（任一需会话的请求）401 → 标记会话失效 → 保存 Return Intent → 登录 → 回到安全的原目标页
+```
+
+---
+
+## 2. Foundation Baseline（G0 已实现的事实）
+
+### 2.1 真实依赖（`pubspec.lock`，2026-10-07）
+`flutter_riverpod 3.3.2` · `go_router 17.0.0` · `dio 5.11.1` · `dio_cookie_manager 3.5.0` · `cookie_jar 4.0.9` · `flutter_secure_storage 9.2.4` · `app_links 6.4.1` · `connectivity_plus 7.3.1` · `intl 0.20.3` · `equatable 2.1.0` · `mocktail 1.0.5` · `flutter_lints 5.0.0`。
+**G1 使用这些真实版本的 API**，不按 `05` 里的历史目标版本写伪代码。G1 仅允许**新增** `mobile_scanner`（经 `flutter pub add --dry-run` 在当前依赖集上验证可解析为 `7.4.2`，“Would change 1 dependency”）；**不升级/降级其他依赖，不使用 `dependency_overrides`。**
+
+### 2.2 G0 已提供、G1 直接消费的能力
+| 能力 | 位置（真实） |
+|---|---|
+| 启动链 `main → bootstrap → UncontrolledProviderScope → KhmerXApp → MaterialApp.router` | `main.dart`、`app/bootstrap/bootstrap.dart`、`app/app.dart` |
+| `ApiClient.forCompany(companyId, appConfig, whitelistJar)`：每公司一个 Dio，拦截器顺序 BaseHeaders → Origin → CookieManager → TraceId → SafeLogging → Retry → ErrorMapping | `core/network/api_client.dart` |
+| `Endpoint`（`path`、`method`、`requiresSession`、`sensitiveBody`、`bodyLimitBytes`、`timeoutOverride`、`retry`）与 `Endpoints.getH5Auth / getH5State / getKyc / postH5AuthLogout`；路径含 `/api` 前缀 | `core/network/endpoints.dart` |
+| Origin 保留端口（`baseUrl.origin`）；仅 POST/PUT/PATCH/DELETE | `origin_interceptor.dart` |
+| 重试白名单：仅三个 GET 有界重试；POST/429 不重试 | `retry_policy.dart` |
+| `WhitelistCookieJar`（4 个白名单 Cookie；`payease_company` 必须等于所属公司）、`SecureKvCookieStorage`、`CompanyCookieStore.jarFor/clearSessionFor/removeCompany` | `core/session/*` |
+| `SecureKv`（含 `deleteAllWithPrefix`）、`KeySchema`（`v1/app/activeCompanyId`、`v1/app/companies`、cookie 键） | `core/storage/*` |
+| `CompanyId`（`^t_[a-f0-9-]{36}$`）、`ActiveCompany`、`CompanyContext`、`CompanySessionContext` | `core/session/*` |
+| `AppFailure`（`NetworkFailure`、`AuthFailure`、`ForbiddenFailure`、`ConflictFailure`、`RateLimitFailure`、`ServiceUnavailableFailure`、`OfflineFailure`、`UnknownFailure`）、`ErrorMapper` | `core/error/*` |
+| `SafeLogger`、`RedactionPolicy`（含 `password`、`confirmpassword`、`otp`、`code`、`challenge`、`challengeid`、`phone`、`cookie`、`authorization`、`token`、`secret` 等） | `core/logging/*` |
+| `FeatureFlags`（`withdraw=false`、`repay=false`）、`KhmerXTheme`、gen-l10n（en/km/zh） | `core/feature_flags`、`app/theme`、`lib/l10n` |
+| `CompanyLinkParser.parseCompanyId`（严格：`https` + `khmerx.org` + `/app` + 唯一 `c`）、`DeepLinkHandler`（写入 `pendingDeepLinkCompanyProvider`） | `features/company/domain`、`app/router` |
+| `AuthGateState`（unknown / unauthenticated / registrationIncomplete / authenticated）、占位页 | `features/auth/*` |
+| 90 个 G0 测试（含架构 grep 测试） | `test/` |
+
+### 2.3 Foundation Change Policy（“不重新设计 Foundation”的可执行含义）
+| 类别 | 规则 |
+|---|---|
+| **禁止修改**（语义不得变） | Cookie 白名单语义与持久化方式；Origin 推导；重试策略（`retry_policy.dart` 与白名单）；`RedactionPolicy` 的既有字段与行为；Theme 令牌；依赖版本（除新增 `mobile_scanner`）；`dependency_overrides` |
+| **允许增量扩展**（只加不改） | `Endpoints`（新增常量）；`KeySchema`（新增键）；`AppFailure` 家族（新增子类/种类）；`ErrorMapper`（增加**基于消息**的映射与 `retryAfter`，保持既有状态码映射的向后兼容）；`providers.dart`（新增 Provider）；`router.dart`；`ApiClient.forCompany` 新增**可选**参数 |
+| **必须修复**（G0 遗留缺陷，§3） | CF-0、CF-6（以及 CF-1 至 CF-5、CF-7 至 CF-13 中标注“必须”者） |
+| **可替换**（G0 本就是占位） | `AuthGateStateNotifier`、`AuthLoginPlaceholder`、`AuthSetPasswordPlaceholder`、`CompanySelectPage`、`HomePlaceholderPage`、`StartupPage`、旧 `SessionManager`（内存布尔 Map）、`LocaleNotifier`（features/settings 的占位） |
+| **G0 测试** | 必须保持通过。若测试依赖被替换的占位 API（`test/app/app_start_test.dart` 第 94–157 行使用 `authGateStateProvider.notifier.mark*`），**迁移到新 API 并保留断言语义**，并在报告中逐条说明 |
+| **G0 守卫测试的调整** | `test/architecture_grep_test.dart` 中 “No mobile_scanner …” 一条会与 G1 新增 `mobile_scanner` 冲突：**改为仅禁止 `flutter_intl`，并新增“`mobile_scanner` 只允许出现在 `features/company/presentation/`”**；其余守卫（Counter、`/loan/quote`、legacy provider、`print`、`'Origin'`）**保持不变**。Counter 守卫按 `counter` 大小写不敏感匹配，**G1 代码不得使用含 `counter` 的标识符**（例如用 `countdown`） |
+
+---
+
+## 3. G0 Carry-over Findings（写 G1 契约时对 G0 真实代码的核查）
+
+> G0 已按其契约 PASS；这些是 G0 契约没覆盖到、但 G1 无法绕开的缺口。**全部在 G1 内关闭**，不是外部阻断。严重度是对 G1 的影响。
+
+| 编号 | 严重度 | 发现（事实） | G1 要求 |
+|---|---|---|---|
+| **CF-0** | **P0（对 G1）** | **`lib/` 中没有任何代码把 `payease_company` 写入 Cookie jar 或请求**（`grep` 仅命中白名单校验；测试里才手工保存）。按入口代理（`deploy/standalone/server.mjs:48`），缺少该 Cookie 的请求会被默认路由到**第一家公司**。G0 的“公司隔离”测试只证明 jar 彼此独立，**没有证明“公司身份真的送达服务端”** | **G1-COOKIE-01**：为每家公司预置 `payease_company`，并用测试断言**每个出站请求的 `Cookie` 头含正确的 `payease_company`**（A 的请求只带 A，B 只带 B，重启后仍成立） |
+| **CF-1** | P1 | 没有 `apiClientProvider`、没有任何 Repository；`ApiClient.forCompany` 未被任何 Provider 使用 | **G1-NET-01** |
+| **CF-2** | P1 | `authGateStateProvider` 是**全局单例**，只能手工 `mark*`，无法按公司隔离；`AuthGateState` 缺 `challengePending` / `expired` | **G1-AUTH-01/08**：按 `CompanyId` 的认证状态，派生出路由用的状态 |
+| **CF-3** | P1 | 路由**没有 `refreshListenable`**，`redirect` 只在导航时求值；`/startup` 同步重定向，不做任何恢复 | **G1-ROUTER-01** |
+| **CF-4** | P1 | `activeCompanyIdProvider` 不持久化、不恢复；`KeySchema.activeCompanyId/companies` 键存在但**无人使用**；无最近公司 | **G1-COMPANY-01** |
+| **CF-5** | P2 | `SessionManager` 是**未被业务使用**的内存布尔 Map（仅被一个 G0 测试引用） | G1 **不得**在其上构建逻辑；以 Cookie jar 为本地会话来源；可删除或保留为兼容 |
+| **CF-6** | **P1** | `CompanyCookieStore.clearSessionFor` 在 jar **未加载到内存**时**直接 `return`**，持久化的会话 Cookie 不会被清除（例如重启后登出/失效）；且 `WhitelistCookieJar._loadAllCookies` **写死** `api.khmerx.org`、`payease.khmerx.org`，对其他 `baseUrl`（本地模拟服务 `127.0.0.1` / `10.0.2.2`）**完全无效** | **G1-COOKIE-01**：`clearSessionFor` 先 `jarFor` 再清除；主机取自该客户端 `baseUrl`；覆盖“重启后清除”“非生产主机清除”测试 |
+| **CF-7** | P1 | `ErrorMapper`：400 → `UnknownFailure`；**所有** 403 → `ForbiddenFailure.crossSite`；401 只有一种；429 **不解析 `retryAfter`**；**不读取服务端 `error` 文案** | **G1-ERR-01**：增量加入基于状态码 + 已知文案的映射与 `retryAfter` |
+| **CF-8** | P1 | `LocaleController` 使用全局键 `v1/app/locale`、**未接入 `MaterialApp`**（`app.dart` 没有 `locale:`），且与 `features/settings` 的占位 `LocaleNotifier` 重复；无公司作用域、无服务端语言开关 | **G1-I18N-01** |
+| **CF-9** | P2 | 占位页含硬编码英文（`'Auth'`、`'Select Company'`、`'Skip to Home'`、`'Repay is disabled'` 等），其中 **“Skip to Home”按钮**绕过认证（被路由守卫弹回，但仍是后门形态） | G1 删除并换成本地化页面；`FeatureDisabledPage` 的文案也走 ARB |
+| **CF-10** | **P1（对运行验证）** | **主 `AndroidManifest.xml` 没有 `INTERNET` 权限**（只在 `debug/`、`profile/` 里）→ **release 包无法联网**；也**没有网络安全配置**，而 `AppConfig.dev()` 的 `http://10.0.2.2` 在 `targetSdk 34` 默认**禁止明文**，模拟器无法连本地模拟服务；无 `CAMERA` 权限（扫码需要） | **G1-ANDROID-01** |
+| **CF-11** | P3 | `bootstrap()` 通过 `o.origin` 等 Riverpod **内部成员**判断覆盖项（带 `ignore: invalid_use_of_visible_for_testing_member`），升级 Riverpod 时易失效；4 个测试文件各自重复定义了内存 `SecureKv` | G1 **不要扩展**该机制；新增共享 `test/support/`（**G1-SUPPORT-01**） |
+| **CF-12** | P2 | `AppConfig.dev()` 的 `baseUrl` 为 `Uri.http('10.0.2.2','')`（无端口） | 测试通过注入 `AppConfig` 指向模拟服务端口；Android 运行验证用的端口由 `--dart-define` 或配置给出 |
+| **CF-13** | P2 | `DeepLinkHandler.register` **从未被调用** | **G1-COMPANY-03** |
+| **CF-14** | P3 | `flutter_secure_storage 9.2.4` 的 `resetOnError: true` 在读取失败时**会清空全部安全存储**（所有公司的会话与最近列表） | G1 把“存储被重置”视为**首次运行**（无活动公司、无会话），不得崩溃，且不得泄露任何信息 |
+
+---
+
+## 4. Product & Business Rules（均以 `02` 与服务端代码为准）
+
+> 编号约定：本节业务规则用 **BR-n**；**R-3、R-5、R-12 专指 `04` 的 UX Review Item**（见 §6），两者不要混淆。
+
+| 编号 | 规则 | 来源 |
+|---|---|---|
+| BR-1 | 一次只有 **1 个 Active Company**；可保留多个已使用公司；**公司 A 的会话/缓存 ≠ 公司 B 的** | `01` C4 |
+| BR-2 | **选择公司 ≠ 授权。** 公司 ID 不是秘密；Deep Link/二维码**只选择公司，绝不产生已认证状态** | `02` §1.2、`05` §8.2 |
+| BR-3 | 公司 ID 格式 `^t_[a-f0-9-]{36}$` 只是**本地格式校验**；公司是否存在/启用由 `GET /api/h5/auth`（403）决定 | `02` §1.2 |
+| BR-4 | 每次进入认证流程前**必须**做 Preflight（`GET /api/h5/auth`），不得跳过 | `02` §2.1 |
+| BR-5 | **Telegram 模式不能仅凭手机号注册**；无短信回退；验证码发送到用户 Telegram 的 “Verification Codes” 会话，手机号须已注册 Telegram | `02` §2.2、§2.4 |
+| BR-6 | OTP：6 位；有效期 5 分钟；**重发间隔 60 秒**；**5 次错误后挑战作废**；校验期间有 20 秒服务端锁 | `02` §2.2–2.3 |
+| BR-7 | 限流：同手机号 5 次/小时；同浏览器标识 10 次/小时；同公司 30 次/小时；超限 `429` + `retryAfter` | `02` §2.2 |
+| BR-8 | 会话 **24 小时绝对过期**，无滑动续期、无续期接口；浏览器标识 Cookie 同为 24 小时 | `02` §1.2 |
+| BR-9 | `policy.passwordSetup=true` 且 `hasPassword=false` → **登录后必须设置密码**，否则业务接口 403 | `02` §2.8 |
+| BR-10 | 密码 **12–128** 字符（以 UTF-16 码元计，与服务端 JS `length` 一致，即 Dart `String.length`） | `02` §2.4 |
+| BR-11 | 密码登录失败**统一文案**，不泄露账号是否存在 | `02` §2.4 |
+| BR-12 | 找回密码使用 `POST /api/h5/auth/recovery`（`send` → `reset`），**不经过** `verify`/`account`；成功后**旧会话全部失效** | `02` §2.5 |
+| BR-13 | 登出：`POST /api/h5/auth/logout`（5 秒超时，尽力而为）；无论成败都清当前公司会话 | `02` §2.6 |
+| BR-14 | **不自动重放**已失效会话上的敏感 POST；Return Intent 只恢复**导航意图** | 用户 §19 |
+| BR-15 | 客户端不记录 OTP、密码、Cookie、完整手机号、`challengeId`、会话值 | `05` §22 |
+| BR-16 | `mode=demo` 时服务端会在发送响应里带 `demoCode`；客户端**永不使用/展示/自动填充**它 | `02` §2.2 |
+
+---
+
+## 5. Architecture Contract
+
+### 5.1 分层与依赖方向
+```
+Widget → Controller/Notifier → Repository → API(Endpoints/ApiClient) → Dio
+```
+- **Widget 不得直接调用 API、Dio、SecureStorage**（既有架构测试继续生效）。
+- Repository 抛出 `AppFailure` 子类；Controller 把它转换为 UI 状态；**Repository 不操作 Navigator/路由**。
+- `core` 不得 import `features`/`app`（G0 已满足；G1 保持）。
+- 新增 Provider 一律使用 Riverpod 3.x 的 `Notifier`/`AsyncNotifier`（带构造参数的 family 写法）；**禁止** legacy provider 与 `NotifierProviderFamily/FamilyNotifier`（既有守卫）。
+
+### 5.2 模块与文件（新增；路径为契约，名称可由 Trae 微调但需记录）
+```
+core/network/        endpoints.dart（新增 auth 端点）、api_client_factory.dart
+core/session/        company_cookie_store.dart（修复/扩展）、session_presence.dart
+core/error/          server_message_catalog.dart（中文字面量仅限本文件）、failure.dart（新增种类）
+core/storage/        key_schema.dart（新增键）
+core/localization/   locale_controller.dart（改造）
+features/company/    domain/{company_summary,enabled_languages,company_availability}.dart
+                     data/{company_repository,recent_companies_store}.dart
+                     application/{company_controller}.dart
+                     presentation/{company_select,company_scan,company_paste_link}_page.dart
+features/auth/       domain/{auth_status,auth_session,auth_policy,auth_snapshot,otp_challenge,phone_number,password_rules}.dart
+                     data/{auth_api,auth_dto,auth_repository}.dart
+                     application/{auth_controller,otp_controller,password_controller,recovery_controller,return_intent_controller}.dart
+                     presentation/（登录、验证码、密码登录、设置密码、找回密码页）
+app/router/          router.dart（refreshListenable、路由）、router_gate.dart（真实推导）、return_intent.dart
+test/support/        fake_secure_kv.dart、fake_khmerx_server.dart、pump_helpers.dart
+```
+
+### 5.3 领域模型（契约级）
+| 类型 | 字段 / 含义 |
+|---|---|
+| `CompanySummary` | `id: CompanyId`、`name: String`、`languages: EnabledLanguages`、`lastUsedAt` |
+| `EnabledLanguages` | `{en, km, zh}` 三个 bool（来自 `GET /api/h5/auth`） |
+| `CompanyAvailability` | `unknown / available / unavailable(reason: invalid \| disabled \| notAllowed)` |
+| `AuthSession` | `customerId`、`phoneMasked`、`mode`、`expiresAt`（服务端毫秒）、`phoneVerified`、`verificationCompleted`、`hasPassword` |
+| `AuthPolicy` | `phoneVerification`、`passwordSetup`（`channelId` 仅记录，不用于逻辑） |
+| `AuthSnapshot`（预检结果） | `companyName`、`authenticated`、`session?`、`mode`、`pending: OtpChallenge?`、`policy`、`languages` |
+| `OtpChallenge` | `challengeId`、`phoneMasked`、`expiresIn`、`retryIn`（**见 5.7：在响应时刻按服务端时间换算为相对时长**）、`purpose(login\|reset)` |
+| `PhoneNumber` | 值对象：去空格/括号/短横后须匹配 `^\+[1-9]\d{7,14}$`（与服务端一致）；**不得出现在日志或快照中** |
+| `PasswordRules` | 长度 12–128；确认密码一致（找回密码）；纯函数 |
+| `AuthStatus`（每公司） | `unknown` · `unauthenticated` · `challengePending` · `authenticatedIncomplete(missing)` · `authenticated` · `expired` |
+| `ReturnIntent` | `{companyId, location, createdAt}`（见 5.12） |
+
+`authenticatedIncomplete.missing ⊆ {phoneVerification, passwordSetup}`，由 `policy` 与 `session` 推导：`policy.phoneVerification && !session.verificationCompleted` → 缺手机验证；`policy.passwordSetup && !session.hasPassword` → 缺设密码。
+
+### 5.4 Company Cookie Contract（CF-0 / CF-6 · **P0 Tenant Context Integrity**）
+
+> **分级**：CF-0 是 **P0**。任何一个出站 KhmerX 请求缺失或带错 `payease_company`，代理会把请求路由到**第一家公司**（`deploy/standalone/server.mjs` 仅当请求不含 `payease_company=` 时才追加 `companies[0]`），导致**跨租户读写**。**CF-0 未关闭，G1 不得退出，任何认证流程均不得被验收。**
+
+**规则（冻结）**
+
+| 规则 | 内容 |
+|---|---|
+| **A** | **每一个** KhmerX API 请求（含 preflight、OTP、密码、找回、登出、重试）都携带**恰好一个** `Cookie: payease_company=t_xxx`（`^t_[a-f0-9-]{36}$`）。 |
+| **B** | **永不**依赖代理“默认第一家公司”。客户端视为该回退**不存在**；任何会触发回退的请求视为缺陷。 |
+| **C** | A→B 切换后，**下一个**请求用 B，**绝不再用 A**（含重试）。 |
+| **D** | B→A 切回后恢复 **A** 的 `payease_company` 与 **A 的会话上下文**（A 的 session/browser/visitor Cookie）；不丢失、不混用 B 的。 |
+
+**真源与传输**
+- **真源**：`ActiveCompany`（`ActiveCompanyIdNotifier`，G1 起落盘于 `v1/app/activeCompanyId`，见附录 B）。**Cookie 只是传输层**，不得反向决定“当前公司”。
+- `ApiClient` **绑定一个 `CompanyId`**（client-per-company，沿用 G0 `ApiClient.forCompany`）。**不存在无 `CompanyId` 的请求路径**。
+- 无激活公司（首次运行/被移除）：**不得发任何 KhmerX 请求**，更不得静默使用默认租户；路由停留 `/company/select`。**不得**发送 `payease_company=none` 之类占位值。
+- **Preflight 例外（唯一）**：公司选择流程中对**候选公司**的 preflight，使用**候选公司自己的 client**（Cookie 带候选 id）；候选通过前不写入 `ActiveCompany`。首次运行在用户选定/粘贴公司前**零网络调用**。
+
+**注入实现（方案 A′，冻结）**
+1. **Jar 预置**：为公司 X 取用 jar 时幂等写入 `payease_company=X`（host-only，取自该客户端 `baseUrl` 主机，较长有效期以保证被持久化；G0 的 4-Cookie 持久化白名单语义**不变**）。使用**真实 `cookie_jar 4.0.9` API**。
+2. **`CompanyCookieInterceptor`（显式组件，位于 `CookieManager` 之前）**：每次请求发出前**幂等 ensure**：jar 中该 host 的 `payease_company` 恰为本 client 的 `CompanyId`（缺失/值不符 → **替换**，不是追加）。
+3. **`CompanyContextGuardInterceptor`（位于 `CookieManager` 之后）**：检查**最终出站** `Cookie` 头：**恰好一个** `payease_company` 且等于本 client 的 `CompanyId`；否则 **fail-closed**（抛内部 `TenantContextFailure`，**不发送**网络请求，记录已脱敏日志）。
+4. **拦截器顺序**：`BaseHeaders → Origin → CompanyCookie → CookieManager → CompanyContextGuard → TraceId → SafeLogging → Retry → ErrorMapping`（既有拦截器相对顺序保持）。重试重新分发时 Guard 仍执行。
+5. **禁止手写 `Cookie` 头**：真实 `dio_cookie_manager 3.5.0` 的 `loadCookies` 会把请求上已有的 `Cookie` 头当作 source 与 jar Cookie **合并且不按名去重**（仅按 path 长度排序）；重试仅在头未变时恢复 source。**手动设置/修改 `Cookie` 头会造成同名重复 Cookie**。服务端 `value(raw,name)` 取**第一个**同名 Cookie，重复即租户选择不可预测。**Jar 是唯一传输。**
+6. **优先级 / 合并 / 替换**：同名 Cookie **不得出现两个**；`payease_company` 以 `CompanyId` 为准**替换**；服务端响应中值 ≠ 本公司的 `payease_company`：丢弃（G0 既有行为）并记录**已脱敏**高优先级日志。
+
+**已评估并否决的备选 B**：不走 jar、改为按请求头注入并过滤 jar 中的 `payease_company`。否决理由：改变 G0 已冻结并通过评审的 4-Cookie 白名单语义（`payease_company` 在 jar 中、值必须等于所属公司），回归面更大。
+
+**四个 Cookie 的正式关系**
+
+| Cookie | 公司隔离 | 谁写入 | 生命周期 | 持久化 | 登出 | 切换公司 |
+|---|---|---|---|---|---|---|
+| `payease_company` | 是（每公司 jar 内值 = 该公司） | **客户端**（ActiveCompany 驱动；服务端对客户不会 Set-Cookie 它） | 长（随公司存在） | 是 | **保留** | A 的保留在 A 的 jar；B 请求带 B 的 |
+| `payease_visitor` | 是（每公司 jar） | **代理 Set-Cookie** | 30 天 | 是 | **保留** | 各公司各自 |
+| `payease_h5_browser` | 是 | **服务端**（`GET /api/h5/auth`） | 24h | 是 | **保留**（下次 preflight 刷新） | 各公司各自；过期由 preflight 刷新 |
+| `payease_h5_session` | 是 | **服务端**（登录成功） | 24h 绝对 | 是 | **清除（仅当前公司）** | **不清除**（保留会话；R-3 文案须一致） |
+
+**`clearSessionFor(X)` / `removeCompany(X)`**
+- `clearSessionFor(X)`：jar 未缓存时**先从持久化加载**，再**仅**清除 `payease_h5_session`；对任意 `baseUrl` 主机生效（**不得**写死生产主机）；保留 visitor/company/browser。
+- `removeCompany(X)`：删除 `v1/co/X/**`，丢弃内存 jar 与该公司 `ApiClient`。
+
+**CF-0 阻断测试（断言取自 FakeKhmerXServer 实际收到的 `Cookie` 头）**
+
+| ID | 场景 | 断言 |
+|---|---|---|
+| CF0-T1 | Active=A，任意请求 | 出站含 `payease_company=A`，恰好 1 个 |
+| CF0-T2 | Active=B | 含 `payease_company=B`，恰好 1 个 |
+| CF0-T3 | A→B 后的**下一个**请求 | 为 B，**从不**含 A |
+| CF0-T4 | B→A 切回 | 为 A，且带 **A 的** session/browser（非 B 的） |
+| CF0-T5 | 无激活公司 | **零请求**；不使用默认租户；不发占位值 |
+| CF0-T6 | 候选公司 preflight | 带候选 id；未通过前 ActiveCompany 不变 |
+| CF0-T7 | 重复 Cookie 守卫 | 在 jar 中人为造出两个 `payease_company` → Guard 拒绝发送（fail-closed） |
+| CF0-T8 | Retry 重分发 | 重试后仍恰好 1 个且正确 |
+| CF0-T9 | 重启（jar 未缓存）后首个请求 | 仍携带正确 `payease_company` |
+| CF0-T10 | 并发 A、B 请求 | 互不串租户 |
+| CF0-T11 | 登出（§5.9） | 出站 company=当前公司；仅当前公司会话被清；另一公司保持 |
+
+### 5.5 Auth Preflight 契约
+**每次**进入认证流程（登录、OTP、密码登录、找回密码）与每次冷启动恢复前：对**当前公司**执行 `GET /api/h5/auth`。
+
+| 项 | 内容 |
+|---|---|
+| 目的 | 获得/刷新 `payease_h5_browser`（24h）；获得 `company`、`mode`、`policy`、`languages`、`pending`、`authenticated/session` |
+| 重试 | `getH5Auth` 在 G0 已是有界重试 GET（≤2 次，仅连接错误/超时/503） |
+| 不得跳过 | 不得在没有成功预检的情况下渲染 OTP/密码/找回密码页面（可以渲染“正在检查”的加载态） |
+| 输出 | `AuthSnapshot` + 由其推导的 `AuthStatus`（见下表） |
+
+**预检结果 → 状态**
+| 响应 | `AuthStatus` | 附带 |
+|---|---|---|
+| 200，`authenticated=false`，`pending=null` | `unauthenticated` | 刷新 `CompanySummary`（名称、语言） |
+| 200，`authenticated=false`，`pending≠null`（login 用途） | `challengePending` | 恢复 OTP 页（见 5.7） |
+| 200，`authenticated=true`，`session` 且注册完成 | `authenticated` | |
+| 200，`authenticated=true`，缺手机验证或缺设密码 | `authenticatedIncomplete(missing)` | |
+| 200，`company=null` | 公司不可用 | 视为未配置，不进入认证 |
+| 403「公司工作区无效」/「公司已停用或不可访问」 | 公司不可用（`invalid`/`disabled`） | 不持久化为最近公司；清理孤儿 jar |
+| 离线/超时 | **启动失败可重试** | G1 无缓存数据可展示，**不得**因本地存在会话 Cookie 就当作已登录（OD-G1-2） |
+| `mode ≠ telegram` | 见 OD-G1-6 | `demoCode` 永不使用 |
+
+
+**Company Context Invariant（v2 新增）**：`选定公司 → 出站 payease_company（§5.4）→ GET /api/h5/auth → OTP / 密码 / 找回` 全链路必须处于**同一公司上下文**。
+- Preflight 使用**所选（或候选）公司**的 client 与 Cookie，**不得**经代理默认回退。
+- OTP send/verify、密码登录/设置、找回 send/reset、登出均使用**同一 `CompanyId` 绑定的 client**；认证流程中途**切换公司**必须终止该流程并丢弃 pending 状态（见 §5.6）。
+- 契约测试：每个认证端点的出站 `Cookie` 均经 CF0-T1/T2 同类断言。
+
+### 5.6 AuthStatus 状态机（每公司独立）
+| 当前 | 事件 | 下一状态 |
+|---|---|---|
+| `unknown` | 预检 200 未登录 | `unauthenticated` |
+| `unknown` | 预检 200 有 pending | `challengePending` |
+| `unknown` | 预检 200 已登录（完整） | `authenticated` |
+| `unknown` | 预检 200 已登录（不完整） | `authenticatedIncomplete` |
+| `unauthenticated` | OTP 发送成功 | `challengePending` |
+| `unauthenticated` | 密码登录成功 | `authenticated` 或 `authenticatedIncomplete`（读 `policy`） |
+| `challengePending` | OTP 校验成功 | `authenticated` / `authenticatedIncomplete`（校验成功后须再预检以获得 `policy`） |
+| `challengePending` | 挑战失效（过期/次数用尽）/ 用户返回 | `unauthenticated` |
+| `authenticatedIncomplete` | 设置密码成功（再预检刷新 `hasPassword`） | `authenticated` |
+| `authenticated` / `authenticatedIncomplete` | 登出 | `unauthenticated` |
+| `authenticated` / `authenticatedIncomplete` | 401（需会话端点）/ 预检显示未登录 | `expired` |
+| `expired` | 重新登录成功 | `authenticated`（并消费 Return Intent） |
+| 任意 | 找回密码 `reset` 成功 | `unauthenticated`（旧会话已被服务端全部作废，本地同步清除） |
+
+**G1 不得假设**每次 API 调用自动延长 24 小时（BR-8）。`session.expiresAt` 仅供本地判断是否应主动复检，不用于“续期”。
+
+### 5.7 OTP 契约
+**界面状态（控制器状态机）**：`idle` → `sending` → `sent`/`countdown`（可重发倒计时）→ `verifying` → `success`；失败分支：`wrongCode`、`expired`、`attemptsExhausted`、`rateLimited(retryAfter)`、`networkError`、`undeliverable`（号码未注册 Telegram/无法发送）、`consentRequired`。
+| 规则 | 内容 |
+|---|---|
+| 同意 | `consent` 必须来自**用户的明确操作**，**默认未勾选**（R-12，`04` §18 已关闭；控制器契约已固定）；`consent=false` 时**不发起网络请求** |
+| 手机号 | 本地先校验 `PhoneNumber`；非法不发请求 |
+| 发送 | `POST /api/h5/auth/send {phone, consent:true}`；成功后进入 `sent` 并启动倒计时 |
+| 倒计时 | **用单调时钟计时**：在**响应到达时**用服务端 `Date` 响应头换算 `retryIn = retryAt − serverNow`、`expiresIn = expiresAt − serverNow`（无 `Date` 头时回退为设备时间并记录），之后本地倒计时与设备墙钟无关。`retryIn`（≈60 秒）内禁用重发 |
+| 校验 | 6 位数字本地校验；`POST /api/h5/auth/verify {challengeId, code}`；成功后服务端已下发会话 Cookie |
+| 错误 | `验证码不正确` → `wrongCode`；`尝试次数已用完` / `验证码已失效…` → `attemptsExhausted`/`expired`（需重新发送）；`429` → `rateLimited(retryAfter)`；`该号码暂不能接收 Telegram 验证码` → `undeliverable`（说明：验证码发送到 Telegram 的 “Verification Codes”，手机号须已注册 Telegram，**当前无短信回退**） |
+| `loginPageExpired` | 401「登录页面已失效」：执行**一次**有界恢复——重新预检（刷新 browser Cookie）后**重放原请求一次**（服务端在副作用之前就拒绝，安全，见 `05` §19.3 `PreconditionRecoveryOnce`）；再次失败则报错，不循环 |
+| 日志 | 不记录 OTP、`challengeId`、完整手机号；`SafeLogger` 与 `RedactionPolicy` 已覆盖这些字段名，需用测试证明 |
+| `demoCode` | 忽略，不展示、不自动填充 |
+
+**Pending Challenge 恢复**：预检返回 `pending`（仅 login 用途、仅未登录时）→ 恢复 OTP 页，显示 `phoneMasked`，**不自动重发**；用户可直接输入验证码（校验只需 `challengeId` + 验证码）。**重发需要重新输入手机号**（客户端只有掩码）。`pending` 过期后（5 分钟）退回 `unauthenticated`。**找回密码的挑战不会出现在 `pending` 中**（服务端按用途过滤），App 被杀后只能重新开始找回流程。
+
+### 5.8 密码契约
+**密码登录**：`/auth/password`；`POST /api/h5/auth/account {action:'password_login', phone, password}`。失败统一文案；`429` 倒计时；无密码账号与错误密码**表现一致**（均走统一失败文案），界面提供“改用验证码”入口。
+**设置密码**：当 `authenticatedIncomplete` 且缺 `passwordSetup`：路由守卫强制进入 `/auth/set-password`，**完成前不能进入任何业务页**；本地校验 12–128；`POST … {action:'set_password', password}`（首次无 `currentPassword`）；成功后重新预检刷新 `hasPassword`；`401` → 会话失效（走 §5.12）；“退出”= 执行登出。
+**找回密码**：`/auth/recover`（手机号 + 同意）→ `POST /api/h5/auth/recovery {action:'send', phone, consent:true}` → `/auth/recover/code`（验证码 + 新密码 + 确认）→ `{action:'reset', challengeId, code, password, confirmPassword}`；本地校验两次一致与 12–128；成功后**清除当前公司的会话 Cookie**（服务端已作废所有旧会话）→ 回到 `/auth/password` 并提示需用新密码重新登录。**禁止**复用 `verify`/`account` 作为找回流程。
+**密码处理**：不写日志、不进快照、不落盘；提交后立即清空输入；是否允许系统自动填充见 OD-G1-11。
+
+### 5.9 登出
+`POST /api/h5/auth/logout`（体 `{}`，5 秒超时，**尽力而为**）。**无论成功、失败、401（已过期）**，都执行：清除**当前公司**会话 Cookie（`clearSessionFor`）、清除该公司的 Return Intent 与内存中的敏感状态（`SensitiveStateCleaner` 钩子，G2+ 的快照在此接入）、状态置 `unauthenticated`、跳转认证。**不得影响其他公司。**
+
+
+**Tenant-context 要求（v2 新增，CF-0/CF-6）**：登出请求**必须**在**正确的 `payease_company`** 下发出（= 当前激活公司，经 §5.4 的 ensure + Guard）。`Active A → logout → 出站 company=A → A 的 session 被清 → B 的会话保持`（CF0-T11、`G1-COMPANY-COOKIE-03`）。重启后（jar 未缓存）登出同样成立（`G1-COMPANY-COOKIE-04`）。登出**不得**经代理默认回退到别家公司。
+
+### 5.10 冷启动与会话恢复
+```
+读取 SecureKv：activeCompanyId、companies
+  ├─ 缺失/被重置（含 resetOnError） → 视为首次运行 → /company/select
+  └─ 存在 → 激活公司 → 取/建 jar → 预置 payease_company → GET /api/h5/auth
+        ├─ authenticated=true → 注册完成校验 → /home 或 /auth/set-password
+        ├─ authenticated=false → /auth/login（或 pending → /auth/telegram-code）
+        ├─ 403 → 公司不可用 → /company/select（带原因）
+        └─ 离线/超时 → 启动失败页（重试 / 切换公司），不假设已登录
+```
+- 冷启动**必须**走服务端预检，不能仅凭本地 Cookie 判定登录。
+- App 在前台时再次可见（`resume`）若距上次预检超过阈值或本地判断会话已逼近过期，**重新预检**（阈值：**OD-G1-9**，推荐 5 分钟）。
+
+### 5.11 错误映射（G1 初始目录，来源：现有服务端代码；需联调补全）
+> 中文字面量**只允许**出现在 `core/error/server_message_catalog.dart`（新增架构测试，与 ARB 并列为仅有的两处）。映射输入：**HTTP 状态码 + 端点 + 已知文案**；输出：稳定的内部种类 + l10n key + 重试元数据；未命中按状态码回退为通用本地化文案，**不展示中文原文**。
+
+| 状态 | 端点 | 服务端文案（摘要） | 内部种类 |
+|---|---|---|---|
+| 401 | 需会话端点 | 客户登录已失效，请重新验证手机号 | `sessionExpired` |
+| 401 | send/verify/recovery | 登录页面已失效，请刷新后重试 | `loginPageExpired`（有界恢复一次） |
+| 401 | account(password_login) | 手机号或密码不正确，请重试或使用验证码 | `invalidCredentials` |
+| 401 | set_password | 请先登录账号 / 请先登录 | `sessionExpired` |
+| 401 | set_password | 当前密码不正确 | `invalidCredentials`（改密场景） |
+| 401 | 任意 | 请先进入有权访问的私有测试工作区 | `identityUnavailable`（部署异常，高优先级日志） |
+| 403 | POST | 不允许跨站操作 | `crossSite`（**客户端缺陷**：Origin 缺失；高优先级日志） |
+| 403 | 业务 | 请先在客户账号设置中完成手机号验证… / …设置密码… | `registrationIncomplete(step)` |
+| 403 | 预检/任意 | 公司工作区无效 / 公司已停用或不可访问 | `companyUnavailable(invalid\|disabled)` |
+| 403 | set_password | 当前业务渠道已关闭此注册步骤 | `registrationStepClosed` |
+| 400 | send/recovery | 该号码暂不能接收 Telegram 验证码… | `otpUndeliverable` |
+| 400 | send/recovery | 请先同意接收本次手机号验证码 | `consentRequired` |
+| 400 | verify | 验证码不正确，请重新输入 | `otpInvalid` |
+| 400 | verify | 尝试次数已用完，请重新获取验证码 | `otpAttemptsExhausted` |
+| 409 | verify | 验证码已失效、正在核验或尝试次数已用完… | `otpExpired` |
+| 409 | verify | 该手机号已绑定其他账号… / 请验证当前账号注册时填写的手机号 | `phoneBoundToAnotherAccount` |
+| 400 | set_password/reset | 密码需为 12–128 个字符 / 新密码需为 12–128 个字符 | `passwordInvalid`（客户端已先校验） |
+| 400 | reset | 两次输入的新密码不一致 | `passwordMismatch`（客户端已先校验） |
+| 404 | reset | 当前公司下未找到此手机号账号，请返回注册 | `accountNotFound` |
+| 409 | reset | 账号已被更新，请重新获取验证码 | `recoveryConflict` |
+| 409 | set_password | 账号状态已变化，请重新登录 | `sessionExpired` |
+| 429 | 任意认证端点 | 请求过于频繁，请稍后再试 | `RateLimitFailure(retryAfter)`（读响应体 `retryAfter`，缺失时读 `Retry-After` 头；规则见 §5.11.1） |
+| 503 | 认证端点 | 登录服务尚未配置 / Telegram Gateway 尚未配置 / Telegram 暂时未响应 / 验证码服务暂不可用… | `authServiceUnavailable` |
+| 连接失败 / 超时 | — | — | `OfflineFailure` / 超时种类（既有） |
+
+**403 不得全部映射为同一句**（用户 §20）。对手机号相关错误，界面文案不得暗示“账号存在/不存在”（`invalidCredentials` 统一）。
+
+
+#### 5.11.1 `retryAfter` 规则（CF-7，v2.1 冻结）
+
+```
+DEFAULT_RETRY_AFTER_SECONDS = 60
+MIN_RETRY_AFTER_SECONDS     = 1
+MAX_RETRY_AFTER_SECONDS     = 3600
+```
+
+| 输入（响应体 `retryAfter`，缺失时取 `Retry-After` 头的整数秒） | 结果 |
+|---|---|
+| 缺失 | 60 |
+| 非合法有限整数（字符串、NaN、Infinity、小数、null、布尔等） | 60 |
+| ≤ 0（含负数） | 60 |
+| 1 ≤ v ≤ 3600 | v（使用服务端值） |
+| > 3600（含极大值） | 3600 |
+
+- **上限依据**：服务端已知最长限流窗口为 1 小时（BR-7：同手机号 5 次/小时、同浏览器 10 次/小时、同公司 30 次/小时），故 `MAX = 3600`，不是任意值。
+- **服务端仍是最终权威**：clamp 只用于 UI 倒计时、按钮禁用时长、本地重试调度；**不代表**到时服务端一定接受。倒计时结束后用户再次请求，若仍 `429`，客户端重新读取**新的** `retryAfter` 并应用同一规则。
+- **不自动重试**：倒计时结束 → **仅启用 CTA** → 由用户显式重试；**不得**自动发送任何请求（避免未经用户操作重复发 OTP/认证请求）。
+- **领域模型（单字段）**：Domain 层**只**保留 `RateLimitFailure { Duration? retryAfter }`（G0 既有字段，构造兼容）；**不得**并存第二个字段（如 `retryAfterSeconds`）。G1 的 429 路径由 `ErrorMapper` 按上表 `parse → validate → clamp` 后**总是填入非空** `Duration`（秒 → `Duration(seconds: n)`）；UI 不得消费未校验的服务端原始值。`null` 仅可能出现在非 G1 路径构造的实例（G0 兼容），UI 遇 `null` 按 60 秒处理。
+- **常量位置**：三个常量定义于 `core/error/`（单一来源），不得在 UI/控制器中另设数值。
+
+### 5.12 401 与 Return Intent
+**401 统一行为**（对 `requiresSession` 的端点）：`标记当前公司会话失效 → 保存 Return Intent → 进入认证 → 登录成功后恢复**安全的**原目标页`。
+- **失效处理点**：作为 `ApiClient.forCompany` 的**可选回调参数**（增量，不改既有拦截器顺序与语义）；登录类端点的 401（`invalidCredentials`）**不触发**会话失效。
+- **不自动重放**：已失效会话上的任何 POST **不会**被自动重发。Return Intent 仅记录**导航目标**。
+- **ReturnIntent 规则**
+  | 项 | 规则 |
+  |---|---|
+  | 内容 | `{companyId, location(路径 + 白名单查询), createdAt}`；**不含 PII、不含请求体** |
+  | 来源 | 路由守卫在未登录用户访问受保护路由时保存；以及 401 失效时保存当前路由 |
+  | 安全校验 | `location` 必须是以 `/` 开头的**应用内路径**，不含 scheme/host/`//`；**不得**指向 `/auth/*`、`/company/*`、`/startup`、`/feature/*`；必须在**路由白名单**内；否则丢弃并回 `/home` |
+  | 作用域 | 仅在**同一公司**登录成功后消费；切换公司/移除公司/登出**清除** |
+  | 有效期 | 30 分钟；过期丢弃 |
+  | 存储 | 内存 + `v1/co/{companyId}/return-intent`（经 `KeySchema`） |
+  | G1 可验证性 | G1 受保护路由仅 `/home`、`/me*`；401 的集成测试通过**假服务**上的 `getH5State`（已存在于 `Endpoints`）或 `set_password` 触发，**G1 业务代码不调用 state** |
+
+### 5.13 Router 与 Guards
+**路由**（来自 `04` v2，**不自行发明**；G1 注册的集合）：
+```
+/startup
+/company/select   /company/scan   /company/paste-link
+/auth/login   /auth/telegram-consent   /auth/telegram-code   /auth/password   /auth/set-password
+/auth/recover   /auth/recover/code
+/home
+/me   /me/company   /me/language（仅本地选择，见 OD-G1-3）
+/feature/repay/:loanId   /feature/withdraw/:loanId   （G0 已有，保持）
+```
+- **不注册**：`/loans*`、`/messages`、`/kyc*`、`/loan/*`、`/me/password`、`/auth/recover/reset`（R-5：`04` §18 已关闭）。
+- `/me`、`/me/company`、`/me/language` 是为了让**登出与公司切换在 G1 可触达**；G1 的“最小外壳”（首页占位 + 进入 `/me` 的入口）见 §5.17（U-4 CONTRACT CLOSED）。
+
+**Gate 重定向顺序**（单点 `RouterGate`，`redirect` 不做异步 IO）
+| 顺序 | 条件 | 去向 |
+|---|---|---|
+| 1 | 启动未就绪 | `/startup` |
+| 2 | 无活动公司 | `/company/select` |
+| 3 | 公司不可用 | `/company/select`（带原因） |
+| 4 | `AuthStatus=unknown`（预检进行中） | `/startup`（加载态；**不是**登录页） |
+| 5 | `unauthenticated` / `expired` | `/auth/*`（并保存 Return Intent，若来自受保护路由） |
+| 6 | `challengePending` | `/auth/telegram-code` |
+| 7 | `authenticatedIncomplete` | `/auth/set-password`（缺手机验证时进入 OTP 流程） |
+| 8 | `authenticated` 访问 `/auth/*` 或 `/company/select`（无待处理链接） | `/home`（或消费 Return Intent） |
+| 9 | `/feature/*` 且开关为 false | 禁用页（G0 保持） |
+
+**必须使用 `refreshListenable`**（CF-3）：监听活动公司、该公司的 `AuthStatus`、待处理 Deep Link；任一变化触发重新求值。守卫**只做体验一致性引导**，真实授权永远在服务端。
+
+### 5.14 Company 契约
+**选择算法**（扫码、粘贴、App Link、最近列表都汇入同一入口 `CompanyController.select(candidate)`）：
+1. `CompanyLinkParser.parseCompanyId` → 非法则 `invalidLink`，**不发任何请求**。
+2. 为候选公司取/建 jar 并预置 `payease_company`（候选 client 绑定候选 `CompanyId`，§5.4）。
+3. 对候选公司执行 Preflight（`GET /api/h5/auth`，**使用候选公司上下文**；此时 ActiveCompany **不变**）：
+   - 200 → 进入 **`candidateConfirm`**（应用级状态，由 `CompanyController` 持有；展示候选公司名；**不**写入最近公司、**不**改 ActiveCompany）。
+   - 403 → `unavailable(invalid|disabled)`；**不**写入最近公司；**清理为该候选创建的孤儿 jar/键**。
+   - 离线/超时 → `networkError`，不持久化。
+   3a. **用户确认**（所有入口——最近列表、扫码、粘贴、App Link、`/me/company`——一律经 `candidateConfirm`）→ 写入最近公司（名称取自响应 `company`、语言开关、`lastUsedAt`，上限 10）→ **ActiveCompany = 候选** → 按候选的 `AuthStatus` 路由。
+   3b. **用户取消**（冻结）：
+       - ActiveCompany **保持 A**；A 的会话、jar、Return Intent、偏好**完全不变**；
+       - 候选 B **不得**成为已认证的活动上下文，B 的临时 browser/auth 状态**不得**影响 A（B 的请求只使用 B 的 client 与 B 的 jar）；
+       - 若 B **不是**已知公司（不在最近列表且无既有持久化状态）：取消时**清理** B 为本次预检创建的 jar/键（与 403 同样处理）；
+       - 若 B 是**已知公司**：保留其**既有**状态（预检只刷新 `payease_h5_browser`，从不创建会话）；
+       - 允许保留无害、严格按公司隔离的非认证 `payease_visitor` 元数据，但**绝不**据此判断登录：下次进入 B 时，`AuthStatus` **只**由服务端预检响应推导（§5.10），本地 Cookie 不得造成“误判已登录”。
+4. **切换公司 A→B**：持久化 `activeCompanyId`；**保留 A 的全部数据**（jar、Return Intent、偏好）；A 的 `ApiClient` 可被释放（在途请求取消），其 Cookie 仍在存储中；B 的预检决定去向；**切换不调用任何清理**。再切回 A 时恢复 A 的会话。
+5. **移除公司**（仅用户明确操作，二次确认）：`removeCompany(X)`；若 X 是活动公司则进入 `/company/select`。**登出 ≠ 移除。**
+
+**Deep Link 规则**
+- 来源：`app_links`（初始链接 + 链接流）；`DeepLinkHandler.register` 必须在启动流程中被调用（CF-13）。
+- **只选择公司，绝不产生已认证**；不携带任何凭据。
+- 若用户当前在**另一家公司**已登录：**不得静默切换**，必须经 `candidateConfirm`（U-5：`04` §18 已关闭；§5.14）；同公司则忽略/仅路由。
+- 启动阶段的链接在启动就绪后消费；非法链接忽略。
+- `assetlinks.json`（CR-002）**不阻塞 G1**：G1 用显式组件 Intent 验证（§9）；已验证的 App Link 行为属 G5。
+
+**最近公司存储**：`v1/app/companies`（JSON，无 PII，≤10 条，含 `id`、`name`、`lastUsedAt`、`languages`）；`v1/app/activeCompanyId`。均经 `KeySchema`。
+
+### 5.15 语言（Locale）
+- 可用语言 = `{km, en, zh}` ∩ 公司 `languages` 开关。**选公司之前**：设备语言优先，仅 `km`、`en`（其余回退 `en`）；**中文仅在公司配置允许时出现**。
+- 选择顺序：该公司已保存的选择（若仍启用）→ 设备语言（若启用）→ 第一个启用的语言（优先 `en`）。当前语言被关闭时自动切换并提示（文案由 Codex 定）。
+- 持久化：公司级 `v1/co/{id}/prefs`；选公司前的设备级选择沿用 `v1/app/locale`（均经 `KeySchema`）。
+- **接入 `MaterialApp.locale`**（CF-8）；删除 `features/settings` 里的占位 `LocaleNotifier` 或使其不再被引用。
+- 服务端同步（`POST /api/h5/locale`）**G1 不做**（OD-G1-3）。
+- ARB 键集合 en/km/zh **必须一致**（G0 已有测试，继续生效）；高棉/中文文案的**语言学审校**仍是 P2（不阻断）。
+
+### 5.16 安全与日志
+- **永不记录**：OTP、密码（含确认密码）、Cookie、完整手机号、`challengeId`、会话值、`demoCode`。`SafeLogger` 与既有 `RedactionPolicy` 继续使用；认证端点在 `Endpoints` 中均标 `sensitiveBody=true`，`SafeLoggingInterceptor` 不输出请求/响应体（已有，需新增端到端断言）。
+- 密码/OTP 输入框：提交后清空；不写入任何存储；不使用剪贴板写入敏感内容。
+- 认证相关错误文案**不得**区分“账号存在/不存在”。
+- `crossSite`（403）视为客户端缺陷，不向用户展示技术细节。
+- 自动化测试**不得**访问生产，也不得真实发送 Telegram 验证码（§8、§9）。
+
+---
+
+### 5.17 G1 Minimal Authenticated Landing（`/home`，U-4 **CONTRACT CLOSED**）
+
+> **定位**：G1 的 `/home` **不是**客户业务首页。它只是完成 Company + Auth 后、用来证明认证闭环成立的**最小已认证落地页**。
+> 闭环：`Company → Auth → Authenticated Landing → Switch / Logout`，**不依赖 G2/G3**。
+
+**允许展示（仅此）**：当前公司名称；已认证状态与**脱敏**账号标识（preflight `session.phoneMasked`，**仅内存持有，不落盘**）；语言入口（仅本地选择，见 §5.15）；**切换公司**；**退出登录**；可选：App 版本、基础状态/占位。
+**禁止**：KYC、借款、借款报价、还款账单、提现、还款、业务待办、贷款摘要及任何业务入口（含置灰入口）。
+
+**G1 `/home` API 范围（冻结）**
+
+| 类别 | 内容 |
+|---|---|
+| **允许** | `GET /api/h5/auth`（进入/恢复/`resume` 预检，§5.5/§5.10；候选公司预检，§5.14）、`POST /api/h5/auth/logout`（§5.9）、以及 §5 与附录 A 已冻结的其他 Company/Auth 端点（OTP/密码/找回，仅用于认证页，不用于渲染 `/home`） |
+| **渲染 `/home` 本身** | **不发起任何网络请求**；内容来自内存中的 `AuthSnapshot`/`CompanySummary` |
+| **禁止** | `GET /api/h5/state`、`/api/kyc*`、`/api/loan/*`、任何借款/报价/还款/提现端点；**`POST /api/h5/locale`（G1 不做，OD-G1-3；语言仅本地选择）** |
+| 说明 | `Endpoints.getH5State` 为 G0 既有常量，**`lib/` 中不得有任何调用方**（架构测试）；§5.12 的 401 集成测试仅在**测试代码**中经假服务触发，不属于产品代码 |
+
+**状态（仅认证相关；不定义贷款业务状态）**
+
+| 状态 | 触发 | 行为 |
+|---|---|---|
+| `resolving` | 进入 `/home` 且预检进行中（冷启动恢复/`resume` 重检） | 加载态；**不是**登录页，不展示脱敏账号直到预检成功 |
+| `authenticated` | 预检 `authenticated=true` 且注册完成 | 展示允许内容 |
+| `companySwitching` | 用户点击“切换公司” | **进入已冻结的 Company Switch UX**（`/me/company` → `candidateConfirm`，§5.14）；确认前 ActiveCompany **不变**，`/home` 仍属于 A |
+| `loggingOut` | 点击“退出登录” | 禁用重复点击；§5.9 流程（成败/401/超时都清当前公司本地会话）；完成后进入认证流程（该公司） |
+| `offlineKnownSession` | App 已在 `/home`，之后网络断开/`resume` 预检失败于连接错误 | 保留**内存中**的已知内容 + 离线提示；**允许退出登录**（尽力而为的请求 + 本地清除）；**切换公司需联网**（候选预检）；**不得**发任何业务请求。*冷启动即离线不属于此态，仍为启动失败页（OD-G1-2）* |
+| `sessionExpired` | 预检返回 `authenticated=false`（会话失效）或受保护端点 401 | **保存安全的 Return Intent（`/home`）→ `/auth/login`**；登录成功后回 `/home`（§5.12；校验规则不变） |
+| `error` | 预检 5xx/503 或未映射错误 | 本地化提示 + 重试；**不假设**已登录或已登出 |
+
+**硬约束**
+1. “切换公司”**只能**进入候选确认流程（§5.14），**不得**直接改写 ActiveCompany、绕过候选预检/确认。
+2. “退出登录”**只清当前公司**会话（§5.9），其他公司会话保持（CF0-T11、HM-4）。
+3. 不展示完整手机号；脱敏标识不写入 SecureKv/日志。
+4. 切换/退出入口距 `/home` ≤ 1 步导航，且使用同一控制器入口；**控件在 `/home` 直接放置，还是经 `/me` 进入，由 Codex 在原型契约中定**（`04` U-4 当前写作后者；契约只约束行为，不约束放置）。
+
+## 6. UX Dependencies（v2.2：全部已关闭，保留为追溯；本文不改 `04`）
+
+| 编号 | 内容 | 状态 | 依据 |
+|---|---|---|---|
+| R-3 | 切换公司文案/保留会话 | **CLOSED** | `04` §18；§5.14 |
+| R-5 | 找回两页路由，无 `/auth/recover/reset` | **CLOSED** | `04` §18；§5.13 |
+| R-12 | 同意勾选默认未勾选 | **CLOSED** | `04` §18；§5.7 |
+| U-4 | G1 最小首页与 `/me` | **CLOSED（产品/契约边界见 §5.17）**；页面字段表见 §6.2 | `04` §18；§5.17 |
+| U-5 | 深链与另一公司 | **CLOSED** | `04` §18；§5.14 |
+| U-6 | 异常认证状态 | **CLOSED** | `04` §18；§5.11 |
+
+**结论**：UX 阻塞项均已关闭；`28` 提出的**原型契约完整性**与**路由级错误绑定**（P1-UX-01/03）已由 Codex 在 `04` §19（G1 Prototype Contract v2）补全，并经 `31` 复审：**UX CONTRACT = READY；ACCEPTANCE CONTRACT = READY**（16 个条目 + `candidateConfirm` 应用状态，P0=0、P1=0）。§6.2 保留为输入追溯记录。
+
+---
+
+### 6.1 Codex UX Inputs（v2 新增；仅为产品/API 约束，**不改 `04`**；v2.1：全部已由 `04` 关闭，`25` 核实）
+
+| 项 | 契约侧已定的约束（Codex 设计的输入） | 状态 |
+|---|---|---|
+| **R-3** 切换公司文案 | 技术规则：切换**保留**原公司会话（只改 ActiveCompany，不清 `payease_h5_session`，§5.4）；缓存按公司隔离。文案不得写“清理/退出当前公司”，应表达“切换到另一家公司；原公司登录状态保留”。`04` 第 86 行“清理当前公司展示快照”须改为与此一致（仅指界面内存快照，不是会话）。 | CLOSED（`04`；`25`） |
+| **R-5** `/auth/recover/reset` | `21` 的找回为**两页**（发送验证码页 → 验证 + 设新密码页）；**不存在**独立 `/auth/recover/reset` 路由。`04` 路由表需对齐，或 Codex 给出新增路由的理由并回送契约。 | CLOSED（`04`；`25`） |
+| **R-12** 同意勾选默认 | 契约建议：Telegram 同意勾选**默认未勾选**；未勾选时“发送验证码”禁用；服务端 `consent` 必须为真值才发送。 | CLOSED（`04`；`25`） |
+| **U-4** 极简首页与 `/me` 入口 | 须含：当前公司名、登录状态、切换公司、**登出**入口；不调用业务端点（不调 `/api/h5/state`）；登出入口须可达并走 §5.9。 | CLOSED（`04`；`25`） |
+| **U-5** 深链与已登录别家公司 | 深链**永不产生认证态**；收到指向另一公司的链接时必须**显式确认**（显示目标公司名；确认后才切换 ActiveCompany，且不清当前会话）；取消则保持原状。 | CLOSED（`04`；`25`） |
+| **U-6** 离线/无效公司/OTP 错误/Telegram 不可达/找回待处理 | 状态由 §5.11 错误目录与 §5.5/§5.7 给出：离线启动（不得误判为登出）、公司不存在/停用（403 公司不可用）、OTP 错/过期/5 次锁定/429 倒计时（`retryAfter`）、Telegram 不可达指引（**无 SMS 回退**）、找回 pending（`pending` 字段）。每态需文案与动作设计。 | CLOSED（`04`；`25`） |
+| **CF-8 页面部分** | 语言选择页的文案与布局；可选语言集合由 preflight `languages` 决定（契约侧见 §5.15）。 | CLOSED（`04`；`25`） |
+
+### 6.2 Codex UX Contract Completion Inputs（v2.2；供 `28` P1-UX-01 / P1-UX-03，**由 Codex 在 `04` 完成，本文不代写**）
+
+**A. G1 原型契约必须覆盖的路由/状态**（每项需含：Entry、Company Context、API、Data、States、Primary CTA、Secondary CTA、Loading、Offline、Error、Navigation、Acceptance）：
+`/startup`、`/company/select`、`/company/scan`、`/company/paste-link`、**`candidateConfirm`（应用级状态，非路由；入口：最近列表/扫码/粘贴/App Link/`/me/company`）**、`/auth/login`、`/auth/telegram-consent`、`/auth/telegram-code`、`/auth/password`、`/auth/set-password`、`/auth/recover`、`/auth/recover/code`、`/home`（§5.17）、`/me`、`/me/company`、`/me/language`。
+
+**B. Company Context 列的取值**：除 `/company/select`、`/company/scan`、`/company/paste-link`（无活动公司上下文）与 `candidateConfirm`（**候选公司上下文**，ActiveCompany 不变）外，其余路由的上下文均为**当前 ActiveCompany**。
+
+**C. 路由 → API → 需绑定的状态**（适用状态的权威集合是 §5.11 的逐行目录；Codex 需为每条路由的**每个适用状态**给出：用户文案 key、CTA、导航目标）：
+
+| 路由 | 端点 | 须绑定 |
+|---|---|---|
+| `/auth/login` | `GET /api/h5/auth` | §5.5 全部结果行 + 离线/超时 + 503 |
+| `/auth/telegram-consent` | `POST /api/h5/auth/send` | §5.11 中 send 的全部行（400 不可达/未同意、401、403、429、503）+ 离线/超时 |
+| `/auth/telegram-code` | `POST /api/h5/auth/verify`（重发 = send） | §5.11 中 verify/send 的全部行（400 错码/过期/次数用尽、401、403、429 + §5.11.1、503）+ 离线/超时 + `challengePending` 恢复 |
+| `/auth/password` | `POST /api/h5/auth/account`（password_login） | 401 `invalidCredentials`（**不**触发会话失效）、403、429、503 + 离线/超时 |
+| `/auth/set-password` | `POST /api/h5/auth/account`（set_password） | 400 规则、401 会话失效（→ Return Intent）、403、409、503 + 离线/超时 |
+| `/auth/recover` | `POST /api/h5/auth/recovery`（send） | §5.11 recovery/send 全部行 |
+| `/auth/recover/code` | `POST /api/h5/auth/recovery`（reset） | §5.11 recovery/reset 全部行（含 409 `recoveryConflict`、`accountNotFound`） |
+| `candidateConfirm` | 候选公司 `GET /api/h5/auth` | 403 invalid/disabled、离线/超时、503；取消语义 §5.14-3b |
+
+> 如 Codex 发现 §5.11 对某路由缺少行，应回送**契约问题**（Claude 补 §5.11），而不是在 `04` 中自创状态。
+
+## 7. Trae Task Cards
+
+> 统一格式：Goal / Contract / Files / Dependencies / Implementation Constraints / Tests / DoD。
+> **所有任务**共同约束：遵守 §2.3 Foundation Change Policy；不使用 legacy provider；不使用含 `counter` 的标识符；所有用户可见文案走 ARB；认证相关日志脱敏；不访问生产；不调用 `/api/h5/state` 等业务端点。
+> 依赖顺序：`SUPPORT-01 → COMPANY-COOKIE-01 → COMPANY-COOKIE-04 → NET-01 → ERR-01 → COMPANY-01 → COMPANY-COOKIE-02 → AUTH-01 → (AUTH-02/03/04/05/06/07) → AUTH-08/09 → COMPANY-COOKIE-03 → ROUTER-01 → COMPANY-02/03/04 → I18N-01 → ANDROID-01 → TEST-* → RUNTIME-01 → REPORT-01`。
+
+### 7.1 Foundation 补全（先做）
+
+#### G1-SUPPORT-01 Test Support
+- **Goal**：共享测试基础设施，消除重复的内存 `SecureKv`，并提供**按 `02` 契约编写的**假服务。
+- **Contract**：`FakeSecureKv`（内存、可记录删除调用）；`FakeKhmerXServer`（见 §8.3，**从 `02` 与服务端代码推导，不从客户端实现推导**）；`pump_helpers`（构建带覆盖项的 App/容器）。
+- **Files**：`test/support/*`。
+- **Dependencies**：无。
+- **Implementation Constraints**：假服务绑定 `127.0.0.1` 随机端口；不访问外网；时钟可注入；**Codex 须对照 `lib/h5-auth-core.ts` 审查其语义**。
+- **Tests**：假服务自测（Origin 不匹配 403、缺 browser Cookie 401、限流 429 + `retryAfter`、公司隔离）。
+- **DoD**：G0 的 4 处重复 `_MemKv` 迁移到 `FakeSecureKv`（或在报告说明保留理由）；假服务自测通过。
+
+#### G1-COMPANY-COOKIE-01 出站 `payease_company` 注入（CF-0，**P0**）
+- **Goal**：每个出站请求带**恰好一个**正确的 `payease_company`；不存在无公司请求路径。
+- **Contract**：§5.4（方案 A′）。
+- **Files**：`core/network/interceptors/{company_cookie_interceptor,company_context_guard_interceptor}.dart`、`core/session/{company_cookie_store,whitelist_cookie_jar}.dart`（新增 seed/ensure）、`core/network/api_client.dart`（装配顺序）。
+- **Dependencies**：SUPPORT-01。
+- **Implementation Constraints**：使用真实 `cookie_jar 4.0.9` API；**禁止**手写/修改 `Cookie` 头；Guard 在 `CookieManager` 之后且 fail-closed；`request` 不得存在无 `CompanyId` 的重载；不得发送 `payease_company=none`；保持 G0 的 4-Cookie 白名单语义；不改 G0 已通过测试的断言。
+- **Tests**：CF0-T1、T2、T5、T6、T7、T8、T9、T10；G0 cookie 测试保持通过。
+- **DoD**：以上测试通过；`grep` 无手写 `'Cookie'` 头构造；无硬编码生产主机用于 Cookie 逻辑。
+
+#### G1-COMPANY-COOKIE-02 公司切换请求上下文测试（CF-0，**P0**）
+- **Goal**：证明 A→B、B→A 的请求上下文正确（Rule C/D）。
+- **Contract**：§5.4、§5.14。
+- **Files**：`test/core/session/company_switch_request_context_test.dart`（及支持代码）。
+- **Dependencies**：COMPANY-COOKIE-01、COMPANY-01。
+- **Implementation Constraints**：断言取自 FakeKhmerXServer **实际收到的** `Cookie` 头，不取自客户端内部状态；不得 mock 掉 CookieManager。
+- **Tests**：CF0-T3、CF0-T4（含 A 的 session/browser 恢复、B 的不混入）。
+- **DoD**：测试通过。
+
+#### G1-COMPANY-COOKIE-03 登出租户上下文测试（CF-0 / CF-6，**P0**）
+- **Goal**：登出在正确公司下发出并只清当前公司。
+- **Contract**：§5.9 Tenant-context 要求。
+- **Files**：`test/features/auth/logout_tenant_context_test.dart`。
+- **Dependencies**：COMPANY-COOKIE-01、AUTH-07。
+- **Implementation Constraints**：Active A → logout → 服务端收到 `company=A` → A 的 `payease_h5_session` 被清 → B 保持；Auth preflight 同样使用所选公司 Cookie，无代理回退。
+- **Tests**：CF0-T11；成功/失败/超时/401 四种结局均成立。
+- **DoD**：测试通过。
+
+#### G1-COMPANY-COOKIE-04 会话清除与主机无关 jar（CF-6，P1）
+- **Goal**：`clearSessionFor` 在任何情况下真正清除；去除对生产主机的硬编码。
+- **Contract**：§5.4 末段。
+- **Files**：`core/session/{company_cookie_store,whitelist_cookie_jar,secure_kv_cookie_storage}.dart`。
+- **Dependencies**：COMPANY-COOKIE-01。
+- **Implementation Constraints**：jar 未缓存时先加载持久化再清除；主机取自该客户端 `baseUrl`；对 `127.0.0.1:<port>` 生效；仅清 `payease_h5_session`。
+- **Tests**：重启后（jar 未缓存）清除；对 `127.0.0.1:<port>` 生效；清除后 visitor/browser/company 仍在；A 清除不影响 B。
+- **DoD**：测试通过；`grep` 无硬编码生产主机用于 Cookie 逻辑。
+
+#### G1-NET-01 ApiClient 提供者与认证端点
+- **Goal**：为每家公司提供可用的 `ApiClient`，并声明 G1 所需端点。
+- **Contract**：`ApiClientFactory`（或等价 `apiClientProvider(CompanyId)`）：创建/缓存每公司客户端，创建前预置公司 Cookie；切换时可释放非活动公司的客户端。`Endpoints` 新增：`postH5AuthSend`、`postH5AuthVerify`、`postH5AuthAccountLogin`（`requiresSession=false`）、`postH5AuthAccountSetPassword`（`requiresSession=true`）、`postH5AuthRecovery`；**均 `sensitiveBody=true`、`retry=none`、`bodyLimitBytes=4096`**。
+- **Files**：`core/network/{endpoints,api_client_factory}.dart`、`providers.dart`、`features/auth/data/auth_api.dart`。
+- **Dependencies**：COMPANY-COOKIE-01、COMPANY-COOKIE-04。
+- **Implementation Constraints**：`Dio(` 仅在 `dio_factory.dart`（既有守卫）；`'Origin'` 字面量仅在拦截器（既有守卫）；不引入新的重试行为；路径含 `/api`。
+- **Tests**：每个新端点的最终 URL、方法、`requiresSession`、`sensitiveBody` 断言；POST 的 `Origin`（含端口）；既有 `endpoint_test` 保持通过。
+- **DoD**：测试通过；无端点遗漏 `sensitiveBody`。
+
+#### G1-ERR-01 认证错误映射（CF-7）
+- **Goal**：把服务端状态码与已知文案映射为稳定种类与重试元数据。
+- **Contract**：§5.11；新增 `server_message_catalog.dart`；`AppFailure` 家族**增量**新增种类（保持既有构造与 G0 测试兼容）；`RateLimitFailure` 沿用 G0 的 `Duration? retryAfter`，G1 路径按 §5.11.1（default 60 / min 1 / max 3600）总是填入非空值。
+- **Files**：`core/error/{server_message_catalog,error_mapper,failure}.dart`。
+- **Dependencies**：NET-01。
+- **Implementation Constraints**：中文字面量仅在 catalog；文案匹配前规范化空白；**未命中按状态码回退**；403 不再一律 `crossSite`；不得展示中文原文。
+- **Tests**：表驱动覆盖 §5.11 全部行；`retryAfter` 取自响应体与 `Retry-After` 头；**RA 矩阵 RA-1…RA-11（§8）**；未命中回退；**新增架构测试：除 catalog 与 `lib/l10n/*` 外 `lib/` 无 CJK 字符**；G0 的 `error_mapping_test` 保持通过。
+- **DoD**：测试通过；CJK 守卫生效。
+
+#### G1-ANDROID-01 Manifest 与网络配置（CF-10）
+- **Goal**：让 Android 包能联网并能被运行验证。
+- **Contract**：主 Manifest 增加 `INTERNET`；`CAMERA` 权限与 `uses-feature camera required=false`；**仅 debug**变体允许对 `10.0.2.2`（模拟器访问宿主机）的明文流量（`network_security_config`）；release 不允许明文；保留 `allowBackup=false`。
+- **Files**：`android/app/src/main/AndroidManifest.xml`、`android/app/src/debug/**`、`res/xml/network_security_config.xml`（debug）。
+- **Dependencies**：无。
+- **Implementation Constraints**：release 变体**不得**包含明文放行；不修改签名/AGP/Gradle；不扩大权限范围。
+- **Tests**：Manifest 合并结果检查（脚本或测试：release 含 `INTERNET`、不含明文放行；debug 含 `10.0.2.2` 例外）。
+- **DoD**：`flutter build apk --debug` 与 `flutter build apk --release`（不要求签名可发布，仅验证可构建与合并 Manifest）均通过，**或**在报告中说明 release 构建不可执行的原因。
+
+### 7.2 Company
+
+#### G1-COMPANY-01 Company model / store
+- **Goal**：公司领域模型、最近公司、活动公司持久化与恢复（CF-4）。
+- **Contract**：§5.3、§5.14（存储部分）。`CompanyRepository`：`restore()`、`recents()`、`validateAndActivate(candidate)`（内部做预检）、`switchTo(id)`、`remove(id)`。
+- **Files**：`features/company/{domain,data,application}/*`、`core/storage/key_schema.dart`、`providers.dart`。
+- **Dependencies**：NET-01、ERR-01。
+- **Implementation Constraints**：只经 `KeySchema` 生成键；`v1/app/companies` ≤10 条、无 PII；存储被重置视为首次运行；`ActiveCompanyIdNotifier` 持久化并在启动时恢复；**切换不得调用任何清理**。
+- **Tests**：存储往返；上限 10；重置后首次运行；切换保留 A；移除只删 X；无效公司不写入最近列表且清理孤儿 jar。
+- **DoD**：测试通过；`activeCompanyIdProvider` 的 G0 测试（`bootstrap_test`、`app_start_test`）保持语义通过。
+
+#### G1-COMPANY-02 Company selection
+- **Goal**：选择公司（最近列表、扫码、粘贴）。
+- **Contract**：§5.14 选择算法；扫码内容即公司链接（同一解析器）；相机权限被拒时回退到粘贴；非法链接就地提示且不发请求。
+- **Files**：`features/company/presentation/{company_select,company_scan,company_paste_link}_page.dart`、`pubspec.yaml`（新增 `mobile_scanner`）、`test/architecture_grep_test.dart`（按 §2.3 调整守卫）。
+- **Dependencies**：COMPANY-01、ANDROID-01（UX 已关闭，见 `04` §18）。
+- **Implementation Constraints**：**先做依赖 spike**：`flutter pub add mobile_scanner`（已验证可解析为 7.4.2）后必须 `flutter build apk --debug` 通过；若与 AGP 8.11.1 / Kotlin 2.4.0 / minSdk 冲突，**记录为 Architecture Deviation，不得靠降级其他依赖或 override 解决**；`mobile_scanner` 仅出现在 `features/company/presentation/`。
+- **Tests**：非法链接不发请求；合法链接触发预检；相机权限拒绝的分支；（扫码本身用假数据源注入）。
+- **DoD**：测试通过；APK 构建通过；守卫已按 §2.3 调整。
+
+#### G1-COMPANY-03 App Link integration
+- **Goal**：App Link 只选择公司，启动阶段与运行阶段都生效。
+- **Contract**：§5.14 Deep Link 规则；`DeepLinkHandler.register` 在启动流程调用；`pendingDeepLinkCompanyProvider` 在启动就绪后被消费。
+- **Files**：`app/router/deep_link_handler.dart`、`app/bootstrap/*`、`features/company/application/company_controller.dart`。
+- **Dependencies**：COMPANY-01（UX 已关闭，见 `04` §18）。
+- **Implementation Constraints**：使用 `app_links 6.4.1` 的真实 API（`getInitialLink`、`uriLinkStream`）；链接**永不**产生 `authenticated`；已登录于另一公司时**不静默切换**。
+- **Tests**：初始链接/运行中链接；非法链接忽略；同公司不重复切换；已登录另一公司时进入确认态而不是直接切换；**断言：处理链接后任何公司的 `AuthStatus` 都不会变为 `authenticated`**。
+- **DoD**：测试通过。
+
+#### G1-COMPANY-04 Company switch
+- **Goal**：切换公司并保持隔离；支持移除公司。
+- **Contract**：§5.14 第 4、5 条。
+- **Files**：`features/company/application/company_controller.dart`、`features/company/presentation/*`（`/me/company`）。
+- **Dependencies**：COMPANY-01、ROUTER-01（UX 已关闭，见 `04` §18）。
+- **Implementation Constraints**：切换 A→B 不删除 A；登出 A 只清 A 的会话；`ApiClient` 按公司隔离；在途的 A 请求其响应 Cookie 只写入 A。
+- **Tests**：A→B→A 会话恢复；登出 A 不影响 B；移除 X 不影响其他；切换期间无任何删除调用（`FakeSecureKv` 记录）；出站 `Cookie` 头始终属于各自公司。
+- **DoD**：隔离测试通过。
+
+### 7.3 Auth
+
+#### G1-AUTH-01 Auth preflight
+- **Goal**：预检与 `AuthStatus` 推导（每公司）。
+- **Contract**：§5.3、§5.5、§5.6。`AuthRepository.preflight`；`AuthController`（每公司，Notifier 带构造参数）；替换全局 `AuthGateStateNotifier`，并提供派生的“活动公司认证状态”给路由。
+- **Files**：`features/auth/{domain,data,application}/*`、`providers.dart`。
+- **Dependencies**：NET-01、ERR-01、COMPANY-01。
+- **Implementation Constraints**：预检失败（离线）不得推断登录；`company=null` 视为不可用；`demoCode` 永不读取；DTO 宽容解析、忽略未知字段；`AuthStatus` 的推导为**纯函数**。
+- **Tests**：§5.5 决策表每一行；DTO 解析夹具（含 `pending`、`languages`）；per-company 隔离；既有 G0 router 测试迁移后通过。
+- **DoD**：测试通过。
+
+#### G1-AUTH-02 Password login
+- **Goal**：手机号 + 密码登录。
+- **Contract**：§5.8。`AuthRepository.passwordLogin`；`PasswordController`。
+- **Files**：`features/auth/{data,application,presentation}/*`。
+- **Dependencies**：AUTH-01。
+- **Implementation Constraints**：失败统一文案；`429` 倒计时；密码不进日志；提交后清空。
+- **Tests**：成功（完整/不完整两种）；统一失败；`429 retryAfter`；日志无密码。
+- **DoD**：测试通过。
+
+#### G1-AUTH-03 OTP send
+- **Goal**：发送 Telegram Gateway 验证码。
+- **Contract**：§5.7。`AuthRepository.sendOtp`；`OtpController`（发送部分）。
+- **Files**：`features/auth/{domain,data,application,presentation}/*`。
+- **Dependencies**：AUTH-01（UX 已关闭，见 `04` §18）。
+- **Implementation Constraints**：`consent` 默认 false 且 `false` 不发请求；`PhoneNumber` 本地校验；倒计时用单调时钟 + 服务端 `Date` 换算；`loginPageExpired` 有界恢复一次；**不得**自动重发；`demoCode` 忽略。
+- **Tests**：`consent=false` 不发请求；非法号码不发请求；成功后倒计时；60 秒内禁用重发；`429`；`otpUndeliverable`；`loginPageExpired` 恢复一次且不循环；日志无手机号/OTP/`challengeId`；设备时钟偏移不影响倒计时（假时钟）。
+- **DoD**：测试通过。
+
+#### G1-AUTH-04 OTP verify
+- **Goal**：校验验证码、建号/登录，并恢复 Pending 挑战。
+- **Contract**：§5.7（含 Pending 恢复）。`AuthRepository.verifyOtp`；校验成功后**再次预检**获取 `policy`。
+- **Files**：同上。
+- **Dependencies**：AUTH-03。
+- **Implementation Constraints**：6 位本地校验；错误分类（`wrongCode`、`expired`、`attemptsExhausted`、`phoneBoundToAnotherAccount`）；Pending 恢复**不自动重发**；重发需重新输入手机号。
+- **Tests**：成功后会话 Cookie 已存、`AuthStatus` 正确；各错误分支；5 次错误后挑战作废；Pending 恢复（App 被杀后重开）；过期后退回 `unauthenticated`；日志无 OTP。
+- **DoD**：测试通过。
+
+#### G1-AUTH-05 Password setup
+- **Goal**：强制设置密码。
+- **Contract**：§5.8 设置密码。
+- **Files**：同上。
+- **Dependencies**：AUTH-04。
+- **Implementation Constraints**：12–128 本地校验；成功后重新预检；未完成前**路由守卫禁止进入任何业务页**；“退出”走登出；`401` → 会话失效（AUTH-09）。
+- **Tests**：长度边界 11/12/128/129；守卫强制；成功后 `AuthStatus=authenticated`；`401`；渠道关闭该步骤（403）的处理。
+- **DoD**：测试通过。
+
+#### G1-AUTH-06 Password recovery
+- **Goal**：找回密码。
+- **Contract**：§5.8 找回密码；路由 `/auth/recover`、`/auth/recover/code`。
+- **Files**：`features/auth/{data,application,presentation}/*`。
+- **Dependencies**：AUTH-03（UX 已关闭，见 `04` §18）。
+- **Implementation Constraints**：只用 `/api/h5/auth/recovery`；**不**复用 `verify`/`account`；成功后清除当前公司会话 Cookie；回到密码登录；**不注册** `/auth/recover/reset`。
+- **Tests**：`send → reset` 全流程；两次密码不一致/长度不合规不发请求；`accountNotFound`；`recoveryConflict`；成功后会话已清除且需重新登录；找回挑战不出现在 `pending`。
+- **DoD**：测试通过。
+
+#### G1-AUTH-07 Logout
+- **Goal**：登出。
+- **Contract**：§5.9。
+- **Files**：`features/auth/{data,application}/*`、`features/company/presentation/*`（`/me` 入口）。
+- **Dependencies**：AUTH-01、COMPANY-COOKIE-01/03（UX 已关闭，见 `04` §18）。
+- **Implementation Constraints**：5 秒超时尽力而为；成败/401 都清本地；只清当前公司；清 Return Intent 与内存敏感状态。
+- **Tests**：成功/失败/超时/401 都清除；只清当前公司；visitor/browser/company Cookie 保留；**重启后登出**（jar 未缓存）仍清除；其他公司会话保留。
+- **DoD**：测试通过。
+
+#### G1-AUTH-08 Session restore
+- **Goal**：冷启动恢复。
+- **Contract**：§5.10。`StartupController`（或等价）：恢复活动公司 → 预置公司 Cookie → 预检 → 路由。
+- **Files**：`app/bootstrap/*`、`app/router/*`、`features/auth/application/*`。
+- **Dependencies**：COMPANY-01、AUTH-01。
+- **Implementation Constraints**：必须走服务端预检；离线显示启动失败页，**不假设已登录**；存储被重置视为首次运行；`resume` 复检阈值见 OD-G1-9。
+- **Tests**：有公司 + 已登录 → 首页；已登录但注册不完整 → 设密码；未登录 → 登录；pending → OTP 页；403 → 公司选择；离线 → 重试页；存储被重置 → 公司选择。
+- **DoD**：测试通过。
+
+#### G1-AUTH-09 401 / Return Intent
+- **Goal**：会话失效的统一处理与导航意图恢复。
+- **Contract**：§5.12。
+- **Files**：`core/network/api_client.dart`（新增可选回调）、`app/router/return_intent.dart`、`features/auth/application/return_intent_controller.dart`。
+- **Dependencies**：AUTH-01、ROUTER-01。
+- **Implementation Constraints**：登录类端点的 401 不触发失效；**不自动重放 POST**；Return Intent 的安全校验与作用域；不改既有拦截器顺序/语义。
+- **Tests**：`requiresSession` 端点 401 → 会话失效 + 保存 Return Intent → 登录成功 → 回到原路由；**失败的 POST 未被重放**（请求计数）；非法/外部 `location` 被拒；跨公司/过期丢弃；`password_login` 的 401 不触发失效。
+- **DoD**：测试通过。
+
+### 7.4 Router / Locale
+
+#### G1-ROUTER-01 Auth guards
+- **Goal**：真实的 Gate 与 `refreshListenable`（CF-3）。
+- **Contract**：§5.13。
+- **Files**：`app/router/{router,router_gate}.dart`、`app/bootstrap/providers.dart`。
+- **Dependencies**：AUTH-01、COMPANY-01（UX 已关闭，见 `04` §18）。
+- **Implementation Constraints**：`redirect` 不做异步 IO；监听活动公司、`AuthStatus`、待处理 Deep Link；只注册 §5.13 的路由；删除“Skip to Home”；占位页文案走 ARB；G0 的 feature 路由守卫保持。
+- **Tests**：§5.13 重定向表每一行（含 `unknown → /startup` 而非登录页）；状态变化时路由**自动**重新求值（验证 `refreshListenable`）；已登录访问 `/auth/*` → `/home`；`/feature/*` 默认禁用；G0 router 测试迁移后通过。
+- **DoD**：测试通过。
+
+#### G1-I18N-01 Auth localization
+- **Goal**：认证相关文案三语完整；语言选择受服务端开关控制并接入 App。
+- **Contract**：§5.15。
+- **Files**：`lib/l10n/app_{en,km,zh}.arb`、`core/localization/*`、`app/app.dart`。
+- **Dependencies**：AUTH-01、COMPANY-01。
+- **Implementation Constraints**：`MaterialApp.locale` 接入；公司级偏好键；选公司前仅 `km`/`en`；中文仅在启用时出现；ARB 键集合一致；G1 新增页面**无硬编码字符串**。
+- **Tests**：语言解析表驱动（设备语言 × 公司开关 × 已保存选择）；`zh` 关闭时不可选且自动回退；`km`/`en`/`zh` 页面在测试中可编译渲染；ARB 键一致性（既有）；高棉文渲染冒烟（既有）。
+- **DoD**：测试通过；`flutter gen-l10n` 无缺失键。
+
+### 7.5 Tests / Runtime / Report
+
+#### G1-TEST-01 Unit
+- **Contract**：§8.1。**DoD**：全部通过。
+#### G1-TEST-02 Repository
+- **Contract**：§8.2（以假服务为后端）。**DoD**：全部通过。
+#### G1-TEST-03 State
+- **Contract**：§8.3 的控制器/状态机测试。**DoD**：全部通过。
+#### G1-TEST-04 Integration
+- **Contract**：§8.4 端到端场景（`testWidgets` + 假服务）。**DoD**：全部通过；**无任何测试访问生产或真实发送 OTP**（含守卫测试）。
+
+#### G1-RUNTIME-01 Android 运行验证
+- **Goal**：在 Android 模拟器或真机上实际运行并留证。
+- **Contract**：§9。
+- **Files**：（运行手册与证据）`docs/flutter-android/`（报告内）。
+- **Dependencies**：ANDROID-01、全部功能任务、测试通过。
+- **Implementation Constraints**：见 §9（前置条件、层级、证据包、禁止事项）。
+- **Tests**：运行手册逐步骤的通过/失败记录。
+- **DoD**：§9 的层级 L1 与 L2′（假服务）全部通过；L2/L3 的生产步骤按 §9.4 授权规则处理。
+
+#### G1-REPORT-01 Implementation Report
+- **Goal**：由 **Trae** 提交可独立复核的实施报告。**Claude/Codex 不代写。**
+- **Files**：`docs/flutter-android/30-G1-implementation-report.md`（新建，位于 `mobile/` 之外）。
+- **Contract**：包含：环境身份块（按 `19` §8.2，含两套 Android SDK 路径）、依赖（含新增 `mobile_scanner` 解析结果）、按任务卡的文件变更、CF-0 至 CF-14 的逐条关闭证据、测试清单与完整输出、`analyze`/`test`/`build apk --debug` 输出、运行证据包、Architecture Deviations、Known Issues、Contract Gaps、自评（任一退出条件无证据则只能自评 FAIL）。
+- **DoD**：§11 全部条目均有证据。
+
+---
+
+### 7.9 v2 任务卡增补（CF-7 / CF-8 / CF-10；与上文同名卡**合并执行**）
+
+- **G1-ERR-01 增补（CF-7，P1）**：`ErrorMapper` 增加 **message 级** 分支：400（按服务端 `error` 文案区分 OTP 错误/过期/锁定、密码规则、同意缺失等，映射到 §5.11 目录项）、403（区分 **跨站 Origin**、**注册未完成**、**公司不可用**，**不得**再把所有 403 都归为 crossSite）；429 按 §5.11.1 解析 `retryAfter`（default 60 / min 1 / max 3600）并以 `RateLimitFailure.retryAfter` 暴露；倒计时结束仅启用 CTA，**不自动重试**。**测试**：每个分支一个用例 + RA-1…RA-11；断言**不把服务端原文写入日志**。
+- **G1-I18N-01 增补（CF-8，契约侧）**：`LocaleController` 接入 `MaterialApp.locale`；**按公司**保存（键经 `KeySchema`；公司选择前仅 km/en 设备语言）；可选语言 = preflight `languages` ∩ App 已有 ARB；服务端语言不可用时回退 en。**页面文案/语言选择页设计已由 Codex 在 `04` 关闭。** 测试：切换公司后语言按公司恢复；`languages` 缺项时不可选。
+- **G1-ANDROID-01 增补（CF-10，P1）**：**main** manifest 添加 `INTERNET`；cleartext 仅放在 **debug** 源集的 `network_security_config`，**仅**允许 `10.0.2.2`（release 无 cleartext）；`CAMERA` 仅随扫码入口（`uses-feature camera required=false`）；App Link intent-filter（`https khmerx.org /app/single`）；`test/architecture_grep_test.dart` 的 mobile_scanner 规则改为“仅允许出现在 `features/company/presentation/`”。**测试**：对 merged manifest 的静态断言（release 无 cleartext、main 含 INTERNET）。
+
+## 8. 测试策略
+
+### 8.1 Unit（`G1-TEST-01`）
+| ID | 对象 | 断言要点 |
+|---|---|---|
+| U-01 | `CompanyLinkParser`（既有 7 例 + 新增） | `http`、`www.khmerx.org`、其他 host/path、缺/多/非法 `c`、含 userinfo/端口、大写 UUID 被拒；合法被接受 |
+| U-02 | `PhoneNumber` | 去空格/括号/短横；`^\+[1-9]\d{7,14}$` 边界（7/8/15/16 位）；非法抛出 |
+| U-03 | `PasswordRules` | 长度 11/12/128/129；UTF-16 码元计数（含非 BMP 字符）；确认密码一致 |
+| U-04 | Auth mapper（`AuthSnapshot` → `AuthStatus`） | §5.5 决策表每一行 |
+| U-05 | OTP 状态机 | 全部状态与转换；`consent=false` 无副作用；倒计时（假时钟，单调时间） |
+| U-06 | 错误映射 | §5.11 全部行；`retryAfter`；未命中回退；403 不再一律 `crossSite` |
+| U-07 | ReturnIntent 校验 | 内部路径、拒绝 scheme/host/`//`、拒绝 `/auth/*`/`/company/*`/`/feature/*`、白名单、TTL、跨公司 |
+| U-08 | Locale 解析 | 设备语言 × 公司开关 × 已保存选择 |
+| U-09 | `KeySchema` 新键 | 公司前缀、版本前缀 |
+
+### 8.2 Repository（`G1-TEST-02`，以 `FakeKhmerXServer` 为后端）
+`preflight`（各响应形态）、`sendOtp`（成功/400/429/401 恢复）、`verifyOtp`（成功/错误分支）、`passwordLogin`、`setPassword`、`startRecovery`/`resetPassword`、`logout`（成功/401/超时）。每个用例同时断言**出站请求**：URL、方法、`Origin`（POST）、`Cookie` 中的 `payease_company`、请求体字段、**日志不含敏感值**。
+
+### 8.3 State（`G1-TEST-03`）与假服务
+**状态测试**：`CompanyController`、`AuthController`（每公司）、`OtpController`、`PasswordController`、`RecoveryController`、会话恢复、Return Intent。
+
+**`FakeKhmerXServer`（`test/support`）必须复现的语义**（来自 `02` 与服务端代码）：
+- 同源：POST 的 `Origin` 须等于服务器 origin，否则 403「不允许跨站操作」；POST 须 `application/json`；体 ≤4096 字节。
+- 公司：按 `payease_company` Cookie 路由到每公司独立状态；未知/停用公司返回 403 对应文案。
+- `GET /api/h5/auth`：缺少 browser Cookie 时下发 64 位十六进制的 `payease_h5_browser`（24h）；返回 `company`、`mode`、`policy`、`languages`、`pending`、`authenticated/session`。
+- `send/verify/recovery`：缺 browser Cookie → 401「登录页面已失效，请刷新后重试」；OTP 6 位、有效期 5 分钟、重发间隔 60 秒（`429` + `retryAfter`）、5 次错误作废、同手机号/浏览器/公司限流；`pending` 仅 login 用途且仅未登录时返回。
+- `verify` 成功：创建账号，下发 64 位十六进制 `payease_h5_session`（24h），返回 `session`（`verificationCompleted:true`、`hasPassword:false`）。
+- `account`：`password_login` 失败统一 401；`set_password` 需会话（否则 401）、12–128、已有密码须 `currentPassword`、成功后撤销其他会话。
+- `recovery`：`reset` 成功后撤销该账号**所有**会话；挑战用途为 reset。
+- `logout`：清会话，返回 `{authenticated:false}`。
+- 可注入时钟（测试会话 24h 与 OTP 5 分钟过期）；**验证码固定为可配置值（默认非真实）**。
+
+### 8.4 Integration（`G1-TEST-04`，`testWidgets` + 假服务）
+| ID | 场景 |
+|---|---|
+| I-01 | 无公司 → 公司选择页 |
+| I-02 | 有效公司（粘贴/最近）→ Preflight → 登录页（公司名与语言开关已应用） |
+| I-03 | 已有会话的冷启动 → 首页 |
+| I-04 | 未登录 → 登录 |
+| I-05 | OTP 路径：手机号 → 同意 → 发送 → 验证 → 进入（含 `policy.passwordSetup` 分支） |
+| I-06 | 密码登录路径 |
+| I-07 | 强制设置密码：未完成不能进入业务页 |
+| I-08 | 找回密码：send → reset → 旧会话失效 → 用新密码登录 |
+| I-09 | 登出：只清当前公司；回到认证 |
+| I-10 | **401 → 重新认证 → Return Intent**：失败的 POST 未被重放 |
+| I-11 | 公司切换隔离：A 登录 → 切到 B → B 未登录 → 回 A 仍已登录；出站 `Cookie` 头始终属于各自公司 |
+| I-12 | Pending Challenge 恢复（预检返回 `pending` → OTP 页，不自动重发） |
+| I-13 | 无效/停用公司 → 提示且不写入最近列表 |
+| I-14 | App Link：初始链接与运行中链接 → 只选择公司，**不**变为已认证 |
+| I-15 | 离线启动 → 重试页 |
+| I-16 | 语言：公司关闭 `zh` → 不可选并回退 |
+
+### 8.5 安全测试
+| ID | 断言 |
+|---|---|
+| S-01 | 全流程（I-05/I-06/I-08）中，`SafeLogger` 捕获的全部输出**不含** OTP、密码、确认密码、完整手机号、`challengeId`、会话值、Cookie |
+| S-02 | 认证端点均 `sensitiveBody=true`，`SafeLoggingInterceptor` 不输出请求/响应体 |
+| S-03 | **出站 `Cookie` 头的 `payease_company` 始终等于发起请求的公司**（CF-0） |
+| S-04 | 磁盘/存储中**不存在**密码、OTP；仅有白名单 Cookie 与 `v1/` 键 |
+| S-05 | Deep Link 无法使任何公司变为已认证 |
+| S-06 | 测试代码中**没有**访问生产主机或真实发送验证码的路径（守卫：`test/` 中除配置测试外不出现 `api.khmerx.org`） |
+
+**不使用真实 Telegram Gateway 做自动化**：自动测试一律使用假服务；真实 OTP 只作为人工联调（§9.4）。
+
+---
+
+### 8.x CF-7 `retryAfter` 契约测试（v2.1 新增，阻断）
+
+| ID | 输入 | 期望 `retryAfter`（以秒计的 `Duration`） |
+|---|---|---|
+| RA-1 | 缺失 | `Duration(seconds: 60)` |
+| RA-2 | 非法字符串（如 `"abc"`） | 60 |
+| RA-3 | `0` | 60 |
+| RA-4 | 负数（如 `-5`） | 60 |
+| RA-5 | `1` | 1 |
+| RA-6 | `60` | 60 |
+| RA-7 | `3599` | 3599 |
+| RA-8 | `3600` | 3600 |
+| RA-9 | `3601` | 3600 |
+| RA-10 | 极大值（如 `99999999999`） | 3600 |
+| RA-11 | 429 倒计时结束 | 按钮**启用**；**无任何自动网络请求**（断言假服务端请求计数不增加）；用户点击后才发请求，若再返回 429 则重新读取新的 `retryAfter` 并应用同一规则 |
+
+### 8.y G1 Home 边界与候选公司测试（v2.2 新增，阻断）
+
+| ID | 场景 | 断言 |
+|---|---|---|
+| HM-1 | G1 全部集成流程（含渲染 `/home`） | 假服务端记录 **0 次**对 `/api/h5/state`、`/api/kyc*`、`/api/loan/*` 的请求；`lib/` 无 `getH5State` 调用方（架构测试） |
+| HM-2 | 渲染 `/home` | 渲染本身**无网络请求**；仅预检（恢复/`resume`）与登出会产生请求 |
+| HM-3 | 点击“切换公司” | 进入 `candidateConfirm`；确认前出站 `Cookie` 仍为 A；ActiveCompany 不变 |
+| HM-4 | 退出登录 | 只清当前公司；B 会话保持；重启后同样成立 |
+| HM-5 | `resume` 预检返回 `authenticated=false` | → `sessionExpired` → Return Intent=`/home` → `/auth/login` → 登录后回 `/home`；失败 POST 未被重放 |
+| HM-6 | 已在 `/home` 后断网 | 显示离线提示；可退出登录；切换公司需联网；无业务请求 |
+| HM-7 | G1 全流程 | **0 次** `POST /api/h5/locale`（语言仅本地） |
+| HM-8 | 脱敏账号标识 | 仅内存；`FakeSecureKv` 写入记录与日志均不含 `phoneMasked` |
+| CC-1 | 候选 B 预检后取消 | ActiveCompany=A；A 会话/jar/Return Intent 未变；出站仍为 A |
+| CC-2 | 取消（B 非已知公司） | B 为本次预检创建的 jar/键被清理；B 已知公司则既有状态不变 |
+| CC-3 | 取消后再次进入 B | `AuthStatus` 仅由预检响应推导；服务端 `authenticated=false` 则为 `unauthenticated`，不因本地 Cookie 误判登录 |
+| CC-4 | 确认前 | 最近公司列表未写入；确认后才写入 |
+
+## 9. Android Runtime Requirement
+
+### 9.1 为什么必须
+G0 只有 APK 构建，**没有任何 Android 运行验证**（`20` P2）。G1 是第一次有可交互的认证流程，**必须**在 Android 上实际运行。
+
+### 9.2 环境事实与前置条件（2026-10-07 核实）
+| 项 | 事实 |
+|---|---|
+| 设备 | `flutter devices` 当前仅 Windows/Chrome/Edge，**无 Android 设备** |
+| AVD | 用户目录已有 `KhmerX_API_30`、`KhmerX_API_35`（`google_apis`，x86_64，2G RAM） |
+| **两套 Android SDK** | `ANDROID_HOME`/`ANDROID_SDK_ROOT` = `E:\Android\Sdk`（含 `emulator`、`system-images` android-30/35/36）；而 Flutter 配置的 `android-sdk` = `C:\Android\Sdk`（有 `platform-tools`，**无 `emulator`/`system-images`**）。因此 **`flutter emulators` 报 “Unable to find any emulator sources”**，但 AVD 实际存在 |
+| 虚拟化 | 系统信息显示已检测到虚拟机监控程序（可运行 x86_64 模拟器；未实测） |
+| 风险 | 两个不同的 `adb`（C: 与 E:）可能互相重启对方的 adb server |
+
+**前置条件（Trae 在运行验证前完成并写入证据）**：① 选定**唯一**的 SDK 根与 `adb`（建议开发者环境执行 `flutter config --android-sdk E:\Android\Sdk`，属**用户级环境设置**，非项目契约，见 OD-G1-7）；② 用 `E:\Android\Sdk\emulator\emulator.exe -avd KhmerX_API_35` 启动模拟器；③ `flutter devices` 与 `adb devices` 均列出该设备；④ 记录环境身份块（`19` §8.2）及两套 SDK 路径。
+
+### 9.3 运行验证层级
+| 层级 | 内容 | 后端 | 自动/人工 |
+|---|---|---|---|
+| **L1** | 安装 debug APK；启动；**Company/Auth 路由渲染**；无崩溃 | 无需 | 脚本/人工 |
+| **L2′** | **完整认证流程**（选公司 → 预检 → OTP/密码 → 设密码 → 首页 → 登出 → 切换公司）在模拟器上对**宿主机上的 `FakeKhmerXServer`**（`http://10.0.2.2:<port>`，需 ANDROID-01 的 debug 明文例外）运行 | 假服务 | 脚本为主 |
+| **L2** | 用**项目方提供的测试公司链接**执行 `GET /api/h5/auth`（**只读预检**），认证页显示真实公司名与语言开关 | 生产（只读） | 人工 |
+| **L3** | 真实 OTP/验证/密码变更 | 生产 | **仅人工，且仅限指定测试账号并经明确书面授权**（§9.4） |
+
+**G1 Exit 要求 L1 与 L2′ 通过**，并要求 L2/L3 在授权可用时执行；若未授权/无测试公司，**必须在报告中写 NOT EXECUTED + 原因**，该项不能默默省略。
+
+### 9.4 生产操作授权规则
+- **允许（无副作用）**：`GET /api/h5/auth`、`POST /api/h5/auth/logout`（体 `{}`）。
+- **需要明确授权**：发送 OTP、校验、设置/重置密码、任何会创建或修改账号的操作——**只能由人工在指定测试账号上执行**，不得自动化，不得对真实用户账号操作。
+- 授权需要项目方提供：**测试公司链接**与**指定测试账号**（OD-G1-4）。
+
+### 9.5 证据包（报告 §运行）
+`flutter devices` 与 `adb devices` 输出；`adb install` 输出；各步骤**截图**（公司选择、登录、验证码、设置密码、首页占位、`/me`）；`adb logcat` 摘录（**无崩溃**、**不含**手机号/验证码/密码/Cookie；用 `grep` 对已知哨兵值证明）；L2′ 的假服务请求日志（显示每个请求带正确的 `payease_company`）；**App Link 用显式组件 Intent 验证**（因 `assetlinks.json` 尚未上线，`autoVerify` 不会通过）：
+```
+adb shell am start -a android.intent.action.VIEW -d "https://khmerx.org/app?c=<测试公司ID>" -n org.khmerx.khmerx_app/.MainActivity
+```
+并截图/日志证明：打开后**仅选择公司**，没有进入已认证状态。
+
+---
+
+## 10. G0 P2 技术债的分类
+
+| 债务（`20`） | G1 处理 | 理由 |
+|---|---|---|
+| **Android 运行验证待做** | **G1 必须解决**（Exit 前，§9） | G1 是首个可交互流程 |
+| Flutter Tool 在部分环境使用 Java 25 | **可继续延期**（环境项） | `19`：不阻断；建议开发者设置 `jdk-dir` |
+| `org.gradle.java.home` 写死机器路径 | **可继续延期**；**升级条件**：一旦引入 CI 或第二台构建机，提升为 G1 内必须解决 | 目前只影响可移植性 |
+| 依赖版本与历史目标有漂移（Riverpod 3.3.2 vs 3.4.3 等） | **可继续延期**；G1 以**真实版本**编码 | 行为测试通过；除非出现真实问题 |
+| 高棉/中文文案的语言学审校 | **继续延期**，但 G1 新增文案必须保持 ARB 键一致；审校范围包含 G1 文案 | 非阻断 |
+| Gradle 8.14.1 / AGP 8.11.1 的未来支持警告 | **可继续延期** | 非阻断；`mobile_scanner` 若与之冲突才升级为 Deviation |
+| **G0 Carry-over CF-0 至 CF-14**（§3） | **G1 必须解决**（标注“必须/P0/P1”者） | 否则 G1 无法正确运行 |
+| 新增：工作树未提交快照（`git status` 显示 `docs/`、`mobile/` 未跟踪） | **建议** G1 编码开始前提交快照 | 便于独立复验复现同一份代码 |
+
+---
+
+## 11. G1 Exit Criteria（全部满足才可申请 Codex 独立复验）
+
+| # | 条件 | 证据 |
+|---|---|---|
+| X-1 | **CF-0（P0）关闭**：CF0-T1…T11 全部通过（含出站 Cookie 头断言）；每个出站请求带正确 `payease_company`；A/B 互不串 | S-03、`COOKIE-01` 测试 |
+| X-2 | Company selection 可用（最近、扫码、粘贴；无效/停用公司被正确处理） | I-01、I-02、I-13 |
+| X-3 | **Company switch isolation PASS** | I-11、`COMPANY-04` 测试 |
+| X-4 | Auth preflight 可用（含 pending、languages、policy） | I-02、I-12 |
+| X-5 | Password login 可用 | I-06 |
+| X-6 | OTP 状态流可用（含倒计时、限流、各错误分支） | I-05、`AUTH-03/04` 测试 |
+| X-7 | Password setup 可用且**强制** | I-07 |
+| X-8 | Recovery 可用（只用 `/recovery`） | I-08 |
+| X-9 | Logout 可用（只清当前公司；重启后仍有效） | I-09、`AUTH-07` 测试 |
+| X-10 | Session restore 可用（含离线、存储被重置） | I-03、I-15 |
+| X-11 | **401 Return Intent 可用，失败的 POST 未被重放** | I-10 |
+| X-12 | **无 Cookie 跨公司泄露** | X-1、X-3、S-03 |
+| X-13 | **无敏感认证日志** | S-01、S-02 |
+| X-14 | km/en/zh UI 路径可编译渲染；语言受服务端开关控制并接入 App | I-16、`I18N-01` 测试 |
+| X-15 | Deep Link 只选公司、不产生已认证 | I-14、S-05 |
+| X-16 | G0 的 90 个测试保持通过（迁移的测试在报告中逐条说明）；§2.3 调整后的架构守卫生效 | `flutter test` |
+| X-17 | `flutter analyze` PASS（0 issues）· `flutter test` PASS · `flutter build apk --debug` PASS | 完整输出 |
+| X-18 | **Android 模拟器/真机运行验证**：L1 与 L2′ PASS；L2/L3 按授权执行或写明 NOT EXECUTED | §9.5 证据包 |
+| X-19 | `ANDROID-01`：release 含 `INTERNET`、不放行明文；debug 仅放行 `10.0.2.2` | Manifest 合并检查 |
+| X-20 | 无 `dependency_overrides`；依赖仅新增 `mobile_scanner`（或记录偏差） | `pubspec.lock` |
+| X-21 | 无 KYC/贷款/报价/签名/还款/提现/推送/生物识别/KESS；**无任何 `/api/h5/state`、`/api/kyc*`、`/api/loan/*` 的业务调用，`/home` 为最小认证落地页（§5.17，HM-1…HM-8）**；`/loan/quote` 守卫仍生效 | grep + 架构测试 |
+| X-22 | `30-G1-implementation-report.md` 由 Trae 提交，章节齐全 | 报告 |
+| X-23 | **Codex 独立复验 PASS**（无 P0/项目相关 P1） | Codex 报告 |
+
+**不在 Exit 内**：CR-001、CR-002（`assetlinks.json`）、依赖漂移、Gradle/AGP 未来警告、语言学审校。
+
+### 11.1 Codex 复验指令
+1. 从干净状态依次运行 `flutter clean`、`pub get`、`gen-l10n`、`analyze`、`test`、`build apk --debug`；
+2. **独立复核 CF-0**：检查出站请求的 `Cookie` 头；
+3. 审查 `FakeKhmerXServer` 是否忠实于 `02`/服务端代码，而不是客户端实现的镜像；
+4. 复核运行证据包（含 `grep` 哨兵证明）；
+5. 对照 §11 逐条给出结论；任一项无证据即 FAIL；
+6. 对环境相关观察按 `19` 的证据规则并列记录环境身份。
+
+---
+
+## 12. Open Decisions
+
+| 编号 | 决策 | 推荐 | 阻塞 |
+|---|---|---|---|
+| **OD-G1-1** | G1 最小外壳（首页占位 + `/me` 入口）的界面 | 已冻结：§5.17 Minimal Authenticated Landing；路由用 `04` 名称 | 否（U-4 已关闭，§5.17） |
+| **OD-G1-2** | 启动时离线 | 显示可重试页；**不**因本地有 Cookie 就当作已登录 | 否（推荐值已写入契约） |
+| **OD-G1-3** | 是否在 G1 同步 `POST /api/h5/locale` | **不做**，推迟到设置模块；G1 只做本地选择 | 否 |
+| **OD-G1-4** | **测试公司链接与指定测试账号**（用于 L2/L3） | 由项目方提供；L2′ 不依赖它 | **仅阻塞** L2/L3 的生产步骤，不阻塞 G1 实现 |
+| **OD-G1-5** | 已登录于另一公司时收到 Deep Link | 必须确认后才切换 | 否（U-5 已关闭，§5.14） |
+| **OD-G1-6** | `mode ≠ telegram` 的处理 | release 构建**拒绝**非 `telegram` 模式（视为服务未配置）；debug 允许但**不**使用 `demoCode` | 否 |
+| **OD-G1-7** | 两套 Android SDK 的统一 | 开发者环境执行 `flutter config --android-sdk E:\Android\Sdk`（用户级，非项目契约） | 否（影响运行验证的便利性） |
+| **OD-G1-8** | `/me/language` 是否在 G1 提供界面 | 提供**仅本地选择**的最小界面 | 否（随 U-4 已关闭） |
+| **OD-G1-9** | `resume` 时的预检阈值 | 5 分钟；会话逼近过期（<10 分钟）时强制复检 | 否 |
+| **OD-G1-10** | Return Intent 是否持久化 | 内存 + `v1/co/{id}/return-intent`，TTL 30 分钟 | 否 |
+| **OD-G1-11** | 密码输入框是否启用 Android 自动填充提示 | 允许平台自动填充提示，不自行保存 | 否（Codex/安全评审确认） |
+| **OD-G1-12** | 公司名称是否随每次预检刷新 | 是（以服务端为准，更新最近列表） | 否 |
+
+---
+
+## 13. Blocking Dependencies 与编码开始条件
+
+### 13.1 G1 当前状态
+```
+G0 = PASS
+G1 CONTRACT = v2.3 PROPOSED / READY FOR FINAL GATE CONFIRMATION（待 Codex 复审）
+G1 CODING = NOT STARTED；TRAE = HOLD
+```
+
+### 13.2 编码开始条件（缺一不可）
+| # | 条件 | 负责 |
+|---|---|---|
+| 1 | **本文通过 Codex G1 Contract Review**（`PROPOSED → APPROVED`） | Codex |
+| 2 | **三方 Gate Review**（Architecture + UX + API）完成（HELIX 要求） | Claude + Codex + 后端/API 负责人 |
+| 3 | **UX 就绪**：R-3、R-5、R-12、U-4、U-5、U-6 已 CLOSED（`04` §18）；**且** Codex 已补全 G1 原型契约（`04` §19）并经 `31` 复审 GO（**已满足**） | Codex |
+| 4 | 建议：对 `mobile/` 与文档做一次 git 快照提交 | 项目方/Trae |
+
+### 13.3 实施顺序提示
+条件 1–3 全部满足后方可开始；顺序见 §7 依赖行。非页面任务（Cookie/网络/错误/Android/Company 模型/Auth 控制器/测试）可先行，页面任务在 Codex 原型契约生效后实施。
+
+### 13.4 不阻塞 G1 的依赖
+**CR-001**（G3 报价）、**CR-002**（`assetlinks.json`，仅影响已验证 App Link 的最终验收）、后端修复审计项（对 G1 的客户端行为无影响；真实资金上线前仍需修复）。
+
+---
+
+## 14. Gate 与状态
+```
+G0 = PASS
+G1 = CONTRACT CORRECTION（v2.3，三方 Gate Review 就绪）— 编码未开始，条件见 §13
+TRAE = HOLD（未授权）
+G2 = HOLD
+G3 = BLOCKED BY CR-001
+```
+本文 **Status: PROPOSED v2.3 / READY FOR FINAL GATE CONFIRMATION**，不是 APPROVED。
+
+---
+
+## 15. Finding Resolutions（v2）
+
+> 状态统一为“契约已更正 / 实现开放”。**不得**据此认定缺陷已修复。
+
+### CF-0 租户上下文完整性
+
+| 字段 | 内容 |
+|---|---|
+| Finding ID | CF-0 |
+| Review statement | “No production path currently guarantees `payease_company` is sent for every outbound request; the documented proxy fallback can route a request to the first company.” |
+| Root cause | G0 `lib/` 从不把 `payease_company` 写入请求；`ApiClient` 未被 provider 使用；代理仅在缺失时才追加 `companies[0]`。 |
+| Product impact | 用户可能读写**别家公司**数据（跨租户），金融场景不可接受。 |
+| Architecture impact | 引入 ActiveCompany 真源 + `CompanyCookieInterceptor` + `CompanyContextGuardInterceptor`；client-per-company；无公司不发请求。 |
+| Required contract correction | §5.4 重写（Rule A–D、A′、四 Cookie 关系、禁手写 Cookie 头、候选 preflight 例外）；§5.5 Invariant；§5.9 Tenant-context。 |
+| Trae implementation requirement | `G1-COMPANY-COOKIE-01/02/03`。 |
+| Test | CF0-T1…T11（出站头断言）。 |
+| Gate severity | **P0**（Tenant Context Integrity）· CONTRACT CORRECTED v2 · IMPLEMENTATION OPEN |
+
+### CF-6 登出与会话清除
+
+| 字段 | 内容 |
+|---|---|
+| Finding ID | CF-6 |
+| Review statement | “Logout can miss a persisted session when the jar is not loaded, and cookie loading is hard-coded to production hosts.” |
+| Root cause | `clearSessionFor` 在 jar 未缓存时直接返回；`WhitelistCookieJar.clearSession()` 只加载写死的两个生产主机。 |
+| Product impact | 重启后点击登出，本地会话仍在，用户误以为已登出（共享设备风险）。 |
+| Architecture impact | 清除路径必须先加载持久化；jar 与主机解耦。 |
+| Required contract correction | §5.4 末段；§5.9。 |
+| Trae implementation requirement | `G1-COMPANY-COOKIE-04`、`-03`。 |
+| Test | 重启后清除；`127.0.0.1:<port>`；A/B 隔离；其余 Cookie 保留。 |
+| Gate severity | P1 · CONTRACT CORRECTED v2 · IMPLEMENTATION OPEN |
+
+### CF-7 错误映射
+
+| 字段 | 内容 |
+|---|---|
+| Finding ID | CF-7 |
+| Review statement | “Current error mapping lacks message-specific 400/403 branches and `retryAfter` parsing.” |
+| Root cause | `ErrorMapper` 只按状态码映射（401→未认证、所有 403→crossSite、429 无 retryAfter）。 |
+| Product impact | OTP 错误/锁定/公司停用被误报为“跨站”或通用错误；429 无倒计时，用户无法判断何时重试。 |
+| Architecture impact | 错误目录进入 domain；映射输出稳定的 Failure 类型，UI 只读类型不读文案。 |
+| Required contract correction | §5.11 目录；**§5.11.1 `retryAfter`（default 60 / min 1 / max 3600，依据 BR-7 最长 1 小时窗口）**；§7.9 ERR-01 增补。 |
+| Trae implementation requirement | `G1-ERR-01`。 |
+| Test | 每分支一个用例；RA-1…RA-11；日志不含原文。 |
+| Gate severity | P1 · **CONTRACT CLOSED · IMPLEMENTATION OPEN** |
+
+### CF-8 语言
+
+| 字段 | 内容 |
+|---|---|
+| Finding ID | CF-8 |
+| Review statement | “Locale state is global/not wired into `MaterialApp` and lacks company/server-language integration.” |
+| Root cause | `LocaleController` 使用全局键 `v1/app/locale`，未接入 `MaterialApp`；未与 preflight `languages` 联动。 |
+| Product impact | 后台只开放部分语言时，用户仍可能选到不可用语言；换公司后语言不随公司。 |
+| Architecture impact | Locale 变为按公司作用域的 Notifier，受 `languages` 约束。 |
+| Required contract correction | §5.15；§7.9 I18N-01 增补。 |
+| Trae implementation requirement | `G1-I18N-01`。 |
+| Test | 按公司恢复语言；`languages` 缺项不可选。 |
+| Gate severity | P1 · **CONTRACT + UX CLOSED · IMPLEMENTATION OPEN** |
+
+### CF-10 Android 清单
+
+| 字段 | 内容 |
+|---|---|
+| Finding ID | CF-10 |
+| Review statement | “Main Android manifest lacks INTERNET permission and debug-only cleartext configuration for the planned `10.0.2.2` fake server; camera permission is absent for scanning.” |
+| Root cause | 仅 debug/profile manifest 有 INTERNET；无 network_security_config；无 CAMERA。 |
+| Product impact | Release 包**无网络**；联调假服务无法访问；扫码入口不可用。 |
+| Architecture impact | 构建变体分离：release 严格、debug 仅放行 `10.0.2.2`。 |
+| Required contract correction | §7.9 ANDROID-01 增补；守卫规则调整。 |
+| Trae implementation requirement | `G1-ANDROID-01`。 |
+| Test | merged manifest 静态断言；release 无 cleartext。 |
+| Gate severity | P1 · CONTRACT CORRECTED v2 · IMPLEMENTATION OPEN |
+
+## 附录 A　端点清单（G1）
+| 端点 | 方法 | 会话 | 重试 | 备注 |
+|---|---|---|---|---|
+| `/api/h5/auth` | GET | 否 | 有界 GET（≤2） | 预检（G0 已有） |
+| `/api/h5/auth/send` | POST | 否 | 无 | `{phone, consent:true}`；敏感 |
+| `/api/h5/auth/verify` | POST | 否 | 无 | `{challengeId, code}`；敏感 |
+| `/api/h5/auth/account` | POST | `password_login` 否 / `set_password` 是 | 无 | 敏感 |
+| `/api/h5/auth/recovery` | POST | 否 | 无 | `action: send \| reset`；敏感 |
+| `/api/h5/auth/logout` | POST | 是 | 无 | 5 秒超时（G0 已有） |
+
+## 附录 B　存储键（G1，均经 `KeySchema`）
+`v1/app/activeCompanyId` · `v1/app/companies` · `v1/app/locale`（设备级，选公司前）· `v1/co/{id}/cookiejar/*`（G0）· `v1/co/{id}/prefs`（语言）· `v1/co/{id}/return-intent`。**不得**保存密码、OTP、完整手机号、`challengeId`、任何响应体。
+
+## 附录 C　本文事实的核实方式（Claude，2026-10-07）
+读取 `mobile/lib/**`、`mobile/test/**`、`pubspec.yaml`、`pubspec.lock`、`AndroidManifest.xml`（main/debug/profile）、`test/architecture_grep_test.dart`；`grep` 确认 `payease_company` 未被任何生产代码写入、`SessionManager` 仅被测试使用、`ApiClient.forCompany` 无调用方、`DeepLinkHandler.register` 无调用方；`flutter pub add mobile_scanner --dry-run`（隔离副本，仅解析，未修改工程）；`flutter devices`/`flutter emulators`/AVD 目录/`ANDROID_HOME`/`C:\Android\Sdk` 与 `E:\Android\Sdk` 的目录对比。**未修改任何 Flutter 代码、未运行 Gradle、未访问生产、未发送验证码。** 服务端文案与限流参数引用自此前对 `lib/h5-auth-core.ts`、`lib/registration-policy.ts`、`app/api/h5/auth/**` 的读码结果（见 `02`）。

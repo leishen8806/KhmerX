@@ -1,0 +1,223 @@
+# Gate B — Financial Foundation · Implementation Plan
+
+```
+Document:  71-Gate-B-financial-foundation-plan.md
+Date:      2026-10-09
+Owner:     Claude（规划）
+Status:    PROPOSED — READY FOR CODEX REVIEW
+Contracts: 57 CR-004 v3 · 58 CR-005 v3 · 60 CR-007 v3 · 61 CR-012 v3.1（需求权威）
+Master:    69-backend-implementation-master-plan.md
+Gate:      CODE NOT MODIFIED · DATABASE NOT MODIFIED · IMPLEMENTATION NOT AUTHORIZED · Trae = HOLD
+```
+
+## 1. Objective
+建立 CR-004 / CR-005 / CR-007 共享的财务权威基础设施，使后续 Gate 只需"接业务"，不再各自决定余额、结清或激活。
+**Gate B 结束时只交付基础设施**：不开放客户还款、不开放真实放款、不计提罚息。
+
+## 2. Scope
+**Included**
+`financial_version` · 不可变 `loan_financial_terms` · `external_source_bindings` · `repayment_ledger`（含分摊） · `loan_charge_ledger` · `loan_financial_events` · `loan_financial_state` · 规范财务位置 `calculateFinancialPosition` · 共享 loan 级财务事务服务 · 共享结清权威 · 受控重开权威 · 资金激活权威（无调用方开放） · 财务幂等存储 · 政策版本存储与绑定 · 可重建投影 + 读时叠加 · 遗留直写 fail-closed · 安全基线中分配给 B 的项（§8）。
+**Explicitly excluded**
+客户还款端点（C1/C2）· 收款账户确认/放款指令/真实资金确认的对外入口（D）· 罚息计提作业（E）· 推送（F）· 任何生产资金开关 · Android。
+
+## 3. 冻结的权威层级
+```
+不可变合同/报价事实（storedContract：principal, fee, currency, termDays, billing, termsHash）+ 绑定政策版本
+  + 资金事实（funding confirmed / returned）
+  + repayment_ledger（CREDIT / REVERSAL + allocations）
+  + loan_charge_ledger（DEBIT / CREDIT：罚息、豁免、调整）
+        ↓
+calculateFinancialPosition(loanId, asOf)   ← 唯一计算（纯函数，输入为上述事实）
+        ↓
+loan_financial_state（phase, financial_version, settled_at, current_terms_seq）
+        ↓
+生命周期投影（demo_workspaces.payload 中的 status/paid 等 = 兼容投影）
+        ↓
+API 读模型（读时叠加：SQL 权威覆盖 JSON 投影）
+```
+**`demo_workspaces` JSON 只是兼容投影，永远不是财务权威。**
+
+## 4. Database changes（全部新增；迁移 0042 起，B0 关闭后才可提交）
+
+> 列名为规划级；字段语义以 57/58/60 为准。金额一律整数分（cents），币种显式。
+
+| # | 表 | 关键列 / 约束 |
+|---|---|---|
+| 1 | `loan_financial_state` | `loan_id PK, tenant_id, financial_version INTEGER NOT NULL, phase CHECK IN ('ACTIVE','FUNDING_EXCEPTION','SETTLED','VOIDED')`（**严格为 CR-007 的四个阶段，不新增**）`, current_terms_seq, settled_at NULL, last_txn_id, updated_at`。**行在首次权威资金确认批次中 `INSERT` 创建**（主键冲突 ⇒ 并发确认只有一个成功）；资金确认前不存在该行（贷款尚无财务位置） |
+| 1a | `financial_legacy_loans` | `loan_id PK, tenant_id, marked_at`——回填标记：Gate B 前已存在的测试贷款（JSON 权威遗留），新财务服务对其一律 fail-closed |
+| 2 | `loan_financial_terms` | `PK(loan_id, terms_seq)`, `tenant_id, principal_cents, contract_fee_cents, currency, term_days, delinquency_policy_version, allocation_order_ref, funded_at NULL, due_at NULL, due_local_date NULL, contract_snapshot_id, terms_hash, created_at`；**append-only 触发器**（禁止 UPDATE/DELETE） |
+| 3 | `repayment_ledger` | `id PK, tenant_id, loan_id, direction CHECK IN ('CREDIT','REVERSAL'), amount_cents CHECK > 0, currency, channel, source_type, source_ref, idempotency_key UNIQUE, reverses_entry_id NULL REFERENCES repayment_ledger(id), financial_version_after, posted_by, posted_at`；append-only 触发器 |
+| 4 | `repayment_allocations` | `PK(entry_id, component)`, `cents CHECK > 0`；append-only |
+| 5 | `loan_charge_ledger` | `id PK, tenant_id, loan_id, component, direction CHECK IN ('DEBIT','CREDIT'), amount_cents CHECK > 0, kind CHECK IN ('ACCRUAL','WAIVER','ADJUSTMENT','REVERSAL'), idempotency_key UNIQUE, policy_version, accrual_date NULL, reverses_entry_id NULL, reason, approved_by NULL, financial_version_after, created_at`；append-only |
+| 6 | `loan_financial_events` | `PK(loan_id, seq)`, `type, financial_version, ref, actor, at`；append-only |
+| 7 | `external_source_bindings` | **`PRIMARY KEY(tenant_id, channel, source_ref_normalized)`**（不含 loan_id）, `loan_id, amount_cents, currency, customer_id, ledger_entry_id, first_bound_at` |
+| 8 | `financial_idempotency` | `PK(scope, idempotency_key)`, `payload_hash, result_ref, created_at`（客户/员工 `requestId` 幂等；同键异载荷 → `IDEMPOTENCY_PAYLOAD_MISMATCH`） |
+| 9 | `funding_facts` | `id PK, loan_id, kind CHECK IN ('CONFIRMED','RETURNED'), instruction_ref, amount_cents, currency, external_reference, occurred_at, recorded_at`；append-only |
+| 10 | `delinquency_policies` | `PK(tenant_id, version)`, `grace_days, penalty_model ('NONE' 默认), allocation_order JSON, accrual_basis, created_at`；append-only（新政策 = 新版本） |
+| 11 | `loan_policy_bindings` | `loan_id PK, policy_version, bound_at, contract_snapshot_id`；写一次（触发器禁止 UPDATE） |
+
+**回填（同批迁移或独立回填脚本，须可重复执行）**
+- `team_repayment_receipts` 全部行 → `external_source_bindings(channel='MANUAL_TRANSFER', source_ref_normalized=reference)`，保持"同流水号不可二次入账"（57 §2，**不弱于现状**）。
+- 既有贷款：写入 `financial_legacy_loans`，**不**从 JSON 推导账本（测试资金历史不进入 SQL 权威）。遗留贷款在 B 之后的任何新财务服务写入均 fail-closed（`LOAN_STATE_CHANGED` + 运维提示），由业主决定是否逐笔迁移（**OD-B1**）。
+- 新贷款：在合同生成/签署之前绑定政策（`loan_policy_bindings`，60 §5）；`loan_financial_state`（`phase='ACTIVE'`, `financial_version=1`）与 `loan_financial_terms` 首版（`terms_seq=1`，由不可变合同快照生成）**在同一资金确认批次中创建**（58 §6.2）。资金确认前贷款处于生命周期 `signed`，无财务位置。
+
+## 5. 服务与模块（新增 `lib/finance/*`）
+
+| 模块 | 职责 |
+|---|---|
+| `terms.ts` | 从 `storedContract`（`lib/kyc/server.ts`，经 `contractHashValid` 校验）生成条款；**从不读取 `demo_workspaces.payload`**；`terms_hash` 校验 |
+| `policy.ts` | 政策版本读取；签约前绑定（`loan_policy_bindings`）；无绑定 → `FINANCIAL_POLICY_UNBOUND`；>1 应付分量且无 `allocation_order` → `ALLOCATION_POLICY_MISSING` |
+| `position.ts` | `calculateFinancialPosition(facts, asOf)`：**纯函数**，输入为条款 + 资金事实 + 两类账本；输出各分量 `outstanding`、`remainingCents`、`settlementEligible`；任一分量为负 → 抛内部不变量错误 |
+| `txn.ts` | loan 级财务事务（§6） |
+| `settlement.ts` | **唯一**结清/重开决策：`decideTransition(prevPhase, position, txnKind)`；只有它能产出 `ACTIVE→SETTLED` 与（仅 `txnKind=REVERSAL`）`SETTLED→ACTIVE` |
+| `funding.ts` | **资金激活权威**：`applyFundingConfirmed`（首次：`INSERT loan_financial_state(phase=ACTIVE)` + 条款 `terms_seq=1`，生命周期投影 `signed→active`；REISSUE：`FUNDING_EXCEPTION→ACTIVE` + `terms_seq+1`）、`applyFundingReturned`（→`FUNDING_EXCEPTION`）、`applyVoid`（→`VOIDED`）。B 中**无对外路由调用**，仅测试与 D 使用 |
+| `external-source.ts` | 规范化 `sourceRefNormalized`（大写、去空白/分隔符规则冻结于实现前评审）；生成绑定语句；冲突重读判定（同绑定 → 幂等；异绑定 → `EXTERNAL_REFERENCE_CONFLICT`） |
+| `ledger.ts` | `postRepayment()` 与 `postReversal()`、`postCharge()` 的**语句构造器**（不对外开放路由）；分摊按绑定政策；冲正校验 61 §4.6.1 |
+| `projection.ts` | `overlay(state, financialRows)`：读时以 SQL 覆盖 JSON；`rebuildProjection(loanId)`：从 SQL 重写 JSON 投影字段（`status/paid/...`），幂等 |
+| `events.ts` | `loan_financial_events` 追加；后续 F 的 outbox 从这里派生（B 不写 outbox） |
+
+## 6. 财务并发模型（基于当前 D1 能力）
+
+D1 事实：`db.batch([...])` 为单个 SQL 事务（本地 miniflare 已验证 `#txn → transactionSync`；**远程 D1 为测试门禁**）；不支持交互式事务（不能在事务中读后决定）。因此采用"**应用层读 → 计算 → 单批 CAS 提交**"：
+
+```
+withLoanFinancialTxn(loanId, kind, build):
+  for attempt in 1..N（N=3，有界）:
+    S  = SELECT * FROM loan_financial_state WHERE loan_id=?          -- 版本 V
+    F  = 读取条款、资金事实、两类账本（全部按 loan_id）
+    P  = calculateFinancialPosition(F, asOf)
+    plan = build(S, P)           -- 纯计算：要追加的账本/事件/绑定/状态转换（settlement.decideTransition）
+    txnId = uuid
+    batch = [
+      UPDATE loan_financial_state
+         SET financial_version=V+1, last_txn_id=txnId, phase=?, settled_at=?, …
+       WHERE loan_id=? AND financial_version=V
+         AND NOT EXISTS(SELECT 1 FROM financial_legacy_loans WHERE loan_id=?),  -- ① CAS（首次资金确认改为 INSERT，主键即序列化点）
+      INSERT … SELECT … WHERE EXISTS(SELECT 1 FROM loan_financial_state
+                                      WHERE loan_id=? AND last_txn_id=txnId), -- ② 其余每条语句以 txnId 守卫
+      INSERT INTO external_source_bindings …   -- UNIQUE 冲突 ⇒ 抛错 ⇒ 整批回滚
+      INSERT INTO financial_idempotency …       -- 同上
+      INSERT INTO loan_financial_events …
+    ]
+    r = await db.batch(batch)
+    if r[0].meta.changes == 1: return committed
+    -- CAS 失败：② 全部为 no-op（守卫不满足），无部分写入 → 重读重算
+  throw ApiError('REVISION_CONFLICT')         -- 61 §4.6.1
+  catch UNIQUE 冲突：整批已回滚 → 重读 binding / idempotency：
+       同绑定/同载荷 → 返回既有结果；否则 EXTERNAL_REFERENCE_CONFLICT / IDEMPOTENCY_PAYLOAD_MISMATCH
+```
+- 选用 `last_txn_id` 守卫而非 `changes()=1` 链：`changes()` 只反映紧邻上一语句，长链易错；txnId 守卫对每条语句独立成立。
+- **跨贷款序列化**由 `external_source_bindings` 主键承担（两笔不同贷款的批各自 CAS 成功，但只有一个能插入绑定，另一批整体回滚）。
+- **所有**以下变更必须经 `withLoanFinancialTxn`：还款、冲正、计提、豁免、调整、资金确认、资金退回、结清、重开、作废。静态扫描禁止其它代码写这些表。
+- 投影写（`demo_workspaces`）**不在**财务批内（避免把同主体所有贷款串行化，见 57 DR-1）：提交后尽力 `rebuildProjection`；失败无妨，读时叠加保证正确。
+
+## 7. 结清 / 重开 / 激活权威
+| 转换 | 唯一执行者 | 条件 |
+|---|---|---|
+| （无行）→ `ACTIVE`（投影 `signed→active`） | `funding.applyFundingConfirmed` | 权威资金确认事实（D 提供来源；B 仅测试调用）；`INSERT` 主键冲突 ⇒ 并发确认恰一个成功 |
+| `ACTIVE → SETTLED`（投影 `active→closed`） | `settlement.decideTransition` | `remainingCents==0` 且无阻塞异常 |
+| `SETTLED → ACTIVE`（投影 `closed→active`） | `settlement.decideTransition`，仅 `kind=REVERSAL` | 已批准冲正 + 重算 `remaining>0`；`settled_at=NULL`；事件 `REVERSAL_APPLIED`+`REOPENED`；拖欠按原到期日+绑定政策+当前 Asia/Phnom_Penh 日期重算（60 §3.5.1） |
+| `ACTIVE → FUNDING_EXCEPTION` | `funding.applyFundingReturned` | 退回事实 |
+| `FUNDING_EXCEPTION → ACTIVE` | `funding.applyFundingConfirmed`（REISSUE） | 已批准 REISSUE + 新指令确认 |
+| `FUNDING_EXCEPTION → VOIDED` | `funding.applyVoid` | 已批准 VOID |
+| VOIDED 冲正 | 拒绝 | `REVERSAL_NOT_ALLOWED(reason=VOIDED)` |
+
+**遗留直写 fail-closed**（B 内落实）：`lib/domain.ts` 的 `repay`（`l.paid+=…; status='closed'`）、`disburse`（`status='active'`）、`withdraw`，`lib/store.ts`/`lib/team/workflow.ts`/`lib/team/admin-funds.ts` 中对**任何不在 `financial_legacy_loans` 中的贷款**（即 Gate B 之后创建、由 SQL 权威管理的贷款，无论是否已有 `loan_financial_state` 行）修改 `paid/status∈{active,closed}/wallet/entries` 的路径 → 拒绝（测试模式同样拒绝；仅 `financial_legacy_loans` 中的测试贷款保持现状，以免破坏现有测试）。
+
+## 8. 分配给 Gate B 的安全基线项
+| 项 | B 中的交付 |
+|---|---|
+| callback replay insertion（CONFIRMED OPEN） | 回调路由：nonce 插入在前、事件/尝试插入以 `WHERE changes()=1`（或 nonce 行守卫）条件链执行；重放 → 不产生事件行；测试 |
+| callback consumer absence（CONFIRMED OPEN） | 消费框架：读取 `institution_callback_events` 待处理行 → `buildInstitutionActionPlan` → **所有动作计划默认 fail-closed（记录"未启用"状态，不改业务）**；C2/D 分别启用其事件类型。B 退出时该项仍为 OPEN（由 C2/D 关闭），但框架就绪 |
+| MFA rebinding（TEST REQUIRED） | 自动化测试：MFA 已启用时 `mfa_enroll_start` 需步进；待确认密钥在确认前不替换现密钥 |
+| Admin financial dual control（RE-VERIFY） | 结论落库：`admin_disburse`/`admin_repay` 在生产默认关闭；仅测试模式或硬化应急授权下作为 `withLoanFinancialTxn` 的受控入口；`admin` 不得同时为 maker 与 checker |
+| Emergency authorization（HARDENING） | 申请时预绑定 `loanId + action + cents + currency`（`team_emergency_*` 新增列，迁移在 B 范围内）；消费时逐项相等，否则拒绝且不消费；测试 |
+
+## 9. 测试（自动化 · 强制）
+
+### 9.1 D1 测试门禁（全部必须通过；本地 miniflare + 远程 Workers D1 两端）
+| # | 测试 | 断言 |
+|---|---|---|
+| D1-1 | 远程 Workers D1 批回滚对等性 | 批中第 k 条语句失败 → 前 k−1 条全部回滚（与 miniflare 结果一致） |
+| D1-2 | CAS 陈旧写者 | 两个持有同一 V 的写者：恰一个 `changes=1`；另一个所有守卫语句 no-op，无部分写入 |
+| D1-3 | UNIQUE 冲突回滚 | `external_source_bindings` / `idempotency_key` 冲突 → 同批 `financial_version` 递增也回滚 |
+| D1-4 | 并行财务过账 | N 个并发 `postRepayment` 同一贷款：账本合计 = 成功提交之和；无双过账；版本严格递增 |
+| D1-5 | 并行还款 + 罚息计提 | 结果与某一串行顺序一致；`accrualBasis` 确定化 |
+| D1-6 | 并行冲正 + 还款 | 单一确定结果；冲正不超原条目未冲正额 |
+| D1-7 | 并行资金确认 + 结清 | 结清不会早于激活；无"未激活即结清"；并发首次资金确认恰一个创建财务状态行 |
+| D1-8 | 批语句数/参数上限 | 实测单批最大语句数与单语句绑定参数上限（以开工时 Cloudflare 文档为准，并实测）；`withLoanFinancialTxn` 的最大批规模留 ≥50% 余量；超限 → 构造期拒绝 |
+| D1-9 | 追加表触发器 | 对 `repayment_ledger`、`repayment_allocations`、`loan_charge_ledger`、`loan_financial_events`、`loan_financial_terms`、`funding_facts`、`delinquency_policies`、`loan_policy_bindings` 的 UPDATE/DELETE 均 `RAISE(ABORT)` |
+| D1-10 | 跨贷款同一外部引用并发 | 两个不同贷款的批：恰一个绑定+过账 |
+
+> 远程 D1 测试只在**专用非生产 D1 数据库**执行，需业主书面许可与凭据；不得使用生产库。
+
+### 9.2 领域测试
+- 位置计算：表驱动（本金/合同费/罚息/豁免/调整/还款/冲正）；任一分量不得为负。
+- 结清/重开：remaining=0 → SETTLED；冲正后 remaining>0 → ACTIVE 且拖欠四分支；remaining 仍为 0 → 保持 SETTLED；`settled_at` NULL 而事件保留。
+- 冲正阶段矩阵（61 §4.6.1）：ACTIVE / SETTLED / FUNDING_EXCEPTION（阶段不变）/ VOIDED（拒绝）；超额 → `ALREADY_REVERSED`；原条目缺失 → `NOT_FOUND`。
+- 外部来源：同绑定幂等；异贷款/异金额/异币种/异客户 → `EXTERNAL_REFERENCE_CONFLICT` 且无过账；回填后保护不弱于 `team_repayment_receipts`。
+- 条款：取自不可变合同快照；篡改工作区 JSON 不影响位置；`terms_hash` 不符 → 拒绝。
+- 政策：未绑定 → `FINANCIAL_POLICY_UNBOUND`；>1 分量缺分摊顺序 → `ALLOCATION_POLICY_MISSING`；单分量可过账。
+- 投影：滞后时读时叠加正确；`rebuildProjection` 幂等且与 SQL 一致。
+- 遗留直写：SQL 权威贷款上 `repay/disburse/withdraw` 被拒绝；静态扫描无其它写财务表的代码。
+- 安全：§8 各项测试。
+
+### 9.3 迁移测试
+- 空卷全量回放 0001→最新（standalone 迁移器与托管路径）。
+- 既有卷（含 0041）升级至最新，回填可重复执行且结果一致。
+- 触发器 `BEGIN…END` 切分回归；0030/0031 后审计表触发器仍生效。
+
+## 10. 迁移前置（B0 · 不在本规划任务中修复）
+```
+现状：fresh-volume migration = CONFIRMED OPEN
+原因：deploy/standalone/server.mjs splitSql 不识别 SQL 注释；
+      drizzle/0015_admin_password.sql 第 2、6 行注释 "Credentials removed; see 0030_….sql."
+      在分号处被切分，"see 0030_….sql." 被当作语句 ⇒ 空卷启动失败。
+B0 任务（独立 PR，先于任何 0042+ 迁移）：
+  1. 迁移器识别 `--` 行注释与 `/* */` 块注释（引号内除外），保留 BEGIN…END 跟踪
+  2. 查明托管（Cloudflare）迁移执行路径（wrangler.json migrations:[]），使其与 standalone 同源测试
+  3. 新增测试：空卷全量回放；含分号注释的夹具；触发器夹具；0030/0031 回归
+  4. 不得修改已发布迁移文件的语义（若必须改 0015 注释，须证明已应用卷的 standalone_migrations 记录不受影响）
+退出：空卷回放在 CI 与本地 standalone 均通过 → 标记 CONFIRMED CLOSED，方可开始 B 的迁移
+```
+
+## 11. Gate B Exit
+- [ ] 财务账本与事件表存在且追加保护生效（D1-9）
+- [ ] `financial_version` 存在；所有财务变更仅经 `withLoanFinancialTxn`（静态扫描）
+- [ ] 规范财务位置工作（领域测试全绿）
+- [ ] 串行化工作（D1-1…D1-10 本地全绿；远程 D1 在许可后全绿）
+- [ ] 可重建投影工作（叠加 + rebuild）
+- [ ] 迁移测试全绿（空卷 + 升级 + 回填）
+- [ ] **无客户还款端点启用；无真实放款启用；无罚息计提启用**（路由清单与特性开关断言测试）
+- [ ] §8 安全项交付；回调重放 CLOSED；应急授权硬化 CLOSED；MFA 重绑测试 PASS；Admin 资金双人控制结论已落实
+- [ ] Codex Gate B 验收 PASS
+
+## 12. Rollback
+- 迁移只增不删；回滚代码不需回滚表。
+- 特性开关 `FIN_SQL_AUTHORITY_WRITES`（默认关；B 内仅测试开启）。关闭 → 所有财务写入 fail-closed（只读），读时叠加照常。
+- **不支持**把已产生 SQL 财务事实的贷款回退为 JSON 权威；回滚手段是"冻结写入 + 修复前进"。
+- 回填脚本幂等，可重复执行；若回填错误，以新增纠正行修复，不删除。
+
+## 13. Entry criteria
+Gate A 退出 · B0 CONFIRMED CLOSED · Codex 通过本计划 · 业主书面授权 · OD-B1 有临时决定（默认：既有贷款标记为遗留，不迁移）· 远程 D1 测试库许可（D1-1 必需）。
+
+## 14. P0 / P1 acceptance
+| 级别 | 条件 |
+|---|---|
+| P0 | 任何路径双过账；一笔外部转账偿付两笔贷款；绕过 `settlement.ts` 改变 `closed/active`；JSON 投影被当作财务输入；客户还款/真实放款/罚息被启用；追加表可被改删 |
+| P1 | D1 测试门禁任一失败或未在远程执行；CAS 失败出现部分写入；投影不可重建；条款读自工作区 JSON；遗留贷款可被新财务服务写入；B0 未关闭即提交新迁移；新增 CR-007 之外的财务阶段 |
+
+## 15. Open items
+| ID | 内容 | 分类 |
+|---|---|---|
+| OD-B1 | 既有测试贷款是否迁移为 SQL 权威 | 业主决定；默认不迁移（`financial_legacy_loans` 冻结新财务写） |
+| OD-B2 | `sourceRefNormalized` 规范化规则（大小写/分隔符/前导零） | 实施前 Codex 评审冻结 |
+| OD-B3 | 远程 D1 测试库与凭据 | 业主提供；D1-1 必需 |
+| OD-B4 | 冲正目标限定为原 CREDIT 还款行（68 P2：冲正的冲正） | 实施按此确定性规则；契约措辞后续补 |
+
+## 16. Gate
+```
+Gate B plan: PROPOSED — READY FOR CODEX REVIEW
+Precondition: B0 fresh-volume migration fix（CONFIRMED OPEN）
+Implementation: NOT AUTHORIZED · Trae: HOLD
+```
