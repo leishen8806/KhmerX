@@ -20,7 +20,7 @@ export function AdminLocaleShell({children}:{children:ReactNode}){
  const choose=(next:Locale)=>{setLocale(next);window.localStorage.setItem('payease-admin-language',next);void apiFetch('/api/team/locale',{method:'POST',body:JSON.stringify({locale:next})}).catch(()=>undefined)};
  const value=useMemo(()=>({locale,t:(key:string)=>copy[locale][key]||key,setLocale:choose}),[locale]);
  useEffect(()=>{const root=document.querySelector<HTMLElement>('.team-shell');if(!root)return;translateTree(root,locale);const observer=new MutationObserver(()=>translateTree(root,locale));observer.observe(root,{subtree:true,childList:true,characterData:true});return()=>observer.disconnect()},[locale]);
- return <AdminLocaleContext.Provider value={value}><div className="admin-locale-root">{children}</div></AdminLocaleContext.Provider>
+ return <AdminLocaleContext.Provider value={value}><div className="admin-locale-root" lang={locale}>{children}</div></AdminLocaleContext.Provider>
 }
 type AdminLocaleValue={locale:Locale;t:(key:string)=>string;setLocale:(locale:Locale)=>void};
 export const AdminLocaleContext=createContext<AdminLocaleValue>({locale:'zh',t:key=>copy.zh[key]||key,setLocale:()=>undefined});

@@ -1,5 +1,6 @@
 /** Browser-safe API boundary. Keep server-only modules out of this file. */
 import {clientRequestId} from './client-id';
+import {currentErrorLocale, messageForError} from './error-messages';
 
 export type ApiFailure={error?:string;code?:string;requestId?:string;params?:Record<string,unknown>;retryAfter?:number};
 export type ApiFetchInit=RequestInit & {timeoutMs?:number;totalTimeoutMs?:number;idempotencyKey?:string;notifyAuth?:boolean};
@@ -82,12 +83,12 @@ export async function apiFetch<T=unknown>(path:string,init:ApiFetchInit={}){
    const body=type.includes('application/json')?await response.json().catch(()=>({})):await response.blob();
    if(response.ok)return {data:body as T,response,requestId};
    const failure=(body&&typeof body==='object'&&!('size' in body)?body:{}) as ApiFailure;
-   const normalized={...failure,requestId:failure.requestId||requestId};
+   const normalized={...failure,code:typeof failure.code==='string'?failure.code:'REQUEST_FAILED',requestId:failure.requestId||requestId};
    if(canRetry&&attempt<2&&[502,503,504].includes(response.status)){
     await waitForRetry(response.status===503?retryAfterMs(response)??retryDelay(attempt):retryDelay(attempt),deadline,requestInit.signal||undefined);continue
    }
    if(shouldNotifyAuth)notifyAuthRequired(normalized);
-   throw new ApiClientError(failure.error||'请求未完成，请稍后重试',response.status,normalized);
+   throw new ApiClientError(messageForError(normalized,currentErrorLocale()),response.status,normalized);
   }catch(error){
    if(error instanceof ApiClientError)throw error;
    if(requestInit.signal?.aborted)throw error;
