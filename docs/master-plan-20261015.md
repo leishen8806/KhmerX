@@ -265,10 +265,19 @@ PostgreSQL 迁移与多实例、Redis、队列、文件直传、**持牌机构�
 
 **这些域名需要的配套改动（新任务 S4b，苏晨，约 0.5–1 天，第 1–2 天内完成）**
 1. `deploy/standalone/server.mjs` 第 185–190 行把允许的 Host 写死为 `admin/api/payease/payeas.khmerx.org`，且"免 Basic 口令的公开主机""admin 根路径跳转到登录""api 主机只允许 `/api/`"三条规则也按这些名字判断；灰度域名必须通过配置加入（不要把 `test*` 写死进代码，也不得因此放宽生产域名的规则）。
+1a. 同一任务里加入：仅在来自 Cloudflare IP 段时信任 `CF-Connecting-IP` 作为客户端 IP（见下方 Cloudflare 要求第 2 条）。
 2. 配置 `PAYEASE_ALLOWED_ORIGINS`，加入 `https://testpayease.khmerx.org`、`https://testadmin.khmerx.org`、`https://testapi.khmerx.org`（`lib/request-security.ts` 默认只含 admin/payease）。
 3. Caddy：四个域名的 HTTPS 证书与路由（官网走静态站，其余走网关 4300）；DNS 记录已指向 159.223.77.134，防火墙放行 80/443。
 4. Telegram 灰度机器人的小程序地址设为 `https://testpayease.khmerx.org`；App 灰度包用 `--dart-define=API_BASE_URL=https://testapi.khmerx.org` 构建。
 5. 压测白名单（B0）显式加入 `testapi.khmerx.org` / `testpayease.khmerx.org`。
+
+**Cloudflare 代理（2026-10-15 已确认四条记录均为"已代理"）带来的配套要求**
+1. Cloudflare 的 SSL/TLS 模式必须是 **Full (strict)**；源站用 Cloudflare Origin CA 证书（或 Caddy 用 DNS-01 方式申请证书）。不要用 Flexible（会造成跳转死循环和明文回源）。
+2. **真实客户端 IP**：经过 Cloudflare 后，网关看到的连接地址是 Cloudflare 边缘 IP；必须改为只在请求来自 Cloudflare 官方 IP 段时才信任 `CF-Connecting-IP`，否则限流会按边缘 IP 计数，全站共用桶的问题更严重。该项并入 S4b。
+3. **源站防火墙**：DigitalOcean 防火墙只放行来自 Cloudflare IP 段的 80/443，外加压测发起机 `165.22.108.5` 和运维固定 IP；SSH 限制来源 IP。
+4. **压测不要穿过 Cloudflare**（会被其防护拦截，也测不到源站）：从 `165.22.108.5` 直连源站 IP 并带 `Host: testapi.khmerx.org` 头；B0 的主机白名单因此要允许"源站 IP + Host 头"这种方式。
+5. **WAF / Bot 规则**：对 `testapi.khmerx.org` 关闭挑战页（Flutter App 和接口客户端无法通过浏览器挑战），保持 `Cache-Control: no-store`，不要开"缓存所有内容"。
+6. 当前探测结果（我从外部访问）：四个域名均返回 **521**（Cloudflare 连不上源站），源站 80/443 未对外开放，说明源站服务尚未部署，这是预期状态，不是配置错误。
 
 - **灰度环境 ≠ 600 并发验证环境**：2 vCPU / 4GB 只能承载小规模灰度（建议上限 50–150 人，以压测实测为准）。600 人压测要在**临时放大的同构环境**里做（DigitalOcean 按小时计费，压测当天临时加大/新建，测完释放），并把结果作为"能扩到 600"的证据；不得把灰度机上的结果说成 600。
 - **压测发起机**：压测脚本（k6）从 `Licensed` 这台机器发起（同区域、不占用本机带宽），指向 `Khmerx` 灰度环境；这是临时用途，持牌机构系统（M4）开始前要释放。

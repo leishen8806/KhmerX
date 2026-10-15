@@ -19,7 +19,7 @@
 【必须遵守】
 - 先读：app/api/h5/auth/**、app/api/h5/state/route.ts、app/api/kyc/**、lib/store.ts、lib/h5-auth.ts、lib/h5-auth-core.ts、deploy/standalone/server.mjs，弄清真实请求序列（Origin、Content-Type、Cookie、x-telegram-init-data 或手机号验证码流程、演示模式验证码）。
 - 使用 k6（优先）；脚本要能参数化虚拟用户数（100/300/600/1000）、持续时间、目标主机。
-- 只针对本地或灰度/预发环境：脚本用环境变量 LOADTEST_ALLOWED_HOSTS（逗号分隔）做主机白名单，默认只有 localhost、127.0.0.1 和 10.0.2.2；灰度机 159.223.77.134 及灰度域名 testapi.khmerx.org、testpayease.khmerx.org 只有在白名单里显式列出才允许；对 payease.khmerx.org / admin.khmerx.org / api.khmerx.org 生产域名一律拒绝，且不能通过环境变量放开。压测会从另一台机器（165.22.108.5）发起。
+- 只针对本地或灰度/预发环境：脚本用环境变量 LOADTEST_ALLOWED_HOSTS（逗号分隔）做主机白名单，默认只有 localhost、127.0.0.1 和 10.0.2.2；灰度机 159.223.77.134 及灰度域名 testapi.khmerx.org、testpayease.khmerx.org 只有在白名单里显式列出才允许；对 payease.khmerx.org / admin.khmerx.org / api.khmerx.org 生产域名一律拒绝，且不能通过环境变量放开。压测会从另一台机器（165.22.108.5）发起，并且**不穿过 Cloudflare**：直连源站 IP 159.223.77.134，同时带 Host 头 testapi.khmerx.org / testpayease.khmerx.org；脚本要支持 --origin-ip 与 --host 两个参数（只允许白名单里的源站 IP）。
 - 测试数据全部虚构（手机号用 +1202555xxxx 段），不得出现真实资料。
 - 输出：控制台摘要 + JSON 报告（p50/p95/p99、错误率、按状态码和 code 分类、上传成功率）。
 
