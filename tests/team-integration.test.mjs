@@ -393,6 +393,17 @@ test('existing SSO Admin can use company password without inheriting other compa
  await auth.logoutStaff(extraCookies);await assert.rejects(team.identity(),/失效/);extraCookies='';assert.equal((await team.staff()).member.role,'admin');await team.platformAdmin();
 });
 
+test('team payload redacts MFA secret fields',async()=>{
+ selected=A;user=owner;extraCookies='';
+ const data=await team.teamData();
+ assert.equal(Object.hasOwn(data.member||{},'mfa_secret'),false);
+ assert.equal(Object.hasOwn(data.member||{},'pending_mfa_secret'),false);
+ for(const membership of data.memberships||[]){
+  assert.equal(Object.hasOwn(membership,'mfa_secret'),false);
+  assert.equal(Object.hasOwn(membership,'pending_mfa_secret'),false);
+ }
+});
+
 test('state mutation rejects non-JSON and malformed envelopes',async()=>{
  const api=await mod('@/app/api/state/route');selected='';user=owner;extraCookies='';
  const wrongType=await api.POST(new Request('http://localhost/api/state',{method:'POST',headers:{origin:'http://localhost','content-type':'text/plain'},body:'{}'}));
