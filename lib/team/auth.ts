@@ -47,7 +47,7 @@ export async function staffIdentity(){
   if(!token||!/^[a-f0-9]{64}$/.test(token))throw new AuthError('员工登录已失效，请重新登录',401);
   const m=await db().prepare(`SELECT m.user_id,m.email,m.tenant_id FROM team_staff_sessions s JOIN team_members m ON m.id=s.member_id JOIN team_companies c ON c.id=m.tenant_id LEFT JOIN team_staff_credentials p ON p.member_id=m.id WHERE s.token_hash=? AND s.site_user_id=? AND s.expires_at>? AND m.active=1 AND c.active=1 AND m.version=s.member_version AND (p.version=s.credential_version OR (s.credential_version=0 AND p.member_id IS NULL))`).bind(await digest(token),outer.userId,Date.now()).first<any>();
   if(!m)throw new AuthError('员工登录已失效，请重新登录',401);
-  return {userId:m.user_id,email:m.email,displayName:m.email,fullName:null,staffTenantId:m.tenant_id as string};
+  return {userId:m.user_id,email:m.email,displayName:m.email,fullName:null,staffTenantId:m.tenant_id as string,staffMode:mode};
  }
  if((env as any).KHMERX_TEST_MODE==='true')return {...outer,staffTenantId:null};
  throw new AuthError('员工会话已失效，请重新登录',401);
