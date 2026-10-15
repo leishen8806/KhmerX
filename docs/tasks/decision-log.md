@@ -22,4 +22,5 @@
 | D-15 | 运行时 | 15 天内沿用现有栈纵向扩容；PostgreSQL 与多实例作为上线后目标 | 默认 |
 | D-16 | 旧服务器 159.223.92.104 | 冻结，不部署、不更新 | 已确认 |
 | D-17 | Codex 遇到不明确的需求 | 按本表默认继续，把假设写入 PR 描述的"假设"段；仅涉及安全、数据丢失、花钱、法务、不可逆操作时才停下提问 | 默认 |
-| D-18 | CODEOWNERS 的 GitHub 用户名 | **待提供**（技术负责人、苏晨、大旺）；提供前不启用"必须 Code Owner 审核" | 待提供 |
+| D-18 | CODEOWNERS / GitHub 用户名 | 不启用 CODEOWNERS（大旺使用技术负责人的电脑，没有独立账号）；用分支前缀 `feat/server/`、`feat/client/` 区分两条线，提交说明末尾加 `Line: server` 或 `Line: client`；已删除占位的 `.github/CODEOWNERS` | 已确认 |
+| D-19 | 本机身份 | 每条线用独立克隆目录并在该目录里设置本人名字（`git config user.name`），见 operating-rules §6 | 已确认 |
