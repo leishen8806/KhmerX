@@ -402,6 +402,16 @@ test('existing SSO Admin can use company password without inheriting other compa
  await auth.logoutStaff(extraCookies);await assert.rejects(team.identity(),/失效/);extraCookies='';assert.equal((await team.staff()).member.role,'admin');await team.platformAdmin();
 });
 
+test('SSO staff memberships remain switchable across companies without widening password sessions',async()=>{
+ selected=A;user=owner;extraCookies='';const auth=await mod('@/lib/team/auth'),api=await mod('@/app/api/team/route');
+ const session=await auth.createSsoSession(sql.prepare('SELECT id FROM team_members WHERE tenant_id=? AND user_id=?').get(A,owner.userId).id,owner.userId);
+ extraCookies=`; payease_staff_mode=sso; payease_staff_session=${session.token}; payease_staff_company=${A}`;
+ const data=await team.teamData();assert(data.memberships.length>=2);assert(data.memberships.some((m)=>m.tenant_id===A));assert(data.memberships.some((m)=>m.tenant_id===B));
+ const entered=await api.POST(new Request('http://localhost/api/team',{method:'POST',headers:{origin:'http://localhost','content-type':'application/json'},body:JSON.stringify({action:'enter',slug:'synthetic-b'})}));assert.equal(entered.status,200);
+ extraCookies=`; payease_staff_mode=sso; payease_staff_session=${session.token}; payease_staff_company=${B}`;selected=B;assert.equal((await team.staff()).tenant.id,B);assert.equal((await team.teamData()).company.id,B);
+ await auth.logoutStaff(extraCookies);selected=A;extraCookies='';
+});
+
 test('team payload redacts MFA secret fields',async()=>{
  selected=A;user=owner;extraCookies='';
  const data=await team.teamData();
