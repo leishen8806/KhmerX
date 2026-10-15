@@ -12,24 +12,31 @@ import {channelForAccount,claimPublicIdentifier} from '@/lib/public-id-store';
 import {errorResponse} from '@/lib/http/route';
 import {requestIdOf,resolveRequestId} from '@/lib/http/request-id';
 import {isTestMode} from '@/lib/runtime-guards';
+import {ApiError} from '@/lib/http/api-error';
+import {KYC_CUSTOMER_MAX_BYTES,KYC_CUSTOMER_MAX_FILES,kycFileMaxBytes} from './limits';
 export {json,KycError};
 export type CasePayload={profile:Profile;phoneVerified:boolean;ruleVersion:string;submittedAt?:string;signedLoan?:{billing?:Bill;borrowerName:string;profileHash:string;loanId:string;signatureId:string;signatureHash:string;termsVersion:string;termsHash:string;termsSnapshot:typeof loanTerms.blocks;principal:number;fee:number;currency:string;termDays:number;signedAt:string;contractHash:string};review?:{decision:string;reason:string;checklist:Record<string,boolean>;actor:string;at:string;revision:number}};
 export type CaseRow={id:string;owner:string;customer_id:string;revision:number;status:KycStatus;payload:string;updated_at:string;public_ref?:string|null;source_channel?:string|null};
 export const settings=()=>env as unknown as Record<string,string>;
 export function db(){if(!env.DB)throw new KycError('KYC 数据库暂不可用',503);return env.DB}
 export function bucket(){if(!env.BUCKET)throw new KycError('私有材料存储尚未配置',503);return env.BUCKET}
+let scansInFlight=0;
+const positiveLimit=(value:unknown,fallback:number)=>Number.isSafeInteger(Number(value))&&Number(value)>0?Number(value):fallback;
+const scanUnavailable=()=>new ApiError(503,'SERVICE_UNAVAILABLE','File scanning is temporarily unavailable',undefined,3);
 export async function scanFile(bytes:Uint8Array){
  const values=settings(),url=values.KYC_SCAN_URL?.trim();
-  if(!url){if(isTestMode())return;throw new KycError('文件安全扫描服务尚未配置，请联系管理员',503,'KYC_SCAN_REQUIRED');}
+ if(!url){if(isTestMode())return;throw scanUnavailable()}
+ if(scansInFlight>=positiveLimit(values.KYC_SCAN_MAX_CONCURRENCY,8))throw scanUnavailable();
+ scansInFlight++;
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),30000);
  try{
   const scanHeaders:Record<string,string>={'content-type':'application/octet-stream','cache-control':'no-store'};if(values.KYC_SCAN_TOKEN)scanHeaders.authorization='Bearer '+values.KYC_SCAN_TOKEN;
   const response=await fetch(url,{method:'POST',headers:scanHeaders,body:bytes as BodyInit,signal:controller.signal});
-  let result:{clean?:boolean;status?:string};try{result=await response.json() as {clean?:boolean;status?:string}}catch{throw new KycError('文件安全扫描服务不可用，请稍后重试',503)}
+  let result:{clean?:boolean;status?:string};try{result=await response.json() as {clean?:boolean;status?:string}}catch{throw scanUnavailable()}
   if(response.status===422&&result.clean===false)throw new KycError('文件未通过安全扫描，请更换文件后重试',422);
-  if(!response.ok)throw new KycError('文件安全扫描服务不可用，请稍后重试',503);
+  if(!response.ok)throw scanUnavailable();
   if(result.clean!==true)throw new KycError('文件未通过安全扫描，请更换文件后重试',422);
- }catch(e){if(e instanceof KycError)throw e;throw new KycError('文件安全扫描服务不可用，请稍后重试',503)}finally{clearTimeout(timer)}
+ }catch(e){if(e instanceof KycError||e instanceof ApiError)throw e;throw scanUnavailable()}finally{clearTimeout(timer);scansInFlight--}
 }
 const encoder=new TextEncoder();
 export async function digest(s:string|Uint8Array){return [...new Uint8Array(await crypto.subtle.digest('SHA-256',typeof s==='string'?encoder.encode(s):s as BufferSource))].map(x=>x.toString(16).padStart(2,'0')).join('')}
@@ -53,7 +60,7 @@ async function unseal<T>(value:string,context:string){const b=Uint8Array.from(at
 export async function reviewer(){const team=await staff();if(team){if(!['admin','kyc','dept_admin','audit'].includes(team.member.role))throw new KycError('当前岗位没有 KYC 材料查看权限',403);return {...team.user,userId:team.tenant.id,actorId:team.user.userId,team}}if(!isTestMode())throw new KycError('生产环境必须使用管理后台 KYC 审核岗位',403);const u=await getChatGPTUser();if(!u)throw new KycError('请先登录工作区',401);const allowed=(settings().KYC_REVIEWER_EMAILS||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);if(!allowed.includes(u.email.toLowerCase()))throw new KycError('当前账号未获 KYC 审核授权',403);return {...u,actorId:u.userId,team:null}}
 export async function context(request:Request){const c=await customer(request);return {owner:c.ownerId,customerId:c.session.customerId,verified:c.session.phoneVerified===true}}
 export function origin(request:Request){try{assertAllowedOrigin(request,true)}catch{throw new KycError('不允许跨站操作',403,'CROSS_SITE_REQUEST')}}
-export async function boundedBody(request:Request,max:number){if(Number(request.headers.get('content-length')||0)>max)throw new KycError('上传内容过大',413);const reader=request.body?.getReader();if(!reader)return new Uint8Array();const chunks:Uint8Array[]=[];let size=0;while(true){const r=await reader.read();if(r.done)break;size+=r.value.length;if(size>max){await reader.cancel();throw new KycError('上传内容过大',413)}chunks.push(r.value)}const out=new Uint8Array(size);let offset=0;for(const c of chunks){out.set(c,offset);offset+=c.length}return out}
+export async function boundedBody(request:Request,max:number){if(Number(request.headers.get('content-length')||0)>max)throw new ApiError(413,'PAYLOAD_TOO_LARGE','Upload exceeds the size limit',{maxBytes:max});const reader=request.body?.getReader();if(!reader)return new Uint8Array();const chunks:Uint8Array[]=[];let size=0;while(true){const r=await reader.read();if(r.done)break;size+=r.value.length;if(size>max){await reader.cancel();throw new ApiError(413,'PAYLOAD_TOO_LARGE','Upload exceeds the size limit',{maxBytes:max})}chunks.push(r.value)}const out=new Uint8Array(size);let offset=0;for(const c of chunks){out.set(c,offset);offset+=c.length}return out}
 export async function body(request:Request){origin(request);if(!request.headers.get('content-type')?.startsWith('application/json'))throw new KycError('请求格式无效',415);try{const value=JSON.parse(new TextDecoder().decode(await boundedBody(request,50000)));if(!value||typeof value!=='object'||Array.isArray(value))throw new KycError('请求格式无效');return value}catch(e){if(e instanceof KycError)throw e;throw new KycError('请求格式无效')}}
 export function failed(e:unknown,request?:Request){
  return errorResponse(e,request?requestIdOf(request)??resolveRequestId(request):crypto.randomUUID());
@@ -126,9 +133,11 @@ export async function decide(request:Request){
  }
  const checklist=Object.fromEntries(['identity','contacts','employment','income','assets','bank','consent'].map(k=>[k,p.checklist?.[k]===true]));validateReview(row.status,p.decision,checklist,reason,data.profile);data.review={decision:p.decision,reason,checklist,actor:u.actorId,at:new Date().toISOString(),revision:row.revision};return view(await transition(row,p.decision,data,'review:'+p.decision,u.actorId));
 }
-export async function recordFile(owner:string,customerId:string,slot:Slot,bytes:Uint8Array,type:string){
+export async function recordFile(owner:string,customerId:string,slot:Slot,bytes:Uint8Array,type:string,requestId?:string){
+ const started=Date.now();let scanDurationMs=0;
+ try{
+ if(bytes.length>kycFileMaxBytes(type))throw new ApiError(413,'PAYLOAD_TOO_LARGE','File exceeds the upload limit',{maxBytes:kycFileMaxBytes(type)});
  const sha256=await digest(bytes);
- await scanFile(bytes);
  // A retry or a double-click must not create another evidence row. Keep older
  // versions for audit, and reuse an identical ready object for this slot.
  const existing=await db().prepare('SELECT id,owner,customer_id,metadata FROM kyc_files WHERE owner=? AND customer_id=? AND slot=? AND ready=1 AND superseded_at IS NULL').bind(owner,customerId,slot).all<{id:string;owner:string;customer_id:string;metadata:string}>();
@@ -136,11 +145,19 @@ export async function recordFile(owner:string,customerId:string,slot:Slot,bytes:
  // byte-identical signature across loans; other KYC slots may safely dedupe.
  if(slot!=='signature')for(const row of existing.results||[]){try{const old=await metadata(row);if(old.sha256===sha256)return old}catch(e){if(e instanceof KycError)throw e}}
  const id=crypto.randomUUID(),ref:FileRef={id,slot,name:slot+(type==='image/png'?'.png':type==='image/jpeg'?'.jpg':'.pdf'),type,size:bytes.length,sha256};
- // Replacing an existing slot is not a new piece of evidence for quota
- // purposes. Historical rows remain readable for audit, but only active
- // (non-superseded) rows count toward the 40-file cap.
+ const active=(await db().prepare('SELECT id,owner,customer_id,slot,metadata,ready FROM kyc_files WHERE owner=? AND customer_id=? AND superseded_at IS NULL').bind(owner,customerId).all<{id:string;owner:string;customer_id:string;slot:string;metadata:string;ready:number}>()).results;
+ const counted=active.filter(row=>slot==='signature'||row.slot!==slot||row.ready!==1);
+ let totalBytes=bytes.length;
+ for(const row of counted){const saved=await metadata(row);if(!Number.isSafeInteger(saved.size)||saved.size<0)throw new Error('Invalid file size metadata');totalBytes+=saved.size}
+ const maxFiles=positiveLimit(settings().KYC_CUSTOMER_MAX_FILES,KYC_CUSTOMER_MAX_FILES),maxBytes=positiveLimit(settings().KYC_CUSTOMER_MAX_BYTES,KYC_CUSTOMER_MAX_BYTES);
+ if(counted.length+1>maxFiles||totalBytes>maxBytes)throw new ApiError(409,'CONFLICT','Customer file quota exceeded',{maxFiles,maxBytes});
  const rowContext={id,owner,customer_id:customerId};
- const inserted=await db().prepare('INSERT INTO kyc_files (id,owner,customer_id,slot,metadata,ready,created_at) SELECT ?,?,?,?,?,0,? WHERE (SELECT COUNT(*) FROM kyc_files WHERE owner=? AND customer_id=? AND ready=1 AND superseded_at IS NULL AND slot<>?)<40').bind(id,owner,customerId,slot,await seal(ref,fileContext(rowContext)),new Date().toISOString(),owner,customerId,slot).run();
- if(!inserted.meta.changes)throw new KycError('本客户已达到 40 份材料上限，请联系管理员');
- try{await bucket().put('kyc/'+id,await encryptBytes(bytes,blobContext(rowContext)),{httpMetadata:{contentType:'application/octet-stream'}});const account=await db().prepare('SELECT mode,channel_id FROM h5_accounts WHERE owner=? AND customer_id=?').bind(owner,customerId).first<{mode:string;channel_id:string|null}>(),channel=channelForAccount(account?.mode,account?.channel_id),publicRef=await claimPublicIdentifier(db(),'F',channel,id,owner,new Date().toISOString());ref.publicRef=publicRef;await db().batch([db().prepare('UPDATE kyc_files SET ready=1,public_ref=?,source_channel=? WHERE id=?').bind(publicRef,channel,id),...(slot!=='signature'?[db().prepare("UPDATE kyc_files SET superseded_at=? WHERE owner=? AND customer_id=? AND slot=? AND id<>? AND ready=1 AND superseded_at IS NULL").bind(new Date().toISOString(),owner,customerId,slot,id)]:[])]);return ref}catch(e){await bucket().delete('kyc/'+id).catch(()=>{});await db().prepare('DELETE FROM kyc_files WHERE id=? AND ready=0').bind(id).run();throw e}
+ // Pending rows reserve quota. A changed ID set forces a retry before writing.
+ const inserted=await db().prepare('INSERT INTO kyc_files (id,owner,customer_id,slot,metadata,ready,created_at) SELECT ?,?,?,?,?,0,? WHERE (SELECT COUNT(*) FROM kyc_files WHERE owner=? AND customer_id=? AND superseded_at IS NULL)=? AND NOT EXISTS (SELECT 1 FROM kyc_files WHERE owner=? AND customer_id=? AND superseded_at IS NULL AND id NOT IN (SELECT value FROM json_each(?)))').bind(id,owner,customerId,slot,await seal(ref,fileContext(rowContext)),new Date().toISOString(),owner,customerId,active.length,owner,customerId,JSON.stringify(active.map(row=>row.id))).run();
+ if(!inserted.meta.changes)throw new ApiError(409,'CONFLICT','Uploads changed; retry the request',{maxFiles,maxBytes});
+ try{
+  const scanStarted=Date.now();try{await scanFile(bytes)}finally{scanDurationMs=Date.now()-scanStarted}
+  await bucket().put('kyc/'+id,await encryptBytes(bytes,blobContext(rowContext)),{httpMetadata:{contentType:'application/octet-stream'}});const account=await db().prepare('SELECT mode,channel_id FROM h5_accounts WHERE owner=? AND customer_id=?').bind(owner,customerId).first<{mode:string;channel_id:string|null}>(),channel=channelForAccount(account?.mode,account?.channel_id),publicRef=await claimPublicIdentifier(db(),'F',channel,id,owner,new Date().toISOString());ref.publicRef=publicRef;await db().batch([db().prepare('UPDATE kyc_files SET ready=1,public_ref=?,source_channel=? WHERE id=?').bind(publicRef,channel,id),...(slot!=='signature'?[db().prepare("UPDATE kyc_files SET superseded_at=? WHERE owner=? AND customer_id=? AND slot=? AND id<>? AND ready=1 AND superseded_at IS NULL").bind(new Date().toISOString(),owner,customerId,slot,id)]:[])]);return ref;
+ }catch(e){await bucket().delete('kyc/'+id).catch(()=>{});await db().prepare('DELETE FROM kyc_files WHERE id=? AND ready=0').bind(id).run();throw e}
+ }finally{console.info('[kyc-upload]',{durationMs:Date.now()-started,scanDurationMs,...(requestId?{requestId}:{})})}
 }

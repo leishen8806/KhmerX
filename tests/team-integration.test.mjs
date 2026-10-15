@@ -85,7 +85,7 @@ test('admin directly creates, changes, disables and re-enables members; old invi
 test('same-person checks remain forbidden even if their role changes',async()=>{const policy=await mod('@/lib/team/policy');assert.throws(()=>policy.requireDifferent('same','same'));assert.throws(()=>policy.requireDifferent('same',undefined));assert.doesNotThrow(()=>policy.requireDifferent('checker','maker'))});
 test('independent loan signature remains bound to the reviewed profile and bill',async()=>{selected=A;user=owner;const row=await kyc.findCase(A,'customer-1'),data=await kyc.payload(row),loan=(await store.readState(A)).state.loans.find(l=>l.id===loanId);const contract=await signing.validLoanContract(A,loan,row);assert.equal(contract.loanId,loanId);await assert.rejects(signing.validLoanContract(A,{...loan,amount:loan.amount+1},row));await assert.rejects(signing.validLoanContract(A,{...loan,kycRevision:row.revision+1},row));});
 test('company B has no attachment access to company A even with a known file ID',async()=>{const row=await kyc.getCase(A,caseRow.id),p=await kyc.payload(row);await assert.rejects(kyc.fileRow(B,p.profile.files.idFront.id,'customer-1'),/不可访问/)});
-test('KYC file replacement does not consume the 40-file quota',async()=>{selected=A;user=owner;const customer='quota-customer',sample=sql.prepare('SELECT metadata FROM kyc_files WHERE owner=? LIMIT 1').get(A).metadata;for(let i=0;i<39;i++)sql.prepare('INSERT INTO kyc_files (id,owner,customer_id,slot,metadata,ready,created_at) VALUES (?,?,?,?,?,1,?)').run(crypto.randomUUID(),A,customer,`dummy-${i}`,sample,new Date().toISOString());const bytes=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jX1sAAAAASUVORK5CYII=','base64'));const first=await kyc.recordFile(A,customer,'idFront',bytes,'image/png'),second=await kyc.recordFile(A,customer,'idFront',Uint8Array.from([...bytes,0]),'image/png');assert.notEqual(first.id,second.id);assert(sql.prepare('SELECT superseded_at FROM kyc_files WHERE id=?').get(first.id).superseded_at);assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM kyc_files WHERE owner=? AND customer_id=? AND ready=1 AND superseded_at IS NULL').get(A,customer).n,40)});
+test('KYC file replacement does not consume the 40-file quota',async()=>{selected=A;user=owner;const customer='quota-customer';for(let i=0;i<39;i++){const id=crypto.randomUUID(),slot='dummy-'+i,metadata=Buffer.from(await kyc.encryptBytes(new TextEncoder().encode(JSON.stringify({id,slot,size:1})),`file:${A}:${customer}:${id}`)).toString('base64');sql.prepare('INSERT INTO kyc_files (id,owner,customer_id,slot,metadata,ready,created_at) VALUES (?,?,?,?,?,1,?)').run(id,A,customer,slot,metadata,new Date().toISOString())};const bytes=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jX1sAAAAASUVORK5CYII=','base64'));const first=await kyc.recordFile(A,customer,'idFront',bytes,'image/png'),second=await kyc.recordFile(A,customer,'idFront',Uint8Array.from([...bytes,0]),'image/png');assert.notEqual(first.id,second.id);assert(sql.prepare('SELECT superseded_at FROM kyc_files WHERE id=?').get(first.id).superseded_at);assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM kyc_files WHERE owner=? AND customer_id=? AND ready=1 AND superseded_at IS NULL').get(A,customer).n,40)});
 async function approvedCustomer(id){const row=await kyc.initialize(A,id,false);if(row.status!=='approved')await kyc.transition(row,'approved',await kyc.payload(row),'test-fixture','test');}
 test('company fee settings are admin-only, isolated, versioned; existing bills remain unchanged',async()=>{
  selected=A;user=owner;const before=await team.pricingFor(A);const savedLoan=(await store.readState(A)).state.loans[0];
@@ -451,4 +451,46 @@ test('invite binding cannot create non-admin SSO without MFA',async()=>{
  const response=await auth.POST(new Request('http://localhost/api/team/auth',{method:'POST',headers:{origin:'http://localhost','content-type':'application/json'},body:JSON.stringify({action:'bind_invite',company:'synthetic-a',inviteToken:token,portal:'business'})}));
  assert.equal(response.status,403);assert.equal((await response.json()).code,'MFA_REQUIRED_FOR_INVITE');
  user=owner;
+});
+
+test('Q8 scanner saturation, rejection, outage and timeout fail closed with retry envelopes',async()=>{
+ const previous={fetch:context.fetch,AbortController:context.AbortController,setTimeout:context.setTimeout},url=env.KYC_SCAN_URL,limit=env.KYC_SCAN_MAX_CONCURRENCY;
+ context.AbortController=AbortController;env.KYC_SCAN_URL='https://scanner.example.test/scan';env.KYC_SCAN_MAX_CONCURRENCY='1';
+ const bytes=Uint8Array.of(1,2,3);
+ try{
+  let release;context.fetch=async()=>{await new Promise(resolve=>{release=resolve});return Response.json({clean:true})};
+  const first=kyc.scanFile(bytes);await assert.rejects(kyc.scanFile(bytes),e=>e.status===503&&e.code==='SERVICE_UNAVAILABLE'&&e.retryAfter===3);release();await first;
+  for(const reply of [()=>Response.json({clean:false},{status:503}),()=>new Response('invalid'),()=>Promise.reject(new Error('synthetic network failure'))]){
+   context.fetch=reply;let error;try{await kyc.scanFile(bytes)}catch(e){error=e}
+   const response=kyc.failed(error,new Request('http://localhost/api/kyc/files'));const body=await response.json();assert.equal(response.status,503);assert.equal(body.code,'SERVICE_UNAVAILABLE');assert.equal(body.params.retryAfterSeconds,3);assert.equal(response.headers.get('Retry-After'),'3');assert.equal(body.requestId,response.headers.get('X-Request-Id'));
+  }
+  context.fetch=async()=>Response.json({clean:false},{status:422});await assert.rejects(kyc.scanFile(bytes),e=>e.status===422);
+  context.setTimeout=(fn,ms)=>{assert.equal(ms,30000);return setTimeout(fn,2)};context.fetch=async(_url,{signal})=>new Promise((_resolve,reject)=>signal.addEventListener('abort',()=>reject(new Error('synthetic timeout'))));await assert.rejects(kyc.scanFile(bytes),e=>e.code==='SERVICE_UNAVAILABLE');
+  context.setTimeout=previous.setTimeout;context.fetch=async()=>Response.json({clean:true});await kyc.scanFile(bytes);
+  delete env.KYC_SCAN_MAX_CONCURRENCY;const releases=[];context.fetch=async()=>{await new Promise(resolve=>releases.push(resolve));return Response.json({clean:true})};
+  const pending=Array.from({length:8},()=>kyc.scanFile(bytes));await assert.rejects(kyc.scanFile(bytes),e=>e.status===503);for(const release of releases)release();await Promise.all(pending);
+ }finally{Object.assign(context,previous);if(url===undefined)delete env.KYC_SCAN_URL;else env.KYC_SCAN_URL=url;if(limit===undefined)delete env.KYC_SCAN_MAX_CONCURRENCY;else env.KYC_SCAN_MAX_CONCURRENCY=limit}
+});
+
+test('Q8 upload errors and timing logs share one request id without recording request data',async()=>{
+ const route=await mod('@/app/api/kyc/files/route'),saved=context.console,logs=[];context.console={...console,info:(...args)=>logs.push(args)};
+ try{const response=await route.POST(new Request('http://localhost/api/kyc/files',{method:'POST',headers:{origin:'https://invalid.example.test',authorization:'synthetic-private-header'},body:'synthetic-private-body'}));const body=await response.json();assert.equal(response.status,403);assert.equal(response.headers.get('X-Request-Id'),body.requestId);assert(logs.some(x=>x[1].requestId===body.requestId&&typeof x[1].durationMs==='number'));assert(!JSON.stringify(logs).includes('synthetic-private'))}finally{context.console=saved}
+});
+
+test('Q8 size, count and encrypted byte quotas include pending uploads and preserve replacement',async()=>{
+ const png=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jX1sAAAAASUVORK5CYII=','base64')),limits=await mod('@/lib/kyc/limits');
+ const oldFiles=env.KYC_CUSTOMER_MAX_FILES,oldBytes=env.KYC_CUSTOMER_MAX_BYTES;
+ try{
+  await assert.rejects(kyc.recordFile(A,'q8-oversize','idFront',new Uint8Array(limits.KYC_IMAGE_MAX_BYTES+1),'image/png'),e=>e.status===413&&e.code==='PAYLOAD_TOO_LARGE');
+  await assert.rejects(kyc.recordFile(A,'q8-oversize','idFront',new Uint8Array(limits.KYC_FILE_MAX_BYTES+1),'application/pdf'),e=>e.status===413);
+  let read=false;await assert.rejects(kyc.boundedBody({headers:new Headers({'content-length':'999'}),get body(){read=true;throw new Error('must not read')}},100),e=>e.status===413&&e.code==='PAYLOAD_TOO_LARGE');assert.equal(read,false);
+  env.KYC_CUSTOMER_MAX_BYTES='100';const first=await kyc.recordFile(A,'q8-bytes','idFront',png,'image/png');
+  await assert.rejects(kyc.recordFile(A,'q8-bytes','idBack',png,'image/png'),e=>e.status===409&&e.code==='CONFLICT'&&e.params.maxBytes===100);
+  const replacement=await kyc.recordFile(A,'q8-bytes','idFront',Uint8Array.from([...png,0]),'image/png');assert.notEqual(first.id,replacement.id);assert(sql.prepare('SELECT superseded_at FROM kyc_files WHERE id=?').get(first.id).superseded_at);
+  await kyc.recordFile(B,'q8-bytes','idBack',png,'image/png');
+  delete env.KYC_CUSTOMER_MAX_BYTES;env.KYC_CUSTOMER_MAX_FILES='1';
+  const race=await Promise.allSettled(['idFront','idBack'].map(slot=>kyc.recordFile(A,'q8-race',slot,png,'image/png')));assert.equal(race.filter(x=>x.status==='fulfilled').length,1);assert.equal(race.find(x=>x.status==='rejected').reason.status,409);assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM kyc_files WHERE owner=? AND customer_id=? AND superseded_at IS NULL').get(A,'q8-race').n,1);
+  await kyc.recordFile(A,'q8-signature','signature',png,'image/png');await assert.rejects(kyc.recordFile(A,'q8-signature','signature',png,'image/png'),e=>e.code==='CONFLICT');
+  env.KYC_SCAN_URL='https://scanner.example.test/scan';context.AbortController=AbortController;context.fetch=async()=>Response.json({clean:false},{status:503});await assert.rejects(kyc.recordFile(A,'q8-scanner-failure','idFront',png,'image/png'),e=>e.status===503);assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM kyc_files WHERE owner=? AND customer_id=?').get(A,'q8-scanner-failure').n,0);
+ }finally{delete env.KYC_SCAN_URL;delete context.fetch;delete context.AbortController;if(oldFiles===undefined)delete env.KYC_CUSTOMER_MAX_FILES;else env.KYC_CUSTOMER_MAX_FILES=oldFiles;if(oldBytes===undefined)delete env.KYC_CUSTOMER_MAX_BYTES;else env.KYC_CUSTOMER_MAX_BYTES=oldBytes}
 });
