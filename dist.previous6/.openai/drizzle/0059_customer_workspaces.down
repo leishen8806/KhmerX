@@ -1,0 +1,4 @@
+DROP INDEX IF EXISTS loan_index_status;
+DROP INDEX IF EXISTS loan_index_customer;
+DROP TABLE IF EXISTS loan_index;
+DROP TABLE IF EXISTS customer_workspaces;

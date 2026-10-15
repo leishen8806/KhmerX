@@ -1,0 +1,1 @@
+import{c as e,s as t,u as n}from"./h5-auth-CYNPpUIp.js";import{r,t as i}from"./funding-settings-DujXGdw2.js";async function a(){try{return n(await i())}catch(e){return t(e)}}async function o(i){try{return n(await r(await e(i)))}catch(e){return t(e)}}export{a as GET,o as POST};
