@@ -33,7 +33,7 @@ PAYEASE_LIMIT_SCALE：___（默认 1，不改）
 2. 每个窗口：A（停机写 fixture）→ B（`smoke` 3 客户 → `main`；同时源站 `sample-resources.sh`）→ C（停机 `db-check` + `cleanup`）。
 3. 提交：报告 JSON、资源 CSV、`db-check` 与 `cleanup-report`（均不含 token）到 `scripts/loadtest/reports/`，把分支名发给 Claude。
 
-## 4. 建议的通过判据（**待技术负责人确认；以下是 Claude 的默认建议，不是已冻结的指标**）
+## 4. 闸门 A 通过判据（**已按默认冻结，决策 D-22，2026-10-16 技术负责人确认**）
 
 - 各结果类别之和 = 计划客户数；**最终状态不一致的客户 = 0**；`duplicate_loans`、`wrong_owner_loan` = 0。
 - 首次写请求冲突率 < 1%（L1 契约 §4.2 口径）；无 `WORKSPACE_PAYLOAD_LIMIT` 以外的 5xx 成批出现。
