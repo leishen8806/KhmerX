@@ -13,9 +13,9 @@ import {preflight} from './rows-preflight.mjs';
 import {analyze} from './analyze-rows.mjs';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'../..'),label='本地 harness，非灰度、非 600 客户实测';
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
-export async function api(m,c,input,owner=m.target.tenantId){
+export async function api(m,c,input,owner=m.target.tenantId,timeoutMs=15000){
  const url=new URL(m.target.baseUrl);check(['127.0.0.1','localhost'].includes(url.hostname)&&['http:','https:'].includes(url.protocol)&&!url.username&&!url.password,'Loopback verification required');
- const response=await fetch(m.target.baseUrl+'/api/h5/state',{method:input?'POST':'GET',redirect:'error',signal:AbortSignal.timeout(15000),headers:{Origin:m.target.baseUrl,'Content-Type':'application/json','X-Request-Id':randomUUID(),Cookie:`payease_company=${owner}; payease_h5_session=${c.sessionToken}`,'oai-authenticated-user-id':'synthetic-rows-runner','oai-authenticated-user-email':'synthetic-rows@example.test'},...(input?{body:JSON.stringify(input)}:{})});
+ const response=await fetch(m.target.baseUrl+'/api/h5/state',{method:input?'POST':'GET',redirect:'error',signal:AbortSignal.timeout(timeoutMs),headers:{Origin:m.target.baseUrl,'Content-Type':'application/json','X-Request-Id':randomUUID(),Cookie:`payease_company=${owner}; payease_h5_session=${c.sessionToken}`,'oai-authenticated-user-id':'synthetic-rows-runner','oai-authenticated-user-email':'synthetic-rows@example.test'},...(input?{body:JSON.stringify(input)}:{})});
  return {status:response.status,body:await response.json()};
 }
 export async function verify({main,aux,wrongOwner,timeout,database}){
@@ -36,7 +36,7 @@ export async function verify({main,aux,wrongOwner,timeout,database}){
  for(const c of timeout.customers){
   const payload={...create(c),requestId:`${timeout.runId}-${c.index}-create`};
   await new Promise(resolve=>{const req=httpRequest(timeout.target.baseUrl+'/api/h5/state',{method:'POST',headers:{Origin:timeout.target.baseUrl,'Content-Type':'application/json',Cookie:`payease_company=${timeout.target.tenantId}; payease_h5_session=${c.sessionToken}`,'oai-authenticated-user-id':'synthetic-rows-runner','oai-authenticated-user-email':'synthetic-rows@example.test'}},res=>{res.destroy();resolve()});req.on('finish',()=>setImmediate(()=>{req.destroy();resolve()}));req.on('error',()=>resolve());req.setTimeout(15000,()=>{req.destroy();resolve()});req.end(JSON.stringify(payload))});
-  let found;for(let i=0;i<20;i++){found=await api(timeout,c);if(found.body.state?.loans?.length)break;await delay(500)}
+  let found;const deadline=Date.now()+10000;while(Date.now()<deadline){found=await api(timeout,c,undefined,timeout.target.tenantId,Math.max(1,deadline-Date.now()));if(found.body.state?.loans?.length)break;await delay(Math.min(500,Math.max(0,deadline-Date.now())))}
   const committed=found.body.state?.loans?.length===1,repeated=await api(timeout,c,payload),state=await api(timeout,c);result.timeoutResults.push({index:c.index,committedBeforeReplay:committed,status:repeated.status,category:committed&&state.body.state?.loans?.length===1?'create_ok_after_replay':'create_missing'});if(!committed||![200,409].includes(repeated.status)||state.body.state?.loans?.length!==1||state.body.state.loans[0].customerId!==c.customerId)result.checks.timeoutReplay=false;
  }
  const db=new DatabaseSync(database,{readOnly:true});try{
@@ -82,7 +82,7 @@ export async function localAcceptance(mode,count=50){
   verification.gitHead=gitHead;verification.runId=run;const final=JSON.parse(readFileSync(join(reports,run+'-main-summary.json')));verification.checks.allPlannedCustomers=Object.values(final.counts).reduce((a,b)=>a+b,0)===count&&final.counts.completed+final.counts.create_ok_after_replay===count;verification.pass&&=verification.checks.allPlannedCustomers;writeFileSync(join(reports,run+'-verification.json'),JSON.stringify(verification,null,2));
   console.log(label);console.log(JSON.stringify({run,mode,pass:verification.pass,checks:verification.checks,mismatches:verification.mismatches}));return verification;
  }finally{
-  await Promise.race([mf.dispose(),delay(5000)]);
+  await mf.dispose();
   for(const {m,file}of prepared){const o={root,config,profile:'local-harness',baseUrl,database};const p=cleanup(o,m),report=cleanup({...o,apply:true,confirm:p.fingerprint},m);writeFileSync(join(reports,m.runId+'-cleanup.json'),JSON.stringify({label,runId:m.runId,applied:report.applied,before:report.before,after:report.after,tombstone:report.tombstone,retainedAudit:report.retainedAudit},null,2));unlinkSync(file)}
  }
 }
