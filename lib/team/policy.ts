@@ -49,6 +49,7 @@ export const actionLabels:Record<string,string>={approve:'贷款初审通过',re
 export const roleDisplayActions:Partial<Record<TeamRole,string[]>>={
  collection_admin:['贷后任务改派与团队分配'],
  collector:['记录跟进、承诺还款与客户异议'],
+ dept_admin:['KYC 审核、补件与协作'],
  ops:['客户分配与资料流转']
 };
 export function allowAction(m:Member,a:Assignment|undefined,action:string){return !!m.active&&!!actionRoles[action]?.includes(m.role)&&(action.startsWith('bot_')||canSee(m,a));}
