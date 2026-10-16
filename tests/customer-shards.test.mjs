@@ -49,3 +49,15 @@ test('600 distinct customers write isolated shards and loan indexes',async()=>{
  await Promise.all(Array.from({length:600},(_,i)=>{const id=`customer-${i}`;const loan={id:`loan-${i}`,customerId:id,status:'registered',createdAt:new Date(0).toISOString()};const state={loans:[loan],events:[],entries:[],notifications:[],requests:[`request-${i}`],requestDigests:{[`request-${i}`]:'digest'},bots:[],activeBotId:undefined,postloan:undefined};return writeCustomerShard(db,'owner',id,state,0,`request-${i}`)}));
  assert.equal(db.sql.prepare('SELECT COUNT(*) AS n FROM customer_workspaces').get().n,600);assert.equal(db.sql.prepare('SELECT COUNT(*) AS n FROM loan_index').get().n,600);assert.equal(JSON.parse(db.sql.prepare('SELECT payload FROM customer_workspaces WHERE customer_id=?').get('customer-42').payload).loans[0].id,'loan-42');
 });
+
+test('failed shard index update rolls back the first customer row insert',async()=>{
+ const sql=new DatabaseSync(':memory:');
+ sql.exec('CREATE TABLE customer_workspaces(owner TEXT NOT NULL,customer_id TEXT NOT NULL,revision INTEGER NOT NULL,payload TEXT NOT NULL,updated_at TEXT NOT NULL,PRIMARY KEY(owner,customer_id));CREATE TABLE loan_index(owner TEXT NOT NULL,loan_id TEXT NOT NULL,customer_id TEXT NOT NULL,status TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,PRIMARY KEY(owner,loan_id));');
+ const db={
+  prepare(query){return {bind(...args){const statement=sql.prepare(query);return {async first(){return statement.get(...args)||null},async all(){return {results:statement.all(...args)}},async run(){const result=statement.run(...args);return {meta:{changes:Number(result.changes)}}}}}}},
+  async batch(statements){sql.exec('BEGIN');try{const result=[];for(const statement of statements){result.push(await statement.run());if(result.length===2)throw new Error('synthetic index failure')}sql.exec('COMMIT');return result}catch(error){sql.exec('ROLLBACK');throw error}}
+ };
+ const state={loans:[{id:'loan-a',customerId:'A',status:'registered',createdAt:new Date(0).toISOString()}],events:[],entries:[],notifications:[],requests:[],requestDigests:{},bots:[]};
+ await assert.rejects(()=>writeCustomerShard(db,'owner','A',state,0),/synthetic index failure/);
+ assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM customer_workspaces').get().n,0);
+});

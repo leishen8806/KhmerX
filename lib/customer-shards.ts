@@ -53,11 +53,11 @@ export async function writeCustomerShard(db:DB,owner:string,customerId:string,st
   shard.requestDigests[requestId]=state.requestDigests[requestId];
  }
  if(shard.requests.length>500){const removed=shard.requests.splice(0,shard.requests.length-500);for(const id of removed)delete shard.requestDigests[id];}
- await db.prepare('INSERT OR IGNORE INTO customer_workspaces(owner,customer_id,revision,payload,updated_at) VALUES(?,?,?,?,?)')
-  .bind(owner,customerId,0,JSON.stringify(shard),new Date().toISOString()).run();
  const expected=strictRevision?revision:(existing?.revision??0);
  const next=expected+1;
  const result=await db.batch([
+  db.prepare('INSERT OR IGNORE INTO customer_workspaces(owner,customer_id,revision,payload,updated_at) VALUES(?,?,?,?,?)')
+   .bind(owner,customerId,0,JSON.stringify(shard),new Date().toISOString()),
   db.prepare('UPDATE customer_workspaces SET revision=?,payload=?,updated_at=? WHERE owner=? AND customer_id=? AND revision=?')
    .bind(next,JSON.stringify(shard),new Date().toISOString(),owner,customerId,expected),
   ...indexStatements(db,owner,customerId,shard.loans,next),
