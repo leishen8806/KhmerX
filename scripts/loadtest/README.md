@@ -131,3 +131,49 @@ possible; these scripts never discard an existing checkout database themselves.
 A2 tests run real mutate/ensureAssignment for off/on, authenticate aux sessions,
 verify missing Ops rejection, protected unrelated records and all seven guards.
 These are source/SQLite service tests, not L1-B HTTP or 600-customer load evidence.
+
+## L1-B rows harness (local only)
+
+Requires Node >=22.13, installed dependencies, k6, and a fresh built worker:
+`node scripts/run-framework.mjs build`. No application source is patched.
+PowerShell: set `$env:K6_BIN` to the installed k6 executable, then run:
+
+```sh
+node scripts/loadtest/verify-rows.mjs --local-acceptance off 50
+node scripts/loadtest/verify-rows.mjs --local-acceptance on 50
+```
+
+Each invocation creates a new disposable local D1 under `.wrangler/state/`, applies
+all real migrations, and reuses A1/A2 for five independent datasets. Smoke runs
+before main; consumed customers never return to main. No Telegram calls or new
+auth bypass. Synthetic signed sessions exercise real HTTP customer authentication;
+local demo mode requires the existing test flag and is not production evidence.
+The orchestration disables Cloudflare metadata fetching and binds loopback only.
+
+For an already prepared local server use `run-rows.sh` with ROWS_MANIFEST,
+BASE_URL, CUSTOMER_ROWS and DATASET; ROWS_SUMMARY and per-request CSV are generated.
+The runner intentionally supports loopback only: origin-IP/Host overrides and gray
+execution remain HOLD. After preflight it fixes a barrier 15 seconds ahead and
+assigns one unique customer/session per VU. Writes reuse body requestId on retry;
+trace headers rotate UUIDs. No 429 retry; conflict detection is message-based
+(OPEN-1). Service retry-after is capped at five seconds. Missing iterations remain
+in the customer denominator. The legacy shared revision may rise as other clients
+write, so concurrent readbacks require nondecreasing revision and unchanged bill
+confirmation; isolated replay checks require exact revision equality.
+
+Reports start with the local-only disclaimer. CSV contains request intervals and
+sanitized tags, never cookies/body/credentials. Analysis measures real overlap,
+first-write conflict denominator, retry reasons, error codes and latency. Readback
+window metrics include only polls after the last write; earlier overlapping polls
+remain in total request statistics. Insufficient overlap and >0.5% 429 are flagged;
+local output cannot authorize Gate E. Server internal retries are unavailable.
+
+Verification covers invalid sessions, cross-customer access, wrong owner, both
+replays, immediate client disconnect plus <=10s committed-write polling, and an
+independent read-only SQLite check of partitions/index/assignments/audit. Nonzero
+mismatches or failed assertions return failure. Finally A2 runs dry-run/apply per
+dataset, retains immutable audit and disabled tenants, then removes manifests.
+A process crash needs manual fixture cleanup; never discard unrelated databases.
+Raw CSV/logs stay local; commit sanitized reports only, including raw CSV SHA256.
+Current source may fail on-mode confirm_bill replay: record failure, do not relax
+its unchanged-revision assertion or modify application code in this task.

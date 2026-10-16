@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")/../.."
+: "${ROWS_MANIFEST:?private manifest required}" "${BASE_URL:?loopback origin required}" "${CUSTOMER_ROWS:?mode required}"
+VUS=${VUS:-50}
+REPORT_PREFIX=${REPORT_PREFIX:-scripts/loadtest/reports/rows-local}
+node scripts/loadtest/rows-preflight.mjs "$ROWS_MANIFEST" "$BASE_URL" "$CUSTOMER_ROWS" "$VUS" "${DATASET:-main}"
+mkdir -p "$(dirname "$REPORT_PREFIX")"
+export VUS BASE_URL ROWS_MANIFEST
+export START_AT=$(( $(date +%s) * 1000 + 15000 ))
+export GIT_HEAD
+GIT_HEAD=$(git rev-parse HEAD)
+export ROWS_SUMMARY="$REPORT_PREFIX-summary.json"
+export K6_CSV_TIME_FORMAT=unix_nano
+"${K6_BIN:-k6}" run --out "csv=$REPORT_PREFIX.csv" scripts/loadtest/rows-flow.js
+node scripts/loadtest/analyze-rows.mjs "$REPORT_PREFIX.csv" "$ROWS_SUMMARY" "$REPORT_PREFIX.json"
