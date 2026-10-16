@@ -194,6 +194,15 @@ PR 小于 400 行。
 
 ---
 
+## 现有检查错误修复队列（R1 → R2 → R3）
+基线 `461d070`：`npm test` 1 失败、typecheck 1 错误、lint 2 errors。**执行顺序固定：R1 → R2 → R3**；不改变上方各卡状态，不把任何灰度操作标记为可执行。
+- **R1**　`docs/tasks/codex-prompts/R1-notification-retry-audit.md`　分支 `fix/server/notification-retry-audit`（`Line: server`）：补 `audit` 导入，修复运行时失败与 typecheck 的同一根因；R1-B（审计原子性）为可选的单独分支。
+- **R2**　`docs/tasks/codex-prompts/R2-locale-render-refs.md`　分支 `fix/client/locale-render-refs`（`Line: client`）：消除两处渲染期写 ref 的 lint error，不降级规则。
+- **R3**　`docs/tasks/codex-prompts/R3-full-recheck.md`：R1、R2 合并后做全量复核，只出报告。
+- 仅本机 Docker（`node:22.22.1-bookworm-slim`，`--network none`）验证；L2/Q12、灰度/VPS 仍为 HOLD。
+
+---
+
 ## L2 灰度机压测执行与报告（人工 + 脚本）
 ```
 前提：159.223.77.134 已部署并且 testapi.khmerx.org 不再返回 521；S4b、S-LT1 已合并；灰度机 PAYEASE_ENV=gray。
