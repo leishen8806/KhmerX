@@ -11,11 +11,13 @@ import {assertFundingCapacity} from '@/lib/funding-limits';
 import {fundingRiskEventStatement} from './funding-risk-events';
 import {fundingSettingsForTenant} from './funding-settings';
 import {serializeWorkspacePayload} from '@/lib/workspace-payload';
+import {backfillLegacyLoanBindings} from './legacy-loans';
 export async function adminFunds(p:any){
  const s=await staff();if(!s||s.member.role!=='admin')throw new AuthError('仅本公司 Admin 可执行资金管理',403);
  if(!['admin_disburse','admin_repay'].includes(p.action))throw new AuthError('操作无效');
  const testMode=(env as any).KHMERX_TEST_MODE==='true';
  if(!testMode&&!p.emergencyId)throw new AuthError('管理员资金操作必须经过已批准的应急授权',403,undefined,'FUNDING_DUAL_CONTROL_REQUIRED');
+ await backfillLegacyLoanBindings(s.tenant.id);
  let emergency:any=null;
  if(typeof p.requestId!=='string'||!/^[a-f0-9-]{36}$/.test(p.requestId))throw new AuthError('请求编号无效');
  const key=s.user.userId+':'+p.requestId,digest=requestFingerprint(p),{state,revision}=await readState(s.tenant.id);
