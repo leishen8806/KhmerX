@@ -215,3 +215,36 @@ rows after create; unused runs are completely removed. Restart and check readine
 Securely delete manifests on both machines after cleanup. Reports contain counts/hashes,
 not session tokens. Private mode-600 manifests are the explicit credential artifact.
 Restore backups only after owner authorization, with the application stopped.
+
+
+### L1-G2 direct-origin rows (operator template; execution remains HOLD)
+
+Only manifests produced by gray-config are accepted. Both host and origin IP must be
+in `LOADTEST_ALLOWED_HOSTS`; the sole approved IP is `159.223.77.134`. No Cloudflare
+mode exists. The operator declares actual configured scales as JSON, not estimates:
+```sh
+export LOADTEST_ALLOWED_HOSTS=159.223.77.134,testapi.khmerx.org
+export ORIGIN_IP=159.223.77.134 BASE_URL=https://testapi.khmerx.org CUSTOMER_ROWS=off
+export ROWS_MANIFEST=/private/smoke.json DATASET=smoke VUS=3
+bash scripts/loadtest/run-rows.sh --declared-scales \
+  '{"PAYEASE_GATEWAY_RATE_SCALE":30,"PAYEASE_LIMIT_SCALE":1}'
+```
+After smoke succeeds, use the independent main manifest and authorized client count.
+The runner maps the approved hostname directly to the approved origin, with TLS
+verification skipped only for this gray direct-origin mode. Reports explicitly say
+“灰度直连源站，已跳过证书校验，未经 Cloudflare” and declare target, rows mode and scales.
+These synthetic fixtures do not measure Telegram registration or authentication.
+Observed write concurrency below 80% cannot support a claimed concurrency result.
+
+HTTP verification, with the sanitized main db-check JSON copied back by the operator:
+```sh
+node scripts/loadtest/verify-rows.mjs --gray /private/main.json /private/aux.json \
+  /private/wrong-owner.json /private/timeout.json /private/main-db-check.json \
+  scripts/loadtest/reports/gray-verification.json --declared-scales \
+  '{"PAYEASE_GATEWAY_RATE_SCALE":30,"PAYEASE_LIMIT_SCALE":1}'
+```
+The verifier never opens a database in gray mode. db-check contains counts/booleans
+only and is operator-supplied evidence; verify its provenance and matching window.
+For local-only smoke tests, a disposable k6 wrapper changes the already-validated
+hosts mapping to an in-container self-signed HTTPS server. This is test transport
+substitution, not permission to target another origin or proof of gray readiness.
