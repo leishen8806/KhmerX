@@ -270,6 +270,7 @@ test('completed followup exposes review capability only to assigned reviewer and
  const m=await team.staff();
  sql.prepare('UPDATE team_assignments SET reviewer_id=? WHERE tenant_id=? AND customer_id=?').run(m.member.id,A,row.customer_id);
  assert.equal((await f.kycFollowups(row.id)).canReview,true);
+ user=deptManager;assert.equal((await f.kycFollowups(row.id)).canReview,true);
  user={userId:'correct',email:'pending@example.test'};assert.equal((await f.kycFollowups(row.id)).canReview,false);
  user=owner;assert.equal((await kyc.findCase(A,row.customer_id)).status,row.status);
 });

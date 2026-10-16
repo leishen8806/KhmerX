@@ -20,5 +20,5 @@ export async function kycFollowups(id:string,p?:any){
  const rows=(await db().prepare("SELECT id,actor,detail,created_at FROM team_audit WHERE tenant_id=? AND action='kyc_followup' AND json_extract(detail,'$.caseId')=? ORDER BY created_at DESC,id DESC LIMIT 100").bind(s.tenant.id,id).all<any>()).results;
  const account=await db().prepare('SELECT phone_mask,created_at FROM h5_accounts WHERE owner=? AND customer_id=?').bind(s.tenant.id,k.customer_id).first();
  const loans=(await readState(s.tenant.id)).state.loans.filter(l=>l.customerId===k.customer_id).map(l=>({id:l.id,status:l.status,kycCaseId:l.kycCaseId}));
- return {order:k,account,loans,canNote,canReview:s.member.role==='admin'||(s.member.role==='kyc'&&a?.reviewer_id===s.member.id),records:rows.map(({detail,...r}:any)=>({...r,...JSON.parse(detail)}))};
+ return {order:k,account,loans,canNote,canReview:['admin','dept_admin'].includes(s.member.role)||(s.member.role==='kyc'&&a?.reviewer_id===s.member.id),records:rows.map(({detail,...r}:any)=>({...r,...JSON.parse(detail)}))};
 }
