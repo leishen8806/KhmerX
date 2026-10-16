@@ -49,7 +49,7 @@ export async function writeCustomerShard(db:DB,owner:string,customerId:string,st
  const existing=await readCustomerShard(db,owner,customerId);
  const shard=shardForCustomer(state,customerId);
  const requests=existing?(JSON.parse(existing.payload) as CustomerShard):{requests:[] as string[],requestDigests:{} as Record<string,string>};
- shard.requests=Array.isArray(requests.requests)?requests.requests.slice(-499):[];
+ shard.requests=Array.isArray(requests.requests)?requests.requests.slice():[];
  shard.requestDigests={...(requests.requestDigests||{})};
  if(requestId&&state.requestDigests?.[requestId]!==undefined){
   shard.requests.push(requestId);

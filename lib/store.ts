@@ -82,13 +82,14 @@ export async function mutate(owner:string,p:any,customer?:{id:string;phoneMasked
     next.events[0].note=updated.note;next.notifications[0].text=updated.note;
    }
   }
+  // customerAction records the canonical customer-prefixed idempotency key.
   if(rowsMode==='on'&&customer){
-   if(await writeCustomerShard(db(),owner,customer.id,next,revision,p.requestId))return {state:next,revision:revision+1};
+   if(await writeCustomerShard(db(),owner,customer.id,next,revision,next.requests.at(-1)))return {state:next,revision:revision+1};
    continue;
   }
   const result=await db().prepare("UPDATE demo_workspaces SET payload=?,revision=revision+1 WHERE owner=? AND revision=? AND (? IS NULL OR EXISTS(SELECT 1 FROM kyc_cases WHERE id=? AND owner=? AND revision=? AND status='approved'))").bind(serializeWorkspacePayload(next),owner,revision,creationCase?.id||null,creationCase?.id||null,owner,creationCase?.revision??0).run();
   if(result.meta.changes===1){
-   if(rowsMode==='shadow'&&customer)void writeCustomerShard(db(),owner,customer.id,next,revision,p.requestId,false).catch(error=>console.error('[customer-shards] shadow write failed',error));
+   if(rowsMode==='shadow'&&customer)void writeCustomerShard(db(),owner,customer.id,next,revision,next.requests.at(-1),false).catch(error=>console.error('[customer-shards] shadow write failed',error));
    return {state:next,revision:revision+1};
   }
  }
