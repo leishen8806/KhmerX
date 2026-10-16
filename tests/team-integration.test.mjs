@@ -453,7 +453,7 @@ test('invite binding creates a restricted MFA setup session for non-admin staff'
  sql.prepare("INSERT INTO team_invites (token_hash,tenant_id,email,role,unit_id,issuer,expires_at,used) VALUES (?,?,?,?,?,?,?,0)").run(await (await mod('@/lib/h5-auth-core')).digest(token),A,email,'ops',null,issuer,Date.now()+3600000);
  user={userId:'invite-mfa-user',email};selected='';extraCookies='';
  const response=await auth.POST(new Request('http://localhost/api/team/auth',{method:'POST',headers:{origin:'http://localhost','content-type':'application/json'},body:JSON.stringify({action:'bind_invite',company:'synthetic-a',inviteToken:token,portal:'business'})}));
- assert.equal(response.status,200);assert.equal((await response.json()).mfaSetupRequired,true);extraCookies=response.headers.get('set-cookie')+';payease_staff_company='+A+';payease_staff_mode=sso;payease_staff_portal=business;payease_staff_mfa_setup='+memberId;selected=A;
+ assert.equal(response.status,200);assert.equal((await response.json()).mfaSetupRequired,true);assert.equal(sql.prepare("SELECT COUNT(*) AS n FROM team_audit WHERE tenant_id=? AND action='accept_invite' AND detail LIKE ?").get(A,`%${memberId}%`).n,1);extraCookies=response.headers.get('set-cookie')+';payease_staff_company='+A+';payease_staff_mode=sso;payease_staff_portal=business;payease_staff_mfa_setup='+memberId;selected=A;
  const teamRoute=await mod('@/app/api/team/route');const limited=await teamRoute.GET();assert.equal(limited.status,200);assert.equal((await limited.json()).mfaSetupRequired,true);await assert.rejects(team.manage({action:'add_unit',kind:'department',name:'blocked before MFA'}));const enrollment=await team.manage({action:'mfa_enroll_start'});assert.match(enrollment.mfa.secret,/^[A-Z2-7]{32}$/);
  user=owner;
 });
