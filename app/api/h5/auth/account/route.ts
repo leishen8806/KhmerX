@@ -10,4 +10,4 @@ export async function POST(request:Request){try{
  // submitted phone as its lightweight account key and can return directly.
  const b=await browser(request),result=body.action==='register'?await registerPhone(r,id,b,body,policy.channelId,!policy.phoneVerification&&!policy.passwordSetup):await loginPassword(r,id,b,body);
  await revokeSession(r,id,token);return json({authenticated:true,session:result.session,policy:await registrationPolicy(r,id,result.session.customerId)},200,{'Set-Cookie':cookie(request,SESSION_COOKIE,result.token,SESSION_TTL)})
-}catch(e){return failure(e)}}
+}catch(e){return failure(e,request)}}
