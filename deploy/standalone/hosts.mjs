@@ -1,3 +1,5 @@
+import {isIP} from 'node:net';
+
 export const DEFAULT_HOSTS = Object.freeze({
   publicClientHosts: ['payease.khmerx.org', 'payeas.khmerx.org', 'api.khmerx.org', 'admin.khmerx.org'],
   adminHosts: ['admin.khmerx.org'],
@@ -45,5 +47,7 @@ export function isTrustedProxyAddress(address) {
 export function resolveClientIp(remoteAddress, realIp) {
   const remote = String(remoteAddress || 'unknown').replace(/^::ffff:/, '');
   const candidate = String(realIp || '').split(',')[0].trim();
-  return isTrustedProxyAddress(remote) && candidate ? candidate : remote;
+  // Only accept a syntactically valid address from a trusted proxy.  An
+  // arbitrary header value must never become a rate-limit key.
+  return isTrustedProxyAddress(remote) && candidate && isIP(candidate) ? candidate : remote;
 }
