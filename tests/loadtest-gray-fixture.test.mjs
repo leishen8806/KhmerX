@@ -1,4 +1,6 @@
 import nodeTest from 'node:test';
+import fs from 'node:fs';
+import {syncBuiltinESMExports} from 'node:module';
 const test=(name,fn)=>nodeTest(name,{skip:process.platform!=='linux'||process.env.L1G_CONTAINER!=='1'},fn);
 import assert from 'node:assert/strict';
 import {mkdirSync,readFileSync,readdirSync,rmSync,writeFileSync,utimesSync,chmodSync,symlinkSync,linkSync,unlinkSync} from 'node:fs';
@@ -45,7 +47,7 @@ test('G1 gate 5.1-2/3: real Telegram guard, create and confirm_bill; immutable p
     const confirmed=await r.store.mutate(owner,{action:'confirm_bill',role:'mini',loanId:loan.id,quoteId:loan.billing.quoteId,billConfirmed:true,requestId:c.index+'-synthetic-bill'},{id:c.customerId,phoneMasked:'SYNTHETIC'});
     assert(confirmed.state.loans.find(l=>l.id===loan.id).billConfirmedAt);
    }
-   const counts=dbCheck(o,m);assert.equal(counts.modeMatches,true);assert.equal(counts.foreignCustomers,false);assert.equal(counts.uniqueOps,true);assert.equal(counts.audit,3);
+   const counts=dbCheck(o,m);assert.equal(counts.modeMatches,true);assert.equal(counts.foreignCustomers,false);assert.equal(counts.uniqueOps,true);assert.equal(counts.audit,3);assert.throws(()=>db.prepare('DELETE FROM team_audit WHERE tenant_id=?').run(owner),/append-only/);
    const planned=cleanup(o,m),report=cleanup({...o,apply:true,confirm:planned.fingerprint},m);assert.equal(report.tombstone,true);assert.equal(report.retainedAudit,3);assert.equal(report.grayTombstones>=1,true);
    assert.deepEqual(unrelated(db,owner),before);assert.deepEqual(db.prepare("SELECT sql FROM sqlite_master WHERE type='trigger' ORDER BY name").all(),triggers);
    assert.equal(db.prepare('PRAGMA foreign_keys').get().foreign_keys,1);
@@ -64,6 +66,7 @@ test('G1 refusals leave every table unchanged; no links, placeholders, productio
   reject({config:JSON.parse(readFileSync('deploy/standalone/gray/config.json.example','utf8'))});
   const marker=process.env.L1G_CONTAINER;delete process.env.L1G_CONTAINER;try{reject({})}finally{process.env.L1G_CONTAINER=marker}
   const uid=process.getuid;process.getuid=()=>999;try{reject({})}finally{process.getuid=uid}
+  const stat=fs.statSync;fs.statSync=(path,...args)=>{const s=stat(path,...args);if(path==='/out/manifests')s.uid=999;return s};syncBuiltinESMExports();try{reject({})}finally{fs.statSync=stat;syncBuiltinESMExports()}
   chmodSync('/out/manifests',0o755);try{reject({})}finally{chmodSync('/out/manifests',0o700)}
   utimesSync(o.backupRef,new Date(0),new Date(0));reject({});utimesSync(o.backupRef,new Date(Date.now()-1000),new Date(Date.now()-1000));
   const inside=o.d1Dir+'/backup.tgz';writeFileSync(inside,'synthetic');reject({backupRef:inside});unlinkSync(inside);
@@ -79,6 +82,7 @@ test('G1 unused five datasets cleanup, rollback, ownership guards and audit pres
   const {db,options:base}=f;
   for(const dataset of ['main','smoke','timeout','aux','wrong-owner']){
    const o={...base,runId:'unused-'+dataset+'-fixture',dataset,count:dataset==='main'?2:undefined},p=plan(o),m=prepare({...o,apply:true,confirm:p.fingerprint}).manifest,before=snapshot(db);
+   if(dataset==='aux'){const r=await runtime(db,o.config.bindings),auth=await r.load('@/lib/h5-auth'),core=await r.load('@/lib/h5-auth-core');for(const c of m.customers)assert.equal(await core.getSession(auth.runtime(),m.target.tenantId,c.sessionToken),null)}
    assert.throws(()=>cleanup({...o,apply:true,confirm:'bad'},m));assert.equal(snapshot(db),before);
    const planned=cleanup(o,m);assert.equal(snapshot(db),before);
    assert.throws(()=>cleanup({...o,apply:true,confirm:planned.fingerprint,persist(){throw Error('synthetic disk failure')}},m));assert.equal(snapshot(db),before);
@@ -141,5 +145,12 @@ test('G1 CLI plan/apply/db-check/cleanup sanitize output and protect private man
   for(const value of [o.config.accessPassword,o.config.sessionSecret,...Object.entries(o.config.bindings).filter(([k])=>/SECRET|TOKEN/.test(k)).map(([,v])=>v),...m.customers.flatMap(c=>[c.customerId,c.sessionToken])].filter(Boolean))assert(!output.includes(value));
   const refused=spawnSync(process.execPath,['scripts/loadtest/fixture/cli.mjs','plan',...args,'--count','invalid'],{encoding:'utf8'});assert.equal(refused.status,1);assert(!refused.stderr.includes(o.config.sessionSecret));
   for(const file of [config,manifest,report])unlinkSync(file);
+ }finally{f.close()}
+});
+
+test('G1 gray create without Ops fails the actual tenant scope trigger',async()=>{
+ const f=await grayFixture('on');try{
+  const o=f.options,m=prepare({...o,apply:true,confirm:plan(o).fingerprint}).manifest;f.db.prepare('DELETE FROM team_units WHERE id=?').run(m.opsDepartmentId);
+  const r=await runtime(f.db,o.config.bindings);await assert.rejects(r.store.mutate(m.target.tenantId,{action:'create',role:'mini',amount:5000,name:'SYNTH FIXTURE',consent:true,termDays:14,requestId:'synthetic-missing-ops'},{id:m.customers[0].customerId,phoneMasked:'SYNTHETIC'}),/tenant scope mismatch/);
  }finally{f.close()}
 });
