@@ -1,0 +1,58 @@
+{
+  "scope": "local isolated Docker only; gray/VPS HOLD",
+  "applicationBaseline": "304d27e125080d26ee5a95d9a9617aeda6a8c8cb",
+  "network": "none",
+  "image": "khmerx-q4-local:repair",
+  "cycles": [
+    {
+      "auth": 200,
+      "mode": "telegram",
+      "company": "KhmerX Gray",
+      "authenticated": false,
+      "state": 401,
+      "admin": 302,
+      "location": "/team/login",
+      "apiRoot": 404,
+      "productionHost": 400,
+      "counts": {
+        "team_companies": 1,
+        "team_members": 1,
+        "team_staff_credentials": 1,
+        "team_units": 3
+      }
+    },
+    {
+      "auth": 200,
+      "mode": "telegram",
+      "company": "KhmerX Gray",
+      "authenticated": false,
+      "state": 401,
+      "admin": 302,
+      "location": "/team/login",
+      "apiRoot": 404,
+      "productionHost": 400,
+      "counts": {
+        "team_companies": 1,
+        "team_members": 1,
+        "team_staff_credentials": 1,
+        "team_units": 3
+      }
+    }
+  ],
+  "scannerTokenReadableReadOnly": true,
+  "pass": true,
+  "configValidation": "5/5 local tests passed; example structural-only, deployment rejects placeholders",
+  "bootstrapValidation": "two runs in disposable Linux fixture; package/swap/firewall mocked; metadata identical",
+  "notValidated": [
+    "VPS or full gray Compose rollout",
+    "DNS/Caddy/TLS",
+    "Telegram Gateway OTP or Mini App real token",
+    "actual ClamAV scan"
+  ],
+  "templateSha256": {
+    "config.json.example": "7b8362e6b7ce6fa1f672444429d51dd7299c8a6db30cc350ec2372239a09cbc2",
+    "compose.gray.yaml": "b3ee24930f4225c2ee9e4d94dc85c912751397fe44fdcd13b7de55f05c66459a",
+    "bootstrap-gray.sh": "aac278c269cda41a5978f6feb8f07cbfdf0e9c73b7ea621f780113e9c6d11983",
+    "check-config.mjs": "3c4e28547ff99ae1749f4f4636f853a0a469de9a5ac77277b9bfa77e7c2ea0fa"
+  }
+}

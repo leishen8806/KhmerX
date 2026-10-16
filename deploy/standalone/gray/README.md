@@ -25,17 +25,56 @@ rules are checked before use.
 
 Copy `config.json.example` to `/opt/payease/data/config.json`, replace every
 `replace-with-*` value with a secret supplied through the deployment process,
-and keep the file root-readable only:
+and allow only root and the container node group (GID 1000) to read it:
 
 ```sh
-install -o root -g root -m 600 deploy/standalone/gray/config.json.example /opt/payease/data/config.json
+install -o root -g 1000 -m 640 deploy/standalone/gray/config.json.example /opt/payease/data/config.json
 vi /opt/payease/data/config.json
 python3 -m json.tool /opt/payease/data/config.json >/dev/null
-grep -q '"KHMERX_TEST_MODE": "false"' /opt/payease/data/config.json
 ```
 
 Use only fictional gray data. Do not put Telegram tokens, customer data, or
 credentials in Git.
+
+The example contains a syntactically valid synthetic tenant ID. Replace it with
+`t_` plus a dedicated UUID **before the first boot**; once data exists, keep the
+ID, slug and encryption/signing keys stable. This is a single public tenant, not
+a customer-facing institution selection. `slug` and `accounts` are mandatory
+for the actual gateway seed loop. The admin hash must use the existing staff
+format `v2:600000:<64-hex-salt>:<64-hex-PBKDF2-SHA256-digest>` (UTF-8 salt text,
+32 derived bytes); generate it through the approved credential process, never
+store a plaintext staff password in config/Git. The sample email is fictional.
+
+Authentication is Telegram, never demo; KHMERX_TEST_MODE stays false. Supply a
+dedicated Telegram Gateway token for H5 OTP and bot-1 token for Mini App initData.
+Bot-2 token may remain blank only while channel 2 is not used. These are separate
+credentials. KYC_DATA_SECRET is a stable >=32-character encryption secret;
+KYC_SCAN_URL targets the internal scanner. CUSTOMER_ROWS remains off; changing
+that flag, limit scales or running fixtures/load tests requires its separate gate.
+Admin/API hosts intentionally also appear in publicClientHosts, matching the
+formal gateway's Basic exemption; actual staff/customer authentication remains.
+
+Run the read-only preflight before building/starting (Node 22 container, no network):
+
+```sh
+# Repository sample: structure only; this MUST say NOT DEPLOYABLE.
+docker run --rm --network none -v "$PWD:/app:ro" -w /app node:22.22.1-bookworm-slim \
+  node deploy/standalone/gray/check-config.mjs --example deploy/standalone/gray/config.json.example
+# Actual config: rejects placeholders, demo, missing keys and non-gray hosts.
+docker run --rm --network none -v "$PWD:/app:ro" \
+  -v /opt/payease/data/config.json:/run/config.json:ro -w /app node:22.22.1-bookworm-slim \
+  node deploy/standalone/gray/check-config.mjs /run/config.json
+stat -c '%u:%g %a' /opt/payease/data /opt/payease/data/config.json /opt/payease/scanner-secrets
+# Expected: data 1000:1000 700; config 0:1000 640; scanner-secrets 1000:65534 2750.
+```
+
+If preflight fails, replace only the named field and rerun; values are never
+printed. Passing is configuration validation only, not proof that Telegram,
+ClamAV, TLS, DNS or the VPS is operational. The application must write its scanner
+token, so only its scanner-secret mount is writable; the scanner mount stays
+read-only. The setgid directory makes new tokens inherit scanner GID 65534.
+Bootstrap fixes existing token ownership/mode and directory ownership without recursively touching data.
+
 
 ## 3. Configure Caddy
 
@@ -72,13 +111,17 @@ From the repository root on the host:
 
 ```sh
 cd /opt/payease/app
-docker compose -f deploy/standalone/gray/compose.gray.yaml config
+docker compose -f deploy/standalone/gray/compose.gray.yaml config --quiet
 docker compose -f deploy/standalone/gray/compose.gray.yaml up -d --build
 docker compose -f deploy/standalone/gray/compose.gray.yaml ps
 curl --fail http://127.0.0.1:4300/healthz
+curl --fail http://127.0.0.1:4300/readyz
+curl --fail -H 'Host: testapi.khmerx.org' http://127.0.0.1:4300/api/h5/auth
+# Auth preflight must be 200, mode telegram, company KhmerX Gray (not Basic 401/503).
+# This read issues browser/session cookies but sends no OTP; never dump cookies.
 ```
 
-The application is capped at 1.5 GiB and the scanner gateway at 1.2 GiB.
+The application build context resolves to the repository root. The application is capped at 1.5 GiB and the scanner gateway at 1.2 GiB.
 `PAYEASE_MAX_IN_FLIGHT=32`, `PAYEASE_MAX_UPLOADS=2`, and the 15 MiB body cap
 are gray stability defaults; change them only after a measured test.
 
@@ -202,3 +245,23 @@ cat /etc/cron.d/khmerx-gray-hours
 ```
 
 The reviewed schedule is Saturday 17:45 close and Monday 08:45 open. To disable, remove this cron entry manually and explicitly open the gateway; removing cron alone does not remove a closed marker. No VPS commands, timezone changes or cron installation were executed by Codex.
+
+## Q4 repair validation (local evidence only)
+
+`local-acceptance.json` records a network-disabled disposable Docker run using
+fictional credentials and empty volumes: real standalone migrations/seeding,
+unauthenticated Telegram-mode auth preflight 200, state 401, admin redirect,
+API-root rejection and production Host rejection. Restarting the same container
+preserved one company/admin/credential and three units. Scanner UID 65534 could
+read its token via the read-only mount; the app generated it via the writable
+setgid directory. This did not run ClamAV, OTP or any VPS/production endpoint.
+
+```sh
+node --test tests/gray-config.test.mjs
+# Bootstrap fixture runs only in a disposable root container, with temporary
+# paths and mocked package/swap/firewall commands; no host settings are changed.
+```
+
+The example intentionally fails deployment preflight until placeholders and the
+synthetic tenant ID are replaced. Actual gray rollout and L2/Q12 remain HOLD;
+manual DNS/TLS/scanner readiness and separately authorized deployment are pending.
