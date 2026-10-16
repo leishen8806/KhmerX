@@ -13,10 +13,10 @@ export async function backfillLegacyLoanBindings(tenantId?:string):Promise<Backf
    if(loan.kycCaseId&&loan.kycRevision!=null)continue;
    const processed=await db().prepare('SELECT outcome FROM legacy_loan_backfill WHERE tenant_id=? AND loan_id=?').bind(row.owner,loan.id).first<any>();
    if(processed?.outcome==='linked'&&!loan.kycCaseId)continue;
-   if(!loan.customerId){const result=await db().prepare('INSERT OR IGNORE INTO legacy_loan_backfill(tenant_id,loan_id,outcome,detail,processed_at) VALUES (?,?,?,?,?)').bind(row.owner,loan.id,'unscoped','历史贷款缺少客户绑定，需人工核对',new Date().toISOString()).run();if(Number(result.meta?.changes||0)===1)summary.unscoped++;continue}
+   if(!loan.customerId){const result=await db().prepare('INSERT OR IGNORE INTO legacy_loan_backfill(tenant_id,loan_id,outcome,detail,processed_at) VALUES (?,?,?,?,?)').bind(row.owner,loan.id,'unscoped','历史贷款缺少客户绑定，需人工核对',new Date().toISOString()).run();if(Number(result.meta?.changes||0)===1){summary.unscoped++;await audit(row.owner,'system','legacy_loan_quarantined',{loanId:String(loan.id),outcome:'unscoped',reason:'历史贷款缺少客户绑定，需人工核对'}).run()}continue}
    const kyc=await db().prepare("SELECT id,revision FROM kyc_cases WHERE owner=? AND customer_id=? AND status='approved' ORDER BY updated_at DESC LIMIT 1").bind(row.owner,loan.customerId).first<any>();
    if(kyc){loan.kycCaseId=String(kyc.id);loan.kycRevision=Number(kyc.revision);changed=true;linkedRows.push({loanId:String(loan.id),kycCaseId:String(kyc.id),kycRevision:Number(kyc.revision)})}
-   else{const result=await db().prepare('INSERT OR IGNORE INTO legacy_loan_backfill(tenant_id,loan_id,outcome,detail,processed_at) VALUES (?,?,?,?,?)').bind(row.owner,loan.id,'quarantined','历史贷款未找到可核验的已通过 KYC，禁止新增放款',new Date().toISOString()).run();if(Number(result.meta?.changes||0)===1)summary.quarantined++}
+   else{const result=await db().prepare('INSERT OR IGNORE INTO legacy_loan_backfill(tenant_id,loan_id,outcome,detail,processed_at) VALUES (?,?,?,?,?)').bind(row.owner,loan.id,'quarantined','历史贷款未找到可核验的已通过 KYC，禁止新增放款',new Date().toISOString()).run();if(Number(result.meta?.changes||0)===1){summary.quarantined++;await audit(row.owner,'system','legacy_loan_quarantined',{loanId:String(loan.id),outcome:'quarantined',reason:'历史贷款未找到可核验的已通过 KYC，禁止新增放款'}).run()}}
   }
   if(!changed)continue;
   const updated=await db().prepare('UPDATE demo_workspaces SET payload=?,revision=revision+1 WHERE owner=? AND revision=?').bind(JSON.stringify(state),row.owner,row.revision).run();
