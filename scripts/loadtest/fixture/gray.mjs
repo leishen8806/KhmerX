@@ -26,7 +26,7 @@ export function grayTarget(o){
  grayOutput(o.outputDir);
  const folder=noLinks(join(dir,'miniflare-D1DatabaseObject')),candidates=[];
  for(const name of readdirSync(folder).filter(x=>x.endsWith('.sqlite'))){
-  const file=noLinks(join(folder,name));check(statSync(file).isFile()&&statSync(file).nlink===1,'Database hardlinks refused');
+  const file=noLinks(join(folder,name));check(statSync(file).isFile()&&statSync(file).nlink===1&&statSync(file).uid===1000&&statSync(file).gid===1000,'Database hardlinks refused');
   for(const suffix of ['-wal','-shm']){try{check(lstatSync(file+suffix).isFile()&&!lstatSync(file+suffix).isSymbolicLink()&&statSync(file+suffix).nlink===1,'Sidecar links refused')}catch(e){if(e.code!=='ENOENT')throw e}}
   const db=new DatabaseSync(file,{readOnly:true});try{if(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='team_companies'").get())candidates.push(file)}finally{db.close()}
  }
@@ -46,7 +46,7 @@ export function dbCheck(o,m){
   db.exec('PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000; BEGIN');
   const owner=m.target.tenantId,ids=new Set(m.customers.map(c=>c.customerId)),rows=(table,column='owner')=>db.prepare(`SELECT * FROM ${table} WHERE ${column}=?`).all(owner);
   const shards=rows('customer_workspaces'),index=rows('loan_index'),legacy=rows('demo_workspaces').flatMap(r=>JSON.parse(r.payload).loans||[]),units=rows('team_units','tenant_id');
-  const loans=[...legacy,...shards.flatMap(r=>JSON.parse(r.payload).loans||[])],foreign=[...rows('h5_accounts'),...shards,...index,...rows('team_assignments','tenant_id')].some(r=>!ids.has(r.customer_id))||loans.some(l=>!ids.has(l.customerId));
+  const loans=[...legacy,...shards.flatMap(r=>JSON.parse(r.payload).loans||[])],foreign=[...rows('h5_accounts'),...rows('h5_sessions'),...rows('kyc_cases'),...shards,...index,...rows('team_assignments','tenant_id')].some(r=>!ids.has(r.customer_id))||loans.some(l=>!ids.has(l.customerId));
   const counts={customer_workspaces:shards.length,loan_index:index.length,legacyLoans:legacy.length,assignments:rows('team_assignments','tenant_id').length,audit:rows('team_audit','tenant_id').length};
   const on=t.bindings.CUSTOMER_ROWS==='on',expected=m.dataset==='main'||m.dataset==='smoke'||m.dataset==='timeout'?m.customers.length:0;
   const result={...counts,assignmentsMatch:counts.assignments===expected&&counts.audit===expected,modeMatches:on?shards.length===expected&&index.length===expected&&legacy.length===0:shards.length===0&&index.length===0&&legacy.length===expected,uniqueOps:units.length===1&&units[0].id===m.opsDepartmentId&&units[0].kind==='department',foreignCustomers:foreign};
