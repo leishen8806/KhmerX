@@ -141,7 +141,10 @@ test('Telegram signed subscription, tenant isolation, one-time delivery and unsu
  // silently lost forever after an unsubscribe/subscribe cycle.
  const fieldsAgain={...fields,query_id:'resubscribe-qa'};const textAgain=Object.entries(fieldsAgain).sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>k+'='+v).join('\n');const hashAgain=createHmac('sha256',secret).update(textAgain).digest('hex');const initDataAgain=new URLSearchParams({...fieldsAgain,hash:hashAgain}).toString();
  await notify.bindNotifications(A,customerId,{action:'subscribe',botId,consent:true,initData:initDataAgain});await notify.dispatchCompany(A);assert.equal(calls,2);assert.equal(sql.prepare("SELECT status FROM telegram_outbox WHERE owner=? AND notification_id=?").get(A,resubscribeNotification).status,'sent');
- user=reviewer1;await assert.rejects(notify.notificationAdmin());user=owner;
+ user=reviewer1;await assert.rejects(notify.notificationAdmin());
+ const failedId=crypto.randomUUID();sql.prepare("INSERT INTO telegram_outbox (id,owner,notification_id,loan_id,subscription_id,status,attempts,next_at,updated_at,reason) VALUES (?,?,?,?,?,'unknown',4,0,?,'结果不明确')").run(failedId,A,'manual-retry-qa',reminderLoan.id,`${A}:${customerId}:${botId}`,new Date().toISOString());
+ await assert.rejects(notify.retryNotificationDelivery(failedId),/仅公司 Admin/);user=owner;
+ const retried=await notify.retryNotificationDelivery(failedId);assert.equal(retried.status,'retry');assert.equal(sql.prepare('SELECT status,attempts FROM telegram_outbox WHERE id=?').get(failedId).status,'retry');assert.equal(sql.prepare("SELECT action FROM team_audit WHERE tenant_id=? AND action='notification_delivery_manual_retry' ORDER BY created_at DESC LIMIT 1").get(A).action,'notification_delivery_manual_retry');
 });
 
  test('business bot switch is admin-only, company-isolated, and overrides customer-supplied channels',async()=>{
