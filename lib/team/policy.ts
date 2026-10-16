@@ -44,5 +44,11 @@ export function canSee(m:Member,a:Assignment|undefined,kind:'summary'|'kyc'='sum
 }
 export const actionRoles:Record<string,TeamRole[]>={approve:['lender'],reject:['lender'],approval_check:['checker'],disburse_request:['finance'],disburse:['finance_checker'],admin_disburse:['admin'],admin_repay:['admin'],overdue:['ops'],bot_save:['admin'],bot_add:['admin'],bot_switch:['admin']};
 export const actionLabels:Record<string,string>={approve:'贷款初审通过',reject:'拒绝贷款申请',approval_check:'独立复核贷款审批',disburse_request:'发起放款',disburse:'复核放款',admin_disburse:'管理员放款',admin_repay:'登记还款',overdue:'调整测试逾期情景',bot_save:'保存机器人配置',bot_add:'新增机器人',bot_switch:'切换业务机器人'};
+// These labels describe the separate post-loan service API. They are kept out
+// of actionRoles because that map is the authorization policy for loan actions.
+export const roleDisplayActions:Partial<Record<TeamRole,string[]>>={
+ collection_admin:['贷后任务改派与团队分配'],
+ collector:['记录跟进、承诺还款与客户异议']
+};
 export function allowAction(m:Member,a:Assignment|undefined,action:string){return !!m.active&&!!actionRoles[action]?.includes(m.role)&&(action.startsWith('bot_')||canSee(m,a));}
 export function requireDifferent(actor:string,other:string|undefined){if(!other||actor===other)throw Error('必须由另一位员工复核，不能复核本人操作');}
