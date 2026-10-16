@@ -26,3 +26,4 @@
 | D-19 | 本机身份 | 每条线用独立克隆目录并在该目录里设置本人名字（`git config user.name`），见 operating-rules §6 | 已确认 |
 | D-20 | App（Flutter）负责人 | 自 2026-10-15 起 App 端的修复与开发由苏晨负责；大旺不再改 `mobile/**`；App 提交说明末尾写 `Line: app`，分支前缀 `feat/app/` | 已确认 |
 | D-21 | 执行人 | 自 2026-10-15 起全部任务（服务端、客户端、App）由苏晨一个人执行；任务分三档（必做 / 有余力 / 延期），严格按档位顺序，见 `queue/su-chen.md` | 已确认 |
+| D-22 | 闸门 A 通过判据 | 按 `l2-gate-a-window-checklist.md` §4 默认执行：不一致客户 0；`duplicate_loans`/`wrong_owner_loan` 0；首次写冲突率 < 1%；观测并发 ≥ 目标 80%（否则标"观测并发不足"，不作闸门依据）；`db-check` 与模式一致；应用内存未触顶、无 OOM；结论只对灰度 2 vCPU/4GB 单节点、本规模成立，不写成"600 并发已验证" | 已确认 |
