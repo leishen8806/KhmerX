@@ -25,7 +25,15 @@ async function totp(secret:string,at=Date.now()){const key=await crypto.subtle.i
 export async function createMfaEnrollment(){const secret=base32(crypto.getRandomValues(new Uint8Array(20)));return {secret,protectedSecret:await protectMfaSecret(secret),uri:`otpauth://totp/KhmerX:${encodeURIComponent('Admin') }?secret=${secret}&issuer=KhmerX`}}
 export async function verifyTotpWithCounter(secret:string,code:string){if(!/^\d{6}$/.test(code))return null;const now=Date.now();for(const drift of [-30000,0,30000]){const result=await totp(secret,now+drift);if(equal(result.code,code))return result}return null}
 export async function verifyTotp(secret:string,code:string){return !!(await verifyTotpWithCounter(secret,code))}
-export async function createMfaChallenge(memberId:string,siteUserId:string){const token=randomToken();await db().prepare('INSERT INTO team_mfa_challenges (token_hash,member_id,site_user_id,expires_at,attempts) VALUES (?,?,?,?,0)').bind(await digest(token),memberId,siteUserId,Date.now()+300000).run();return token}
+export async function createMfaChallenge(memberId:string,siteUserId:string){
+ const now=Date.now();
+ // Keep the challenge table bounded. Expired challenges and consumed rows
+ // cannot be used again and should not accumulate across repeated logins.
+ await db().prepare('DELETE FROM team_mfa_challenges WHERE expires_at<? OR (consumed_at IS NOT NULL AND consumed_at<?)').bind(now,now-86400000).run();
+ const token=randomToken();
+ await db().prepare('INSERT INTO team_mfa_challenges (token_hash,member_id,site_user_id,expires_at,attempts) VALUES (?,?,?,?,0)').bind(await digest(token),memberId,siteUserId,now+300000).run();
+ return token;
+}
 export async function createSsoSession(memberId:string,siteUserId:string){
  const row=await db().prepare('SELECT m.id,m.tenant_id,m.version,m.email,c.active AS company_active,p.version AS credential_version FROM team_members m JOIN team_companies c ON c.id=m.tenant_id LEFT JOIN team_staff_credentials p ON p.member_id=m.id WHERE m.id=? AND m.active=1 AND c.active=1').bind(memberId).first<any>();
  if(!row||!row.company_active)throw new AuthError('员工登录已失效，请重新登录',401);
