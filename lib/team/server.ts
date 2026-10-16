@@ -63,12 +63,13 @@ export async function requireMfaStepUp(s:any,code:unknown){
  if(!s.member.mfa_enabled||!s.member.mfa_secret)throw new AuthError('请先启用 MFA 后再执行此安全操作',403,undefined,'MFA_STEP_UP_REQUIRED');
  const secret=await revealMfaSecret(s.member.mfa_secret),result=await verifyTotpWithCounter(secret,txt(code,6));if(!result)throw new AuthError('请使用当前 MFA 验证码确认此安全操作',403,undefined,'MFA_STEP_UP_REQUIRED');const claimed=await db().prepare('UPDATE team_members SET mfa_last_counter=? WHERE id=? AND mfa_enabled=1 AND (mfa_last_counter IS NULL OR mfa_last_counter<?)').bind(result.counter,s.member.id,result.counter).run();if(claimed.meta.changes!==1)throw new AuthError('当前 MFA 验证码已使用，请等待下一个时间片',403,undefined,'MFA_STEP_UP_REQUIRED');
 }
-async function requireRoleApproval(s:any,role:TeamRole,approvalId:unknown){
+async function requireRoleApproval(s:any,role:TeamRole,approvalId:unknown,unitId:string|null=null,memberId:string|null=null){
  if(isTestMode()||!highRiskRoles.has(role))return;
  const id=txt(approvalId,80);if(!id)throw new AuthError('高风险岗位变更必须经过第二名管理员批准',403,undefined,'STAFF_DUAL_CONTROL_REQUIRED');
- const row=await db().prepare('SELECT requester_id,status,scope_json,expires_at FROM team_emergency_access WHERE id=? AND tenant_id=?').bind(id,s.tenant.id).first<any>();
+ const row=await db().prepare('SELECT requester_id,status,scope_json,target_role,target_unit_id,target_member_id,expires_at FROM team_emergency_access WHERE id=? AND tenant_id=?').bind(id,s.tenant.id).first<any>();
  if(!row||row.status!=='active'||Number(row.expires_at)<=Date.now()||row.requester_id!==s.member.id)throw new AuthError('员工权限批准已失效或不属于当前管理员',403,undefined,'STAFF_DUAL_CONTROL_REQUIRED');
  let scope:string[]=[];try{scope=JSON.parse(row.scope_json)}catch{scope=[]}if(!scope.includes('staff'))throw new AuthError('批准范围不包含员工权限变更',403,undefined,'STAFF_DUAL_CONTROL_REQUIRED');
+ if(row.target_role!==role||((unitId||null)!==(row.target_unit_id||null))||((memberId||null)!==(row.target_member_id||null)))throw new AuthError('员工权限批准未绑定当前岗位、组织或员工',403,undefined,'STAFF_DUAL_CONTROL_REQUIRED');
  return id;
 }
 export async function manage(p:any){const u=await identity();
@@ -182,14 +183,14 @@ export async function manage(p:any){const u=await identity();
   if(p.action==='create_member'){
    if(!/^\S+@\S+\.\S+$/.test(email))throw new AuthError('请填写有效的员工登录邮箱');
    if(await db().prepare('SELECT id FROM team_members WHERE tenant_id=? AND lower(email)=?').bind(tenant,email).first())throw new AuthError('该员工已存在，请直接修改其权限');
-   await requireRoleApproval(s,role,p.emergencyId);
+   await requireRoleApproval(s,role,p.emergencyId,unitId,null);
    if(p.passwordLogin===true&&!isTestMode())throw new AuthError('生产环境不能由管理员生成或查看员工密码，请发送邀请让员工本人设置密码',403,undefined,'PASSWORD_ADMIN_ISSUE_FORBIDDEN');
    const id=crypto.randomUUID(),password=p.passwordLogin===true?randomToken().slice(0,24):null,passwordHash=password?await makePassword(password):null,inviteToken=(password||isTestMode())?null:randomToken(),inviteHash=inviteToken?await digest(inviteToken):null,inviteExpiry=inviteToken?Date.now()+7*24*3600000:null;const results=await db().batch([db().prepare(`INSERT INTO team_members (id,tenant_id,user_id,email,role,unit_id,active,version) SELECT ?,?,?,?,?,?,1,0 WHERE ${actorGuard}`).bind(id,tenant,password?'local:'+id:'pending:'+crypto.randomUUID(),email,role,unitId,...actorArgs),...(passwordHash?[db().prepare('INSERT INTO team_staff_credentials (member_id,password_hash) SELECT id,? FROM team_members WHERE id=?').bind(passwordHash,id)]:[]),...(inviteHash?[db().prepare('INSERT INTO team_invites (token_hash,tenant_id,email,role,unit_id,issuer,expires_at,used) SELECT ?,?,?,?,?,?,?,0 WHERE EXISTS (SELECT 1 FROM team_members WHERE id=? AND tenant_id=? AND active=1)').bind(inviteHash,tenant,email,role,unitId,s.member.id,inviteExpiry,id,tenant)]:[]),db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) SELECT ?,?,?,?,?,? WHERE changes()=1').bind(crypto.randomUUID(),tenant,u.userId,'create_member',JSON.stringify({member:id,email,role,unitId,invited:!!inviteToken}),new Date().toISOString())]);if(!results[0].meta.changes)throw new AuthError('管理权限已变化，请刷新',409);return {ok:true,...(password?{loginDetails:{company:s.tenant.slug,email,password}}:{inviteDetails:{company:s.tenant.slug,email,expiresAt:inviteExpiry,inviteToken}})}
   }
   const m=await db().prepare('SELECT * FROM team_members WHERE id=? AND tenant_id=?').bind(p.memberId,tenant).first<Member>();
   if(!m||m.id===s.member.id)throw new AuthError('不能修改自己的管理权限');
   if(p.version!==m.version)throw new AuthError('员工权限已变化，请刷新后重试',409);
-  if(role!==m.role)await requireRoleApproval(s,role,p.emergencyId);
+  if(role!==m.role)await requireRoleApproval(s,role,p.emergencyId,unitId,m.id);
   if(typeof p.active!=='boolean'||!txt(p.reason,300))throw new AuthError('请设置启停状态并填写变更原因');
   const active=p.active?1:0;
   const guard=`id=? AND tenant_id=? AND version=? AND ${actorGuard}`;
