@@ -183,16 +183,23 @@ export async function manage(p:any){const u=await identity();
   if(p.action==='create_member'){
    if(!/^\S+@\S+\.\S+$/.test(email))throw new AuthError('请填写有效的员工登录邮箱');
    if(await db().prepare('SELECT id FROM team_members WHERE tenant_id=? AND lower(email)=?').bind(tenant,email).first())throw new AuthError('该员工已存在，请直接修改其权限');
-   await requireRoleApproval(s,role,p.emergencyId,unitId,null);
+   const id=crypto.randomUUID();
+   const approvalId=await requireRoleApproval(s,role,p.emergencyId,unitId,null);
    if(p.passwordLogin===true&&!isTestMode())throw new AuthError('生产环境不能由管理员生成或查看员工密码，请发送邀请让员工本人设置密码',403,undefined,'PASSWORD_ADMIN_ISSUE_FORBIDDEN');
-   const id=crypto.randomUUID(),password=p.passwordLogin===true?randomToken().slice(0,24):null,passwordHash=password?await makePassword(password):null,inviteToken=(password||isTestMode())?null:randomToken(),inviteHash=inviteToken?await digest(inviteToken):null,inviteExpiry=inviteToken?Date.now()+7*24*3600000:null;const results=await db().batch([db().prepare(`INSERT INTO team_members (id,tenant_id,user_id,email,role,unit_id,active,version) SELECT ?,?,?,?,?,?,1,0 WHERE ${actorGuard}`).bind(id,tenant,password?'local:'+id:'pending:'+crypto.randomUUID(),email,role,unitId,...actorArgs),...(passwordHash?[db().prepare('INSERT INTO team_staff_credentials (member_id,password_hash) SELECT id,? FROM team_members WHERE id=?').bind(passwordHash,id)]:[]),...(inviteHash?[db().prepare('INSERT INTO team_invites (token_hash,tenant_id,email,role,unit_id,issuer,expires_at,used) SELECT ?,?,?,?,?,?,?,0 WHERE EXISTS (SELECT 1 FROM team_members WHERE id=? AND tenant_id=? AND active=1)').bind(inviteHash,tenant,email,role,unitId,s.member.id,inviteExpiry,id,tenant)]:[]),db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) SELECT ?,?,?,?,?,? WHERE changes()=1').bind(crypto.randomUUID(),tenant,u.userId,'create_member',JSON.stringify({member:id,email,role,unitId,invited:!!inviteToken}),new Date().toISOString())]);if(!results[0].meta.changes)throw new AuthError('管理权限已变化，请刷新',409);return {ok:true,...(password?{loginDetails:{company:s.tenant.slug,email,password}}:{inviteDetails:{company:s.tenant.slug,email,expiresAt:inviteExpiry,inviteToken}})}
+   const password=p.passwordLogin===true?randomToken().slice(0,24):null,passwordHash=password?await makePassword(password):null,inviteToken=(password||isTestMode())?null:randomToken(),inviteHash=inviteToken?await digest(inviteToken):null,inviteExpiry=inviteToken?Date.now()+7*24*3600000:null;
+   const approvalConsume=approvalId?db().prepare("UPDATE team_emergency_access SET status='consumed',consumed_at=?,consumed_action='staff_role_change',consumed_loan_id=? WHERE id=? AND tenant_id=? AND status='active' AND requester_id=?").bind(Date.now(),id,approvalId,tenant,s.member.id):null;
+   const memberGuard=approvalId?`${actorGuard} AND EXISTS (SELECT 1 FROM team_emergency_access WHERE id=? AND tenant_id=? AND status='consumed' AND consumed_action='staff_role_change' AND consumed_loan_id=?)`:actorGuard;
+   const memberArgs=approvalId?[...actorArgs,approvalId,tenant,id]:actorArgs;
+   const statements=[...(approvalConsume?[approvalConsume]:[]),db().prepare(`INSERT INTO team_members (id,tenant_id,user_id,email,role,unit_id,active,version) SELECT ?,?,?,?,?,?,1,0 WHERE ${memberGuard}`).bind(id,tenant,password?'local:'+id:'pending:'+crypto.randomUUID(),email,role,unitId,...memberArgs),...(passwordHash?[db().prepare('INSERT INTO team_staff_credentials (member_id,password_hash) SELECT id,? FROM team_members WHERE id=?').bind(passwordHash,id)]:[]),...(inviteHash?[db().prepare('INSERT INTO team_invites (token_hash,tenant_id,email,role,unit_id,issuer,expires_at,used) SELECT ?,?,?,?,?,?,?,0 WHERE EXISTS (SELECT 1 FROM team_members WHERE id=? AND tenant_id=? AND active=1)').bind(inviteHash,tenant,email,role,unitId,s.member.id,inviteExpiry,id,tenant)]:[]),db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) SELECT ?,?,?,?,?,? WHERE changes()=1').bind(crypto.randomUUID(),tenant,u.userId,'create_member',JSON.stringify({member:id,email,role,unitId,invited:!!inviteToken}),new Date().toISOString())];
+   const results=await db().batch(statements),memberResultIndex=approvalConsume?1:0;if(!results[memberResultIndex].meta.changes)throw new AuthError('管理权限或批准令牌已变化，请刷新',409);return {ok:true,...(password?{loginDetails:{company:s.tenant.slug,email,password}}:{inviteDetails:{company:s.tenant.slug,email,expiresAt:inviteExpiry,inviteToken}})}
   }
   const m=await db().prepare('SELECT * FROM team_members WHERE id=? AND tenant_id=?').bind(p.memberId,tenant).first<Member>();
   if(!m||m.id===s.member.id)throw new AuthError('不能修改自己的管理权限');
   if(p.version!==m.version)throw new AuthError('员工权限已变化，请刷新后重试',409);
   // Moving a high-risk employee between organizations changes the effective
   // approval boundary even when the role label stays the same.
-  if(role!==m.role||(highRiskRoles.has(role)&&unitId!==m.unit_id))await requireRoleApproval(s,role,p.emergencyId,unitId,m.id);
+  let approvalId:string|undefined;
+  if(role!==m.role||(highRiskRoles.has(role)&&unitId!==m.unit_id))approvalId=await requireRoleApproval(s,role,p.emergencyId,unitId,m.id);
   if(typeof p.active!=='boolean'||!txt(p.reason,300))throw new AuthError('请设置启停状态并填写变更原因');
   const active=p.active?1:0;
   const guard=`id=? AND tenant_id=? AND version=? AND ${actorGuard}`;
@@ -206,10 +213,13 @@ export async function manage(p:any){const u=await identity();
   // makes revocation immediate and prevents disabled-account session buildup.
   if(permissionChanged)statements.push(db().prepare('DELETE FROM team_staff_sessions WHERE member_id=?').bind(m.id));
   if(!active)statements.push(db().prepare('DELETE FROM team_invites WHERE tenant_id=? AND lower(email)=lower(?) AND used=0').bind(tenant,m.email));
+  const approvalGuard=approvalId?" AND EXISTS (SELECT 1 FROM team_emergency_access WHERE id=? AND tenant_id=? AND status='consumed' AND consumed_action='staff_role_change' AND consumed_loan_id=?)":'';
+  const approvalArgs=approvalId?[approvalId,tenant,m.id]:[];
+  if(approvalId)statements.unshift(db().prepare("UPDATE team_emergency_access SET status='consumed',consumed_at=?,consumed_action='staff_role_change',consumed_loan_id=? WHERE id=? AND tenant_id=? AND status='active' AND requester_id=?").bind(Date.now(),m.id,approvalId,tenant,s.member.id));
   const memberUpdate=restoring
-   ? `UPDATE team_members SET role=?,unit_id=?,active=?,mfa_enabled=0,mfa_secret=NULL,pending_mfa_secret=NULL,mfa_enroll_started_at=NULL,version=version+1 WHERE ${guard}`
-   : `UPDATE team_members SET role=?,unit_id=?,active=?,version=version+1 WHERE ${guard}`;
-  statements.push(db().prepare(memberUpdate).bind(role,unitId,active,...args));
+   ? `UPDATE team_members SET role=?,unit_id=?,active=?,mfa_enabled=0,mfa_secret=NULL,pending_mfa_secret=NULL,mfa_enroll_started_at=NULL,version=version+1 WHERE ${guard}${approvalGuard}`
+   : `UPDATE team_members SET role=?,unit_id=?,active=?,version=version+1 WHERE ${guard}${approvalGuard}`;
+  statements.push(db().prepare(memberUpdate).bind(role,unitId,active,...args,...approvalArgs));
   statements.push(db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) SELECT ?,?,?,?,?,? WHERE changes()=1').bind(crypto.randomUUID(),tenant,u.userId,'update_member',JSON.stringify({member:m.id,before:{role:m.role,unitId:m.unit_id,active:m.active,mfaEnabled:!!(m as any).mfa_enabled},after:{role,unitId,active,mfaEnabled:restoring?false:!!(m as any).mfa_enabled},restored:restoring,reason:txt(p.reason,300)}),new Date().toISOString()));
   const results=await db().batch(statements);if(!results[results.length-2].meta.changes)throw new AuthError('管理权限或员工资料已变化，请刷新',409);return {ok:true}
  }
