@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtempSync,mkdirSync,readFileSync,readdirSync,rmSync,writeFileSync,statSync} from 'node:fs';
+import {mkdtempSync,mkdirSync,readFileSync,readdirSync,rmSync,writeFileSync,statSync,chmodSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
@@ -8,6 +8,8 @@ import {createDecipheriv,hkdfSync} from 'node:crypto';
 import {plan,prepare,hash,sealCase} from '../scripts/loadtest/fixture/core.mjs';
 import {writer,privateFile} from '../scripts/loadtest/fixture/private-file.mjs';
 import {preflight} from '../scripts/loadtest/rows-preflight.mjs';
+import {cleanup} from '../scripts/loadtest/fixture/cleanup.mjs';
+import {runtime} from '../scripts/loadtest/fixture/test-runtime.mjs';
 
 export function fixture(){
  const root=mkdtempSync(join(tmpdir(),'khmerx-l1-'));mkdirSync(join(root,'.wrangler/state'),{recursive:true});
@@ -58,7 +60,75 @@ test('L1-A1 target/preflight rejects ambiguity, production, paths, duplicates an
 test('L1-A1 private file permissions, no overwrite and persistence rollback',()=>{
  const f=fixture();try{
   const file=join(f.options.root,'scripts/loadtest/manifests/private.manifest.json'),w=writer(f.options.root,file),m=applied({...f.options,count:1});
-  w.persist(m);privateFile(file);assert.throws(()=>w.persist(m));w.rollback();assert.throws(()=>privateFile(file));
+  w.persist(m);privateFile(file);if(process.platform!=='win32'){chmodSync(file,0o644);assert.throws(()=>privateFile(file),/600/);chmodSync(file,0o600)}assert.throws(()=>w.persist(m));w.rollback();assert.throws(()=>privateFile(file));
   assert.throws(()=>writer(f.options.root,join(f.options.root,'public.manifest.json')));
  }finally{f.close()}
+});
+
+const snapshot=db=>JSON.stringify(db.prepare("SELECT name,sql FROM sqlite_master ORDER BY name").all())+'\n'+JSON.stringify(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all().map(({name})=>[name,db.prepare(`SELECT * FROM "${name}"`).all()]));
+const createInput={action:'create',role:'mini',amount:5000,name:'SYNTH FIXTURE',consent:true,termDays:14,requestId:'synthetic-create-1'};
+test('L1-A2 a,b,d,e,g,h: real create/confirm and cleanup retain immutable audit; unrelated data unchanged',async()=>{
+ for(const mode of ['off','on']){
+  const f=fixture();try{
+   const o={...f.options,count:3,config:{...f.options.config,bindings:{...f.options.config.bindings,CUSTOMER_ROWS:mode,PAYEASE_AUTH_SECRET:'synthetic-auth-'.repeat(4)}}},m=applied(o),owner=m.target.tenantId;
+   const other=applied({...o,runId:'unrelated-'+mode,count:1});
+   const foreignBefore=JSON.stringify(f.db.prepare('SELECT * FROM h5_accounts WHERE owner=?').all(other.target.tenantId));
+   const triggers=f.db.prepare("SELECT name,sql FROM sqlite_master WHERE type='trigger' ORDER BY name").all(),r=await runtime(f.db,o.config.bindings);r.select(owner);
+   const kyc=await r.load('@/lib/kyc/server'),auth=await r.load('@/lib/h5-auth'),authCore=await r.load('@/lib/h5-auth-core'),registration=await r.load('@/lib/registration-policy');
+   for(const c of m.customers){
+    assert.equal((await kyc.payload(await kyc.findCase(owner,c.customerId))).phoneVerified,true);
+    const session=await authCore.getSession(auth.runtime(),owner,c.sessionToken);assert.equal(session.customerId,c.customerId);await registration.requireRegistrationComplete(auth.runtime(),owner,session);
+    const created=await r.store.mutate(owner,{...createInput,requestId:`${o.runId}-${c.index}-create`},{id:c.customerId,phoneMasked:'SYNTHETIC'}),loan=created.state.loans[0];assert.equal(loan.status,'kyc_approved');
+    const confirmed=await r.store.mutate(owner,{action:'confirm_bill',role:'mini',loanId:loan.id,quoteId:loan.billing.quoteId,billConfirmed:true,requestId:`${o.runId}-${c.index}-bill`},{id:c.customerId,phoneMasked:'SYNTHETIC'});assert(confirmed.state.loans.find(x=>x.id===loan.id).billConfirmedAt);
+   }
+   assert.equal(f.db.prepare('SELECT COUNT(*) n FROM team_assignments WHERE tenant_id=? AND department_id=?').get(owner,m.opsDepartmentId).n,3);
+   assert.equal(f.db.prepare('SELECT COUNT(*) n FROM team_audit WHERE tenant_id=?').get(owner).n,3);
+   assert.equal(f.db.prepare('SELECT COUNT(*) n FROM customer_workspaces WHERE owner=?').get(owner).n,mode==='on'?3:0);
+   const auditBefore=JSON.stringify(f.db.prepare('SELECT * FROM team_audit WHERE tenant_id=?').all(owner)),before=snapshot(f.db),p=cleanup(o,m);assert.equal(snapshot(f.db),before);
+   assert.throws(()=>cleanup({...o,apply:true,confirm:'wrong'},m));assert.equal(snapshot(f.db),before);
+   assert.throws(()=>cleanup({...o,apply:true,confirm:p.fingerprint,persist(){throw Error('synthetic report failure')}},m),/report/);assert.equal(snapshot(f.db),before);
+   const report=cleanup({...o,apply:true,confirm:p.fingerprint},m);assert.equal(report.retainedAudit,3);assert.equal(report.tombstone,true);
+   assert(m.customers.every(c=>!JSON.stringify(report).includes(c.sessionToken)));
+   for(const [t,n]of Object.entries(report.after))assert.equal(n,t==='team_audit'?3:t==='team_companies'?1:0,t);
+   assert.equal(f.db.prepare('SELECT active FROM team_companies WHERE id=?').get(owner).active,0);
+   assert.equal(JSON.stringify(f.db.prepare('SELECT * FROM team_audit WHERE tenant_id=?').all(owner)),auditBefore);
+   assert.equal(JSON.stringify(f.db.prepare('SELECT * FROM h5_accounts WHERE owner=?').all(other.target.tenantId)),foreignBefore);
+   assert.equal(f.db.prepare('PRAGMA foreign_keys').get().foreign_keys,1);assert.deepEqual(f.db.prepare("SELECT name,sql FROM sqlite_master WHERE type='trigger' ORDER BY name").all(),triggers);
+   assert.throws(()=>f.db.prepare('DELETE FROM team_audit WHERE tenant_id=?').run(owner),/append-only/);
+  }finally{f.close()}
+ }
+});
+test('L1-A2 c: real create without Ops fails the tenant scope trigger',async()=>{
+ const f=fixture();try{
+  const o={...f.options,count:1},m=applied(o);f.db.prepare('DELETE FROM team_units WHERE id=?').run(m.opsDepartmentId);
+  const r=await runtime(f.db,o.config.bindings);await assert.rejects(r.store.mutate(m.target.tenantId,createInput,{id:m.customers[0].customerId,phoneMasked:'SYNTHETIC'}),/tenant scope mismatch/);
+ }finally{f.close()}
+});
+test('L1-A2 d: unused datasets delete fully; aux sessions fail actual authentication',async()=>{
+ const f=fixture();try{for(const dataset of ['main','smoke','timeout','aux','wrong-owner']){
+  const o={...f.options,dataset,runId:'unused-'+dataset,count:undefined},m=applied(o);
+  if(dataset==='aux'){
+   const r=await runtime(f.db,{...o.config.bindings,PAYEASE_AUTH_SECRET:'synthetic-auth-'.repeat(4)}),auth=await r.load('@/lib/h5-auth'),core=await r.load('@/lib/h5-auth-core');
+   for(const c of m.customers)assert.equal(await core.getSession(auth.runtime(),m.target.tenantId,c.sessionToken),null);
+  }
+  const p=cleanup(o,m),result=cleanup({...o,apply:true,confirm:p.fingerprint},m);assert.equal(result.tombstone,false);assert(Object.values(result.after).every(n=>n===0));
+ }}finally{f.close()}
+});
+test('L1-A2 f: each ownership condition rejects atomically, including extra/missing clients',()=>{
+ const changes=[
+  (db,m)=>db.prepare("UPDATE team_companies SET name='not-fixture' WHERE id=?").run(m.target.tenantId),
+  (db,m)=>db.prepare("UPDATE team_companies SET default_department='wrong' WHERE id=?").run(m.target.tenantId),
+  (db,m)=>db.prepare("UPDATE team_units SET kind='institution' WHERE id=?").run(m.opsDepartmentId),
+  (db,m)=>db.prepare('DELETE FROM h5_accounts WHERE customer_id=?').run(m.customers[0].customerId),
+  (db,m)=>db.prepare("INSERT INTO h5_accounts(customer_id,owner,phone_mask,mode,created_at) VALUES ('unrelated-extra',?,'SYNTHETIC','demo',0)").run(m.target.tenantId),
+  (db,m)=>db.prepare("UPDATE h5_sessions SET customer_id='foreign' WHERE owner=?").run(m.target.tenantId),
+  (db,m)=>db.prepare("UPDATE kyc_cases SET customer_id='foreign' WHERE owner=?").run(m.target.tenantId),
+  (db,m)=>db.prepare("INSERT INTO team_assignments(tenant_id,customer_id,department_id) VALUES (?,'foreign',?)").run(m.target.tenantId,m.opsDepartmentId),
+  (db,m)=>db.prepare("INSERT INTO team_audit(id,tenant_id,actor,action,detail,created_at) VALUES ('synthetic-audit',?,'employee','auto_assign','{}','synthetic')").run(m.target.tenantId),
+  (db,m)=>db.prepare("INSERT INTO team_audit(id,tenant_id,actor,action,detail,created_at) VALUES ('synthetic-audit',?,'system','customer_cleanup','{}','synthetic')").run(m.target.tenantId),
+  (db,m)=>db.prepare("INSERT INTO team_members(id,tenant_id,user_id,email,role,unit_id) VALUES ('synthetic-member',?,'synthetic-user','synthetic@example.test','kyc',?)").run(m.target.tenantId,m.opsDepartmentId),
+  (db,m)=>db.prepare("INSERT INTO public_identifiers(ref,entity_type,internal_id,tenant_id,source_channel,created_at) VALUES ('synthetic-ref','O','unknown',?,'SY','synthetic')").run(m.target.tenantId),
+  (db,m)=>db.prepare("INSERT INTO customer_workspaces(owner,customer_id,revision,payload,updated_at) VALUES (?,'foreign',0,'{}','synthetic')").run(m.target.tenantId),
+ ];
+ for(const change of changes){const f=fixture();try{const o={...f.options,count:1},m=applied(o);change(f.db,m);const before=snapshot(f.db);assert.throws(()=>cleanup(o,m));assert.throws(()=>cleanup({...o,apply:true,confirm:'not-trusted'},m));assert.equal(snapshot(f.db),before)}finally{f.close()}}
 });

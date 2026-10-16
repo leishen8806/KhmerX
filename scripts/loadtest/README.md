@@ -108,3 +108,26 @@ Linux manifests are 600; Windows ACLs allow only the current user. Never commit,
 print, serve or attach them. Remove them after session revocation/cleanup (A2).
 Deleting a file does not guarantee removal of SSD/backed-up copies.
 Real create and post-create cleanup acceptance are delivered by A2, not A1.
+
+## L1-A2 cleanup (local only; audit tombstones retained)
+
+```sh
+node scripts/loadtest/fixture/cli.mjs cleanup --profile local-harness \
+  --config scripts/loadtest/local.runtime.json --database .wrangler/state/test.sqlite \
+  --base-url http://127.0.0.1:8788 --manifest scripts/loadtest/manifests/main.manifest.json
+# Repeat with --apply --confirm <cleanup-fingerprint>
+# and --output scripts/loadtest/manifests/cleanup-report.json
+```
+
+All seven contract ownership checks run again in the same transaction as deletes.
+Extra/missing clients, unexpected staff, other audit actions or unknown public
+identifiers refuse the entire cleanup. Reports contain counts/hashes, no tokens.
+Unused datasets delete fully. After create, only the disabled tenant and immutable
+system assignment audit remain. **Gray would permanently retain one disabled
+tenant and about N audits per run**; gray execution remains HOLD in these scripts.
+Neither foreign keys nor audit triggers are disabled. Keep the cleanup report;
+then remove the sensitive manifest. Use a disposable local database copy whenever
+possible; these scripts never discard an existing checkout database themselves.
+A2 tests run real mutate/ensureAssignment for off/on, authenticate aux sessions,
+verify missing Ops rejection, protected unrelated records and all seven guards.
+These are source/SQLite service tests, not L1-B HTTP or 600-customer load evidence.
