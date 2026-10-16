@@ -61,3 +61,12 @@ test('failed shard index update rolls back the first customer row insert',async(
  await assert.rejects(()=>writeCustomerShard(db,'owner','A',state,0),/synthetic index failure/);
  assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM customer_workspaces').get().n,0);
 });
+
+test('customer loan removal deletes the stale loan index row',async()=>{
+ const db=dbHarness();
+ const base={events:[],entries:[],notifications:[],requests:[],requestDigests:{},bots:[]};
+ await writeCustomerShard(db,'owner','A',{...base,loans:[{id:'loan-a',customerId:'A',status:'registered',createdAt:new Date(0).toISOString()}]},0);
+ assert.equal(db.sql.prepare('SELECT COUNT(*) AS n FROM loan_index WHERE owner=? AND customer_id=?').get('owner','A').n,1);
+ await writeCustomerShard(db,'owner','A',{...base,loans:[]},1);
+ assert.equal(db.sql.prepare('SELECT COUNT(*) AS n FROM loan_index WHERE owner=? AND customer_id=?').get('owner','A').n,0);
+});
