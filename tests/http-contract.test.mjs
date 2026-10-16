@@ -157,9 +157,9 @@ test('S2: all five migrated routes shape known failures as envelopes, never 503'
  // state: unsupported content-type is a request-local validation error
  let r=await routes.state.POST(new Request('http://localhost/api/state',{method:'POST',headers:{origin:'http://localhost','content-type':'text/plain'},body:'{}'}));
  let b=await r.json();assert.notEqual(r.status,503);assertEnvelope(r,b,{code:'INVALID_REQUEST'});
- // bots: unknown/unconfigured bot is an unexpected server failure
+ // bots: unknown/unconfigured bot is a stable not-configured response
  r=await routes.bots.POST(new Request('http://localhost/api/bots',{method:'POST',headers:{origin:'http://localhost','content-type':'application/json'},body:'{}'}));
- b=await r.json();assert.equal(r.status,500);assertEnvelope(r,b,{code:'INTERNAL_ERROR'});
+ b=await r.json();assert.equal(r.status,404);assertEnvelope(r,b,{code:'BOT_NOT_CONFIGURED'});
  // h5/state: unauthenticated customer is 401, not 503
  r=await routes.h5state.POST(new Request('http://localhost/api/h5/state',{method:'POST',headers:{origin:'http://localhost','content-type':'application/json'},body:'{}'}));
  b=await r.json();assert.notEqual(r.status,503);assertEnvelope(r,b,{code:'AUTH_REQUIRED'});
