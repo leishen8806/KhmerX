@@ -26,7 +26,7 @@ export const POST=route({origin:'required',handler:async(request:Request)=>{
   if(bot.username&&bot.username.toLowerCase()!==v.result.username.toLowerCase())throw new ApiError(400,'BOT_VERIFICATION_FAILED','凭据与配置的机器人用户名不匹配');
   return json({connected:true,username:v.result.username,message:'已验证 @'+v.result.username+'，资金仍为测试模式'});
  }catch(e){
-  if(e instanceof ApiError&&e.code==='BOT_VERIFICATION_FAILED')throw e;
+  if(e instanceof ApiError)throw e;
   console.error('[bots] unexpected Telegram verification failure',e instanceof Error?e.stack||e:e);
   throw e;
  }
