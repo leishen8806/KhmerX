@@ -20,7 +20,7 @@ export async function POST(request:Request){
    ON CONFLICT(key) DO UPDATE SET count=CASE WHEN window_start+60<=? THEN 1 ELSE count+1 END,
    window_start=CASE WHEN window_start+60<=? THEN ? ELSE window_start END,next_allowed=?
    WHERE (window_start+60<=? OR count<10) AND next_allowed<=? RETURNING key`).bind(limitKey,now,now,now,now,now,now,now,now).first();
-  if(!limited)throw new KycError('地址查询过于频繁，请稍后重试',429,'GEOCODE_RATE_LIMITED');
+  if(!limited)throw new KycError('地址查询过于频繁，请稍后重试',429,'GEOCODE_RATE_LIMITED',60);
   const key=settings().GOOGLE_MAPS_API_KEY?.trim();
   if(!key)throw new KycError('Google 地图定位服务尚未配置，请联系管理员',503);
   const language=p.language==='km'||p.language==='zh'||p.language==='en'?p.language:'en';

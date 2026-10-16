@@ -124,6 +124,17 @@ test('ARC-00 §3/§5: RATE_LIMITED exposes retryAfterSeconds in body params and 
  assertEnvelope(r,b);
 });
 
+test('KYC rate-limit errors expose the same retry contract as auth errors',async()=>{
+ const r=await http.route({handler:async()=>{throw new KycError('地址查询过于频繁，请稍后重试',429,'GEOCODE_RATE_LIMITED',60)}})(new Request('http://localhost/api/kyc/geocode',{method:'POST'}));
+ const b=await r.json();
+ assert.equal(r.status,429);
+ assert.equal(b.code,'GEOCODE_RATE_LIMITED');
+ assert.equal(b.retryAfter,60);
+ assert.deepEqual(b.params,{retryAfterSeconds:60});
+ assert.equal(r.headers.get('retry-after'),'60');
+ assertEnvelope(r,b);
+});
+
 test('readJsonBody: origin, content-type, size and JSON shape guards',async()=>{
  const handled=http.route({origin:'required',handler:async(request)=>{await http.readJsonBody(request,10);return Response.json({ok:true})}});
  // Missing Origin on a write interface

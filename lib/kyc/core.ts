@@ -61,7 +61,7 @@ export function hasVehicle(p:Profile){return ['摩托车','嘟嘟车','汽车'].
 export function slotVisible(id:Slot,p:Profile){if(vehicleSlots.includes(id))return hasVehicle(p);if(id==='rentContract')return p.values.housing==='租房';if(id==='propertyCertificate')return p.values.housing==='个人房产';return true}
 export function slotRequired(id:Slot,p:Profile){return slots.some(s=>s.id===id&&s.required)||(['rentContract','propertyCertificate'].includes(id)&&slotVisible(id,p))}
 export const emptyProfile=():Profile=>({values:{documentType:'柬埔寨身份证'},files:{},consent:false,declarationVersion:KYC_CONSENT_VERSION});
-export class KycError extends Error{status:number;code:string;constructor(message:string,status=400,code?:string){super(message);this.status=status;this.code=code||codeForError(message,status)}}
+export class KycError extends Error{status:number;code:string;retryAfter?:number;constructor(message:string,status=400,code?:string,retryAfter?:number){super(message);this.status=status;this.code=code||codeForError(message,status);this.retryAfter=retryAfter}}
 function duplicateRelations(profile:Profile){const relations=[1,2,3].map(n=>profile.values[`contact${n}Relation`]).filter(Boolean);return new Set(relations).size!==relations.length}
 export const isPersonName=(id:string)=>['surname','givenName','contact1Name','contact2Name','contact3Name','supervisorName','bankHolder'].includes(id);
 export const normalizePersonName=(value:string)=>value.toUpperCase();

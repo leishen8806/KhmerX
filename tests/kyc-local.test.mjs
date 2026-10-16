@@ -26,6 +26,8 @@ function profile(){const p=emptyProfile();p.consent=true;for(const f of fields.f
 test('local KYC: draft → submit → supplement → resubmit → approval → loan; isolation and stale review', {skip:!base},async()=>{
  assert(['localhost','127.0.0.1'].includes(new URL(base).hostname),'Local test only');const a=client('synthetic-qa-a'),b=client('synthetic-qa-b'),staff=client('synthetic-qa-a',reviewerEmail),staffB=client('synthetic-qa-b',reviewerEmail);
  await login(a,process.env.KYC_TEST_PHONE_A||'+12025550180');await login(b,process.env.KYC_TEST_PHONE_B||'+12025550181');
+ const geocodeEmpty=await a('/api/kyc/geocode',{address:''});assert.equal(geocodeEmpty.status,400);assert.equal(geocodeEmpty.d.code,'INVALID_REQUEST');
+ const geocodeLong=await a('/api/kyc/geocode',{address:'x'.repeat(241)});assert.equal(geocodeLong.status,400);assert.equal(geocodeLong.d.code,'INVALID_REQUEST');
  assert.equal((await client()('/api/kyc')).status,401);
  assert.equal((await a('/api/kyc',{}, {headers:{Origin:'https://invalid.test'}})).status,403);
  let record=(await a('/api/kyc')).d;assert.equal(record.status,'draft','Use unused fictional phone on reruns');
