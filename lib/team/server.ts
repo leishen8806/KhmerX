@@ -190,7 +190,9 @@ export async function manage(p:any){const u=await identity();
   const m=await db().prepare('SELECT * FROM team_members WHERE id=? AND tenant_id=?').bind(p.memberId,tenant).first<Member>();
   if(!m||m.id===s.member.id)throw new AuthError('不能修改自己的管理权限');
   if(p.version!==m.version)throw new AuthError('员工权限已变化，请刷新后重试',409);
-  if(role!==m.role)await requireRoleApproval(s,role,p.emergencyId,unitId,m.id);
+  // Moving a high-risk employee between organizations changes the effective
+  // approval boundary even when the role label stays the same.
+  if(role!==m.role||(highRiskRoles.has(role)&&unitId!==m.unit_id))await requireRoleApproval(s,role,p.emergencyId,unitId,m.id);
   if(typeof p.active!=='boolean'||!txt(p.reason,300))throw new AuthError('请设置启停状态并填写变更原因');
   const active=p.active?1:0;
   const guard=`id=? AND tenant_id=? AND version=? AND ${actorGuard}`;
