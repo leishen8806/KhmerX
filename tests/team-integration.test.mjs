@@ -321,6 +321,8 @@ test('Admin funding and repayment require prior approval, enforce isolation and 
  env.KHMERX_TEST_MODE='false';
  try{await flow.staffAction({...receipt,cents:verifiedCents,reference:verifiedRef,emergencyId:emergencyRequest.id,requestId:crypto.randomUUID()});}
  finally{env.KHMERX_TEST_MODE='true';}
+ const productionAudit=sql.prepare("SELECT detail FROM team_audit WHERE tenant_id=? AND action='admin_repay' ORDER BY created_at DESC LIMIT 1").get(A);
+ assert.match(productionAudit.detail,/\"mode\":\"emergency_authorized\"/);
  saved=(await store.readState(A)).state;assert.equal(saved.loans.find(x=>x.id===l.id).paid,1500);
  await assert.rejects(flow.staffAction({...receipt,cents:1001,requestId:crypto.randomUUID()}),/流水号/);
  await assert.rejects(flow.staffAction({...receipt,cents:999999,reference:'UAT-TOO-MUCH',requestId:crypto.randomUUID()}),/还款金额/);
