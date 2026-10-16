@@ -22,6 +22,14 @@ test('reverse merge preserves tenant state and merges customer requests',()=>{
   assert.equal(merged.next.requestDigests.r1,'d1');
   assert.equal(merged.next.bots,bots);
 });
+test('reverse merge replaces old related records without duplicating unchanged loan ids',()=>{
+  const state={loans:[{id:'same',customerId:'A'}],events:[{id:'old-event',loanId:'same'}],entries:[{id:'old-entry',loanId:'same'}],notifications:[{id:'old-notice',loanId:'same'}],requests:[],requestDigests:{}};
+  const rows=[{customer_id:'A',payload:JSON.stringify({loans:[{id:'same',customerId:'A'}],events:[{id:'new-event',loanId:'same'}],entries:[{id:'new-entry',loanId:'same'}],notifications:[{id:'new-notice',loanId:'same'}],requests:[],requestDigests:{}})}];
+  const merged=mergeCustomerShards(state,rows,'tenant-a');
+  assert.deepEqual(merged.next.events.map(x=>x.id),['new-event']);
+  assert.deepEqual(merged.next.entries.map(x=>x.id),['new-entry']);
+  assert.deepEqual(merged.next.notifications.map(x=>x.id),['new-notice']);
+});
 test('reverse merge refuses oversized tenant state before apply',()=>{
   const state={loans:[],events:[],entries:[],notifications:[],requests:[],requestDigests:{},blob:'x'.repeat(MAX_WORKSPACE_PAYLOAD_BYTES)};
   assert.throws(()=>mergeCustomerShards(state,[],'tenant-big'),/reverse merge exceeds workspace payload limit/);

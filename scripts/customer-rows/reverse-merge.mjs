@@ -7,8 +7,7 @@ export function mergeCustomerShards(state,shards,owner='unknown'){
   const oldCustomerLoanIds=new Set((state.loans||[]).filter(x=>ids.has(x.customerId)).map(x=>x.id));
   const loans=(state.loans||[]).filter(x=>!ids.has(x.customerId));
   for(const item of shards){const s=JSON.parse(item.payload);loans.push(...(s.loans||[]))}
-  const mergedLoanIds=new Set(loans.map(x=>x.id));
-  const keepRelated=x=>!oldCustomerLoanIds.has(x.loanId)||mergedLoanIds.has(x.loanId);
+  const keepRelated=x=>!oldCustomerLoanIds.has(x.loanId);
   const events=(state.events||[]).filter(keepRelated),entries=(state.entries||[]).filter(keepRelated),notifications=(state.notifications||[]).filter(keepRelated);
   for(const item of shards){const s=JSON.parse(item.payload);events.push(...(s.events||[]));entries.push(...(s.entries||[]));notifications.push(...(s.notifications||[]))}
   const next={...state,loans,events,entries,notifications,requests:[],requestDigests:{}};
