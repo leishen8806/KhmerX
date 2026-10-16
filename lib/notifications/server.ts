@@ -63,4 +63,21 @@ export async function dispatchCompany(owner:string,now=new Date().toISOString())
  }
  return {sent}
 }
-export async function notificationAdmin(){const s=await staff();if(!s||!['admin','audit'].includes(s.member.role))throw new AuthError('无通知管理权限',403);const {state}=await readState(s.tenant.id);return {channels:state.bots.map(b=>({id:b.id,label:b.label,username:b.username,enabled:b.enabled,configured:!!b.tokenConfigured||!!config()[tokenKey(s.tenant.id,b.id)]})),deliveries:(await db().prepare('SELECT loan_id,status,reason,attempts,updated_at FROM telegram_outbox WHERE owner=? ORDER BY updated_at DESC LIMIT 50').bind(s.tenant.id).all()).results}}
+export async function notificationAdmin(){const s=await staff();if(!s||!['admin','audit'].includes(s.member.role))throw new AuthError('无通知管理权限',403);const {state}=await readState(s.tenant.id);return {channels:state.bots.map(b=>({id:b.id,label:b.label,username:b.username,enabled:b.enabled,configured:!!b.tokenConfigured||!!config()[tokenKey(s.tenant.id,b.id)]})),deliveries:(await db().prepare('SELECT id,loan_id,status,reason,attempts,updated_at FROM telegram_outbox WHERE owner=? ORDER BY updated_at DESC LIMIT 50').bind(s.tenant.id).all()).results}}
+
+/** Reset only an explicitly failed/unknown delivery for an audited manual retry.
+ * Unknown results are never retried automatically because Telegram may already
+ * have accepted the message; the operator must make that decision explicitly.
+ */
+export async function retryNotificationDelivery(id:string){
+ const s=await staff();
+ if(!s||s.member.role!=='admin')throw new AuthError('仅公司 Admin 可人工重试通知',403);
+ const delivery=await db().prepare('SELECT id,status,loan_id,attempts FROM telegram_outbox WHERE id=? AND owner=?').bind(id,s.tenant.id).first<any>();
+ if(!delivery)throw new AuthError('通知记录不存在',404);
+ if(!['failed','unknown'].includes(String(delivery.status)))throw new AuthError('仅失败或结果待核对的通知可人工重试',409);
+ const now=new Date().toISOString();
+ const changed=await db().prepare("UPDATE telegram_outbox SET status='retry',attempts=0,next_at=0,reason='管理员确认人工重试',updated_at=? WHERE id=? AND owner=? AND status IN ('failed','unknown')").bind(now,id,s.tenant.id).run();
+ if(changed.meta.changes!==1)throw new AuthError('通知状态已变化，请刷新后重试',409);
+ await audit(s.tenant.id,s.user.userId,'notification_delivery_manual_retry',{outboxId:id,loanId:delivery.loan_id,previousStatus:delivery.status,previousAttempts:delivery.attempts,at:now}).run();
+ return {ok:true,id,status:'retry'};
+}
