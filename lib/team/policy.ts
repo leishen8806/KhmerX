@@ -49,7 +49,7 @@ export const actionLabels:Record<string,string>={approve:'贷款初审通过',re
 export const roleDisplayActions:Partial<Record<TeamRole,string[]>>={
  collection_admin:['贷后任务改派与团队分配'],
  collector:['记录跟进、承诺还款与客户异议'],
- ops:['客户分配与资料流转','调整测试逾期情景']
+ ops:['客户分配与资料流转']
 };
 export function allowAction(m:Member,a:Assignment|undefined,action:string){return !!m.active&&!!actionRoles[action]?.includes(m.role)&&(action.startsWith('bot_')||canSee(m,a));}
 export function requireDifferent(actor:string,other:string|undefined){if(!other||actor===other)throw Error('必须由另一位员工复核，不能复核本人操作');}
