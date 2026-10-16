@@ -74,3 +74,37 @@ scripts/loadtest/sample-resources.sh \
 响应数、脚本重试数和上传成功率。写请求不会自动重试；服务端成功的乐观锁重试次数
 目前不通过 API 暴露，报告会标记为不可观测。`checks` 失败时先查看认证、Cookie、Origin
 和服务端配置，再提高并发；不要把生产域名用于压测。
+
+## L1-A1 local fixture (synthetic; not Telegram registration)
+
+Only `local-harness` is executable here; gray/VPS execution remains HOLD.
+Use a disposable checkout-local `.wrangler/state` database with all migrations.
+An explicit private `*.runtime.json` snapshot must match the local runtime:
+`host: "localhost"`, `bindings.PAYEASE_ENV: "local"`, `PAYEASE_AUTH_MODE`,
+`KHMERX_TEST_MODE`, `CUSTOMER_ROWS`, and `KYC_DATA_SECRET` (optional key ID).
+Keep the snapshot private and ignored; never publish its contents. No OTP is sent.
+
+```sh
+node scripts/loadtest/fixture/cli.mjs plan --profile local-harness \
+  --config scripts/loadtest/local.runtime.json --database .wrangler/state/test.sqlite \
+  --base-url http://127.0.0.1:8788 --dataset main --run-id local-main-20261016 --count 600
+# Repeat identical arguments with command apply, adding BOTH:
+# --apply --confirm <printed-fingerprint> --output scripts/loadtest/manifests/main.manifest.json
+node scripts/loadtest/rows-preflight.mjs scripts/loadtest/manifests/main.manifest.json \
+  http://127.0.0.1:8788 on 600 main
+```
+
+Each runId creates a separate tenant and Ops department. `main` accepts 1..5000
+customers (default 50); `smoke`/`timeout` have 3, `aux` has 6 invalid sessions,
+`wrong-owner` has 0. Only normal datasets have approved synthetic KYC cases.
+Do not reuse smoke customers for main. The fixture only supports `/api/h5/state`.
+It does not create employees, institutions, service settings, assignments or audit.
+There is no password option: both fixture bots disable password setup explicitly.
+
+Plan and apply without `--apply` are read-only. Apply rejects stale fingerprints
+and existing tenants, uses one transaction, and saves a private manifest before
+commit (write failure rolls back). Treat interrupted runs as needing inspection.
+Linux manifests are 600; Windows ACLs allow only the current user. Never commit,
+print, serve or attach them. Remove them after session revocation/cleanup (A2).
+Deleting a file does not guarantee removal of SSD/backed-up copies.
+Real create and post-create cleanup acceptance are delivered by A2, not A1.
