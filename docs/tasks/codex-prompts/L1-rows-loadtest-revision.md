@@ -134,14 +134,14 @@ dry-run 输出并哈希（SHA-256，取前 12 位作为指纹）：`profile、PA
 
 ### 4.1 幂等与重试
 - 写请求的幂等键 = 请求体 `requestId`（F10），格式固定 `<runId>-<序号>-<动作>`，**同一操作的所有重试使用同一个 `requestId`**。`X-Request-Id` 头每次请求单独生成，只用于追踪。
-- **超时后的结果不确定**：写请求超时/连接中断时，可能已经写入。处理：用**同一 `requestId` 重发**（服务端幂等，重复请求返回当前状态且不新增贷款）；最终以 §6 的一致性校验为准，重复贷款会被检出并计入"重复贷款"。
+- **超时后的结果不确定**：写请求超时/连接中断时，可能已经写入。处理：用**同一 `requestId` 重发**。**注意两个动作的服务端行为不同**（`lib/store.ts::mutate` 在进入 `applyAction` 的幂等检查之前，先做"已有未结束申请"检查）：`confirm_bill` 重发走 `applyAction` 幂等，返回 200 且不重复写；**`create` 重发（无论 requestId 是否相同）在第一次已成功时返回 409 `请先完成当前申请，再发起新的申请`，不是 200**。因此 `create` 重发得到该 409 时**不是失败**，必须 `GET /api/h5/state` 判定：恰好 1 笔、归属自己、状态 `kyc_approved` → 计入 `create_ok_after_replay`（单列，不并入首次成功）；0 笔 → `create_missing`；多于 1 笔 → `duplicate_loans`。最终以 §6 的一致性校验为准。
 - 重试规则：
 
 | 响应 | 处理 |
 |---|---|
 | 409 且 `error` 含"其他操作刚刚更新了记录"（乐观锁耗尽） | 可重试，最多 3 次，退避 `100ms×2ⁿ + 随机 0–100ms`，上限 1s |
-| 409 其他（例如"请先完成当前申请…"） | **不重试，算失败**（业务冲突） |
-| 网络错误/超时 | 同 `requestId` 重发，最多 2 次，退避同上 |
+| 409 其他（例如首次 `create` 即返回"请先完成当前申请…"） | **不重试，算失败**（业务冲突）；仅"`create` 重发后的该 409"例外，见上 |
+| 网络错误/超时 | 同 `requestId` 重发，最多 2 次，退避同上；`create` 重发得到"请先完成当前申请"的 409 时按上文用 GET 判定，不重试、不直接算失败 |
 | 502/503/504（含网关过载 503 + `Retry-After`） | 遵守 `Retry-After`（上限 5s），最多 2 次 |
 | 429 | **不重试**，计入 `rate_limited`；本次运行若 429 占请求 > 0.5%，报告首行标注 **INVALID：被限流**（应先调高灰度网关倍率） |
 | 400/401/403/404/413/5xx 其他 | 不重试，算失败 |
@@ -151,7 +151,7 @@ dry-run 输出并哈希（SHA-256，取前 12 位作为指纹）：`profile、PA
 ### 4.2 指标
 - **HTTP 409** 数、**业务 `CONFLICT`（code）** 数、**客户端重试次数**（按触发原因：409 乐观锁、超时、5xx）分别统计，互不合并。
 - **服务端内部乐观锁重试成功次数目前不可观测**：报告中写 `unavailable`，**不得写 0**。
-- 每个客户的最终结果必须落入且仅落入一类，所有类别之和 = 计划客户数 N（失败或提前终止的客户**不得**从分母消失）：`completed`、`not_started`、`aborted`、`create_failed`、`confirm_failed`、`create_missing`（读回时没有贷款）、`duplicate_loans`、`wrong_owner_loan`、`status_mismatch`、`bill_not_confirmed`。
+- 每个客户的最终结果必须落入且仅落入一类，所有类别之和 = 计划客户数 N（失败或提前终止的客户**不得**从分母消失）：`completed`、`not_started`、`aborted`、`create_failed`、`confirm_failed`、`create_ok_after_replay`（超时/重发后经 GET 确认的成功，单列）、`create_missing`（读回时没有贷款）、`duplicate_loans`、`wrong_owner_loan`、`status_mismatch`、`bill_not_confirmed`。
 - **冲突率 < 1%** 的定义（写死）：分母 = 全部**首次**写请求数（create 与 confirm_bill，各自首次发送，不含重试）；分子 = 首次请求即返回"乐观锁 409"的数量；重试产生的 409 另列"重试期 409"，不进入该比率；同时报告"重试后仍失败"的客户数。
 - 延迟：对 `create`、`confirm_bill`、`state_get` 分别给出 p50/p95/p99；每秒请求数；写阶段与读阶段分别统计。
 
@@ -180,8 +180,8 @@ dry-run 输出并哈希（SHA-256，取前 12 位作为指纹）：`profile、PA
   - **会话失效**：另备 3 个"已过期"和 3 个"已撤销"的 fixture 会话（fixture 额外生成，不计入 N）→ 期望 401 `AUTH_REQUIRED`。
   - **跨客户访问**：客户 A 的会话对客户 B 的 `loanId` 执行 `confirm_bill` → 期望 404（`申请不存在或不属于当前客户`）。
   - **错误 owner**：带**第二个**专用租户的 `payease_company` 与客户 A 的会话 → 期望 401。
-  - **重复请求**：对已成功的 `create` 用同一 `requestId` 重发 → 期望 200 且 `loans.length` 仍为 1、`revision` 不变。
-  - **提交成功但客户端超时**：对 3 个未使用的客户，发出 `create` 后立刻销毁连接（不读响应），轮询到贷款出现（≤10 秒），再用同一 `requestId` 重发 → 期望仍只有 1 笔贷款。
+  - **重复请求**：① `create`：对已成功的客户用同一 `requestId` 重发 → **期望 409（`请先完成当前申请，再发起新的申请`）**，随后 `GET` 显示 `loans.length` 仍为 1、`revision` 不变（这是当前代码的真实行为，契约按它冻结）；② `confirm_bill`：用同一 `requestId` 重发 → 期望 200，`revision` 不变、`billConfirmedAt` 不变。
+  - **提交成功但客户端超时**：对 3 个未使用的客户，发出 `create` 后立刻销毁连接（不读响应），轮询到贷款出现（≤10 秒），再用同一 `requestId` 重发 → 期望该重发返回 409（同上）或 200，二者都接受，但最终必须只有 1 笔贷款，且分类为 `create_ok_after_replay`。
   - **库内核查（本地独立打开 SQLite，只读）**：`on` 模式：`customer_workspaces` 与 `loan_index` 各恰好 N 行（该租户），**旧 `demo_workspaces.payload` 里该租户没有任何 fixture 客户的贷款**；`off` 模式：旧 JSON 里有 N 笔贷款，`customer_workspaces` 无该租户行。不得只相信运行参数。
 
 ## 7. 拆卡
@@ -247,6 +247,7 @@ dry-run 输出并哈希（SHA-256，取前 12 位作为指纹）：`profile、PA
 | OPEN-4 | 灰度 rows 运行所需的限流倍率：压测机单 IP，`/api/*` 每分钟 240 次（F15）；600 客户约 3600 次请求/分钟 | 不放大会出现大量 429 | 默认：灰度 `PAYEASE_GATEWAY_RATE_SCALE=30`（仅 local/gray 生效）并写入报告；上线前恢复 1 |
 | OPEN-5 | baseline 在灰度无法运行（需要 demo 认证） | 灰度只能做 rows | 本轮不做"合成会话版 baseline" |
 | OPEN-6 | `off` 模式 600 客户可能触达 1.5MB 上限 | `off` 结果可能整体被限制截断 | 按 §2.3 单独统计 `WORKSPACE_PAYLOAD_LIMIT`，这是对照的组成部分 |
+| OPEN-8 | `create` 的幂等重放返回 409 而非 200：`mutate` 的"已有未结束申请"检查先于 `applyAction` 的 requestId 检查，客户端超时后重试体验差 | 压测靠 GET 判定，可行但不优雅 | 本契约不改业务代码；另开服务端小卡（Q 档外，需评审）：同一客户同一 requestId 的重放应返回当前状态 200。完成前按 §6 的 409 预期验收 |
 | OPEN-7 | `confirm_bill` 在 `kyc_approved` 之后是否算"合法的第二次写" | 若产品认为不合法，则 rows 只剩 1 次写 | 依据 `lib/domain.ts` 判定为合法；若要改，需产品确认 |
 
 ---
