@@ -333,6 +333,16 @@ test('Admin funding and repayment require prior approval, enforce isolation and 
  env.KHMERX_TEST_MODE='false';
  try{await flow.staffAction({...receipt,cents:verifiedCents,reference:verifiedRef,emergencyId:emergencyRequest.id,requestId:crypto.randomUUID()});}
  finally{env.KHMERX_TEST_MODE='true';}
+ assert.equal(sql.prepare('SELECT status FROM team_emergency_access WHERE id=?').get(emergencyRequest.id).status,'consumed');
+ await assert.rejects(emergency.assertEmergencyAccess(emergencyRequest.id,'funding','admin_repay',l.id,verifiedCents),/已失效/);
+ await assert.rejects(emergency.emergencyRevoke(emergencyRequest.id),/已结束/);
+ env.KHMERX_TEST_MODE='false';
+ const validationGrant=await emergency.emergencyRequest({scope:['funding'],loanId:l.id,cents:l.billing.net,reason:'Synthetic validation failure must not consume grant'});
+ sql.prepare("UPDATE team_emergency_access SET status='active',approver_id=?,approved_at=?,expires_at=? WHERE id=?").run(ownerMember.id,new Date().toISOString(),Date.now()+30*60*1000,validationGrant.id);
+ try{await assert.rejects(flow.staffAction({action:'admin_disburse',loanId:l.id,note:'Synthetic invalid post-approval state',emergencyId:validationGrant.id,requestId:crypto.randomUUID()}),/初审/);}
+ finally{env.KHMERX_TEST_MODE='true';}
+ assert.equal(sql.prepare('SELECT status FROM team_emergency_access WHERE id=?').get(validationGrant.id).status,'active');
+ await emergency.emergencyRevoke(validationGrant.id);
  const productionAudit=sql.prepare("SELECT detail FROM team_audit WHERE tenant_id=? AND action='admin_repay' ORDER BY created_at DESC LIMIT 1").get(A);
  assert.match(productionAudit.detail,/\"mode\":\"emergency_authorized\"/);
  saved=(await store.readState(A)).state;assert.equal(saved.loans.find(x=>x.id===l.id).paid,1500);
