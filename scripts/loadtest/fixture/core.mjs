@@ -1,3 +1,5 @@
+import {grayTarget} from './gray.mjs';
+import {unrelated} from './cleanup.mjs';
 import {createHash,randomBytes,randomUUID,hkdfSync,createCipheriv} from 'node:crypto';
 import {DatabaseSync} from 'node:sqlite';
 import {realpathSync,statSync,lstatSync} from 'node:fs';
@@ -9,6 +11,7 @@ export const datasets={main:null,smoke:3,timeout:3,aux:6,'wrong-owner':0};
 export const integrity=customers=>hash(customers.map(c=>c.customerId+':'+hash(c.sessionToken)).join('\n'));
 export function tenantFor(runId){const h=hash(runId);return `t_${h.slice(0,8)}-${h.slice(8,12)}-4${h.slice(13,16)}-8${h.slice(17,20)}-${h.slice(20,32)}`}
 export function target(options){
+ if(options.profile==='gray-config')return grayTarget(options);
  check(options.profile==='local-harness','Only local-harness is authorized; gray execution is HOLD');
  const url=new URL(options.baseUrl),b=options.config?.bindings;
  check(['http:','https:'].includes(url.protocol)&&['localhost','127.0.0.1'].includes(url.hostname)&&!url.username&&!url.password&&url.pathname==='/'&&!url.search&&!url.hash,'Loopback origin required');
@@ -32,7 +35,7 @@ export function plan(options){
  check(Number.isSafeInteger(count)&&count>=(options.dataset==='main'?1:0)&&count<=5000&&(options.count===undefined||options.count===count),'Invalid dataset count');
  const db=new DatabaseSync(t.file,{readOnly:true});let counts;
  try{counts={companies:db.prepare('SELECT COUNT(*) n FROM team_companies').get().n,accounts:db.prepare('SELECT COUNT(*) n FROM h5_accounts').get().n}}finally{db.close()}
- const summary={profile:options.profile,env:'local',authMode:t.bindings.PAYEASE_AUTH_MODE,customerRows:t.bindings.CUSTOMER_ROWS,hosts:t.hosts,baseUrl:t.url.origin,database:t.file,size:statSync(t.file).size,...counts,count,runId:options.runId,dataset:options.dataset,tenantId:tenantFor(options.runId)};
+ const summary={profile:options.profile,env:t.bindings.PAYEASE_ENV,...(t.declarations?{declarations:t.declarations,configFingerprint:t.configFingerprint}:{}),authMode:t.bindings.PAYEASE_AUTH_MODE,customerRows:t.bindings.CUSTOMER_ROWS,hosts:t.hosts,baseUrl:t.url.origin,database:t.file,size:statSync(t.file).size,...counts,count,runId:options.runId,dataset:options.dataset,tenantId:tenantFor(options.runId)};
  return {target:t,summary,fingerprint:hash(JSON.stringify(summary)).slice(0,12)};
 }
 export function sealCase(id,secret,keyId='v2'){
@@ -49,6 +52,7 @@ export function prepare(options){
  const ttl=options.ttl??7200;check(Number.isSafeInteger(ttl)&&ttl>=600&&ttl<=21600,'Session TTL must be 600..21600 seconds');
  const db=new DatabaseSync(p.target.file);db.exec('PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000; BEGIN IMMEDIATE');
  try{
+  const externalBefore=p.target.declarations?unrelated(db,p.summary.tenantId):undefined;
   const owner=p.summary.tenantId,now=Math.floor(Date.now()/1000),expires=now+ttl,b=p.target.bindings,dataset=options.dataset;
   check(db.prepare('SELECT COUNT(*) n FROM team_companies').get().n===p.summary.companies&&db.prepare('SELECT COUNT(*) n FROM h5_accounts').get().n===p.summary.accounts,'Target changed since planning');
   check(!db.prepare('SELECT 1 FROM team_companies WHERE id=? OR slug=?').get(owner,'loadtest-'+options.runId),'Fixture tenant already exists');
@@ -67,13 +71,14 @@ export function prepare(options){
    if(dataset!=='aux')db.prepare('INSERT INTO kyc_cases(id,owner,customer_id,revision,status,payload,updated_at) VALUES (?,?,?,1,?,?,?)').run(id,owner,customerId,'approved',sealCase(id,b.KYC_DATA_SECRET,b.KYC_DATA_KEY_ID),new Date().toISOString());
    customers.push({index,customerId,sessionToken,type});
   }
-  const manifest={formatVersion:1,synthetic:true,runId:options.runId,dataset,opsDepartmentId:owner+':ops',createdAt:new Date().toISOString(),expiresAt:new Date(expires*1000).toISOString(),target:{profile:options.profile,env:'local',authMode:b.PAYEASE_AUTH_MODE,customerRows:b.CUSTOMER_ROWS,tenantId:owner,hosts:[p.target.url.hostname],baseUrl:p.target.url.origin,configFingerprint:p.fingerprint},customers,integrity:{count:customers.length,sha256:integrity(customers)}};
+  const manifest={formatVersion:1,synthetic:true,runId:options.runId,dataset,opsDepartmentId:owner+':ops',createdAt:new Date().toISOString(),expiresAt:new Date(expires*1000).toISOString(),target:{profile:options.profile,env:b.PAYEASE_ENV,authMode:b.PAYEASE_AUTH_MODE,customerRows:b.CUSTOMER_ROWS,tenantId:owner,hosts:[p.target.url.hostname],baseUrl:p.target.url.origin,configFingerprint:p.target.configFingerprint??p.fingerprint},customers,integrity:{count:customers.length,sha256:integrity(customers)}};
+  if(externalBefore)check(JSON.stringify(externalBefore)===JSON.stringify(unrelated(db,owner)),'Unrelated records changed');
   options.persist?.(manifest);db.exec('COMMIT');return {summary:p.summary,fingerprint:p.fingerprint,manifest};
  }catch(e){db.exec('ROLLBACK');throw e}finally{db.close()}
 }
 export function validateManifest(m){
  check(m?.formatVersion===1&&m.synthetic===true&&/^[a-z0-9-]{8,40}$/.test(m.runId),'Invalid synthetic manifest');
- check(m.target?.profile==='local-harness'&&m.target.env==='local'&&m.target.tenantId===tenantFor(m.runId)&&m.opsDepartmentId===m.target.tenantId+':ops','Manifest owner mismatch');
+ check(((m.target?.profile==='local-harness'&&m.target.env==='local')||(m.target?.profile==='gray-config'&&m.target.env==='gray'&&m.target.authMode==='telegram'&&['https://testapi.khmerx.org','https://testpayease.khmerx.org'].includes(m.target.baseUrl)))&&m.target.tenantId===tenantFor(m.runId)&&m.opsDepartmentId===m.target.tenantId+':ops','Manifest owner mismatch');
  check(Object.hasOwn(datasets,m.dataset)&&Array.isArray(m.customers),'Dataset missing');
  check(['demo','telegram'].includes(m.target.authMode)&&/^[a-f0-9]{12}$/.test(m.target.configFingerprint)&&Array.isArray(m.target.hosts),'Manifest runtime missing');
  check(Date.parse(m.expiresAt)>Date.parse(m.createdAt)&&Date.parse(m.expiresAt)-Date.parse(m.createdAt)<=21600000,'Invalid manifest lifetime');

@@ -3,7 +3,7 @@ import {check,hash,target,validateManifest} from './core.mjs';
 
 const columns={h5_sessions:'owner',kyc_cases:'owner',team_assignments:'tenant_id',customer_workspaces:'owner',loan_index:'owner',public_identifiers:'tenant_id',demo_workspaces:'owner',h5_accounts:'owner',team_units:'tenant_id',team_companies:'id',team_audit:'tenant_id'};
 const denied={team_members:'tenant_id',team_invites:'tenant_id',kyc_files:'owner',kyc_contracts:'owner',kyc_history:'owner',team_service_settings:'tenant_id',team_service_tickets:'tenant_id',team_audit_manifests:'tenant_id'};
-function unrelated(db,owner){
+export function unrelated(db,owner){
  const out={};
  for(const {name} of db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all()){
   check(/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name),'Unsupported table name');
@@ -14,7 +14,8 @@ function unrelated(db,owner){
 }
 export function cleanup(options,manifest){
  validateManifest(manifest);const t=target(options),owner=manifest.target.tenantId,ops=manifest.opsDepartmentId;
- check(manifest.target.baseUrl===t.url.origin,'Cleanup target mismatch');
+ check(manifest.target.profile===options.profile&&manifest.target.authMode===t.bindings.PAYEASE_AUTH_MODE&&manifest.target.customerRows===t.bindings.CUSTOMER_ROWS&&manifest.target.baseUrl===t.url.origin,'Cleanup target mismatch');
+ check(!t.configFingerprint||manifest.target.configFingerprint===t.configFingerprint,'Config fingerprint mismatch');
  const db=new DatabaseSync(t.file,{readOnly:!options.apply});db.exec('PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000');
  db.exec(options.apply?'BEGIN IMMEDIATE':'BEGIN');
  try{
@@ -36,7 +37,7 @@ export function cleanup(options,manifest){
   check(rows('public_identifiers').every(r=>known.has(r.internal_id)),'Unknown public identifier');
   const before=Object.fromEntries(Object.keys(columns).map(table=>[table,rows(table).length]));
   const externalBefore=unrelated(db,owner),auditHash=hash(JSON.stringify(audit));
-  const summary={runId:manifest.runId,dataset:manifest.dataset,tenantId:owner,database:t.file,before,auditHash,manifestHash:hash(JSON.stringify(manifest)),externalBefore};
+  const summary={...(t.declarations?{declarations:t.declarations}:{}),runId:manifest.runId,dataset:manifest.dataset,tenantId:owner,database:t.file,before,auditHash,manifestHash:hash(JSON.stringify(manifest)),externalBefore};
   const fingerprint=hash(JSON.stringify(summary)).slice(0,12);
   if(options.apply){
    check(options.confirm===fingerprint,'Cleanup fingerprint mismatch');
@@ -46,7 +47,8 @@ export function cleanup(options,manifest){
   const after=Object.fromEntries(Object.keys(columns).map(table=>[table,rows(table).length])),externalAfter=unrelated(db,owner);
   check(JSON.stringify(externalBefore)===JSON.stringify(externalAfter),'Unrelated records changed');
   check(hash(JSON.stringify(rows('team_audit')))===auditHash,'Append-only audit changed');
-  const report={...summary,fingerprint,applied:!!options.apply,after,tombstone:!!audit.length,retainedAudit:audit.length,externalAfter};
+  const tombstones=db.prepare("SELECT COUNT(*) n FROM team_companies WHERE active=0 AND slug LIKE 'loadtest-%'").get().n;
+  const report={...(t.declarations?{grayTombstones:tombstones}:{}),...summary,fingerprint,applied:!!options.apply,after,tombstone:!!audit.length,retainedAudit:audit.length,externalAfter};
   options.persist?.(report);db.exec('COMMIT');return report;
  }catch(e){db.exec('ROLLBACK');throw e}finally{db.close()}
 }
