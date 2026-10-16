@@ -1,11 +1,11 @@
-export const roleLabels={admin:'公司管理员',collection_admin:'贷后部门主管',collector:'贷后客服',dept_admin:'KYC 审核主管',ops:'运营分单',kyc:'KYC 审核员',lender:'机构审批员',checker:'持牌机构复核员',finance:'放款员',finance_checker:'放款复核员',audit:'审计员'} as const;
+export const roleLabels={admin:'公司管理员',collection_admin:'贷后部门主管',collector:'贷后客服',dept_admin:'KYC 审核主管',ops:'运营分单员',kyc:'KYC 审核员',lender:'机构审批员',checker:'持牌机构复核员',finance:'放款员',finance_checker:'放款复核员',audit:'审计员'} as const;
 export type TeamRole=keyof typeof roleLabels;
 export const roleCatalog:Record<TeamRole,{description:string;unitKind:'department'|'institution'|'postloan'|null;highRisk:boolean}>={
  admin:{description:'管理公司设置、员工与全部业务范围',unitKind:null,highRisk:true},
  collection_admin:{description:'管理所属贷后部门任务与客服分配',unitKind:'postloan',highRisk:false},
  collector:{description:'处理所属贷后部门的催收任务',unitKind:'postloan',highRisk:false},
  dept_admin:{description:'管理所属 KYC 部门并处理审核协作',unitKind:'department',highRisk:false},
- ops:{description:'处理所属部门的运营分单',unitKind:'department',highRisk:false},
+ ops:{description:'负责所属部门的客户分配与资料流转；测试环境可调整逾期情景',unitKind:'department',highRisk:false},
  kyc:{description:'审核所属部门分配的 KYC 资料',unitKind:'department',highRisk:false},
  lender:{description:'审核所属持牌机构的贷款申请',unitKind:'institution',highRisk:true},
  checker:{description:'独立复核所属持牌机构的贷款审批',unitKind:'institution',highRisk:true},
@@ -43,6 +43,6 @@ export function canSee(m:Member,a:Assignment|undefined,kind:'summary'|'kyc'='sum
  return false;
 }
 export const actionRoles:Record<string,TeamRole[]>={approve:['lender'],reject:['lender'],approval_check:['checker'],disburse_request:['finance'],disburse:['finance_checker'],admin_disburse:['admin'],admin_repay:['admin'],overdue:['ops'],bot_save:['admin'],bot_add:['admin'],bot_switch:['admin']};
-export const actionLabels:Record<string,string>={approve:'贷款初审通过',reject:'拒绝贷款申请',approval_check:'独立复核贷款审批',disburse_request:'发起放款',disburse:'复核放款',admin_disburse:'管理员放款',admin_repay:'登记还款',overdue:'处理逾期任务',bot_save:'保存机器人配置',bot_add:'新增机器人',bot_switch:'切换业务机器人'};
+export const actionLabels:Record<string,string>={approve:'贷款初审通过',reject:'拒绝贷款申请',approval_check:'独立复核贷款审批',disburse_request:'发起放款',disburse:'复核放款',admin_disburse:'管理员放款',admin_repay:'登记还款',overdue:'调整测试逾期情景',bot_save:'保存机器人配置',bot_add:'新增机器人',bot_switch:'切换业务机器人'};
 export function allowAction(m:Member,a:Assignment|undefined,action:string){return !!m.active&&!!actionRoles[action]?.includes(m.role)&&(action.startsWith('bot_')||canSee(m,a));}
 export function requireDifferent(actor:string,other:string|undefined){if(!other||actor===other)throw Error('必须由另一位员工复核，不能复核本人操作');}
