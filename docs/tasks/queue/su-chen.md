@@ -189,6 +189,11 @@ PR 小于 400 行。
 
 ---
 
+## L1-G3 db-check 绑定 manifest（小卡，不阻塞灰度窗口）
+**唯一依据：`docs/tasks/codex-prompts/L1-G3-dbcheck-binding.md`**。分支 `feat/server/L1-G3`（`Line: server`）：`db-check` 输出新增 `runId`、`binding`、`checkedAt`，`verify-rows` 校验绑定，拒绝旧 9 键格式与取自其他运行的 JSON。仅本地代码与测试，不得操作灰度/VPS。
+
+---
+
 ## L2 灰度机压测执行与报告（人工 + 脚本）
 ```
 前提：159.223.77.134 已部署并且 testapi.khmerx.org 不再返回 521；S4b、S-LT1 已合并；灰度机 PAYEASE_ENV=gray。
