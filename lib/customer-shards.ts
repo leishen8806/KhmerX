@@ -47,7 +47,8 @@ export async function writeCustomerShard(db:DB,owner:string,customerId:string,st
  const shard=shardForCustomer(state,customerId);
  const requests=existing?(JSON.parse(existing.payload) as CustomerShard):{requests:[] as string[],requestDigests:{} as Record<string,string>};
  shard.requests=Array.isArray(requests.requests)?requests.requests.slice(-499):[];
- shard.requestDigests={...(requests.requestDigests||{})};
+ const retained=new Set(shard.requests);
+ shard.requestDigests=Object.fromEntries(Object.entries(requests.requestDigests||{}).filter(([id])=>retained.has(id)));
  if(requestId&&state.requestDigests?.[requestId]!==undefined){
   shard.requests.push(requestId);
   shard.requestDigests[requestId]=state.requestDigests[requestId];

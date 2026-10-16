@@ -70,3 +70,15 @@ test('customer loan removal deletes the stale loan index row',async()=>{
  await writeCustomerShard(db,'owner','A',{...base,loans:[]},1);
  assert.equal(db.sql.prepare('SELECT COUNT(*) AS n FROM loan_index WHERE owner=? AND customer_id=?').get('owner','A').n,0);
 });
+
+test('customer shard writes remove orphaned request digests',async()=>{
+ const db=dbHarness();
+ const base={loans:[],events:[],entries:[],notifications:[],bots:[]};
+ await writeCustomerShard(db,'owner','A',{...base,requests:['live'],requestDigests:{live:'ok'}},0,'live');
+ const seeded=JSON.parse(db.sql.prepare('SELECT payload FROM customer_workspaces WHERE owner=? AND customer_id=?').get('owner','A').payload);
+ seeded.requestDigests.orphan='sensitive';
+ db.sql.prepare('UPDATE customer_workspaces SET payload=? WHERE owner=? AND customer_id=?').run(JSON.stringify(seeded),'owner','A');
+ await writeCustomerShard(db,'owner','A',{...base,requests:['live'],requestDigests:{live:'ok'}},1);
+ const saved=JSON.parse(db.sql.prepare('SELECT payload FROM customer_workspaces WHERE owner=? AND customer_id=?').get('owner','A').payload);
+ assert.deepEqual(saved.requestDigests,{live:'ok'});
+});
