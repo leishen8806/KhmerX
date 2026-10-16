@@ -336,6 +336,13 @@ test('Admin funding and repayment require prior approval, enforce isolation and 
  assert.equal(sql.prepare('SELECT status FROM team_emergency_access WHERE id=?').get(emergencyRequest.id).status,'consumed');
  await assert.rejects(emergency.assertEmergencyAccess(emergencyRequest.id,'funding','admin_repay',l.id,verifiedCents),/已失效/);
  await assert.rejects(emergency.emergencyRevoke(emergencyRequest.id),/已结束/);
+ const spoofGrant=await emergency.emergencyRequest({scope:['funding'],loanId:l.id,cents:500,reason:'Synthetic client payment verification spoof must fail'});
+ sql.prepare("UPDATE team_emergency_access SET status='active',approver_id=?,approved_at=?,expires_at=? WHERE id=?").run(ownerMember.id,new Date().toISOString(),Date.now()+30*60*1000,spoofGrant.id);
+ env.KHMERX_TEST_MODE='false';
+ try{await assert.rejects(flow.staffAction({action:'admin_repay',loanId:l.id,cents:500,reference:'UAT-UNVERIFIED',paymentVerified:true,note:'Synthetic spoofed verification flag',emergencyId:spoofGrant.id,requestId:crypto.randomUUID()}),error=>error.code==='PAYMENT_RECEIPT_UNVERIFIED');}
+ finally{env.KHMERX_TEST_MODE='true';}
+ assert.equal(sql.prepare('SELECT status FROM team_emergency_access WHERE id=?').get(spoofGrant.id).status,'active');
+ await emergency.emergencyRevoke(spoofGrant.id);
  env.KHMERX_TEST_MODE='false';
  const validationGrant=await emergency.emergencyRequest({scope:['funding'],loanId:l.id,cents:l.billing.net,reason:'Synthetic validation failure must not consume grant'});
  sql.prepare("UPDATE team_emergency_access SET status='active',approver_id=?,approved_at=?,expires_at=? WHERE id=?").run(ownerMember.id,new Date().toISOString(),Date.now()+30*60*1000,validationGrant.id);
