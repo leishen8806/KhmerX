@@ -47,6 +47,7 @@ export const actionLabels:Record<string,string>={approve:'贷款初审通过',re
 // These labels describe the separate post-loan service API. They are kept out
 // of actionRoles because that map is the authorization policy for loan actions.
 export const roleDisplayActions:Partial<Record<TeamRole,string[]>>={
+ admin:['公司、机构、部门与员工管理'],
  collection_admin:['贷后任务改派与团队分配'],
  collector:['记录跟进、承诺还款与客户异议'],
  dept_admin:['KYC 审核、补件与协作'],
