@@ -1,3 +1,4 @@
+import {grayOutput} from './gray.mjs';
 import {execFileSync} from 'node:child_process';
 import {lstatSync,statSync,realpathSync,mkdirSync,writeFileSync,unlinkSync} from 'node:fs';
 import {resolve,dirname} from 'node:path';
@@ -12,8 +13,8 @@ function accessCheck(file,directory=false){
 }
 export function privateDirectory(dir){check(statSync(dir).isDirectory(),'Manifest directory missing');accessCheck(dir,true)}
 export function privateFile(file){privateDirectory(dirname(file));check(statSync(file).isFile(),'Manifest file missing');accessCheck(file)}
-export function writer(root,file){
- const dir=resolve(root,'scripts/loadtest/manifests');mkdirSync(dir,{recursive:true,mode:0o700});
+export function writer(root,file,gray=false){
+ const dir=gray?'/out/manifests':resolve(root,'scripts/loadtest/manifests');if(gray)grayOutput(dir);else mkdirSync(dir,{recursive:true,mode:0o700});
  check(realpathSync(dir)===dir&&dirname(resolve(file))===dir,'Use private manifests directory without links');
  if(process.platform==='win32'){const user=execFileSync('whoami',[],{encoding:'utf8'}).trim();execFileSync('icacls',[dir,'/inheritance:r','/grant:r',user+':(OI)(CI)F'],{stdio:'ignore'})}
  privateDirectory(dir);

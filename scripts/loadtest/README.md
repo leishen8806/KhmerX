@@ -177,3 +177,41 @@ A process crash needs manual fixture cleanup; never discard unrelated databases.
 Raw CSV/logs stay local; commit sanitized reports only, including raw CSV SHA256.
 Current source may fail on-mode confirm_bill replay: record failure, do not relax
 its unchanged-revision assertion or modify application code in this task.
+
+
+## L1-G gray-config fixture (operator only)
+
+Codex validation uses local `node:22.22.1-bookworm-slim --network none` containers only.
+No VPS or gray endpoint was contacted. Local Telegram fixture sessions are synthetic;
+this is not Telegram registration or an authentication benchmark.
+
+Before each approved window, stop the gray application and create a nonempty tar backup
+of its D1 directory outside `/data/d1`. Ensure the backup is less than 30 minutes old.
+The tool validates declarations, not actual application shutdown; its write lock is an
+additional check. Keep session expiry before the next Saturday 17:45 closing time.
+Manifest directory must already exist with owner `1000:1000`, mode `700`.
+
+Operator template (do not run without separate owner authorization):
+```sh
+# After stopping the application and creating /opt/payease/loadtest/d1-before-RUN.tgz:
+docker run --rm --network none --user 1000:1000 -e L1G_CONTAINER=1 \
+  -v "$REPO:/app:ro" -v /opt/payease/data:/data \
+  -v /opt/payease/data/config.json:/run/config.json:ro \
+  -v /opt/payease/loadtest:/out -w /app node:22.22.1-bookworm-slim \
+  node scripts/loadtest/fixture/cli.mjs plan --profile gray-config \
+  --config /run/config.json --d1-dir /data/d1 --base-url https://testapi.khmerx.org \
+  --expect-rows off --dataset main --run-id RUN --count 100 --output-dir /out/manifests \
+  --app-stopped --backup-ref /out/d1-before-RUN.tgz
+```
+Use a valid lowercase 8–40 character run ID in place of RUN. Keep all target/declaration
+arguments for every command, including read-only `plan`, `db-check` and cleanup planning.
+Replace `plan` with `apply --apply --confirm FINGERPRINT --output /out/manifests/RUN.json`.
+Create independent smoke/main/timeout/aux/wrong-owner runs; only main accepts a custom count.
+Restart the application and transfer manifests privately to the load generator.
+After the run, stop again, create a fresh backup, then use `db-check --manifest FILE`,
+`cleanup --manifest FILE`, and `cleanup --manifest FILE --apply --confirm FINGERPRINT
+--output /out/manifests/RUN-cleanup.json`. Retain immutable audit and inactive tenant
+rows after create; unused runs are completely removed. Restart and check readiness.
+Securely delete manifests on both machines after cleanup. Reports contain counts/hashes,
+not session tokens. Private mode-600 manifests are the explicit credential artifact.
+Restore backups only after owner authorization, with the application stopped.
