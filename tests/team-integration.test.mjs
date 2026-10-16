@@ -147,6 +147,36 @@ test('Telegram signed subscription, tenant isolation, one-time delivery and unsu
  const retried=await notify.retryNotificationDelivery(failedId);assert.equal(retried.status,'retry');assert.equal(sql.prepare('SELECT status,attempts FROM telegram_outbox WHERE id=?').get(failedId).status,'retry');assert.equal(sql.prepare("SELECT action FROM team_audit WHERE tenant_id=? AND action='notification_delivery_manual_retry' ORDER BY created_at DESC LIMIT 1").get(A).action,'notification_delivery_manual_retry');
 });
 
+test('manual notification retry resets both eligible states and audits only successful tenant-admin changes',async()=>{
+ const notify=await mod('@/lib/notifications/server'),previousFetch=context.fetch;
+ selected=A;user=owner;extraCookies='';
+ await team.manage({action:'create_member',role:'audit',email:'retry-auditor@example.test'});
+ const auditor={userId:'retry-auditor@example.test',email:'retry-auditor@example.test'};
+ const row=id=>sql.prepare('SELECT * FROM telegram_outbox WHERE id=?').get(id);
+ const audits=()=>sql.prepare('SELECT count(*) AS n FROM team_audit').get().n;
+ const insert=status=>{const id=crypto.randomUUID();sql.prepare('INSERT INTO telegram_outbox (id,owner,notification_id,loan_id,subscription_id,status,attempts,next_at,updated_at,reason) VALUES (?,?,?,?,?,?,4,123,?,?)').run(id,A,'retry-'+id,'synthetic-loan','synthetic-subscription',status,'2026-01-01T00:00:00.000Z','Synthetic failure');return id};
+ const reject=async(id,status)=>{const before=row(id),count=audits();await assert.rejects(notify.retryNotificationDelivery(id),error=>error.status===status);assert.deepEqual(row(id),before);assert.equal(audits(),count)};
+ context.fetch=()=>{throw Error('Manual retry must not send Telegram messages')};
+ try{
+  for(const status of ['unknown','failed']){
+   const id=insert(status),before=row(id),count=audits(),started=Date.now();
+   const result=await notify.retryNotificationDelivery(id);
+   assert.equal(result.ok,true);assert.equal(result.id,id);assert.equal(result.status,'retry');
+   const after=row(id);assert.equal(after.status,'retry');assert.equal(after.attempts,0);assert.equal(after.next_at,0);assert.equal(after.reason,'管理员确认人工重试');
+   assert.equal(audits(),count+1);
+   const events=sql.prepare("SELECT * FROM team_audit WHERE action='notification_delivery_manual_retry'").all().filter(event=>JSON.parse(event.detail).outboxId===id);
+   assert.equal(events.length,1);assert.equal(events[0].tenant_id,A);assert.equal(events[0].actor,owner.userId);
+   const detail=JSON.parse(events[0].detail);assert.equal(detail.outboxId,id);assert.equal(detail.loanId,before.loan_id);assert.equal(detail.previousStatus,status);assert.equal(detail.previousAttempts,4);assert.equal(detail.at,after.updated_at);assert(Date.parse(detail.at)>=started);
+   await reject(id,409);
+  }
+  const id=insert('failed');
+  for(const identity of [reviewer1,auditor]){user=identity;await reject(id,403)}
+  user=owner;selected=B;await reject(id,404);selected=A;
+  for(const status of ['pending','retry','sending','sent','cancelled'])await reject(insert(status),409);
+  await reject('missing-synthetic-outbox',404);
+ }finally{context.fetch=previousFetch;selected=A;user=owner;extraCookies=''}
+});
+
  test('business bot switch is admin-only, company-isolated, and overrides customer-supplied channels',async()=>{
  selected=A;user=reviewer1;await assert.rejects(flow.staffAction({action:'bot_switch',botId:'bot-2',previousBotId:'bot-1',requestId:crypto.randomUUID()}));
  user=owner;const before=await store.readState(A),existing=before.state.loans.map(l=>[l.id,l.botId]);await flow.staffAction({action:'bot_switch',botId:'bot-2',previousBotId:'bot-1',requestId:crypto.randomUUID()});
