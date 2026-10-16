@@ -12,7 +12,10 @@ export const TEAM_COOKIE=STAFF_COMPANY;
 export const CUSTOMER_COMPANY_COOKIE='payease_company';
 export const db=()=>{if(!env.DB)throw new AuthError('公司数据库暂不可用',503);return env.DB};
 export async function identity(){const u=await staffIdentity();if(isTestMode()&&!u.staffTenantId){await db().prepare(`UPDATE team_members SET user_id=?,version=version+1 WHERE lower(email)=? AND user_id LIKE 'pending:%' AND active=1 AND NOT EXISTS (SELECT 1 FROM team_members existing WHERE existing.tenant_id=team_members.tenant_id AND existing.user_id=?)`).bind(u.userId,u.email.toLowerCase(),u.userId).run()}return u}
-async function companyByCookie(customerOnly=false){const raw=(await headers()).get('cookie');const v=customerOnly?value(raw,CUSTOMER_COMPANY_COOKIE):(value(raw,TEAM_COOKIE)??value(raw,CUSTOMER_COMPANY_COOKIE));if(!v||v==='none')return null;if(!/^t_[a-f0-9-]{36}$/.test(v))throw new AuthError('公司工作区无效',403);
+// Keep staff and customer company selection independent. Falling back to the
+// customer cookie here made /team/leave appear to succeed, then immediately
+// re-enter the previous staff company when the auto-entry effect ran.
+async function companyByCookie(customerOnly=false){const raw=(await headers()).get('cookie');const v=customerOnly?value(raw,CUSTOMER_COMPANY_COOKIE):value(raw,TEAM_COOKIE);if(!v||v==='none')return null;if(!/^t_[a-f0-9-]{36}$/.test(v))throw new AuthError('公司工作区无效',403);
  const expired=(await db().prepare("SELECT id,name,institution_code,license_expires_at FROM team_units WHERE tenant_id=? AND kind='institution' AND active=1 AND license_expires_at IS NOT NULL AND license_expires_at<>'' AND license_expires_at < date('now')").bind(v).all()).results as any[];
  if(expired.length){const now=new Date().toISOString();await db().batch([db().prepare("UPDATE team_units SET active=0 WHERE tenant_id=? AND kind='institution' AND active=1 AND license_expires_at IS NOT NULL AND license_expires_at<>'' AND license_expires_at < date('now')").bind(v),...expired.map((unit)=>audit(v,'system','institution_auto_paused',{id:unit.id,name:unit.name,institutionCode:unit.institution_code,licenseExpiresAt:unit.license_expires_at,reason:'牌照有效期已过，系统自动暂停',at:now}))]);}
  const t=await db().prepare('SELECT * FROM team_companies WHERE id=? AND active=1').bind(v).first<any>();if(!t)throw new AuthError('公司已停用或不可访问',403);return t}
