@@ -4,12 +4,17 @@ import {sleep} from 'k6';
 import {Trend,Counter} from 'k6/metrics';
 
 const manifest=JSON.parse(open(__ENV.ROWS_MANIFEST)),base=String(__ENV.BASE_URL||''),vus=Number(__ENV.VUS||50),startAt=Number(__ENV.START_AT);
-if(!/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(base)||manifest.target.baseUrl!==base||manifest.target.profile!=='local-harness'||manifest.target.env!=='local')throw Error('Only matching local harness targets are authorized');
+const gray=manifest.target.profile==='gray-config',allowed=String(__ENV.LOADTEST_ALLOWED_HOSTS||'').split(',').map(x=>x.trim()),host=base.slice(8);
+if(gray){
+ if(manifest.target.env!=='gray'||manifest.target.authMode!=='telegram'||manifest.target.baseUrl!==base||!['testapi.khmerx.org','testpayease.khmerx.org'].includes(host)||base!=='https://'+host||!manifest.target.hosts.includes(host)||__ENV.ORIGIN_IP!=='159.223.77.134'||!allowed.includes(host)||!allowed.includes(__ENV.ORIGIN_IP))throw Error('Gray direct origin requires every allowlist condition');
+}else if(!/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(base)||manifest.target.baseUrl!==base||manifest.target.profile!=='local-harness'||manifest.target.env!=='local'||__ENV.ORIGIN_IP||__ENV.K6_INSECURE_SKIP_TLS_VERIFY==='true')throw Error('Only matching local harness targets are authorized');
+let scales;
+if(gray){scales=JSON.parse(__ENV.DECLARED_SCALES||'null');if(!scales||Object.keys(scales).length!==2||!['PAYEASE_GATEWAY_RATE_SCALE','PAYEASE_LIMIT_SCALE'].every(k=>typeof scales[k]==='number'&&Number.isFinite(scales[k])&&scales[k]>0))throw Error('Declare actual positive scales')}
 if(!['main','smoke'].includes(manifest.dataset)||manifest.customers.length<vus||!Number.isSafeInteger(vus)||vus<1||!Number.isFinite(startAt))throw Error('Invalid rows manifest or barrier');
 const duration=new Trend('rows_request_ms',true),outcomes=new Counter('rows_outcome'),retries=new Counter('rows_retries');
 const categories=['completed','not_started','aborted','create_failed','confirm_failed','create_ok_after_replay','create_missing','duplicate_loans','wrong_owner_loan','status_mismatch','bill_not_confirmed'];
 const categoryMetrics=Object.fromEntries(categories.map(k=>[k,new Counter('rows_result_'+k)]));
-export const options={scenarios:{rows:{executor:'per-vu-iterations',vus,iterations:1,maxDuration:'5m'}},maxRedirects:0,summaryTrendStats:['p(50)','p(95)','p(99)']};
+export const options={...(gray?{hosts:{[host]:__ENV.ORIGIN_IP},insecureSkipTLSVerify:true}:{}),scenarios:{rows:{executor:'per-vu-iterations',vus,iterations:1,maxDuration:'5m'}},maxRedirects:0,summaryTrendStats:['p(50)','p(95)','p(99)']};
 export function classify(body,id){
  const loans=body?.state?.loans;
  if(!Array.isArray(loans)||!loans.length)return 'create_missing';
@@ -69,6 +74,6 @@ export default function(){
 export function handleSummary(data){
  const counts=Object.fromEntries(categories.map(k=>[k,data.metrics['rows_result_'+k]?.values?.count||0]));
  const delivered=Object.values(counts).reduce((a,b)=>a+b,0);counts.not_started+=Math.max(0,vus-delivered);
- const result={label:'本地 harness，非灰度、非 600 客户实测',scene:'rows',runId:manifest.runId,dataset:manifest.dataset,customers:vus,vus,startAt,mode:manifest.target.customerRows,gitHead:__ENV.GIT_HEAD,authMode:manifest.target.authMode,env:'local',authFixture:'synthetic fixture: not Telegram registration or authentication benchmark',counts,scriptRetries:data.metrics.rows_retries?.values?.count||0,serverOptimisticRetries:'unavailable'};
+ const result={label:gray?'灰度直连源站，已跳过证书校验，未经 Cloudflare; '+base+' → '+__ENV.ORIGIN_IP+'; '+JSON.stringify(scales)+'; CUSTOMER_ROWS='+manifest.target.customerRows+'; synthetic fixture：非 Telegram 注册、非认证压测':'本地 harness，非灰度、非 600 客户实测',scene:'rows',runId:manifest.runId,dataset:manifest.dataset,customers:vus,vus,startAt,mode:manifest.target.customerRows,gitHead:__ENV.GIT_HEAD,authMode:manifest.target.authMode,env:manifest.target.env,...(gray?{baseUrl:base,originIp:__ENV.ORIGIN_IP,declaredScales:scales}:{}),authFixture:'synthetic fixture: not Telegram registration or authentication benchmark',counts,scriptRetries:data.metrics.rows_retries?.values?.count||0,serverOptimisticRetries:'unavailable'};
  return {stdout:result.label+'\n'+JSON.stringify(counts)+'\n',[__ENV.ROWS_SUMMARY]:JSON.stringify(result,null,2)};
 }
