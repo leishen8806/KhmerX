@@ -49,7 +49,7 @@ export function dbCheck(o,m){
   const loans=[...legacy,...shards.flatMap(r=>JSON.parse(r.payload).loans||[])],foreign=[...rows('h5_accounts'),...rows('h5_sessions'),...rows('kyc_cases'),...shards,...index,...rows('team_assignments','tenant_id')].some(r=>!ids.has(r.customer_id))||loans.some(l=>!ids.has(l.customerId));
   const counts={customer_workspaces:shards.length,loan_index:index.length,legacyLoans:legacy.length,assignments:rows('team_assignments','tenant_id').length,audit:rows('team_audit','tenant_id').length};
   const on=t.bindings.CUSTOMER_ROWS==='on',expected=m.dataset==='main'||m.dataset==='smoke'||m.dataset==='timeout'?m.customers.length:0;
-  const result={...counts,assignmentsMatch:counts.assignments===expected&&counts.audit===expected,modeMatches:on?shards.length===expected&&index.length===expected&&legacy.length===0:shards.length===0&&index.length===0&&legacy.length===expected,uniqueOps:units.length===1&&units[0].id===m.opsDepartmentId&&units[0].kind==='department',foreignCustomers:foreign};
+  const result={runId:m.runId,binding:hash(m.runId+':'+m.target.tenantId+':'+m.dataset+':'+m.integrity.sha256),checkedAt:new Date().toISOString(),...counts,assignmentsMatch:counts.assignments===expected&&counts.audit===expected,modeMatches:on?shards.length===expected&&index.length===expected&&legacy.length===0:shards.length===0&&index.length===0&&legacy.length===expected,uniqueOps:units.length===1&&units[0].id===m.opsDepartmentId&&units[0].kind==='department',foreignCustomers:foreign};
   db.exec('COMMIT');return result;
  }finally{db.close()}
 }

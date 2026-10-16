@@ -7,7 +7,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {request as httpRequest} from 'node:http';
 import {spawn,execFileSync} from 'node:child_process';
 import {Miniflare} from 'miniflare';
-import {check,plan,prepare,target,validateManifest} from './fixture/core.mjs';
+import {check,hash,plan,prepare,target,validateManifest} from './fixture/core.mjs';
 import {writer,privateFile} from './fixture/private-file.mjs';
 import {cleanup} from './fixture/cleanup.mjs';
 import {preflight,rowsTarget,grayLabel,declaredScales} from './rows-preflight.mjs';
@@ -31,7 +31,14 @@ function grayRequest(m,c,input,owner,timeoutMs,drop=false){
 }
 export function databaseEvidence(raw,m){
  const keys=['customer_workspaces','loan_index','legacyLoans','assignments','audit','modeMatches','uniqueOps','foreignCustomers','assignmentsMatch'];
-  check(Object.keys(raw).length===keys.length&&keys.every(k=>Object.hasOwn(raw,k)&&(k.endsWith('Match')||['modeMatches','uniqueOps','foreignCustomers'].includes(k)?typeof raw[k]==='boolean':Number.isSafeInteger(raw[k])&&raw[k]>=0)),'Invalid sanitized db-check artifact');
+ validateManifest(m);
+ const invalid='Invalid sanitized db-check artifact';
+ check(raw&&typeof raw==='object'&&!Array.isArray(raw)&&Object.keys(raw).length===keys.length+3,invalid);
+ check(['runId','binding','checkedAt'].every(k=>Object.hasOwn(raw,k)&&typeof raw[k]==='string'),invalid);
+ check(/^[a-f0-9]{64}$/.test(raw.binding)&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(raw.checkedAt),invalid);
+ check(keys.every(k=>Object.hasOwn(raw,k)&&(k.endsWith('Match')||['modeMatches','uniqueOps','foreignCustomers'].includes(k)?typeof raw[k]==='boolean':Number.isSafeInteger(raw[k])&&raw[k]>=0)),invalid);
+ const checkedAt=Date.parse(raw.checkedAt),binding=hash(m.runId+':'+m.target.tenantId+':'+m.dataset+':'+m.integrity.sha256);
+ check(raw.runId===m.runId&&raw.binding===binding&&Number.isFinite(checkedAt)&&checkedAt>=Date.parse(m.createdAt)&&checkedAt<=Date.now()+300000&&checkedAt<=Date.parse(m.expiresAt)+21600000,invalid);
  const n=m.customers.length,on=m.target.customerRows==='on';check(raw.assignments===n&&raw.audit===n&&(on?raw.customer_workspaces===n&&raw.loan_index===n&&raw.legacyLoans===0:raw.customer_workspaces===0&&raw.loan_index===0&&raw.legacyLoans===n),'Database counts do not match manifest');return raw;
 }
 export async function verify({main,aux,wrongOwner,timeout,database,dbCheckFile,scales}){
@@ -58,7 +65,7 @@ export async function verify({main,aux,wrongOwner,timeout,database,dbCheckFile,s
  }
  if(gray){
   const raw=databaseEvidence(JSON.parse(readFileSync(dbCheckFile,'utf8')),main);
-  result.database={...raw};result.databaseEvidence='operator-supplied db-check JSON';result.checks.database=raw.modeMatches&&raw.uniqueOps&&!raw.foreignCustomers&&raw.assignmentsMatch;
+  result.database={...raw};result.databaseEvidence='db-check JSON bound to manifest';result.checks.database=raw.modeMatches&&raw.uniqueOps&&!raw.foreignCustomers&&raw.assignmentsMatch;
  }else{const db=new DatabaseSync(database,{readOnly:true});try{
   const owner=main.target.tenantId,n=main.customers.length,count=(table,col='owner')=>db.prepare(`SELECT COUNT(*) n FROM ${table} WHERE ${col}=?`).get(owner).n;
   const old=JSON.parse(db.prepare('SELECT payload FROM demo_workspaces WHERE owner=?').get(owner).payload).loans;

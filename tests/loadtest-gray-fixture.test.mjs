@@ -1,3 +1,4 @@
+import {runInNewContext} from 'node:vm';
 import nodeTest from 'node:test';
 import fs from 'node:fs';
 import {syncBuiltinESMExports} from 'node:module';
@@ -7,7 +8,7 @@ import {mkdirSync,readFileSync,readdirSync,rmSync,writeFileSync,utimesSync,chmod
 import {randomBytes,randomUUID} from 'node:crypto';
 import {DatabaseSync} from 'node:sqlite';
 import {checkConfig} from '../deploy/standalone/gray/check-config.mjs';
-import {plan,prepare,hash} from '../scripts/loadtest/fixture/core.mjs';
+import {plan,prepare,hash,check,validateManifest} from '../scripts/loadtest/fixture/core.mjs';
 import {cleanup,unrelated} from '../scripts/loadtest/fixture/cleanup.mjs';
 import {dbCheck} from '../scripts/loadtest/fixture/gray.mjs';
 import {execFileSync,spawnSync} from 'node:child_process';
@@ -47,7 +48,9 @@ test('G1 gate 5.1-2/3: real Telegram guard, create and confirm_bill; immutable p
     const confirmed=await r.store.mutate(owner,{action:'confirm_bill',role:'mini',loanId:loan.id,quoteId:loan.billing.quoteId,billConfirmed:true,requestId:c.index+'-synthetic-bill'},{id:c.customerId,phoneMasked:'SYNTHETIC'});
     assert(confirmed.state.loans.find(l=>l.id===loan.id).billConfirmedAt);
    }
-   const counts=dbCheck(o,m);assert.equal(counts.modeMatches,true);assert.equal(counts.foreignCustomers,false);assert.equal(counts.uniqueOps,true);assert.equal(counts.audit,3);assert.throws(()=>db.prepare('DELETE FROM team_audit WHERE tenant_id=?').run(owner),/append-only/);
+   const counts=dbCheck(o,m);assert.deepEqual(Object.keys(counts).sort(),['customer_workspaces','loan_index','legacyLoans','assignments','audit','assignmentsMatch','modeMatches','uniqueOps','foreignCustomers','runId','binding','checkedAt'].sort());assert.equal(counts.runId,m.runId);assert.equal(counts.binding,hash(m.runId+':'+owner+':'+m.dataset+':'+m.integrity.sha256));assert(Number.isFinite(Date.parse(counts.checkedAt)));for(const value of [owner,m.integrity.sha256,...m.customers.flatMap(c=>[c.customerId,c.sessionToken])])assert(!JSON.stringify(counts).includes(value));assert.equal(counts.modeMatches,true);assert.equal(counts.foreignCustomers,false);assert.equal(counts.uniqueOps,true);assert.equal(counts.audit,3);assert.throws(()=>db.prepare('DELETE FROM team_audit WHERE tenant_id=?').run(owner),/append-only/);
+   const verifier=readFileSync('scripts/loadtest/verify-rows.mjs','utf8'),body=verifier.slice(verifier.indexOf('export function databaseEvidence('),verifier.indexOf('export async function verify(')).replace('export ','');
+   const accept=runInNewContext(body+';databaseEvidence',{check,hash,validateManifest,Date});assert.equal(accept(counts,m),counts);
    const planned=cleanup(o,m),report=cleanup({...o,apply:true,confirm:planned.fingerprint},m);assert.equal(report.tombstone,true);assert.equal(report.retainedAudit,3);assert.equal(report.grayTombstones>=1,true);
    assert.deepEqual(unrelated(db,owner),before);assert.deepEqual(db.prepare("SELECT sql FROM sqlite_master WHERE type='trigger' ORDER BY name").all(),triggers);
    assert.equal(db.prepare('PRAGMA foreign_keys').get().foreign_keys,1);
