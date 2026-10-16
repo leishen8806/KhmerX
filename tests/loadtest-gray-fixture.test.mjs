@@ -111,7 +111,7 @@ test('L1-A2 f: each ownership condition rejects atomically, including extra/miss
   (db,m)=>db.prepare("INSERT INTO public_identifiers(ref,entity_type,internal_id,tenant_id,source_channel,created_at) VALUES ('synthetic-ref','O','unknown',?,'SY','synthetic')").run(m.target.tenantId),
   (db,m)=>db.prepare("INSERT INTO customer_workspaces(owner,customer_id,revision,payload,updated_at) VALUES (?,'foreign',0,'{}','synthetic')").run(m.target.tenantId),
  ];
- for(const change of changes){const f=await grayFixture('on');try{const o={...f.options,dataset:'main',count:1},m=prepare({...o,apply:true,confirm:plan(o).fingerprint}).manifest;change(f.db,m);const before=snapshot(f.db);assert.throws(()=>cleanup(o,m));assert.throws(()=>cleanup({...o,apply:true,confirm:'not-trusted'},m));assert.equal(snapshot(f.db),before)}finally{f.close()}}
+ for(const [i,change]of changes.entries()){const f=await grayFixture('on');try{const o={...f.options,dataset:'main',count:1},m=prepare({...o,apply:true,confirm:plan(o).fingerprint}).manifest;change(f.db,m);if([5,6,7,12].includes(i))assert.equal(dbCheck(o,m).foreignCustomers,true);const before=snapshot(f.db);assert.throws(()=>cleanup(o,m));assert.throws(()=>cleanup({...o,apply:true,confirm:'not-trusted'},m));assert.equal(snapshot(f.db),before)}finally{f.close()}}
 });
 
 test('L1 P2 remaining forbidden tables, bad loan index and foreign legacy loans reject cleanup unchanged',async()=>{
