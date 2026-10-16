@@ -306,7 +306,7 @@ test('service routing validates company, fills missing assignments and honors au
 test('Admin funding and repayment require prior approval, enforce isolation and deduplicate receipts; settlement closes collection',async()=>{
  selected=A;user=owner;const customerId='admin-funds-customer';await approvedCustomer(customerId);
  const c={id:customerId,phoneMasked:'SYNTHETIC'},created=await store.mutate(A,{action:'create',name:'SYNTHETIC ADMIN FUNDS',amount:5000,consent:true,requestId:crypto.randomUUID()},c),l=created.state.loans[0];
- const fund={action:'admin_disburse',loanId:l.id,note:'Synthetic admin funding evidence',requestId:crypto.randomUUID()};
+ const fund={action:'admin_disburse',loanId:l.id,amount:1,cents:1,note:'Synthetic admin funding evidence',requestId:crypto.randomUUID()};
  await assert.rejects(flow.staffAction(fund),/贷款初审/);
  await store.mutate(A,{action:'confirm_bill',loanId:l.id,billConfirmed:true,quoteId:l.billing.quoteId,requestId:crypto.randomUUID()},c);
  const bytes=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jX1sAAAAASUVORK5CYII=','base64'));
@@ -319,6 +319,7 @@ test('Admin funding and repayment require prior approval, enforce isolation and 
  await assert.rejects(flow.staffAction({...fund,note:''}),/操作依据/);
  await flow.staffAction(fund);await flow.staffAction(fund);
  let saved=(await store.readState(A)).state;assert.equal(saved.loans.find(x=>x.id===l.id).status,'active');assert.equal(saved.entries.filter(e=>e.loanId===l.id&&e.kind==='测试放款').length,1);
+ assert.equal(saved.entries.find(e=>e.loanId===l.id&&e.kind==='测试放款').cents,l.billing.net,'admin funding amount is derived from the signed bill, not client input');
  const receipt={action:'admin_repay',loanId:l.id,cents:1000,reference:'UAT-RECEIPT-001',note:'Synthetic receipt checked',requestId:crypto.randomUUID()};
  await flow.staffAction(receipt);await flow.staffAction({...receipt,requestId:crypto.randomUUID()});
  saved=(await store.readState(A)).state;assert.equal(saved.loans.find(x=>x.id===l.id).paid,1000);
