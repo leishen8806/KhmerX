@@ -243,8 +243,14 @@ node scripts/loadtest/verify-rows.mjs --gray /private/main.json /private/aux.jso
   scripts/loadtest/reports/gray-verification.json --declared-scales \
   '{"PAYEASE_GATEWAY_RATE_SCALE":30,"PAYEASE_LIMIT_SCALE":1}'
 ```
-The verifier never opens a database in gray mode. db-check contains counts/booleans
-only and is operator-supplied evidence; verify its provenance and matching window.
+The verifier never opens a database in gray mode. Bring the db-check JSON back from
+the source station; it contains counts/booleans plus runId, a one-way binding and an
+ISO checkedAt timestamp, never tenantId, customer identifiers or session tokens.
+The verifier recomputes the binding from the manifest and validates its timestamp:
+not before manifest creation, not after current time +5 minutes, and not after
+manifest expiry +6 hours. Another run with identical counts is rejected, as are
+old nine-field artifacts. Keep the JSON with its matching manifest and verify its
+provenance: the unkeyed digest binds identity but does not authenticate the operator.
 For local-only smoke tests, a disposable k6 wrapper changes the already-validated
 hosts mapping to an in-container self-signed HTTPS server. This is test transport
 substitution, not permission to target another origin or proof of gray readiness.

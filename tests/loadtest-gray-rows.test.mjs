@@ -8,6 +8,7 @@ import {runInNewContext} from 'node:vm';
 import {EventEmitter} from 'node:events';
 import {createServer,request} from 'node:https';
 import {spawn} from 'node:child_process';
+import {hash,validateManifest} from '../scripts/loadtest/fixture/core.mjs';
 import {fixture,applied} from './loadtest-fixture.test.mjs';
 import {preflight,rowsTarget,declaredScales,grayLabel} from '../scripts/loadtest/rows-preflight.mjs';
 const env={ORIGIN_IP:'159.223.77.134',LOADTEST_ALLOWED_HOSTS:'testapi.khmerx.org,159.223.77.134',DECLARED_SCALES:JSON.stringify({PAYEASE_GATEWAY_RATE_SCALE:30,PAYEASE_LIMIT_SCALE:1})};
@@ -49,7 +50,7 @@ test('G2 offline self-signed HTTPS: real k6 smoke, hosts mapping, Origin/Cookies
  }finally{await new Promise(r=>server.close(r));rmSync(dir,{recursive:true})}
 });
 
-test('G2 gray verifier uses pinned HTTPS for all checks and accepts only sanitized matching db counts',async()=>{
+test('G2 gray verifier uses pinned HTTPS for all checks and accepts only sanitized matching db counts',async(t)=>{
  const f=fixture();let manifests;try{
   manifests=Object.fromEntries(['main','timeout','aux','wrong-owner'].map(dataset=>{const m=applied({...f.options,runId:'gray-verify-'+dataset,dataset,count:dataset==='main'?3:undefined});m.target={...m.target,profile:'gray-config',env:'gray',authMode:'telegram',baseUrl:'https://testapi.khmerx.org',hosts:['testapi.khmerx.org']};return [dataset,m]}));
  }finally{f.close()}
@@ -66,10 +67,26 @@ test('G2 gray verifier uses pinned HTTPS for all checks and accepts only sanitiz
    queueMicrotask(()=>{req.emit('finish');const res=new EventEmitter();res.statusCode=status;res.destroy=()=>{};res.setEncoding=()=>{};callback(res);res.emit('data',JSON.stringify(state));res.emit('end')});
   };return req;
  };
- const raw={customer_workspaces:3,loan_index:3,legacyLoans:0,assignments:3,audit:3,modeMatches:true,uniqueOps:true,foreignCustomers:false,assignmentsMatch:true};
+ const raw={runId:main.runId,binding:hash(main.runId+':'+main.target.tenantId+':'+main.dataset+':'+main.integrity.sha256),checkedAt:new Date().toISOString(),customer_workspaces:3,loan_index:3,legacyLoans:0,assignments:3,audit:3,modeMatches:true,uniqueOps:true,foreignCustomers:false,assignmentsMatch:true};
  const source=readFileSync('scripts/loadtest/verify-rows.mjs','utf8').split('if(process.argv[1]&&resolve')[0].replaceAll('import.meta.url',"'file:///not-cli'").replace(/^import .*;$/gm,'').replace(/^export /gm,'');
- const sandbox={httpsRequest,readFileSync:()=>JSON.stringify(raw),check:(ok,message)=>assert(ok,message),validateManifest:m=>m,rowsTarget:(m,b)=>rowsTarget(m,b,env),declaredScales,grayLabel,DatabaseSync:class{constructor(){throw Error('Gray verifier opened a database')}},resolve:()=>'/not-cli',dirname:()=>'/app',fileURLToPath:()=>'/not-cli',process:{env,argv:[]},URL,AbortSignal,randomUUID:()=> '00000000-0000-4000-8000-000000000001',setTimeout,clearTimeout,setImmediate,Date};
+ const now=Date.now();class EvidenceDate extends Date{static now(){return now}}
+ const sandbox={httpsRequest,readFileSync:()=>JSON.stringify(raw),check:(ok,message)=>assert(ok,message),hash,validateManifest,rowsTarget:(m,b)=>rowsTarget(m,b,env),declaredScales,grayLabel,DatabaseSync:class{constructor(){throw Error('Gray verifier opened a database')}},resolve:()=>'/not-cli',dirname:()=>'/app',fileURLToPath:()=>'/not-cli',process:{env,argv:[]},URL,AbortSignal,randomUUID:()=> '00000000-0000-4000-8000-000000000001',setTimeout,clearTimeout,setImmediate,Date:EvidenceDate};
  const v=runInNewContext(source+';({verify,databaseEvidence})',sandbox);
  const result=await v.verify({main,aux,wrongOwner,timeout,dbCheckFile:'synthetic-counts.json',scales:env.DECLARED_SCALES});assert.equal(result.pass,true);assert(result.label.startsWith(grayLabel));assert(calls.length>20);assert(!JSON.stringify(result).includes(main.customers[0].sessionToken));
+ assert.equal(result.databaseEvidence,'db-check JSON bound to manifest');assert.equal(Object.keys(result.database).length,12);assert.equal(result.database.binding,raw.binding);assert.equal(result.database.checkedAt,raw.checkedAt);for(const value of [main.target.tenantId,main.integrity.sha256,...main.customers.flatMap(c=>[c.customerId,c.sessionToken])])assert(!JSON.stringify(result).includes(value));
+ const reject=(candidate,m=main)=>assert.throws(()=>v.databaseEvidence(candidate,m),/Invalid sanitized db-check artifact/);
+ const {runId,binding,checkedAt,...old}=raw;assert(runId&&binding&&checkedAt);
+ const other=manifests.timeout,stale={...main,createdAt:new Date(now-32400000).toISOString(),expiresAt:new Date(now-25200000).toISOString()};
+ const cases=[
+  ['old nine-key JSON',old],['runId mismatch',{...raw,runId:'synthetic-other-run'}],
+  ['same counts from another manifest',{...raw,runId:other.runId,binding:hash(other.runId+':'+other.target.tenantId+':'+other.dataset+':'+other.integrity.sha256)}],
+  ['one binding digit changed',{...raw,binding:(binding[0]==='a'?'b':'a')+binding.slice(1)}],
+  ['checked before creation',{...raw,checkedAt:new Date(Date.parse(main.createdAt)-1).toISOString()}],
+  ['checked after current time plus five minutes',{...raw,checkedAt:new Date(now+300001).toISOString()}],
+  ['checked after expiry plus six hours',{...raw,checkedAt:new Date(Date.parse(stale.expiresAt)+21600001).toISOString()},stale],
+  ['extra token',{...raw,token:'synthetic-extra'}],['extra tenantId',{...raw,tenantId:main.target.tenantId}],
+ ];
+ for(const [name,candidate,m=main]of cases)await t.test('G3 rejects '+name,()=>reject(candidate,m));
+ for(const checkedAt of [null,'invalid','2026-10-16',0])reject({...raw,checkedAt});reject(null);
  assert.throws(()=>v.databaseEvidence({...raw,token:'synthetic-not-allowed'},main));assert.throws(()=>v.databaseEvidence({...raw,audit:0},main));assert.throws(()=>v.databaseEvidence({...raw,modeMatches:'true'},main));
 });
