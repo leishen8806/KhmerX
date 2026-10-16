@@ -31,6 +31,12 @@ test('X-Real-IP is ignored from an untrusted socket and accepted from a local pr
  assert.equal(resolveClientIp('10.0.0.4','198.51.100.8'),'198.51.100.8');
 });
 
+test('trusted proxies cannot inject arbitrary values as client IPs',()=>{
+ assert.equal(resolveClientIp('127.0.0.1','not-an-ip'),'127.0.0.1');
+ assert.equal(resolveClientIp('127.0.0.1','203.0.113.10, 198.51.100.7'),'203.0.113.10');
+ assert.equal(resolveClientIp('127.0.0.1','2001:db8::10'),'2001:db8::10');
+});
+
 test('formal hosts reject configured rate multipliers at startup',()=>{
  const source=readFileSync(new URL('../deploy/standalone/server.mjs',import.meta.url),'utf8');
  assert.match(source,/Rate multipliers are forbidden when formal hosts are configured/);
