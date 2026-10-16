@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { seed } from '../scripts/customer-rows/seed-5000.mjs';
 import { shard } from '../scripts/customer-rows/common.mjs';
-import { mergeCustomerShards, MAX_WORKSPACE_PAYLOAD_BYTES } from '../scripts/customer-rows/reverse-merge.mjs';
+import { mergeCustomerShards, reverseMerge, MAX_WORKSPACE_PAYLOAD_BYTES } from '../scripts/customer-rows/reverse-merge.mjs';
 
 test('seed creates the requested fictional dataset without secrets',()=>{
   const rows=seed(5000);assert.equal(rows.length,5000);assert.equal(new Set(rows.map(x=>x.customerId)).size,5000);assert(!JSON.stringify(rows).match(/token|password|phone|secret/i));
@@ -33,4 +33,22 @@ test('reverse merge replaces old related records without duplicating unchanged l
 test('reverse merge refuses oversized tenant state before apply',()=>{
   const state={loans:[],events:[],entries:[],notifications:[],requests:[],requestDigests:{},blob:'x'.repeat(MAX_WORKSPACE_PAYLOAD_BYTES)};
   assert.throws(()=>mergeCustomerShards(state,[],'tenant-big'),/reverse merge exceeds workspace payload limit/);
+});
+test('reverse merge applies with revision CAS and reports a conflict before claiming success',()=>{
+  const state={loans:[],events:[],entries:[],notifications:[],requests:[],requestDigests:{}};
+  const calls=[];
+  const database={prepare(sql){
+    return {
+      all(...args){
+        if(sql.includes('demo_workspaces'))return [{owner:'tenant-a',revision:7,payload:JSON.stringify(state)}];
+        if(sql.includes('customer_workspaces'))return [{customer_id:'A',payload:JSON.stringify({loans:[],events:[],entries:[],notifications:[],requests:[],requestDigests:{}})}];
+        throw new Error(`unexpected query ${sql}`);
+      },
+      run(...args){calls.push({sql,args});return {changes:0};
+      },
+    };
+  }};
+  assert.throws(()=>reverseMerge(database,{tenant:'tenant-a',apply:true}),/reverse merge revision conflict for tenant-a/);
+  assert.equal(calls.length,1);
+  assert.deepEqual(calls[0].args.slice(1),['tenant-a',7]);
 });
