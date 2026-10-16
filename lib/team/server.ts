@@ -6,6 +6,8 @@ import {env} from 'cloudflare:workers';
 import {headers} from 'next/headers';
 import {AuthError,randomToken,digest} from '@/lib/h5-auth-core';
 import {canSee,roleLabels,roleCatalog,roleUnitKind,kycFieldGroups,type Member,type Assignment,type TeamRole,type KycFieldGroup} from './policy';
+import {unassignMemberTasks} from '@/lib/postloan/core';
+import {serializeWorkspacePayload} from '@/lib/workspace-payload';
 import {assertProductionSafe,isTestMode} from '@/lib/runtime-guards';
 assertProductionSafe();
 export const TEAM_COOKIE=STAFF_COMPANY;
@@ -216,9 +218,18 @@ export async function manage(p:any){const u=await identity();
   const approvalGuard=approvalId?" AND EXISTS (SELECT 1 FROM team_emergency_access WHERE id=? AND tenant_id=? AND status='consumed' AND consumed_action='staff_role_change' AND consumed_loan_id=?)":'';
   const approvalArgs=approvalId?[approvalId,tenant,m.id]:[];
   if(approvalId)statements.unshift(db().prepare("UPDATE team_emergency_access SET status='consumed',consumed_at=?,consumed_action='staff_role_change',consumed_loan_id=? WHERE id=? AND tenant_id=? AND status='active' AND requester_id=?").bind(Date.now(),m.id,approvalId,tenant,s.member.id));
+  // A collector's open work must be returned to the queue in the same
+  // lifecycle change that revokes their session and scope. Otherwise the UI
+  // hides the task immediately but the workspace still points at the former
+  // employee until the next scheduled post-loan run.
+  let cleanupWorkspace=false;
+  if(permissionChanged&&m.role==='collector'){
+   const row=await db().prepare('SELECT payload,revision FROM demo_workspaces WHERE owner=?').bind(tenant).first<{payload:string;revision:number}>();
+   if(row){const next=unassignMemberTasks(JSON.parse(row.payload),m.id,new Date().toISOString());const payload=serializeWorkspacePayload(next);if(payload!==row.payload){cleanupWorkspace=true;statements.push(db().prepare('UPDATE demo_workspaces SET payload=?,revision=revision+1 WHERE owner=? AND revision=?').bind(payload,tenant,row.revision));}}
+  }
   const memberUpdate=restoring
-   ? `UPDATE team_members SET role=?,unit_id=?,active=?,mfa_enabled=0,mfa_secret=NULL,pending_mfa_secret=NULL,mfa_enroll_started_at=NULL,version=version+1 WHERE ${guard}${approvalGuard}`
-   : `UPDATE team_members SET role=?,unit_id=?,active=?,version=version+1 WHERE ${guard}${approvalGuard}`;
+   ? `UPDATE team_members SET role=?,unit_id=?,active=?,mfa_enabled=0,mfa_secret=NULL,pending_mfa_secret=NULL,mfa_enroll_started_at=NULL,version=version+1 WHERE ${guard}${approvalGuard}${cleanupWorkspace?' AND changes()=1':''}`
+   : `UPDATE team_members SET role=?,unit_id=?,active=?,version=version+1 WHERE ${guard}${approvalGuard}${cleanupWorkspace?' AND changes()=1':''}`;
   statements.push(db().prepare(memberUpdate).bind(role,unitId,active,...args,...approvalArgs));
   statements.push(db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) SELECT ?,?,?,?,?,? WHERE changes()=1').bind(crypto.randomUUID(),tenant,u.userId,'update_member',JSON.stringify({member:m.id,before:{role:m.role,unitId:m.unit_id,active:m.active,mfaEnabled:!!(m as any).mfa_enabled},after:{role,unitId,active,mfaEnabled:restoring?false:!!(m as any).mfa_enabled},restored:restoring,reason:txt(p.reason,300)}),new Date().toISOString()));
   const results=await db().batch(statements);if(!results[results.length-2].meta.changes)throw new AuthError('管理权限或员工资料已变化，请刷新',409);return {ok:true}

@@ -10,6 +10,17 @@ export function dayGap(a:string,b:string){return Math.round((Date.parse(a+'T00:0
 export function outstanding(l:Loan){return Math.max(0,l.amount+l.fee-l.paid)}
 export function mayViewTask(m:Member,t:PostTask){return !!m.active&&(['admin','audit'].includes(m.role)||(m.role==='collection_admin'&&m.unit_id===t.departmentId)||(m.role==='collector'&&m.unit_id===t.departmentId&&m.id===t.assigneeId))}
 function record(t:PostTask,at:string,action:string,note:string){t.records.push({id:crypto.randomUUID(),at,actor:'系统',action,note});t.updatedAt=at}
+/** Immediately return a staff member's open post-loan work to the queue.
+ * This is used during an account disable/scope change so access revocation is
+ * visible in the same write, rather than waiting for the next scheduler run.
+ */
+export function unassignMemberTasks(input:State,memberId:string,now:string):State{
+ const s:State=structuredClone(input);for(const task of s.postloan?.tasks||[]){
+  if(task.assigneeId!==memberId||task.status==='closed')continue;
+  task.assigneeId=null;record(task,now,'auto_unassign','员工停用或调岗，已转待分配队列');
+ }
+ return s;
+}
 export function syncSettlements(state:State,now:string){for(const t of state.postloan?.tasks||[]){const l=state.loans.find(l=>l.id===t.loanId);if(!l)continue;t.balance=outstanding(l);if((l.status==='closed'||t.balance===0)&&t.status!=='closed'){t.status='closed';delete t.nextContactAt;record(t,now,'settled','账本已确认全部结清，自动关闭贷后任务')}}}
 export function runPostloan(input:State,members:Member[],departmentIds:string[],now:string,routing?:{enabled:boolean;departments:Record<string,string>}):State{
  const s:State=structuredClone(input),today=localDay(now);s.postloan??={tasks:[]};syncSettlements(s,now);
