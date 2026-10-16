@@ -1,7 +1,7 @@
-import {SESSION_COOKIE,cookie,cookieValue,owner,runtime,input,browser,json,failure} from '@/lib/h5-auth';
+import {SESSION_COOKIE,cookie,cookieValue,owner,runtime,input,browser,json,failure,sameOrigin} from '@/lib/h5-auth';
 import {registerPhone,loginPassword,setPassword,getSession,revokeSession,SESSION_TTL,AuthError} from '@/lib/h5-auth-core';
 import {registrationPolicy,requireRegistrationStep} from '@/lib/registration-policy';
-export async function POST(request:Request){try{
+export async function POST(request:Request){try{sameOrigin(request);
  const id=await owner(),body=await input(request),r=runtime(),token=cookieValue(request,SESSION_COOKIE);
  if(body.action==='set_password'){const s=await getSession(r,id,token);if(!s)throw new AuthError('请先登录',401);await requireRegistrationStep(r,id,s.customerId,'passwordSetup');const b=await browser(request);return json(await setPassword(r,id,token,body,b))}
  if(!['register','password_login'].includes(body.action))throw new AuthError('无效操作');
