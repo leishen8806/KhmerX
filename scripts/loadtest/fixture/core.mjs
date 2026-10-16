@@ -18,7 +18,7 @@ export function target(options){
  check(typeof b.KYC_DATA_SECRET==='string'&&b.KYC_DATA_SECRET.length>=32,'KYC secret missing');
  for(const k of ['publicClientHosts','adminHosts','apiHosts'])check(options.config[k]===undefined||Array.isArray(options.config[k]),'Host arrays required');
  const hosts=[options.config.host,...['publicClientHosts','adminHosts','apiHosts'].flatMap(k=>options.config[k]||[])].filter(Boolean);
- check(hosts.length&&hosts.every(h=>typeof h==='string'&&!/(^|\.)(payease|payeas|admin|api)\.khmerx\.org\.?$/i.test(h)),'Production or missing hosts refused');
+ check(hosts.length&&hosts.every(h=>typeof h==='string'&&!/(^|\.)khmerx\.org\.?$/i.test(h)),'Any khmerx.org host or missing hosts refused');
  const state=resolve(realpathSync(options.root),'.wrangler/state'),file=realpathSync(options.database),rel=relative(state,file);
  check(realpathSync(state)===state&&rel&&!rel.startsWith('..')&&!isAbsolute(rel)&&!lstatSync(options.database).isSymbolicLink()&&statSync(file).nlink===1,'Database must remain inside checkout .wrangler/state without links');
  const db=new DatabaseSync(file,{readOnly:true});

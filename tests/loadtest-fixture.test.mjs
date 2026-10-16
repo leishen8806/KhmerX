@@ -5,6 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
 import {createDecipheriv,hkdfSync} from 'node:crypto';
+import {execFileSync} from 'node:child_process';
 import {plan,prepare,hash,sealCase} from '../scripts/loadtest/fixture/core.mjs';
 import {writer,privateFile} from '../scripts/loadtest/fixture/private-file.mjs';
 import {preflight} from '../scripts/loadtest/rows-preflight.mjs';
@@ -131,4 +132,36 @@ test('L1-A2 f: each ownership condition rejects atomically, including extra/miss
   (db,m)=>db.prepare("INSERT INTO customer_workspaces(owner,customer_id,revision,payload,updated_at) VALUES (?,'foreign',0,'{}','synthetic')").run(m.target.tenantId),
  ];
  for(const change of changes){const f=fixture();try{const o={...f.options,count:1},m=applied(o);change(f.db,m);const before=snapshot(f.db);assert.throws(()=>cleanup(o,m));assert.throws(()=>cleanup({...o,apply:true,confirm:'not-trusted'},m));assert.equal(snapshot(f.db),before)}finally{f.close()}}
+});
+
+test('L1 P2 refuses every khmerx.org host and unsafe manifest directory',()=>{
+ const f=fixture();try{
+  for(const host of ['khmerx.org','testapi.khmerx.org','TESTPayease.KhmerX.ORG.','nested.test.khmerx.org'])for(const key of ['host','publicClientHosts','adminHosts','apiHosts'])assert.throws(()=>plan({...f.options,config:{...f.options.config,[key]:key==='host'?host:[host]}}),/khmerx/);
+  const file=join(f.options.root,'scripts/loadtest/manifests/private.manifest.json'),w=writer(f.options.root,file);w.persist(applied({...f.options,count:1}));
+  const dir=join(f.options.root,'scripts/loadtest/manifests');
+  if(process.platform==='win32'){execFileSync('icacls',[dir,'/grant','*S-1-1-0:(RX)'],{stdio:'ignore'});assert.throws(()=>privateFile(file));execFileSync('icacls',[dir,'/remove:g','*S-1-1-0'],{stdio:'ignore'})}
+  else{chmodSync(dir,0o755);assert.throws(()=>privateFile(file),/directory/);chmodSync(dir,0o700)}
+  w.rollback();
+ }finally{f.close()}
+});
+
+test('L1 P2 remaining forbidden tables, bad loan index and foreign legacy loans reject cleanup unchanged',()=>{
+ const inserts=[
+  'INSERT INTO team_invites(token_hash,tenant_id,email,role,issuer,expires_at) VALUES (\'synthetic\',?,\'synthetic@example.test\',\'kyc\',\'synthetic-admin\',0)',
+  'INSERT INTO kyc_files(id,owner,customer_id,slot,metadata,created_at) VALUES (\'synthetic-file\',?,\'synthetic\',\'idFront\',\'synthetic\',\'synthetic\')',
+  'INSERT INTO kyc_contracts(signature_id,owner,customer_id,payload,created_at) VALUES (\'synthetic-contract\',?,\'synthetic\',\'{}\',\'synthetic\')',
+  'INSERT INTO kyc_history(id,case_id,revision,owner,action,actor,snapshot,created_at) VALUES (\'synthetic-history\',\'synthetic-case\',1,?,\'draft\',\'synthetic\',\'{}\',\'synthetic\')',
+  'INSERT INTO team_service_settings(tenant_id,funding_id,repayment_id,collection_id) VALUES (?,?,?,?)',
+  'INSERT INTO team_service_tickets(id,tenant_id,customer_id,kind,subject,body,created_at,updated_at,created_by,updated_by) VALUES (\'synthetic-ticket\',?,\'synthetic\',\'synthetic\',\'synthetic\',\'synthetic\',\'synthetic\',\'synthetic\',\'synthetic\',\'synthetic\')',
+  'INSERT INTO team_audit_manifests(id,tenant_id,digest,row_count,created_by,created_at) VALUES (\'synthetic-manifest\',?,\'synthetic\',0,\'synthetic\',\'synthetic\')',
+  'INSERT INTO loan_index(owner,loan_id,customer_id,status,created_at,updated_at) VALUES (?,\'unknown\',?,\'registered\',\'synthetic\',\'synthetic\')',
+  'UPDATE demo_workspaces SET payload=\'{"loans":[{"id":"foreign","customerId":"foreign"}]}\' WHERE owner=?',
+ ];
+ for(const [i,sql]of inserts.entries()){const f=fixture();try{
+  const o={...f.options,count:1},m=applied(o),owner=m.target.tenantId;
+  if(i===0){f.db.prepare('INSERT INTO team_members(id,tenant_id,user_id,email,role,unit_id) VALUES (\'synthetic-admin\',?,\'synthetic\',\'synthetic@example.test\',\'admin\',?)').run(owner,m.opsDepartmentId)}
+  if(i===4)for(const [suffix,kind]of [['funding','institution'],['post','postloan']])f.db.prepare('INSERT INTO team_units(id,tenant_id,name,kind) VALUES (?,?,\'synthetic\',?)').run(owner+':'+suffix,owner,kind);
+  f.db.prepare(sql).run(...(i===4?[owner,owner+':funding',owner+':funding',owner+':post']:i===7?[owner,m.customers[0].customerId]:[owner]));
+  const before=snapshot(f.db);assert.throws(()=>cleanup(o,m));assert.throws(()=>cleanup({...o,apply:true,confirm:'not-trusted'},m));assert.equal(snapshot(f.db),before);
+ }finally{f.close()}}
 });
