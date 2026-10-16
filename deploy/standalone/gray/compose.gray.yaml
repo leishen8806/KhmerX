@@ -1,7 +1,7 @@
 services:
   payease:
     build:
-      context: ../..
+      context: ../../..
       dockerfile: deploy/standalone/Dockerfile
     user: "node"
     group_add:
@@ -14,7 +14,7 @@ services:
       - "127.0.0.1:4300:4300"
     volumes:
       - /opt/payease/data:/data
-      - /opt/payease/scanner-secrets:/run/scanner-secrets:ro
+      - /opt/payease/scanner-secrets:/run/scanner-secrets
     environment:
       SCANNER_TOKEN_PATH: /run/scanner-secrets/scanner-token
       PAYEASE_MAX_IN_FLIGHT: "32"

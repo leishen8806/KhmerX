@@ -1,7 +1,9 @@
 {
   "host": "testpayease.khmerx.org",
   "publicClientHosts": [
-    "testpayease.khmerx.org"
+    "testpayease.khmerx.org",
+    "testadmin.khmerx.org",
+    "testapi.khmerx.org"
   ],
   "adminHosts": [
     "testadmin.khmerx.org"
@@ -14,19 +16,34 @@
   "sessionSecret": "replace-with-a-random-32-byte-secret",
   "companies": [
     {
-      "id": "gray-public-company",
-      "name": "KhmerX Gray"
+      "id": "t_00000000-0000-4000-8000-000000000001",
+      "name": "KhmerX Gray",
+      "slug": "khmerx-gray",
+      "accounts": [
+        {
+          "role": "admin",
+          "email": "gray-admin@example.test",
+          "hash": "replace-with-v2-pbkdf2-staff-password-hash"
+        }
+      ]
     }
   ],
   "bindings": {
     "PAYEASE_ENV": "gray",
     "KHMERX_TEST_MODE": "false",
     "PAYEASE_IDENTITY_PROOF_REQUIRED": "true",
-    "PAYEASE_AUTH_SECRET": "replace-with-a-random-secret",
-    "PAYEASE_IDENTITY_PROOF_SECRET": "replace-with-a-random-secret",
+    "PAYEASE_AUTH_SECRET": "replace-with-a-random-32-byte-auth-secret",
+    "PAYEASE_IDENTITY_PROOF_SECRET": "replace-with-a-random-32-byte-proof-secret",
     "KYC_SCAN_TOKEN": "replace-with-scanner-token",
-    "POSTLOAN_JOB_SECRET": "replace-with-a-random-secret",
+    "POSTLOAN_JOB_SECRET": "replace-with-a-random-32-byte-job-secret",
     "PAYEASE_LIMIT_SCALE": "1",
-    "PAYEASE_GATEWAY_RATE_SCALE": "1"
+    "PAYEASE_GATEWAY_RATE_SCALE": "1",
+    "PAYEASE_AUTH_MODE": "telegram",
+    "TELEGRAM_GATEWAY_TOKEN": "replace-with-gray-telegram-gateway-token",
+    "TELEGRAM_BOT_TOKEN_1": "replace-with-gray-telegram-bot-token",
+    "TELEGRAM_BOT_TOKEN_2": "",
+    "KYC_DATA_SECRET": "replace-with-a-random-32-byte-kyc-secret",
+    "KYC_SCAN_URL": "http://scanner:8080/scan",
+    "CUSTOMER_ROWS": "off"
   }
 }

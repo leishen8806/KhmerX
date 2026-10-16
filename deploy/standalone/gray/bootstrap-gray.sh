@@ -8,13 +8,24 @@ fail() { printf '[gray] FAIL: %s\n' "$*" >&2; exit 1; }
 
 ensure_dir() {
   local dir="$1"
+  [[ ! -L "$dir" ]] || fail "directory must not be a symlink: $dir"
   if [[ -d "$dir" ]]; then log "OK directory $dir"; else mkdir -p "$dir"; log "CREATED directory $dir"; fi
 }
 
 for dir in /opt/payease/app /opt/payease/data /opt/payease/clamav /opt/payease/scanner-secrets; do
   ensure_dir "$dir"
 done
-chmod 700 /opt/payease/scanner-secrets
+# Match the existing image USER node (1000) and scanner USER nobody (65534).
+chown 1000:1000 /opt/payease/data
+chmod 700 /opt/payease/data
+chown 1000:65534 /opt/payease/scanner-secrets
+chmod 2750 /opt/payease/scanner-secrets
+# Existing tokens also need the scanner group; never follow a token symlink.
+[[ ! -L /opt/payease/scanner-secrets/scanner-token ]] || fail 'scanner token must not be a symlink'
+if [[ -f /opt/payease/scanner-secrets/scanner-token ]]; then
+  chown 1000:65534 /opt/payease/scanner-secrets/scanner-token
+  chmod 640 /opt/payease/scanner-secrets/scanner-token
+fi
 
 if swapon --show=NAME --noheadings | grep -qx '/swapfile'; then
   log 'OK /swapfile is active'
