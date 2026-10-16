@@ -18,7 +18,7 @@
 | 3 | Q14 Flutter CI 返修（PR #8，`Line: app`） | 第 2 天 | — | ☐ |
 | 4 | L1-A fixture + L1-B rows 场景（见 L1 契约修订，`Line: server`） | 第 2–3 天 | — | ☐ |
 | 5 | Q4 灰度机部署模板与脚本（并由苏晨在服务器上部署） | 第 2–4 天 | Q2 | ☐ |
-| 6 | L2 灰度机压测执行与报告（原 P10，人工 + 脚本） | 第 3 天首轮；第 11–12 天复测 | Q4、L1 | ☐ |
+| 6 | L2 灰度机压测执行与报告（原 P10，人工 + 脚本） | 第 3 天首轮；第 11–12 天复测 | Q4、L1、L1-G | ☐ |
 | 7 | Q5 S6 客户分片（表 + 仓储 + shadow） | 第 5 天 | Q1，ARC-01-lite | ☐ |
 | 8 | Q6 S7 回填、反向合并、对账 | 第 7 天 | Q5 | ☐ |
 | 9 | Q7 S8 切读 + 员工分页聚合 | 第 8 天 | Q6 | ☐ |
@@ -178,6 +178,14 @@ PR 小于 400 行。
 - **L1-B**　分支 `feat/server/L1-B`（`Line: server`，依赖 L1-A 评审通过，可堆叠）：rows 场景、统计、本地 50 客户验收。提示词见契约 §10。
 - 范围：**仅本地 harness 与单元测试**；灰度执行与 fixture 写入由人工完成，Codex 不得操作 159.223.77.134 / 165.22.108.5。灰度运行另被 Q4 返修（灰度 config 样例无法启动，契约 OPEN-2）阻塞。
 - 已有 B0/B0b 脚本的推送（原 P1 的 README 机器分工、--origin-ip/--host、报告字段）若 main 尚缺，另用小 PR 处理，不得与 L1-A/L1-B 混合；`b0-main-flow.js` 在 L1-B 中不得修改。
+
+---
+
+## L1-G 灰度 fixture 与灰度压测入口（拆为 L1-G1 / L1-G2）
+**唯一依据：`docs/tasks/codex-prompts/L1-G-gray-fixture.md`**（在 L1 契约基础上新增 `gray-config` 档、`db-check`、灰度压测放行；rows 流程、统计口径、数据集、清理规则沿用 L1 契约）。
+- **L1-G1**　分支 `feat/server/L1-G1`（`Line: server`）：fixture 的 gray-config 档 + db-check + 本机 Docker（node:22.22.1，无网络）测试。
+- **L1-G2**　分支 `feat/server/L1-G2`（`Line: server`，依赖 L1-G1 评审通过，可堆叠）：rows 脚本的灰度放行（直连源站、仅直连时跳过证书校验）与测试。
+- 范围：**仅代码与本机测试**；不得操作 159.223.77.134 / 165.22.108.5，不得访问任何 khmerx.org 域名。灰度执行是人工步骤，条件见契约 §9，且每个窗口需 owner 批准。
 
 ---
 
