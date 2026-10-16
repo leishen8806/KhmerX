@@ -51,7 +51,8 @@ export const roleDisplayActions:Partial<Record<TeamRole,string[]>>={
  collector:['记录跟进、承诺还款与客户异议'],
  dept_admin:['KYC 审核、补件与协作'],
  kyc:['审核 KYC 资料与补件'],
- ops:['客户分配与资料流转']
+ ops:['客户分配与资料流转'],
+ audit:['只读查看审计与安全记录']
 };
 export function allowAction(m:Member,a:Assignment|undefined,action:string){return !!m.active&&!!actionRoles[action]?.includes(m.role)&&(action.startsWith('bot_')||canSee(m,a));}
 export function requireDifferent(actor:string,other:string|undefined){if(!other||actor===other)throw Error('必须由另一位员工复核，不能复核本人操作');}
