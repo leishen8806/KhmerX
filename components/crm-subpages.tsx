@@ -15,7 +15,7 @@ import {KycOrders} from '@/components/kyc-orders';
 import {FundingPanel} from '@/components/funding-panel';
 import {RepaymentPanel} from '@/components/repayment-panel';
 import {PostloanPanel} from '@/components/postloan-panel';
-import {crmSubpageByView} from '@/lib/team/crm-subpages';
+import {canonicalCrmView,crmSubpageByView} from '@/lib/team/crm-subpages';
 import {roleLabels,roleCatalog,roleUnitKind,actionRoles,actionLabels,roleDisplayActions,kycFieldGroups,dataScopeLabels,dataScopeForRole,type TeamRole} from '@/lib/team/policy';
 import {calculateBill,defaultPricing,type Pricing} from '@/lib/pricing';
 import {LoanBill} from '@/components/loan-bill';
