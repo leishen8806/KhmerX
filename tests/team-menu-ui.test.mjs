@@ -36,6 +36,8 @@ test('service backend menu keeps merged customer and KYC entries unique',()=>{
   assert.match(products,/if\(!rolesWrite\.includes\(role\)&&role!==['"]admin['"]\)/,'贷款产品写接口不得把审计员当作可写岗位');
   assert.match(products,/if\(role!==['"]admin['"]\)throw new ApiError\(403,'FORBIDDEN','仅公司管理员可审核产品'/,'贷款产品审核必须由公司管理员执行');
   assert.match(riskRules,/const reviewerRoles=new Set\(\[['"]admin['"]\]\)/,'风控规则审核不得授予审计员写权限');
+  assert.match(router,/function RiskEvents\(\{work,role\}/,'资金风险页面必须接收当前岗位');
+  assert.match(router,/const canResolve=role==='admin';/,'资金风险处置控件只能由公司管理员看到');
   assert.match(router,/if\(!roleAllowsCrmView\(props\.member\?\.role\|\|'',view\)\)return <Frame view=\{view\} title="无权访问">/,'无权岗位不得渲染业务页面');
   assert.match(router,/\['lender','checker'\]\.includes\(role\)/,'机构审批员与机构复核员必须共享贷款业务页面守卫');
   assert.match(subpages,/view==='贷款复核'\?'贷款申请':view==='放款复核'\?'放款管理'/,'持牌机构复核入口必须规范化到实际业务页面');
