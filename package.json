@@ -15,7 +15,7 @@
     "typecheck": "tsc --noEmit --pretty false",
     "audit:i18n": "node scripts/audit-i18n.mjs",
     "build:separated": "npm run check:client-boundary && node scripts/run-framework.mjs build && node scripts/package-separated.mjs",
-    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
+    "lint": "eslint . --ignore-pattern dist --ignore-pattern dist-separated --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
