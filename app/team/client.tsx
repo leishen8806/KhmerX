@@ -38,7 +38,7 @@ function TeamClientInner({initialQueue=''}:{initialQueue?:string}){
  const [subview,setSubview]=useState('');
  const [newCompanyLanguages,setNewCompanyLanguages]=useState({en:true,km:true,zh:true});
  const [clientLanguages,setClientLanguages]=useState({en:true,km:true,zh:true}),[clientLanguageBusy,setClientLanguageBusy]=useState(false);
- const {locale,setLocale}=useAdminLocale();
+ const {locale,setLocale,syncLocale}=useAdminLocale();
  const [loginDetails,setLoginDetails]=useState<any>(null),[passwordLogin,setPasswordLogin]=useState(true);
  async function logout(){setBusy(true);setLoggingOut(true);setError('');try{await apiFetch('/api/team/auth',{method:'POST',body:JSON.stringify({action:'logout'})});window.location.replace('/team/login')}catch(e){setLoggingOut(false);setError(e instanceof ApiClientError?e.message:'退出失败，请重试');setBusy(false)}}
  function downloadAccount(){if(!loginDetails)return;const a=document.createElement('a'),url=URL.createObjectURL(new Blob([JSON.stringify({loginUrl:window.location.origin+'/team/login',...loginDetails},null,2)],{type:'application/json'}));a.href=url;a.download='KhmerX-员工账号.json';a.click();URL.revokeObjectURL(url);setLoginDetails(null)}
@@ -52,6 +52,7 @@ function TeamClientInner({initialQueue=''}:{initialQueue?:string}){
  const [mfaEnrollment,setMfaEnrollment]=useState<any>(null),[mfaCode,setMfaCode]=useState(''),[mfaReason,setMfaReason]=useState(''),[recoveryCodes,setRecoveryCodes]=useState<string[]>([]);
  useEffect(()=>{const closeSiblingMenus=(event:Event)=>{const opened=event.target as HTMLDetailsElement|null;if(!opened?.open||(!opened.classList.contains('crm-language-menu')&&!opened.classList.contains('crm-account-menu')))return;document.querySelectorAll<HTMLDetailsElement>('.crm-language-menu[open],.crm-account-menu[open]').forEach(menu=>{if(menu!==opened)menu.removeAttribute('open')})};document.addEventListener('toggle',closeSiblingMenus,true);return()=>document.removeEventListener('toggle',closeSiblingMenus,true)},[]);
  useEffect(()=>{const closePopover=(event:MouseEvent)=>{const target=event.target as HTMLElement|null;const button=target?.closest('.crm-language-popover button,.crm-account-popover button');if(!button)return;button.closest('details')?.removeAttribute('open')};document.addEventListener('click',closePopover,true);return()=>document.removeEventListener('click',closePopover,true)},[]);
+ useEffect(()=>{const server=data?.member?.locale;if(server==='en'||server==='km'||server==='zh')syncLocale(server)},[data?.member?.locale,syncLocale]);
  const companyProbe=useRef(0);
  async function load(){try{const {data:d}=await apiFetch<any>('/api/team',{cache:'no-store'});setError('');setData(d);if(d.company){companyProbe.current=0;setCompanyResolving(false);setClientLanguages({en:d.company.client_en_enabled!==0,km:d.company.client_km_enabled!==0,zh:d.company.client_zh_enabled!==0});try{window.localStorage.setItem('payease-team-company',d.company.slug)}catch{}}else{const memberships=d.memberships||[];if(memberships.length===1)setCompanyResolving(true);else if(companyProbe.current===0){
    // A login response can arrive one tick before the company cookie is
