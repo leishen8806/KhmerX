@@ -24,7 +24,7 @@ export const POST=route({origin:'required',handler:async(request:Request)=>{
  try{
   const p=await input(request),s:any=await context();
   const role=s.member.role;
-  if(!rolesWrite.includes(role)&&!['admin','audit'].includes(role))throw new ApiError(403,'FORBIDDEN','无权管理贷款产品');
+  if(!rolesWrite.includes(role)&&role!=='admin')throw new ApiError(403,'FORBIDDEN','无权管理贷款产品');
   const now=new Date().toISOString();
   if(p.action==='product_create'){
    if(!rolesWrite.includes(role))throw new ApiError(403,'FORBIDDEN','仅管理员或运营人员可创建产品');
@@ -43,7 +43,7 @@ export const POST=route({origin:'required',handler:async(request:Request)=>{
    return json({ok:true});
   }
   if(p.action==='product_review'){
-   if(!['admin','audit'].includes(role))throw new ApiError(403,'FORBIDDEN','仅管理员或审计员可审核产品');
+   if(role!=='admin')throw new ApiError(403,'FORBIDDEN','仅公司管理员可审核产品');
    await requireMfaStepUp(s,p.code);
    const decision=p.decision==='approve'?'approve':p.decision==='reject'?'reject':'';const reason=text(p.reason,300);if(!decision||!reason)throw new ApiError(400,'VALIDATION_FAILED','请选择审核结果并填写原因');
    const v=await db().prepare("SELECT * FROM loan_product_versions WHERE product_id=? AND tenant_id=? AND version=? AND status='review'").bind(productId,s.tenant.id,product.current_version).first<any>();if(!v)throw new ApiError(404,'NOT_FOUND','当前没有待审核版本');

@@ -3,7 +3,8 @@ import {AuthError} from '@/lib/h5-auth-core';
 
 const text=(v:unknown,max=300)=>typeof v==='string'?v.trim().slice(0,max):'';
 const editorRoles=new Set(['admin','ops']);
-const reviewerRoles=new Set(['admin','audit']);
+// Audit is read-only; only the company Admin may publish or reject rules.
+const reviewerRoles=new Set(['admin']);
 const categories=new Set(['kyc','loan','fraud','funding','postloan']);
 const decisions=new Set(['pass','manual_review','supplement','reject','limit_adjust','freeze','block','alert']);
 const levels=new Set(['low','medium','high','critical']);
