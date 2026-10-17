@@ -20,7 +20,7 @@ test('service backend menu keeps merged customer and KYC entries unique',()=>{
   const labels=groups.flat();
   assert.equal(labels.length,new Set(labels).size,'菜单二级名称必须唯一');
   assert.match(source,/const nonLoanRole=\['audit','kyc','ops','dept_admin','finance','collection_admin','collector'\]\.includes\(role\)/,'非贷款岗位需要显式识别');
-  assert.match(source,/const hiddenGroups=\['组织与系统','产品与运营',\.\.\.\(nonLoanRole\?\['业务中心'\]\:\[\]\)\]/,'非贷款岗位不得显示业务中心');
+  assert.match(source,/const hiddenGroups=\['组织与系统','产品与运营',\.\.\.\(nonLoanRole\?\['业务中心'\]\:\[\]\),\.\.\.\(role==='finance'\?\['客户中心','服务中心'\]/,'非贷款岗位不得显示越权业务菜单');
   assert.match(source,/const visibleGroups=admin\|\|lender\?groups:groups\.filter/,'普通员工不得显示组织与产品管理菜单');
   assert.match(source,/const workspaceTabs=\(admin\|\|member\?\.role==='audit'/,'工作区业务标签必须按岗位范围收敛');
   assert.match(source,/const activeWorkspaceTab=workspaceTabs\.some\(\(\[key\]\)=>key===queueView\)\?queueView:defaultWorkspaceTab/,'隐藏标签不能成为当前工作区');
@@ -37,4 +37,6 @@ test('service backend menu keeps merged customer and KYC entries unique',()=>{
   assert.match(source,/member\.role==='lender'\?\[\['loans','贷款审批'/,'机构审批员首页快捷卡必须进入贷款审批');
   assert.match(source,/queue==='funding'&&role==='finance_checker'\)view='放款复核'/,'放款复核员首页快捷卡必须进入放款复核');
   assert.match(source,/\['audit','kyc','ops','dept_admin','finance','collection_admin','collector'\]\.includes\(role\)/,'放款员不得看到贷款审批类通用菜单');
+  assert.match(source,/role==='finance'\?\['客户中心','服务中心'\]/,'放款员不得看到客户与贷后服务菜单');
+  assert.match(router,/role==='finance'\)return \['放款管理','账单与还款'/,'放款员页面守卫必须保留资金业务入口');
 });
