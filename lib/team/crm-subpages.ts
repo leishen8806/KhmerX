@@ -4,7 +4,7 @@ const groups:Record<string,{queue:string;items:string[]}>={
  '工作台':{queue:'home',items:['今日概览','我的待办','团队队列','SLA 与提醒','风险摘要']},
  '客户中心':{queue:'customers',items:['客户列表','KYC 审核队列','客户标签与分组']},
  '业务中心':{queue:'loans',items:['贷款申请','审批协同','合同与签约','放款管理','账单与还款','提现与钱包','业务时间线']},
- '服务中心':{queue:'tickets',items:['客服工单','补件任务','贷后任务','逾期与催收','投诉与争议','通知发送记录']},
+ '服务中心':{queue:'tickets',items:['客服工单','贷后任务','逾期与催收','投诉与争议','通知发送记录']},
  '风控与资金':{queue:'funding',items:['风控事件','资金监管','资金限额','冻结与解除','资金流水','对账异常']},
  '产品与运营':{queue:'permissions',items:['贷款产品','费率与费用','风控规则与版本','Telegram 业务渠道','通知模板','公司新闻','行业资讯','帮助中心']},
  '报表中心':{queue:'reports',items:['客户漏斗','KYC 与审批','放款与还款','逾期与催收报表','资金监管报表','客服与投诉','自定义报表']},
@@ -24,9 +24,9 @@ const descriptions:Record<string,string>={
  '操作审计':'按操作人、对象、时间和结果查询审计。','登录与 IP':'查看登录、退出、失败和IP记录。','数据修改':'查看敏感字段前后值、原因和复核。','资金操作':'查看资金动作、审批和流水关联。','权限变更':'查看角色、字段权限和会话变更。','安全告警':'确认、处理和关闭安全告警。','应急事件':'查看break-glass授权、范围和过期。','审计导出':'按范围脱敏导出审计记录并留痕。'
 };
 
-const hiddenCrmViews=new Set(['客户 360° 详情','待补件']);
+const hiddenCrmViews=new Set(['客户 360° 详情','待补件','补件任务']);
 descriptions['客户列表']='搜索客户，并在同一页面查看资料、KYC、贷款和业务时间线。';
 export const crmSubpages:CrmSubpage[]=Object.entries(groups).flatMap(([,group])=>group.items.filter(label=>!hiddenCrmViews.has(label)).map(label=>({label,queue:group.queue,view:label,description:descriptions[label]||'当前页面仅展示授权范围内的数据，并保留操作审计。'})));
 export const crmSubpageByView=Object.fromEntries(crmSubpages.map(page=>[page.view,page]));
-export function canonicalCrmView(view:string){return view==='客户 360° 详情'?'客户列表':view==='待补件'?'KYC 审核队列':view}
+export function canonicalCrmView(view:string){return view==='客户 360° 详情'?'客户列表':view==='待补件'||view==='补件任务'?'KYC 审核队列':view}
 export function crmSubpageHref(href:string,label:string){const target=href.startsWith('#')?'/team':href;if(label==='今日概览')return '/team';return `${target}${target.includes('?')?'&':'?'}view=${encodeURIComponent(label)}`}
