@@ -106,3 +106,9 @@ test('service backend menu keeps merged customer and KYC entries unique',()=>{
   assert.match(source,/role==='finance'\?\['客户中心','服务中心'\]/,'放款员不得看到客户与贷后服务菜单');
   assert.match(router,/role==='finance'\)return \['放款管理','账单与还款'/,'放款员页面守卫必须保留资金业务入口');
 });
+
+test('audit staff can reach read-only organization pages from the sidebar',()=>{
+  assert.match(source,/role==='audit'&&groupName==='组织与系统'\|\|!hiddenGroups\.includes\(groupName\)/);
+  assert.match(source,/groupName==='组织与系统'&&role==='audit'.*\['数据范围','字段权限','系统健康'\]/);
+  assert.match(router,/if\(role==='audit'\)return \['字段权限','数据范围','系统健康'/);
+});
