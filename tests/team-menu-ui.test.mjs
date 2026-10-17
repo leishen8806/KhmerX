@@ -39,6 +39,9 @@ test('service backend menu keeps merged customer and KYC entries unique',()=>{
   assert.match(products,/export const GET=route\(\{handler:async\(\)=>\{\s*const s=await context\(\);\s*if\(!rolesWrite\.includes\(s\.member\.role\)&&s\.member\.role!==['"]admin['"]\)/,'贷款产品读取接口必须与产品管理岗位范围一致');
   assert.match(products,/if\(role!==['"]admin['"]\)throw new ApiError\(403,'FORBIDDEN','仅公司管理员可审核产品'/,'贷款产品审核必须由公司管理员执行');
   assert.match(riskRules,/const reviewerRoles=new Set\(\[['"]admin['"]\]\)/,'风控规则审核不得授予审计员写权限');
+  assert.match(riskRules,/const readerRoles=new Set\(\[['"]admin['"],['"]audit['"],['"]ops['"]\]\)/,'风控规则读取必须限制为管理员、运营或审计岗位');
+  assert.match(riskRules,/if\(!s\|\|!readerRoles\.has\(s\.member\.role\)\)throw new AuthError\(['"]当前岗位无权查看风控规则/,'风控规则列表不得向普通员工开放');
+  assert.match(riskRules,/if\(!readerRoles\.has\(role\)\)throw new AuthError\(['"]当前岗位无权模拟风控规则/,'风控规则模拟必须复用读取岗位范围');
   assert.match(router,/function RiskEvents\(\{work,role\}/,'资金风险页面必须接收当前岗位');
   assert.match(router,/const canResolve=role==='admin';/,'资金风险处置控件只能由公司管理员看到');
   assert.match(router,/if\(!roleAllowsCrmView\(props\.member\?\.role\|\|'',view\)\)return <Frame view=\{view\} title="无权访问">/,'无权岗位不得渲染业务页面');
