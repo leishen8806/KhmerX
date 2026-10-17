@@ -10,11 +10,11 @@ const required = [
   "payease.khmerx.org", 'K6_USER_ID', '+1202555', 'idFront', 'incomeProof',
   'p(50)', 'p(95)', 'p(99)', 'b0_error_code_total', 'b0_upload_failure_total',
   'LOADTEST_ALLOWED_HOSTS', 'hostOverrides', 'writeConflictRetries', 'STATE_MUTATION_FAILED',
-  'requestsPerSecond', 'totalDurationMs', 'uploadSuccessRate', "action: 'save'",
+  'requestsPerSecond', 'totalDurationMs', 'uploadSuccessRate', 'SCENARIO', 'finalStateMismatchCount', "action: 'save'",
 ];
 const missing = required.filter(token => !source.includes(token));
 if (missing.length) throw new Error(`B0 self-check failed; missing: ${missing.join(', ')}`);
-for (const token of ['--origin-ip', '--host', 'LOADTEST_ALLOWED_HOSTS', 'is_production', 'production']) {
+for (const token of ['--origin-ip', '--host', 'LOADTEST_ALLOWED_HOSTS', 'SCENARIO=rows', 'is_production', 'production']) {
   if (!runner.includes(token)) throw new Error(`B0 runner self-check failed; missing: ${token}`);
 }
 if (/--origin-ip|--host|origin_ip|host_name/.test(sampler)) throw new Error('B0b sampler must not accept load-target arguments');

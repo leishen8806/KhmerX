@@ -30,6 +30,10 @@ LOADTEST_ALLOWED_HOSTS=staging.example.test scripts/loadtest/run-b0.sh \
 # 阶梯场景：100 → 300 → 600，每档 3 分钟
 LOADTEST_ALLOWED_HOSTS=staging.example.test scripts/loadtest/run-b0.sh \
   -e BASE_URL=https://staging.example.test -e STAGES=true
+
+# 客户分片一致性场景：每个 VU 使用一个稳定的合成客户，并统计最终 KYC 状态
+LOADTEST_ALLOWED_HOSTS=staging.example.test scripts/loadtest/run-b0.sh \
+  -e BASE_URL=https://staging.example.test -e SCENARIO=rows -e VUS=600 -e ONCE=true
 ```
 
 仅允许本地、环回地址或 `LOADTEST_ALLOWED_HOSTS` 明确列出的预发目标。脚本会拒绝
@@ -71,6 +75,7 @@ scripts/loadtest/sample-resources.sh \
 `run-b0.sh` 默认把报告写入 `scripts/loadtest/reports/`，可用 k6 参数 `-e REPORT_PATH=...`
 指定文件名。报告包括每秒请求数、总用时、请求延迟 p50/p95/p99、错误率、按 HTTP
 状态码和响应 `code` 的计数（包含 `409`、`CONFLICT`、`STATE_MUTATION_FAILED`）、写冲突
-响应数、脚本重试数和上传成功率。写请求不会自动重试；服务端成功的乐观锁重试次数
-目前不通过 API 暴露，报告会标记为不可观测。`checks` 失败时先查看认证、Cookie、Origin
-和服务端配置，再提高并发；不要把生产域名用于压测。
+响应数、脚本重试数和上传成功率。`SCENARIO=rows` 额外包含
+`finalStateMismatchCount`，统计提交后轮询未稳定得到 `kyc.status=submitted` 的合成客户数。
+写请求不会自动重试；服务端成功的乐观锁重试次数目前不通过 API 暴露，报告会标记为不可观测。
+`checks` 失败时先查看认证、Cookie、Origin 和服务端配置，再提高并发；不要把生产域名用于压测。
