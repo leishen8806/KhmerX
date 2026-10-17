@@ -30,6 +30,8 @@ test('service backend menu keeps merged customer and KYC entries unique',()=>{
   assert.match(source,/\(admin\|\|member\.role==='audit'\|\|member\.role==='finance'\|\|member\.role==='finance_checker'\|\|lender\)&&<section className="crm-overview-section"/,'资金风险摘要需按岗位显示');
   assert.match(subpages,/hiddenCrmViews=new Set\(\['客户 360° 详情','待补件','补件任务'\]\)/);
   assert.match(subpages,/view==='待补件'\|\|view==='补件任务'\?'KYC 审核队列'/);
+  assert.doesNotMatch(router,/roleAllowsCrmView[\s\S]*客户 360° 详情/,'旧版 360 详情不得被岗位直链守卫重新开放');
+  assert.doesNotMatch(router,/roleAllowsCrmView[\s\S]*待补件/,'待补件不得作为独立岗位页面重新开放');
   assert.match(router,/function roleAllowsCrmView\(role:string,view:string\)/,'直接访问页面必须经过岗位守卫');
   assert.match(router,/if\(role==='admin'\)return true;const audit=\[/,'只有管理员先获得全量页面守卫');
   assert.match(router,/if\(audit\.includes\(view\)\)return role==='audit';/,'审计与安全页面不得被普通员工通过直链访问');
