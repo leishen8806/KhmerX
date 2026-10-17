@@ -1490,7 +1490,8 @@ class AppLocalizationsEn extends AppLocalizations {
       'Your information was changed or is locked. It has been reloaded.';
 
   @override
-  String get kycErrFileTooLarge => 'The file is too large (max 10 MB).';
+  String get kycErrFileTooLarge =>
+      'Images must be 5 MB or smaller; PDF files must be 10 MB or smaller.';
 
   @override
   String get kycErrFileRejected =>
@@ -1648,4 +1649,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String errWithRequestId(String message, String requestId) {
     return '$message Reference: $requestId';
   }
+
+  @override
+  String get kycUploadRetrying => 'Retrying upload...';
+
+  @override
+  String get kycUploadCancel => 'Cancel upload';
 }

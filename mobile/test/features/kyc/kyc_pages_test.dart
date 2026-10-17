@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:dio/dio.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -22,6 +23,9 @@ import '../../support/fake_secure_kv.dart';
 class _FakeRepo implements KycRepository {
   _FakeRepo(this.kycCase);
   final KycCase kycCase;
+  bool retryUploads = false;
+  int uploadCalls = 0;
+  AppFailure? uploadFailure;
 
   @override
   Future<Either<AppFailure, KycCase>> fetch(CompanyId id) async => Right(kycCase);
@@ -42,18 +46,33 @@ class _FakeRepo implements KycRepository {
     CompanyId id, {
     required String slot,
     required Uint8List bytes,
-  }) async =>
-      Right(KycFileRef(id: 'f', slot: slot));
+    CancelToken? cancelToken,
+    void Function(int attempt, Duration delay)? onRetry,
+  }) async {
+    uploadCalls++;
+    if (uploadFailure != null) {return Left(uploadFailure!);}
+    if (retryUploads) {
+      onRetry?.call(1, const Duration(seconds: 1));
+      await cancelToken!.whenCancel;
+      return Left(UnknownFailure());
+    }
+    return Right(KycFileRef(id: 'f', slot: slot));
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-KycCase _case(KycCaseStatus status, {String? reason}) => KycCase(
+class _Images implements KycImageSource {
+  @override
+  Future<Uint8List?> pick({required bool camera}) async => Uint8List(16);
+}
+
+KycCase _case(KycCaseStatus status, {String? reason, Map<String, String>? values}) => KycCase(
       id: 'c',
       revision: 1,
       status: status,
-      values: const {'surname': 'SOK'},
+      values: values ?? const {'surname': 'SOK'},
       files: const {},
       consent: false,
       declarationVersion: kKycConsentVersion,
@@ -67,10 +86,12 @@ Future<void> _pump(
   required Widget page,
   required Locale locale,
   required KycCase kycCase,
+  KycRepository? repo,
 }) async {
   final container = ProviderContainer(overrides: [
     secureKvProvider.overrideWithValue(FakeSecureKv()),
-    kycRepositoryProvider.overrideWithValue(_FakeRepo(kycCase)),
+    kycRepositoryProvider.overrideWithValue(repo ?? _FakeRepo(kycCase)),
+    kycImageSourceProvider.overrideWithValue(_Images()),
     // Read the bundled options from disk: deterministic in widget tests.
     kycOptionsProvider.overrideWith(
       (ref) => KycOptions.parse(File('assets/kyc/options.json').readAsStringSync()),
@@ -111,6 +132,30 @@ List<String> _texts(WidgetTester tester) => find
 void main() {
   for (final lang in ['en', 'km', 'zh']) {
     group('P2 KYC pages · $lang', () {
+      testWidgets('C3 retry state and cancellation are localized', (tester) async {
+        final c = _case(KycCaseStatus.draft, values: {for (final f in kKycFields.where((f) => f.section == KycSection.identity)) f.id: 'Synthetic'});
+        final repo = _FakeRepo(c)..retryUploads = true;
+        await _pump(tester, page: const KycSectionPage(sectionId: 'identity'), locale: Locale(lang), kycCase: c, repo: repo);
+        final l = await AppLocalizations.delegate.load(Locale(lang));
+        await tester.ensureVisible(find.text(l.kycChooseGallery).first);
+        await tester.tap(find.text(l.kycChooseGallery).first);
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(find.text(l.kycUploadRetrying), findsOneWidget);
+        expect(find.text(l.kycUploadCancel), findsOneWidget);
+        expect(repo.uploadCalls, 1);
+        await tester.tap(find.text(l.kycUploadCancel));
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(find.text(l.kycUploadRetrying), findsNothing);
+        expect(find.text(l.kycUploadCancel), findsNothing);
+        expect(find.text(l.kycUploaded), findsNothing);
+        expect(repo.uploadCalls, 1);
+        repo.uploadFailure = ServiceUnavailableFailure(statusCode: 503, requestId: 'synthetic-server-id');
+        await tester.tap(find.text(l.kycChooseGallery).first);
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(find.textContaining('synthetic-server-id'), findsOneWidget);
+        expect(find.text(l.kycUploadRetrying), findsNothing);
+        await tester.pump(const Duration(seconds: 5));
+      });
       testWidgets('KYC-W-01 overview: status, reviewer note, 5 sections, no internal keys',
           (tester) async {
         await _pump(

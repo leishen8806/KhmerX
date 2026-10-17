@@ -68,6 +68,7 @@ final class ApiClient {
     Object? data,
     Map<String, String>? headers,
     String? contentType,
+    CancelToken? cancelToken,
   }) async {
     final Endpoint resolved;
     if (endpoint.companyId != null && endpoint.companyId != companyId) {
@@ -83,6 +84,7 @@ final class ApiClient {
         resolved.path,
         queryParameters: queryParameters,
         data: effectiveData,
+        cancelToken: cancelToken,
         options: Options(
           method: resolved.method.name.toUpperCase(),
           headers: headers,
