@@ -7,20 +7,21 @@ import {createRequire} from 'node:module';
 
 const blank=()=>({loans:[],bots:[],events:[],entries:[],notifications:[],requests:[]});
 const loan=id=>({id,name:'Synthetic',status:'kyc_pending',amount:5000,fee:0,paid:0,wallet:0,botId:'',note:'',demoDays:0,kyc:{contacts:[],income:0,document:''}});
-function workspace(request,props={initialRole:'ops'}){
+function workspace(request,props={initialRole:'ops'},options={}){
  let cursor=0,changed=false;const slots=[],effects=[];
  const equal=(a,b)=>a&&b&&a.length===b.length&&a.every((v,i)=>Object.is(v,b[i]));
  const hooks={
   useState(initial){const i=cursor++;slots[i]??={value:typeof initial==='function'?initial():initial};return [slots[i].value,v=>{const next=typeof v==='function'?v(slots[i].value):v;if(!Object.is(next,slots[i].value)){slots[i].value=next;changed=true}}]},
   useRef(value){const i=cursor++;return slots[i]??=( {current:value})},
+  useMemo(fn,deps){const i=cursor++;if(!equal(slots[i]?.deps,deps))slots[i]={value:fn(),deps};return slots[i].value},
   useCallback(fn,deps){const i=cursor++;if(!equal(slots[i]?.deps,deps))slots[i]={value:fn,deps};return slots[i].value},
   useEffect(fn,deps){const i=cursor++;if(!equal(slots[i]?.deps,deps))effects.push(()=>{slots[i]?.cleanup?.();slots[i]={deps,cleanup:fn()}})},
  };
  const jsx=(type,props)=>({type,props});
- const mocks={react:hooks,'react/jsx-runtime':{jsx,jsxs:jsx},'@/lib/api-client':{apiFetch:async(url,init)=>({data:await request(url,init)})},'@/lib/client-id':{clientRequestId:()=> 'synthetic-request'},'@/lib/domain':{initialState:blank,statusNames:{kyc_pending:'Pending',needs_info:'Needs info',closed:'Closed'},summary:()=>({active:0,closed:0,disbursed:0,repaid:0})},'@/components/customer-journey':{kycPresentation:()=>({}),loanPhase:()=>0,loanSteps:[]}};
- const exports={};const code=ts.transpileModule(readFileSync('app/workspace.tsx','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
- vm.runInNewContext(code,{exports,require:name=>mocks[name]||new Proxy({},{get:(_o,key)=>key}),Error,URLSearchParams,AbortController,queueMicrotask,window:{addEventListener(){},removeEventListener(){}},localStorage:{getItem:()=>null},document:{addEventListener(){},removeEventListener(){},documentElement:{classList:{toggle(){}}},querySelector:()=>null,getElementById:()=>null}});
- const render=()=>{let tree;for(let n=0;n<12;n++){changed=false;cursor=0;tree=exports.default(props);while(effects.length)effects.shift()();if(!changed)return tree}throw Error('Render loop')};
+ const mocks={react:hooks,'react/jsx-runtime':{jsx,jsxs:jsx},'@/lib/api-client':{ApiClientError:class extends Error{},apiFetch:async(url,init)=>({data:await request(url,init)})},'@/lib/client-id':{clientRequestId:()=> 'synthetic-request'},'@/lib/domain':{initialState:blank,statusNames:{kyc_pending:'Pending',needs_info:'Needs info',closed:'Closed'},summary:()=>({active:0,closed:0,disbursed:0,repaid:0})},'@/components/customer-journey':{kycPresentation:()=>({}),loanPhase:()=>0,loanSteps:[]}};
+ Object.assign(mocks,options.mocks);const exports={};const code=ts.transpileModule(readFileSync(options.source||'app/workspace.tsx','utf8')+(options.inner?'\nexport {TeamClientInner};':''),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
+ vm.runInNewContext(code,{exports,require:name=>mocks[name]||new Proxy({},{get:(_o,key)=>key}),Error,URLSearchParams,AbortController,queueMicrotask,clearInterval(){},window:{addEventListener(){},removeEventListener(){},location:{origin:'http://localhost',search:'',replace(){}},localStorage:{getItem:()=>null,setItem(){}},setInterval:()=>1,setTimeout(){}},localStorage:{getItem:()=>null},document:{addEventListener(){},removeEventListener(){},documentElement:{classList:{toggle(){}}},querySelector:()=>null,getElementById:()=>null}});
+ const render=()=>{let tree;for(let n=0;n<12;n++){changed=false;cursor=0;tree=exports[options.exportName||'default'](props);while(effects.length)effects.shift()();if(!changed)return tree}throw Error('Render loop')};
  return {render,async settle(){await new Promise(resolve=>setImmediate(resolve));return render()}};
 }
 function nodes(tree){return Array.isArray(tree)?tree.flatMap(nodes):tree&&typeof tree==='object'?[tree,...nodes(tree.props?.children)]:[]}
@@ -37,6 +38,55 @@ test('staff workspace probes without params, pages explicitly, resets filters an
  next(tree).props.onClick();c.render();tree=await c.settle();find(tree,n=>n.type==='Button'&&text(n).startsWith('查看')).props.onClick();tree=c.render();
  find(tree,n=>n.type==='Button'&&text(n).startsWith('资料审核通过')).props.onClick();c.render();await c.settle();
  assert.equal(calls.at(-2).init?.method,'POST');assert.equal(JSON.parse(calls.at(-2).init.body).loanId,'loan-2');assert.equal(calls.at(-1).url,'/api/state?page=2&pageSize=50&status=kyc_pending');
+});
+
+function teamClient(request){return workspace(request,{}, {source:'app/team/client.tsx',inner:true,exportName:'TeamClientInner',mocks:{
+ '@/lib/admin-i18n':{useAdminLocale:()=>({locale:'zh',setLocale(){}})},
+ '@/lib/team/policy':{roleLabels:{ops:'Ops'},roleCatalog:{},roleUnitKind:()=>null,kycFieldGroups:{}},
+ '@/lib/team/crm-subpages':{crmSubpageByView:{},canonicalCrmView:v=>v},
+ '@/lib/team/crm-menu':{isCrmQueueSection:()=>false},
+}})}
+const controls=tree=>find(tree,n=>n.type==='StaffPaginationControls').props;
+const companyData=id=>({company:{id,slug:id,name:'Synthetic company'},member:{id:'synthetic-ops',role:'ops'},memberships:[],units:[],members:[]});
+
+test('team/CRM probes each company, retains page/status after actions and rejects old-company data',async()=>{
+ let company='A',stale;const calls=[];const c=teamClient((url,init)=>{
+  calls.push({url,init});if(init?.method==='POST'){if(JSON.parse(init.body).action==='enter')company='B';return {}}
+  if(url==='/api/team')return companyData(company);
+  const page=Number(new URL(url,'http://localhost').searchParams.get('page')||1);
+  if(company==='A'&&page===3)return new Promise(resolve=>stale=resolve);
+  return {...paged(page),customerPagination:{page,pageSize:50,total:5001,pages:101}};
+ });
+ c.render();let tree=await c.settle();assert.deepEqual(calls.map(c=>c.url),['/api/team','/api/state']);assert.equal(controls(tree).customer.total,5001);
+ controls(tree).onPage(2);c.render();tree=await c.settle();assert.equal(calls.at(-1).url,'/api/state?page=2&pageSize=50');
+ controls(tree).onStatus('closed');c.render();tree=await c.settle();assert.equal(calls.at(-1).url,'/api/state?page=1&pageSize=50&status=closed');
+ controls(tree).onPage(2);c.render();tree=await c.settle();
+ const action=find(tree,n=>typeof n.type==='function'&&n.type.name==='CrmOverview');
+ const post=find(tree,n=>typeof n.props?.post==='function').props.post;
+ assert(action);await post({action:'synthetic-action',loanId:'loan-2'},'/api/state');tree=await c.settle();assert.equal(calls.at(-1).url,'/api/state?page=2&pageSize=50&status=closed');
+ controls(tree).onPage(3);c.render();await c.settle();await post({action:'enter',slug:'B'});tree=await c.settle();assert.equal(calls.at(-1).url,'/api/state');assert.equal(controls(tree).status,'');
+ stale({...paged(3),pagination:{...paged(3).pagination,total:999}});tree=await c.settle();assert.equal(controls(tree).loan.total,5000);
+});
+
+test('shared staff controls use both totals and keep the final customer-only page reachable',()=>{
+ const pages=[];const c=workspace(()=>null,{loan:paged(100).pagination,customer:{page:100,pageSize:50,total:5001,pages:101},status:'',loading:false,busy:false,error:'',onPage:p=>pages.push(p),onStatus(){},onRetry(){}},{source:'components/staff-pagination.tsx',exportName:'StaffPaginationControls'});
+ const tree=c.render();assert.match(text(tree),/共 5000 条/);assert.match(text(tree),/共 5001 位/);assert.equal(next(tree).props.disabled,false);next(tree).props.onClick();assert.deepEqual(pages,[101]);
+});
+
+test('team off stays unpaged; paging errors remain visible and retry preserves page and status',async()=>{
+ const calls=[];let enabled=false,fail=false;const c=teamClient(url=>{calls.push(url);if(url==='/api/team')return companyData('A');if(fail)throw Error('Synthetic offline');return enabled?paged(Number(new URL(url,'http://localhost').searchParams.get('page')||1)):{state:blank()}});
+ c.render();let tree=await c.settle();assert.equal(controls(tree).loan,undefined);controls(tree).onRetry();c.render();tree=await c.settle();assert(calls.filter(url=>url.startsWith('/api/state')).every(url=>url==='/api/state'));
+ enabled=true;controls(tree).onRetry();c.render();tree=await c.settle();fail=true;controls(tree).onPage(2);c.render();tree=await c.settle();assert.equal(controls(tree).error,'Synthetic offline');
+ fail=false;controls(tree).onRetry();c.render();tree=await c.settle();assert.equal(calls.at(-1),'/api/state?page=2&pageSize=50');assert.equal(controls(tree).error,'');assert.equal(controls(tree).loan.page,2);
+});
+
+test('report/customer totals are authoritative while summaries and funding diagnostics remain page-scoped',()=>{
+ const report=workspace(()=>null,{customers:[],loans:[],entries:[],notifications:[],pageOnly:true,customerTotal:5001,loanTotal:5000},{source:'components/report-center.tsx',exportName:'ReportCenter'}).render();
+ assert.match(text(report),/本页 · 运营数据摘要/);assert.match(text(report),/客户 5001 · 贷款 5000/);
+ const customers=workspace(()=>null,{customers:[],events:[],pageOnly:true,total:5001},{source:'components/customer-center.tsx',exportName:'CustomerCenter'}).render();assert.match(text(customers),/本页 0 \/ 5001 位客户/);
+ const funding=workspace(()=>null,{loans:[],events:[],entries:[],scope:[],units:[],role:'ops',busy:false,post(){},pageOnly:true},{source:'components/funding-panel.tsx',exportName:'FundingPanel',mocks:{'@/lib/funding-limits':{fundingStatus:()=>({})}}}).render();
+ assert.match(text(funding),/本页 · 放款工作台/);assert(!nodes(funding).some(n=>n.props?.className==='funding-limit-summary'));
+ for(const view of ['资金监管','冻结与解除']){let tree=workspace(()=>null,{view,work:paged(),units:[],members:[],member:{role:'ops'},busy:false,post(){}},{source:'components/crm-subpages.tsx',exportName:'CrmSubpageRouter'}).render();for(let i=0;i<5&&typeof tree.type==='function';i++)tree=tree.type(tree.props);assert.match(text(tree),/分页数据不能判定全公司剩余额度/);if(view==='冻结与解除')assert(nodes(tree).some(n=>n.type==='EmergencyAccess'))}
 });
 
 test('staff off mode stays unpaged; customer mode keeps its existing local pagination',async()=>{
