@@ -8,7 +8,7 @@ export async function validLoanContract(owner:string,loan:Loan,row:CaseRow){
  const data=await payload(row);let contract:CasePayload['signedLoan'];
  try{contract=loan.contract?JSON.parse(loan.contract):data.signedLoan}catch{throw new KycError('合同记录无效',409)}
  const immutable=contract?.signatureId?await storedContract(owner,row.customer_id,contract.signatureId):null;
- const contractFields=['billing','borrowerName','profileHash','loanId','signatureId','signatureHash','termsVersion','principal','fee','currency','termDays','signedAt'] as const;
+ const contractFields=['billing','borrowerName','profileHash','loanId','signatureId','signatureHash','termsLocale','termsVersion','principal','fee','currency','termDays','signedAt'] as const;
  const termsHash=await digest(JSON.stringify(loanTerms.blocks));
  const matchesImmutable=!!immutable&&await contractHashValid(immutable)&&immutable.termsHash===termsHash&&JSON.stringify(immutable.termsSnapshot)===JSON.stringify(loanTerms.blocks)&&!!contract&&contractFields.every(field=>JSON.stringify(contract?.[field])===JSON.stringify(immutable[field]));
  if(row.status!=='approved'||loan.kycCaseId!==row.id||loan.kycRevision!==row.revision||!loan.billConfirmedAt||!contract||!matchesImmutable||contract.loanId!==loan.id||contract.principal!==loan.amount||contract.fee!==loan.fee||!(await profileDigestMatches(data.profile.values,contract.profileHash))||contract.borrowerName!==[data.profile.values.surname,data.profile.values.givenName].filter(Boolean).join(' ')||(loan.billing&&contract.billing?.quoteId!==loan.billing.quoteId))throw new KycError('请完成当前申请的费用确认与手写签约，资料须保持审核通过',409);
