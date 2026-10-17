@@ -13,6 +13,7 @@
     "test": "node --experimental-vm-modules --test tests/*.test.mjs",
     "check:client-boundary": "node scripts/check-client-boundary.mjs",
     "typecheck": "tsc --noEmit --pretty false",
+    "audit:i18n": "node scripts/audit-i18n.mjs",
     "build:separated": "npm run check:client-boundary && node scripts/run-framework.mjs build && node scripts/package-separated.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
