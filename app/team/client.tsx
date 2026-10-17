@@ -115,11 +115,12 @@ function TeamClientInner({initialQueue=''}:{initialQueue?:string}){
  </>}</main>
 }
  function CrmMenu({admin,role,queueView,view,setQueueView}:{admin:boolean;role:TeamRole;queueView:string;view?:string;setQueueView:(value:string)=>void}){
-  const lender=role==='checker'||role==='finance_checker';
-  const links=lender?(role==='checker'?[['贷款复核','/team/loans'],['审计记录','/team#team-audit']]:[['放款复核','/team/funding'],['审计记录','/team#team-audit']]):[['今日概览','/team'],['用户管理','/team/customers'],['订单管理','/team/loans'],['信审管理','/team/kyc'],['支付管理','/team/funding'],['通知管理','/team/notifications'],['工单管理','/team/tickets'],['催收管理','/team/postloan'],['数据报表','/team/reports'],['风控与资金','/team/funding'],...(admin?[['权限管理','/team#team-permissions'],['系统管理','/team#team-permissions']]:[]),['审计与安全','/team#team-audit']];
+  const lender=role==='lender'||role==='checker'||role==='finance_checker';
+  const links=lender?(role==='lender'?[['贷款申请','/team/loans'],['审计记录','/team#team-audit']]:role==='checker'?[['贷款复核','/team/loans'],['审计记录','/team#team-audit']]:[['放款复核','/team/funding'],['审计记录','/team#team-audit']]):[['今日概览','/team'],['用户管理','/team/customers'],['订单管理','/team/loans'],['信审管理','/team/kyc'],['支付管理','/team/funding'],['通知管理','/team/notifications'],['工单管理','/team/tickets'],['催收管理','/team/postloan'],['数据报表','/team/reports'],['风控与资金','/team/funding'],...(admin?[['权限管理','/team#team-permissions'],['系统管理','/team#team-permissions']]:[]),['审计与安全','/team#team-audit']];
   const activeView=view||(typeof window==='undefined'?'':new URLSearchParams(window.location.search).get('view')||({'/team/customers':'客户列表','/team/reports':'客户漏斗','/team/notifications':'通知发送记录','/team/tickets':'客服工单','/team/kyc':'KYC 审核队列','/team/loans':'贷款申请','/team/funding':'风控事件','/team/repayment':'账单与还款','/team/postloan':'贷后任务'} as Record<string,string>)[window.location.pathname]||'');
   const active=(target:string,label?:string)=>activeView?label===activeView:target===queueView||label===queueView||(!queueView&&target==='home');
-  const groups=lender?[[role==='checker'?'贷款复核':'放款复核',[[role==='checker'?'贷款复核':'放款复核',role==='checker'?'/team/loans':'/team/funding',role==='checker'?'loans':'funding']]],['审计与安全',[['审计记录','#team-audit','audit']]]]:[
+  const lenderLabel=role==='lender'?'贷款申请':role==='checker'?'贷款复核':'放款复核';
+  const groups=lender?[[lenderLabel,[[lenderLabel,role==='lender'||role==='checker'?'/team/loans':'/team/funding',role==='lender'||role==='checker'?'loans':'funding']]],['审计与安全',[['审计记录','#team-audit','audit']]]]:[
    ['工作台',[['今日概览','/team','home'],['我的待办','/team/kyc','kyc'],['团队队列','/team/loans','loans'],['SLA 与提醒','/team/notifications','notifications'],['风险摘要','/team/funding','funding']]],
    ['客户中心',[['客户列表','/team/customers','customers'],['KYC 审核队列','/team/kyc','kyc'],['客户标签与分组','/team/customers','customers']]],
    ['业务中心',[['贷款申请','/team/loans','loans'],['审批协同','/team/loans','loans'],['合同与签约','/team/loans','loans'],['放款管理','/team/funding','funding'],['账单与还款','/team/repayment','repayment'],['提现与钱包','/team/funding','funding'],['业务时间线','/team/loans','loans']]],
