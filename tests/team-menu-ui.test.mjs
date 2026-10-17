@@ -42,6 +42,10 @@ test('service backend menu keeps merged customer and KYC entries unique',()=>{
   assert.match(router,/\['lender','checker'\]\.includes\(role\)/,'机构审批员与机构复核员必须共享贷款业务页面守卫');
   assert.match(subpages,/view==='贷款复核'\?'贷款申请':view==='放款复核'\?'放款管理'/,'持牌机构复核入口必须规范化到实际业务页面');
   assert.match(router,/const view=canonicalCrmView\(props\.view\)/,'独立子页面组件必须复用统一别名规范化');
+  assert.match(router,/function AuditExportPage\(\{role\}/,'审计完整性页面必须接收当前岗位');
+  const auditIntegrity=fs.readFileSync(path.join(process.cwd(),'lib/team/audit-integrity.ts'),'utf8');
+  assert.match(auditIntegrity,/async function writer\(\).*s\.member\.role!==['"]admin['"]/,'审计完整性快照写操作仅限公司管理员');
+  assert.match(auditIntegrity,/async function reader\(\).*\[['"]admin['"],'audit'\]/,'审计完整性列表允许管理员和审计员只读查看');
   assert.match(source,/role==='lender'\|\|role==='checker'\|\|role==='finance_checker'/,'持牌机构角色必须显示专属菜单');
   assert.match(source,/member\.role==='lender'\|\|member\.role==='checker'\|\|member\.role==='finance_checker'/,'机构审批员必须看到机构待办与风险摘要');
   assert.match(source,/member\.role==='lender'\?\[\['loans','贷款审批'/,'机构审批员首页快捷卡必须进入贷款审批');
