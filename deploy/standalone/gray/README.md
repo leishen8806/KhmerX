@@ -283,14 +283,28 @@ bash /review/deploy/standalone/gray/verify-artifact.sh <full-approved-git-sha>
 
 The default dependency step is locked `npm ci`. For a network-disabled build
 using an existing dependency tree from the same lockfile, explicitly set
-`GRAY_ARTIFACT_REUSE_DEPS=1`; mount those dependencies read-only and record their
-provenance in the PR. All other build/verification steps are network-disabled.
+`GRAY_ARTIFACT_REUSE_DEPS=1`; mount those dependencies read-only. The installed
+`node_modules/.package-lock.json` is mandatory: every installed version and
+shared resolved/integrity value must match the source lock. Non-optional packages
+and current-platform bindings must be installed. Bookworm uses glibc; musl and
+other-platform optional bindings may be absent. Record the dependency source in
+the PR; an inventory check does not authenticate or hash every installed file.
+Both modes produce checksummed `BUILD_DEPS.json` with mode, both lock digests,
+installed package count and checked package count (all installed entries).
+
+The build refuses any existing `dist`, including a dangling symlink, before
+install/build. Start each build in a fresh disposable copy; it never deletes a
+user directory. This makes pre-existing payload files impossible. A second build
+of the same commit also requires a separate clean build directory.
+All other build/verification steps are network-disabled.
 Do not run `npm install`, `npm ci`, or an application build on the gray source.
 
-Output is `dist/`, including `BUILD_INFO.json` and `dist.sha256`. The manifest
+Output is `dist/`, including `BUILD_INFO.json`, `BUILD_DEPS.json` and
+`dist.sha256`. The manifest
 is inside `dist` so it travels with the artifact and remains Git-ignored.
 It covers every regular payload file, including `server/BUILD_ID`, excluding
-only these two metadata files. `fileCount` counts manifest entries. Symlinks
+only `BUILD_INFO.json` and `dist.sha256`; `BUILD_DEPS.json` is covered.
+`fileCount` counts manifest entries. Symlinks
 and special files are rejected. Metadata contains only the approved SHA,
 timestamp, Node version, lockfile digest, framework build ID and file count.
 
@@ -301,10 +315,14 @@ previous complete `dist` (including its metadata) and manifest for rollback.
 Place the verified new `dist` at `/opt/payease/app/dist`, then, from that root:
 
 ```bash
-bash deploy/standalone/gray/verify-artifact.sh <full-approved-git-sha>
+# Source verification uses existing Docker tooling, without installing host Node.
+docker run --rm --network none -v "$PWD:/app:ro" -w /app \
+  node:22.22.1-bookworm-slim bash deploy/standalone/gray/verify-artifact.sh <full-approved-git-sha>
 # Only after separate deployment authorization and successful verification:
 docker compose -f deploy/standalone/gray/compose.gray.yaml up -d --build
-bash deploy/standalone/gray/verify-artifact.sh <full-approved-git-sha> --running
+# Linux host networking is required to read the host gateway's loopback port.
+docker run --rm --network host -v "$PWD:/app:ro" -w /app \
+  node:22.22.1-bookworm-slim bash deploy/standalone/gray/verify-artifact.sh <full-approved-git-sha> --running
 ```
 
 `--running` reads only `http://127.0.0.1:4300/version`; it compares the framework
@@ -315,3 +333,15 @@ manifests; synthetic unit builds are not that evidence. Do not assume builds
 are reproducible: identify each release by its own `BUILD_INFO` and manifest.
 Missing Linux dependencies or an unperformed real build keeps acceptance
 pending. L2/Q12 and gray/VPS execution remain HOLD.
+
+The manifest checks file inventory/content integrity, not signatures or provenance
+of its sender. File permissions, empty directories and modification times are
+outside its scope. The `--network host` verification container can reach the
+host network: use only this reviewed script with read-only inputs under a
+separately authorized window; its sole request is the fixed loopback version URL.
+
+Synthetic script tests require Linux Docker, exact Node 22.22.1, offline Git,
+and executable `/tmp` (`--tmpfs /tmp:exec`). Missing prerequisites cause skips;
+skips never count as passes. Run `node --test tests/gray-artifact.test.mjs` in
+that container; the synthetic npm stub does not constitute a real build.
+`*.sh text eol=lf` affects future Git checkouts, not historical commits.

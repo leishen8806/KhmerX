@@ -14,6 +14,9 @@ node - "$1" "${2:-}" <<'JS'
 const fs = require('node:fs');
 async function verify() {
   const info = JSON.parse(fs.readFileSync('dist/BUILD_INFO.json', 'utf8'));
+  const deps = JSON.parse(fs.readFileSync('dist/BUILD_DEPS.json', 'utf8'));
+  if (!['npm-ci', 'reused'].includes(deps.mode) || deps.lockfileSha256 !== info.lockfileSha256)
+    throw Error('dependency provenance mismatch');
   const keys = ['gitSha', 'builtAt', 'nodeVersion', 'lockfileSha256', 'buildId', 'fileCount'];
   if (Object.keys(info).sort().join() !== keys.sort().join() ||
       info.gitSha !== process.argv[2] || info.nodeVersion !== 'v22.22.1' ||
