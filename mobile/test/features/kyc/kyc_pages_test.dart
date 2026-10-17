@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:dio/dio.dart';
@@ -19,6 +20,7 @@ import 'package:khmerx_app/features/kyc/presentation/kyc_pages.dart';
 import 'package:khmerx_app/l10n/app_localizations.dart';
 
 import '../../support/fake_secure_kv.dart';
+import 'upload_retry_test.dart' as wire;
 
 class _FakeRepo implements KycRepository {
   _FakeRepo(this.kycCase);
@@ -26,6 +28,8 @@ class _FakeRepo implements KycRepository {
   bool retryUploads = false;
   int uploadCalls = 0;
   AppFailure? uploadFailure;
+  KycRepository? network;
+  CancelToken? token;
 
   @override
   Future<Either<AppFailure, KycCase>> fetch(CompanyId id) async => Right(kycCase);
@@ -50,6 +54,8 @@ class _FakeRepo implements KycRepository {
     void Function(int attempt, Duration delay)? onRetry,
   }) async {
     uploadCalls++;
+    token = cancelToken;
+    if (network != null) return network!.upload(id, slot: slot, bytes: bytes, cancelToken: cancelToken, onRetry: onRetry);
     if (uploadFailure != null) {return Left(uploadFailure!);}
     if (retryUploads) {
       onRetry?.call(1, const Duration(seconds: 1));
@@ -64,8 +70,13 @@ class _FakeRepo implements KycRepository {
 }
 
 class _Images implements KycImageSource {
+  Completer<Uint8List?>? pending;
+  int calls = 0;
   @override
-  Future<Uint8List?> pick({required bool camera}) async => Uint8List(16);
+  Future<Uint8List?> pick({required bool camera}) async {
+    calls++;
+    return pending == null ? Uint8List(16) : pending!.future;
+  }
 }
 
 KycCase _case(KycCaseStatus status, {String? reason, Map<String, String>? values}) => KycCase(
@@ -130,6 +141,43 @@ List<String> _texts(WidgetTester tester) => find
     .toList();
 
 void main() {
+  testWidgets('C3R T1 / C3R T3: pick reservation, cancellation and disposal', (tester) async {
+    final adapter = wire.UploadAdapter(503), repo = _FakeRepo(_case(KycCaseStatus.draft));
+    repo.network = await wire.repository(adapter);
+    final images = _Images()..pending = Completer<Uint8List?>();
+    final container = ProviderContainer(overrides: [
+      kycRepositoryProvider.overrideWithValue(repo),
+      kycImageSourceProvider.overrideWithValue(images),
+    ]);
+    final controller = container.read(kycControllerProvider.notifier);
+    await controller.load();
+    final first = controller.uploadSlot('idFront', camera: false);
+    final second = controller.uploadSlot('idFront', camera: false);
+    expect(images.calls, 1);
+    images.pending!.complete(Uint8List(16));
+    await wire.flush(tester);
+    expect(adapter.bodies.length, 1);
+    controller.cancelUpload('idFront');
+    await first;await second;
+    images.pending = Completer<Uint8List?>()..complete(null);
+    await controller.uploadSlot('idFront', camera: false);
+    images.pending = Completer<Uint8List?>();
+    final failedPick = controller.uploadSlot('idFront', camera: false);
+    images.pending!.completeError(StateError('synthetic picker failure'));
+    await failedPick;
+    images.pending = null;
+    final next = controller.uploadSlot('idFront', camera: false);
+    await wire.flush(tester);
+    expect(container.read(kycControllerProvider).retrying, {'idFront'});
+    container.dispose();
+    expect(repo.token!.isCancelled, isTrue);
+    await wire.flush(tester);
+    await tester.pump(const Duration(minutes: 1));
+    await wire.flush(tester);
+    await next;
+    expect(adapter.bodies.length, 2);
+    expect(tester.takeException(), isNull);
+  });
   for (final lang in ['en', 'km', 'zh']) {
     group('P2 KYC pages · $lang', () {
       testWidgets('C3 retry state and cancellation are localized', (tester) async {
@@ -149,6 +197,12 @@ void main() {
         expect(find.text(l.kycUploadCancel), findsNothing);
         expect(find.text(l.kycUploaded), findsNothing);
         expect(repo.uploadCalls, 1);
+        final state = ProviderScope.containerOf(tester.element(find.byType(KycSectionPage))).read(kycControllerProvider);
+        expect(state.uploadFailures, isEmpty);
+        expect(state.notice, isNull);
+        expect(state.uploading, isEmpty);expect(state.retrying, isEmpty);expect(state.files, isEmpty);
+        expect(find.text(l.errGeneric), findsNothing);
+        expect(tester.takeException(), isNull);
         repo.uploadFailure = ServiceUnavailableFailure(statusCode: 503, requestId: 'synthetic-server-id');
         await tester.tap(find.text(l.kycChooseGallery).first);
         await tester.pump(const Duration(milliseconds: 100));

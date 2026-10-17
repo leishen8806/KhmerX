@@ -173,6 +173,7 @@ final class KycController extends Notifier<KycUiState> {
     return const KycUiState();
   }
   final _uploads = <String, CancelToken>{};
+  final _picking = <String>{};
   void cancelUpload(String slot) => _uploads[slot]?.cancel();
 
   Future<void> load() async {
@@ -334,13 +335,15 @@ final class KycController extends Notifier<KycUiState> {
 
   /// Picks an image, uploads it for [slot] and attaches it by saving the draft.
   Future<void> uploadSlot(String slot, {required bool camera}) async {
-    if (!state.editable || state.uploading.contains(slot)) return;
+    if (!state.editable || state.uploading.contains(slot) || !_picking.add(slot)) return;
     Uint8List? bytes;
     try {
       bytes = await ref.read(kycImageSourceProvider).pick(camera: camera);
     } on Object {
-      state = state.copyWith(notice: KycNotice.pickFailed);
+      if (ref.mounted) state = state.copyWith(notice: KycNotice.pickFailed);
       return;
+    } finally {
+      _picking.remove(slot);
     }
     if (bytes == null || !ref.mounted) return;
     final token = CancelToken();_uploads[slot] = token;
@@ -353,7 +356,7 @@ final class KycController extends Notifier<KycUiState> {
           if (ref.mounted && !token.isCancelled) {state = state.copyWith(retrying: {...state.retrying, slot});}
         });
     if (!ref.mounted) return;
-    _uploads.remove(slot);
+    if (identical(_uploads[slot], token)) _uploads.remove(slot);
     final still = {...state.uploading}..remove(slot);
     state = state.copyWith(retrying: {...state.retrying}..remove(slot));
     if (token.isCancelled) {state = state.copyWith(uploading: still);return;}
