@@ -29,6 +29,8 @@ test('service backend menu keeps merged customer and KYC entries unique',()=>{
   assert.match(subpages,/hiddenCrmViews=new Set\(\['客户 360° 详情','待补件','补件任务'\]\)/);
   assert.match(subpages,/view==='待补件'\|\|view==='补件任务'\?'KYC 审核队列'/);
   assert.match(router,/function roleAllowsCrmView\(role:string,view:string\)/,'直接访问页面必须经过岗位守卫');
+  assert.match(router,/if\(role==='admin'\)return true;const audit=\[/,'只有管理员先获得全量页面守卫');
+  assert.match(router,/if\(audit\.includes\(view\)\)return role==='audit';/,'审计与安全页面不得被普通员工通过直链访问');
   assert.match(router,/if\(!roleAllowsCrmView\(props\.member\?\.role\|\|'',view\)\)return <Frame view=\{view\} title="无权访问">/,'无权岗位不得渲染业务页面');
   assert.match(router,/\['lender','checker'\]\.includes\(role\)/,'机构审批员与机构复核员必须共享贷款业务页面守卫');
   assert.match(subpages,/view==='贷款复核'\?'贷款申请':view==='放款复核'\?'放款管理'/,'持牌机构复核入口必须规范化到实际业务页面');
