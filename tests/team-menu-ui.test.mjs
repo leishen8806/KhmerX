@@ -34,4 +34,6 @@ test('service backend menu keeps merged customer and KYC entries unique',()=>{
   assert.match(subpages,/view==='贷款复核'\?'贷款申请':view==='放款复核'\?'放款管理'/,'持牌机构复核入口必须规范化到实际业务页面');
   assert.match(source,/role==='lender'\|\|role==='checker'\|\|role==='finance_checker'/,'持牌机构角色必须显示专属菜单');
   assert.match(source,/member\.role==='lender'\|\|member\.role==='checker'\|\|member\.role==='finance_checker'/,'机构审批员必须看到机构待办与风险摘要');
+  assert.match(source,/member\.role==='lender'\?\[\['loans','贷款审批'/,'机构审批员首页快捷卡必须进入贷款审批');
+  assert.match(source,/queue==='funding'&&role==='finance_checker'\)view='放款复核'/,'放款复核员首页快捷卡必须进入放款复核');
 });
