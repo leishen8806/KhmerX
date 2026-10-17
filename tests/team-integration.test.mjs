@@ -324,6 +324,15 @@ test('service routing validates company, fills missing assignments and honors au
  await service.servicingSave({...p,enabled:true,version:1});assert.equal((await team.assignment(A,'routing-off')).funding_institution_id,inst);
 });
 
+test('service routing reads are limited to admin and audit roles',async()=>{
+ const service=await mod('@/lib/team/servicing');selected=A;user=reviewer1;
+ await assert.rejects(service.servicingData(),error=>error.code==='AUTH_ERROR'||/无权查看承接配置/.test(error.message));
+ user=owner;const adminData=await service.servicingData();assert.equal(typeof adminData.settings,'object');
+ const auditId=crypto.randomUUID();sql.prepare("INSERT INTO team_members (id,tenant_id,user_id,email,role,active,version) VALUES (?,?,?,?,?,1,0)").run(auditId,A,'audit-read','audit-read@example.test','audit');
+ user={userId:'audit-read',email:'audit-read@example.test'};const auditData=await service.servicingData();assert.equal(typeof auditData.settings,'object');
+ user=owner;
+});
+
 test('Admin funding and repayment require prior approval, enforce isolation and deduplicate receipts; settlement closes collection',async()=>{
  selected=A;user=owner;const customerId='admin-funds-customer';await approvedCustomer(customerId);
  const c={id:customerId,phoneMasked:'SYNTHETIC'},created=await store.mutate(A,{action:'create',name:'SYNTHETIC ADMIN FUNDS',amount:5000,consent:true,requestId:crypto.randomUUID()},c),l=created.state.loans[0];
