@@ -14,7 +14,7 @@ export const errorCodes = [
  'REPAYMENT_LEDGER_NOT_RECORDED','REPAYMENT_RECEIPT_NOT_RECORDED','REQUEST_FAILED','RISK_KYC_DOC_REVIEW','RISK_RULE_INVALID_ACTION','RISK_RULE_INVALID_CONDITION','RISK_RULE_INVALID_INPUT',
  'RISK_RULE_NOT_FOUND','RISK_RULE_NOT_MATCHED','RISK_RULE_SELF_APPROVAL','RISK_RULE_STATE_CONFLICT','RISK_RULE_VERSION_CONFLICT','RISK_RULES_FORBIDDEN','SERVICE_UNAVAILABLE',
  'STAFF_DUAL_CONTROL_REQUIRED','STATE_MUTATION_FAILED','TELEGRAM_INITDATA_INVALID','TELEGRAM_INITDATA_REPLAY','TELEGRAM_SUBSCRIPTION_REPLAY','TICKET_READ_ONLY',
- 'VALIDATION_FAILED','VERIFICATION_UNAVAILABLE','WORKSPACE_PAYLOAD_LIMIT','ZERO_RESULTS',
+ 'VALIDATION_FAILED','VERIFICATION_UNAVAILABLE','WORKSPACE_PAYLOAD_LIMIT','ZERO_RESULTS','LOCALE_DISABLED',
 ] as const;
 
 type ErrorCode = typeof errorCodes[number];
@@ -29,6 +29,7 @@ const copy: Record<Locale, Record<string,string>> = {
   VALIDATION_FAILED:'Check the highlighted information and try again.', ACCOUNT_ALREADY_REGISTERED:'This phone number is already registered. Sign in with a verification code or password.',
   CROSS_SITE_REQUEST:'This request could not be verified. Refresh and try again.', MISSING_ORIGIN:'This request could not be verified. Refresh and try again.',
   BROWSER_TOKEN_RATE_LIMITED:'Too many attempts. Please wait and try again.', GEOCODE_RATE_LIMITED:'Address lookup is temporarily limited. Try again later.',
+  LOCALE_DISABLED:'This language is not enabled for the company.',
  },
  km: {
   REQUEST_FAILED:'សំណើមិនអាចបញ្ចប់បានទេ។ សូមព្យាយាមម្ដងទៀត។', AUTH_REQUIRED:'សម័យចូលប្រើរបស់អ្នកបានផុតកំណត់។ សូមចូលម្ដងទៀត។', FORBIDDEN:'អ្នកមិនមានសិទ្ធិធ្វើសកម្មភាពនេះទេ។',
@@ -39,6 +40,7 @@ const copy: Record<Locale, Record<string,string>> = {
   VALIDATION_FAILED:'សូមពិនិត្យព័ត៌មាន ហើយព្យាយាមម្ដងទៀត។', ACCOUNT_ALREADY_REGISTERED:'លេខទូរស័ព្ទនេះបានចុះឈ្មោះរួចហើយ។ សូមចូលដោយលេខកូដផ្ទៀងផ្ទាត់ ឬពាក្យសម្ងាត់។',
   CROSS_SITE_REQUEST:'មិនអាចផ្ទៀងផ្ទាត់សំណើនេះបានទេ។ សូមផ្ទុកឡើងវិញ ហើយព្យាយាមម្ដងទៀត។', MISSING_ORIGIN:'មិនអាចផ្ទៀងផ្ទាត់សំណើនេះបានទេ។ សូមផ្ទុកឡើងវិញ ហើយព្យាយាមម្ដងទៀត។',
   BROWSER_TOKEN_RATE_LIMITED:'មានការព្យាយាមច្រើនពេក។ សូមរង់ចាំ ហើយព្យាយាមម្ដងទៀត។', GEOCODE_RATE_LIMITED:'ការស្វែងរកអាសយដ្ឋានត្រូវបានកំណត់បណ្តោះអាសន្ន។ សូមព្យាយាមពេលក្រោយ។',
+  LOCALE_DISABLED:'ភាសានេះមិនត្រូវបានបើកសម្រាប់ក្រុមហ៊ុនទេ។',
  },
  zh: {
   REQUEST_FAILED:'请求未完成，请重试。', AUTH_REQUIRED:'登录状态已失效，请重新登录。', FORBIDDEN:'你没有权限执行此操作。',
@@ -49,6 +51,7 @@ const copy: Record<Locale, Record<string,string>> = {
   VALIDATION_FAILED:'请检查填写内容后重试。', ACCOUNT_ALREADY_REGISTERED:'该手机号已注册，请使用验证码或密码登录。',
   CROSS_SITE_REQUEST:'请求无法通过验证，请刷新后重试。', MISSING_ORIGIN:'请求无法通过验证，请刷新后重试。',
   BROWSER_TOKEN_RATE_LIMITED:'操作过于频繁，请稍后重试。', GEOCODE_RATE_LIMITED:'地址查询暂时受限，请稍后重试。',
+  LOCALE_DISABLED:'该语言尚未由公司启用。',
  },
 };
 
