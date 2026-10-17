@@ -54,6 +54,8 @@ test('service backend menu keeps merged customer and KYC entries unique',()=>{
   const tickets=fs.readFileSync(path.join(process.cwd(),'components/service-tickets.tsx'),'utf8');
   assert.match(tickets,/canEdit=true/,'工单页面必须接收可编辑权限');
   assert.match(tickets,/canEdit&&<Button variant="outline"/,'审计员工单页面不得显示处理按钮');
+  const kycFiles=fs.readFileSync(path.join(process.cwd(),'app/api/kyc/files/route.ts'),'utf8');
+  assert.match(kycFiles,/reviewerSession\.team\?\.member\.role==='audit'.*不可下载 KYC 材料/,'审计员不得通过文件接口下载 KYC 原始材料');
   assert.match(source,/role==='lender'\|\|role==='checker'\|\|role==='finance_checker'/,'持牌机构角色必须显示专属菜单');
   assert.match(source,/member\.role==='lender'\|\|member\.role==='checker'\|\|member\.role==='finance_checker'/,'机构审批员必须看到机构待办与风险摘要');
   assert.match(source,/member\.role==='lender'\?\[\['loans','贷款审批'/,'机构审批员首页快捷卡必须进入贷款审批');
