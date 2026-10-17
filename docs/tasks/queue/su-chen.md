@@ -204,6 +204,17 @@ PR 小于 400 行。
 
 ---
 
+## 代码收尾队列（C2 → C1 → C3；决策 D-23，2026-10-17）
+**盘点结论（`34d09d2`，以 main 的合并记录与文件为准，本文件上方第一档表的状态列已过期，不作依据）**：第一档与第二档的代码已合并（Q1–Q8、Q10、Q11、L1-A/B/G、Q4 返修、Q14）；Q9（GRAY-2 #30）、Q13（S3 #18）已合并。**仍有缺口的代码：**
+- **C2**　`docs/tasks/codex-prompts/C2-gray-artifact-build.md`　分支 `feat/server/gray-artifact`（`Line: server`）：灰度 `dist` 的构建、校验与版本核对（`dist` 来源此前无文档，灰度压测结论无法绑定到确定提交）。
+- **C1**　`docs/tasks/codex-prompts/C1-staff-list-pagination.md`　分支 `feat/client/D6-staff-pagination`（`Line: client`）：员工端列表分页适配。**`CUSTOMER_ROWS=on` 时员工端只会拿到第 1 页（50 条），界面无分页控件，会静默截断**，是闸门 D 的前提（原 P9，由第三档升级）。
+- **C3**　`docs/tasks/codex-prompts/C3-flutter-error-upload.md`　分支 `feat/app/D5`（`Line: app`）：Flutter 错误映射与上传重试（原 Q15）。
+- **Q12**　取决于 L2 的灰度报告，**不属于本队列**；L2/Q12、灰度/VPS 仍为 HOLD。
+- 仍无代码的计划项（不是 Codex 卡）：Litestream（现用 rclone 日备份，恢复未演练）、监控、临时放大的同构压测环境。
+- 仅本机 Docker 验证；任何灰度操作不得标记为可执行。
+
+---
+
 ## L2 灰度机压测执行与报告（人工 + 脚本）
 ```
 前提：159.223.77.134 已部署并且 testapi.khmerx.org 不再返回 521；S4b、S-LT1 已合并；灰度机 PAYEASE_ENV=gray。
