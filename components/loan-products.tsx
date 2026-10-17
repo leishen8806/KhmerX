@@ -11,7 +11,7 @@ export function LoanProducts({role}:{role:string}){
  const [form,setForm]=useState({code:'',nameZh:'',nameEn:'',nameKm:'',min:'50',max:'500',terms:'14,28',annual:'18',service:'10',reason:'创建贷款产品'});
  async function load(){try{const {data}=await apiFetch<{products:Product[]}>('/api/team/products',{cache:'no-store'});setRows(data.products);setError('')}catch(e){setError((e as Error).message)}}
  useEffect(()=>{void load()},[]);
- async function act(body:any){setBusy(true);setError('');setNotice('');try{await apiFetch('/api/team/products',{method:'POST',body:JSON.stringify(body)});setNotice('已保存并写入审计记录');setShow(false);setMfaCode('');await load()}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
+ async function act(body:any){setBusy(true);setError('');setNotice('');try{await apiFetch('/api/team/products',{method:'POST',body:JSON.stringify(body)});setNotice('已保存并写入审计记录');setShow(false);setMfaCode('');setReviewReason('');await load()}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
  const minCents=Math.round(Number(form.min)*100),maxCents=Math.round(Number(form.max)*100),terms=form.terms.split(',').map(x=>Number(x.trim())),validTerms=terms.length>0&&terms.every(x=>Number.isInteger(x)&&x>0&&x<=365),annualBps=Math.round(Number(form.annual)*100),serviceBps=Math.round(Number(form.service)*100),validRates=[annualBps,serviceBps].every(x=>Number.isInteger(x)&&x>=0&&x<=10000);
  const validConfig=Number.isSafeInteger(minCents)&&minCents>0&&Number.isSafeInteger(maxCents)&&maxCents>=minCents&&maxCents<=100000000&&validTerms&&validRates;
  const canDraft=['admin','ops'].includes(role),canReview=role==='admin';
