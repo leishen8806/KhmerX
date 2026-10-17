@@ -128,6 +128,7 @@ test('expired staff sessions redirect without rendering the company chooser',()=
 test('customer center uses the unified customer list title',()=>{
   const customerCenter=fs.readFileSync(path.join(process.cwd(),'components/customer-center.tsx'),'utf8');
   assert.doesNotMatch(customerCenter,/客户列表与 360° 详情/,'客户中心不应再宣传独立 360° 详情页面');
+  assert.doesNotMatch(customerCenter,/CUSTOMER 360/,'客户中心详情区域不应再使用 360° 标识');
   assert.match(customerCenter,/<h2>客户列表<\/h2>/);
 });
 
