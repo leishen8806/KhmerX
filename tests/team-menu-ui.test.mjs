@@ -5,6 +5,7 @@ import path from 'node:path';
 
 const source=fs.readFileSync(path.join(process.cwd(),'app/team/client.tsx'),'utf8');
 const subpages=fs.readFileSync(path.join(process.cwd(),'lib/team/crm-subpages.ts'),'utf8');
+const router=fs.readFileSync(path.join(process.cwd(),'components/crm-subpages.tsx'),'utf8');
 
 test('service backend menu keeps merged customer and KYC entries unique',()=>{
   assert.doesNotMatch(source,/\['客户 360° 详情','\/team\/customers'/);
@@ -27,4 +28,6 @@ test('service backend menu keeps merged customer and KYC entries unique',()=>{
   assert.match(source,/\(admin\|\|member\.role==='audit'\|\|member\.role==='finance'\|\|member\.role==='finance_checker'\|\|lender\)&&<section className="crm-overview-section"/,'资金风险摘要需按岗位显示');
   assert.match(subpages,/hiddenCrmViews=new Set\(\['客户 360° 详情','待补件','补件任务'\]\)/);
   assert.match(subpages,/view==='待补件'\|\|view==='补件任务'\?'KYC 审核队列'/);
+  assert.match(router,/function roleAllowsCrmView\(role:string,view:string\)/,'直接访问页面必须经过岗位守卫');
+  assert.match(router,/if\(!roleAllowsCrmView\(props\.member\?\.role\|\|'',view\)\)return <Frame view=\{view\} title="无权访问">/,'无权岗位不得渲染业务页面');
 });
