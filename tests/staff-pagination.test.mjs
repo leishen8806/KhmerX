@@ -86,7 +86,7 @@ test('report/customer totals are authoritative while summaries and funding diagn
  const customers=workspace(()=>null,{customers:[],events:[],pageOnly:true,total:5001},{source:'components/customer-center.tsx',exportName:'CustomerCenter'}).render();assert.match(text(customers),/本页 0 \/ 5001 位客户/);
  const funding=workspace(()=>null,{loans:[],events:[],entries:[],scope:[],units:[],role:'ops',busy:false,post(){},pageOnly:true},{source:'components/funding-panel.tsx',exportName:'FundingPanel',mocks:{'@/lib/funding-limits':{fundingStatus:()=>({})}}}).render();
  assert.match(text(funding),/本页 · 放款工作台/);assert(!nodes(funding).some(n=>n.props?.className==='funding-limit-summary'));
- for(const view of ['资金监管','冻结与解除']){let tree=workspace(()=>null,{view,work:paged(),units:[],members:[],member:{role:'ops'},busy:false,post(){}},{source:'components/crm-subpages.tsx',exportName:'CrmSubpageRouter'}).render();for(let i=0;i<5&&typeof tree.type==='function';i++)tree=tree.type(tree.props);assert.match(text(tree),/分页数据不能判定全公司剩余额度/)}
+ for(const view of ['资金监管','冻结与解除']){let tree=workspace(()=>null,{view,work:paged(),units:[],members:[],member:{role:'ops'},busy:false,post(){}},{source:'components/crm-subpages.tsx',exportName:'CrmSubpageRouter'}).render();for(let i=0;i<5&&typeof tree.type==='function';i++)tree=tree.type(tree.props);assert.match(text(tree),/分页数据不能判定全公司剩余额度/);if(view==='冻结与解除')assert(nodes(tree).some(n=>n.type==='EmergencyAccess'))}
 });
 
 test('staff off mode stays unpaged; customer mode keeps its existing local pagination',async()=>{
