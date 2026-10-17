@@ -69,6 +69,8 @@ KYC 表（`kyc_cases` 已是按行存储）；关系型贷款表；PostgreSQL �
 
 ## 7. 员工列表接口（Q7 / S8）
 
+off 返回整份状态；on 不带参数等价 page=1,pageSize=50，员工端必须分页。
+
 `GET /api/state?page=1&pageSize=50&status=active`，沿用员工会话与公司 Cookie。
 
 - `page` 默认 1；`pageSize` 默认 50，最大 200；非正数、非有限数回退默认值；正小数向下取整且至少 1。
