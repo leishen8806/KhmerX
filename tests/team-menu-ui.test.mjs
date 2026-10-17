@@ -124,3 +124,9 @@ test('expired staff sessions redirect without rendering the company chooser',()=
   assert.match(source,/setData\(null\);setWork\(null\);window\.location\.replace\('\/team\/login'\);return/);
   assert.doesNotMatch(source,/setData\(null\);setWork\(null\);setCompanyResolving\(false\);window\.location/,'认证失效时不能先关闭解析状态再跳转，避免短暂闪现公司选择页');
 });
+
+test('customer center uses the unified customer list title',()=>{
+  const customerCenter=fs.readFileSync(path.join(process.cwd(),'components/customer-center.tsx'),'utf8');
+  assert.doesNotMatch(customerCenter,/客户列表与 360° 详情/,'客户中心不应再宣传独立 360° 详情页面');
+  assert.match(customerCenter,/<h2>客户列表<\/h2>/);
+});
