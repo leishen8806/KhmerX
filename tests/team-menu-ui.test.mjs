@@ -130,3 +130,11 @@ test('customer center uses the unified customer list title',()=>{
   assert.doesNotMatch(customerCenter,/客户列表与 360° 详情/,'客户中心不应再宣传独立 360° 详情页面');
   assert.match(customerCenter,/<h2>客户列表<\/h2>/);
 });
+
+test('loan product high risk actions require an MFA code in the UI',()=>{
+  const products=fs.readFileSync(path.join(process.cwd(),'components/loan-products.tsx'),'utf8');
+  assert.match(products,/安全验证码/);
+  assert.match(products,/action:'product_review',[\s\S]*code:mfaCode/);
+  assert.match(products,/action:'product_retire',[\s\S]*code:mfaCode/);
+  assert.match(products,/disabled=\{busy\|\|!mfaCode\}/);
+});
