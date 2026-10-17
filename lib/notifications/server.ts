@@ -1,7 +1,7 @@
 import {channelToken} from '@/lib/bot-credentials';
 import {env} from 'cloudflare:workers';
 import {runtime} from '@/lib/h5-auth';
-import {audit,db,staff} from '@/lib/team/server';
+import {db,staff} from '@/lib/team/server';
 import {readState} from '@/lib/store';
 import {AuthError,telegramCustomerKey} from '@/lib/h5-auth-core';
 import {validateInitData} from '@/lib/telegram';
@@ -75,8 +75,10 @@ export async function retryNotificationDelivery(id:string){
  if(!delivery)throw new AuthError('通知记录不存在',404);
  if(!['failed','unknown'].includes(String(delivery.status)))throw new AuthError('仅失败或结果待核对的通知可人工重试',409);
  const now=new Date().toISOString();
- const changed=await db().prepare("UPDATE telegram_outbox SET status='retry',attempts=0,next_at=0,reason='管理员确认人工重试',updated_at=? WHERE id=? AND owner=? AND status IN ('failed','unknown')").bind(now,id,s.tenant.id).run();
- if(changed.meta.changes!==1)throw new AuthError('通知状态已变化，请刷新后重试',409);
- await audit(s.tenant.id,s.user.userId,'notification_delivery_manual_retry',{outboxId:id,loanId:delivery.loan_id,previousStatus:delivery.status,previousAttempts:delivery.attempts,at:now}).run();
+ const result=await db().batch([
+  db().prepare("UPDATE telegram_outbox SET status='retry',attempts=0,next_at=0,reason='管理员确认人工重试',updated_at=? WHERE id=? AND owner=? AND status IN ('failed','unknown')").bind(now,id,s.tenant.id),
+  db().prepare("INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) SELECT ?,?,?,'notification_delivery_manual_retry',?,? WHERE changes()=1").bind(crypto.randomUUID(),s.tenant.id,s.user.userId,JSON.stringify({outboxId:id,loanId:delivery.loan_id,previousStatus:delivery.status,previousAttempts:delivery.attempts,at:now}),now)
+ ]);
+ if(result[0].meta.changes!==1)throw new AuthError('通知状态已变化，请刷新后重试',409);
  return {ok:true,id,status:'retry'};
 }

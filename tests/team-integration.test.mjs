@@ -177,6 +177,57 @@ test('manual notification retry resets both eligible states and audits only succ
  }finally{context.fetch=previousFetch;selected=A;user=owner;extraCookies=''}
 });
 
+test('manual notification retry rolls back failed/unknown updates when the audit INSERT fails',async()=>{
+ const notify=await mod('@/lib/notifications/server'),prepare=DB.prepare,previousFetch=context.fetch;
+ selected=A;user=owner;extraCookies='';context.fetch=()=>{throw Error('Manual retry must not send Telegram messages')};
+ const collision=crypto.randomUUID();sql.prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) VALUES (?,?,?,?,?,?)').run(collision,A,owner.userId,'synthetic_audit_collision','{}',new Date().toISOString());
+ const triggers=sql.prepare("SELECT name,sql FROM sqlite_master WHERE type='trigger' AND name LIKE 'team_audit_%' ORDER BY name").all();
+ try{
+  for(const status of ['failed','unknown']){
+   const id=crypto.randomUUID();sql.prepare('INSERT INTO telegram_outbox (id,owner,notification_id,loan_id,subscription_id,status,attempts,next_at,updated_at,reason) VALUES (?,?,?,?,?,?,4,123,?,?)').run(id,A,'rollback-'+id,'synthetic-loan','synthetic-subscription',status,'2026-01-01T00:00:00.000Z','Synthetic failure');
+   const before=sql.prepare('SELECT * FROM telegram_outbox WHERE id=?').get(id),auditBefore=sql.prepare('SELECT * FROM team_audit ORDER BY id').all();let injected=0;
+   // Force a real SQLite uniqueness error on the audit INSERT, without changing any trigger.
+   DB.prepare=query=>{const statement=prepare(query);return query.startsWith('INSERT INTO team_audit')?{bind(...args){injected++;args[0]=collision;return statement.bind(...args)}}:statement};
+   await assert.rejects(notify.retryNotificationDelivery(id),/UNIQUE constraint failed: team_audit.id/);
+   assert.equal(injected,1);assert.deepEqual(sql.prepare('SELECT * FROM telegram_outbox WHERE id=?').get(id),before);assert.deepEqual(sql.prepare('SELECT * FROM team_audit ORDER BY id').all(),auditBefore);
+   DB.prepare=prepare;
+   assert.equal((await notify.retryNotificationDelivery(id)).status,'retry');assert.equal(sql.prepare('SELECT count(*) AS n FROM team_audit').get().n,auditBefore.length+1);
+  }
+  assert.deepEqual(sql.prepare("SELECT name,sql FROM sqlite_master WHERE type='trigger' AND name LIKE 'team_audit_%' ORDER BY name").all(),triggers);
+ }finally{DB.prepare=prepare;context.fetch=previousFetch;selected=A;user=owner;extraCookies=''}
+});
+
+test('concurrent manual notification retries read the same snapshot but only one commits an audit',async()=>{
+ const notify=await mod('@/lib/notifications/server'),prepare=DB.prepare,previousFetch=context.fetch;
+ selected=A;user=owner;extraCookies='';context.fetch=()=>{throw Error('Manual retry must not send Telegram messages')};
+ try{
+  for(const status of ['failed','unknown']){
+   const id=crypto.randomUUID();sql.prepare('INSERT INTO telegram_outbox (id,owner,notification_id,loan_id,subscription_id,status,attempts,next_at,updated_at,reason) VALUES (?,?,?,?,?,?,4,123,?,?)').run(id,A,'race-'+id,'synthetic-loan','synthetic-subscription',status,'2026-01-01T00:00:00.000Z','Synthetic failure');
+   const count=sql.prepare('SELECT count(*) AS n FROM team_audit').get().n;let reads=0,release;const ready=new Promise(resolve=>release=resolve);
+   // Hold both real SELECT results until both requests have observed the eligible state.
+   DB.prepare=query=>{const statement=prepare(query);return query.startsWith('SELECT id,status,loan_id,attempts FROM telegram_outbox')?{bind(...args){const bound=statement.bind(...args);return {...bound,async first(){const row=await bound.first();if(++reads===2)release();await ready;return row}}}}:statement};
+   const outcomes=await Promise.allSettled([notify.retryNotificationDelivery(id),notify.retryNotificationDelivery(id)]);DB.prepare=prepare;
+   assert.equal(reads,2);assert.equal(outcomes.filter(r=>r.status==='fulfilled').length,1);assert.equal(outcomes.find(r=>r.status==='fulfilled').value.status,'retry');assert.equal(outcomes.filter(r=>r.status==='rejected').length,1);assert.equal(outcomes.find(r=>r.status==='rejected').reason.status,409);
+   const row=sql.prepare('SELECT * FROM telegram_outbox WHERE id=?').get(id);assert.equal(row.status,'retry');assert.equal(row.attempts,0);assert.equal(row.next_at,0);
+   assert.equal(sql.prepare('SELECT count(*) AS n FROM team_audit').get().n,count+1);
+   const events=sql.prepare("SELECT * FROM team_audit WHERE action='notification_delivery_manual_retry'").all().filter(event=>JSON.parse(event.detail).outboxId===id);
+   assert.equal(events.length,1);assert.equal(events[0].tenant_id,A);assert.equal(events[0].actor,owner.userId);assert.equal(JSON.parse(events[0].detail).previousStatus,status);assert.equal(JSON.parse(events[0].detail).previousAttempts,4);
+  }
+ }finally{DB.prepare=prepare;context.fetch=previousFetch;selected=A;user=owner;extraCookies=''}
+});
+
+test('manual retry losing eligibility before its batch returns 409 without an audit or overwritten state',async()=>{
+ const notify=await mod('@/lib/notifications/server'),batch=DB.batch,previousFetch=context.fetch;
+ selected=A;user=owner;extraCookies='';context.fetch=()=>{throw Error('Manual retry must not send Telegram messages')};
+ const id=crypto.randomUUID();sql.prepare('INSERT INTO telegram_outbox (id,owner,notification_id,loan_id,subscription_id,status,attempts,next_at,updated_at,reason) VALUES (?,?,?,?,?,?,4,123,?,?)').run(id,A,'lost-race-'+id,'synthetic-loan','synthetic-subscription','unknown','2026-01-01T00:00:00.000Z','Synthetic failure');
+ const auditBefore=sql.prepare('SELECT * FROM team_audit ORDER BY id').all();let concurrentRow,injected=0;
+ DB.batch=async statements=>{injected++;sql.prepare("UPDATE telegram_outbox SET status='sent',attempts=5,reason='Synthetic concurrent sender' WHERE id=?").run(id);concurrentRow=sql.prepare('SELECT * FROM telegram_outbox WHERE id=?').get(id);return batch.call(DB,statements)};
+ try{
+  await assert.rejects(notify.retryNotificationDelivery(id),error=>error.status===409);assert.equal(injected,1);
+  assert.deepEqual(sql.prepare('SELECT * FROM telegram_outbox WHERE id=?').get(id),concurrentRow);assert.deepEqual(sql.prepare('SELECT * FROM team_audit ORDER BY id').all(),auditBefore);
+ }finally{DB.batch=batch;context.fetch=previousFetch;selected=A;user=owner;extraCookies=''}
+});
+
  test('business bot switch is admin-only, company-isolated, and overrides customer-supplied channels',async()=>{
  selected=A;user=reviewer1;await assert.rejects(flow.staffAction({action:'bot_switch',botId:'bot-2',previousBotId:'bot-1',requestId:crypto.randomUUID()}));
  user=owner;const before=await store.readState(A),existing=before.state.loans.map(l=>[l.id,l.botId]);await flow.staffAction({action:'bot_switch',botId:'bot-2',previousBotId:'bot-1',requestId:crypto.randomUUID()});
