@@ -11,8 +11,8 @@ const canManage=(role:string)=>['admin','ops','dept_admin'].includes(role);
 export const GET=route({handler:async()=>{
  const s=await staff();if(!s||!canManage(s.member.role))throw new AuthError('当前岗位没有客户标签权限',403);
  const tags=await db().prepare('SELECT id,name,color,active,created_at,updated_at FROM team_customer_tags WHERE tenant_id=? AND active=1 ORDER BY name').bind(s.tenant.id).all();
- const links=await db().prepare(`SELECT l.tag_id,l.customer_id FROM team_customer_tag_links l WHERE l.tenant_id=? AND EXISTS (SELECT 1 FROM team_customer_tags t WHERE t.id=l.tag_id AND t.tenant_id=l.tenant_id AND t.active=1) AND EXISTS (SELECT 1 FROM team_assignments a WHERE a.tenant_id=l.tenant_id AND a.customer_id=l.customer_id)`).bind(s.tenant.id).all();
- return json({tags:tags.results,links:links.results})
+ const links=await db().prepare(`SELECT l.tag_id,l.customer_id,a.tenant_id,a.department_id,a.institution_id,a.reviewer_id FROM team_customer_tag_links l JOIN team_assignments a ON a.tenant_id=l.tenant_id AND a.customer_id=l.customer_id WHERE l.tenant_id=? AND EXISTS (SELECT 1 FROM team_customer_tags t WHERE t.id=l.tag_id AND t.tenant_id=l.tenant_id AND t.active=1)`).bind(s.tenant.id).all();
+ return json({tags:tags.results,links:(links.results as any[]).filter(link=>canSee(s.member,link,'summary')).map(({tag_id,customer_id})=>({tag_id,customer_id}))})
 }});
 
 // S3: the write path used assertAllowedOrigin(...,false), which allowed missing

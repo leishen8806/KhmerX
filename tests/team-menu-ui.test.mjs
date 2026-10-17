@@ -14,6 +14,7 @@ test('customer tag writes enforce the current employee data scope',()=>{
   assert.match(customerTags,/import \{assignment,audit,db,staff\} from ['"]@\/lib\/team\/server['"]/);
   assert.match(customerTags,/import \{canSee\} from ['"]@\/lib\/team\/policy['"]/);
   assert.match(customerTags,/const target=await assignment\(s\.tenant\.id,customerId\);if\(!target\|\|!canSee\(s\.member,target,'summary'\)\)/);
+  assert.match(customerTags,/links\.results as any\[\]\)\.filter\(link=>canSee\(s\.member,link,'summary'\)\)/,'客户标签读取也必须按当前岗位范围过滤');
 });
 
 test('service backend menu keeps merged customer and KYC entries unique',()=>{
