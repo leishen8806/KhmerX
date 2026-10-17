@@ -21,6 +21,8 @@ test('service backend menu keeps merged customer and KYC entries unique',()=>{
   assert.match(source,/const nonLoanRole=\['audit','kyc','ops','dept_admin','collection_admin','collector'\]\.includes\(role\)/,'非贷款岗位需要显式识别');
   assert.match(source,/const hiddenGroups=\['组织与系统','产品与运营',\.\.\.\(nonLoanRole\?\['业务中心'\]\:\[\]\)\]/,'非贷款岗位不得显示业务中心');
   assert.match(source,/const visibleGroups=admin\|\|lender\?groups:groups\.filter/,'普通员工不得显示组织与产品管理菜单');
+  assert.match(source,/const workspaceTabs=\(admin\|\|member\?\.role==='audit'/,'工作区业务标签必须按岗位范围收敛');
+  assert.match(source,/const activeWorkspaceTab=workspaceTabs\.some\(\(\[key\]\)=>key===queueView\)\?queueView:defaultWorkspaceTab/,'隐藏标签不能成为当前工作区');
   assert.match(subpages,/hiddenCrmViews=new Set\(\['客户 360° 详情','待补件','补件任务'\]\)/);
   assert.match(subpages,/view==='待补件'\|\|view==='补件任务'\?'KYC 审核队列'/);
 });
