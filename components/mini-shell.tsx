@@ -23,7 +23,8 @@ export function MiniShell({screen,backHref,children}:{screen:string;backHref?:st
  const navigate=useMiniNavigation();
  const goTo=(href:string)=>{if(navigate){navigate(href);return}const target=new URL(href,window.location.origin);target.hash=window.location.hash;window.location.assign(target.toString())};
  const [language,setLanguage]=useState<Locale>(()=>{if(typeof window==='undefined')return 'en';const query=new URLSearchParams(window.location.search).get('lang');const saved=window.localStorage.getItem('payease-language');return supported(query)?query:supported(saved)?saved:defaultLocale()});
- const languageRef=useRef(language);languageRef.current=language;
+ const languageRef=useRef(language);
+ useEffect(()=>{languageRef.current=language},[language]);
  const [enabledLanguages,setEnabledLanguages]=useState<Record<Locale,boolean>>({en:true,km:true,zh:true});
  const [languageOpen,setLanguageOpen]=useState(false);
  useEffect(()=>{const removeLoginLocale=()=>document.querySelector('.auth-locale')?.remove();removeLoginLocale();const observer=new MutationObserver(removeLoginLocale);observer.observe(document.body,{childList:true,subtree:true});return()=>observer.disconnect()},[]);
