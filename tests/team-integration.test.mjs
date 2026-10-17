@@ -479,6 +479,7 @@ test('team payload redacts MFA secret fields',async()=>{
 
 test('employee list exposes MFA and last-login summary without secret fields',async()=>{
  selected=A;user=owner;extraCookies='';
+ sql.prepare("INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) VALUES (?,?,?,?,?,?)").run(crypto.randomUUID(),A,owner.userId,'staff_login','{}','2026-10-17T10:30:00.000Z');
  const page=await team.teamMembersPage({page:1,pageSize:20});
  assert(page.total>=7);
  assert.equal(page.items.length,Math.min(page.total,20));
