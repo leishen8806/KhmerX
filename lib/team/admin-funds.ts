@@ -2,7 +2,7 @@ import {staff,db} from './server';
 import {env} from 'cloudflare:workers';
 import {AuthError} from '@/lib/h5-auth-core';
 import {readState} from '@/lib/store';
-import {applyAction,requestFingerprint} from '@/lib/domain';
+import {applyAction,requestFingerprint,pruneRequestDigests} from '@/lib/domain';
 import {findCase} from '@/lib/kyc/server';
 import {validLoanContract} from '@/lib/loan-signing';
 import {scopedState} from './workflow';
@@ -55,7 +55,7 @@ export async function adminFunds(p:any){
   }
   next=applyAction(state,{action:'repay',loanId:loan.id,role:'mini',requestId:key,cents:repaymentCents,note:'测试还款已登记'},now);
 }
- next.requestDigests??={};next.requestDigests[key]=digest;next.events[0].note+=' · 已由公司管理员处理';
+ next.requestDigests??={};next.requestDigests[key]=digest;pruneRequestDigests(next);next.events[0].note+=' · 已由公司管理员处理';
  // Reserve the grant before mutating the workspace. The following CAS update
  // is guarded by changes() so a concurrent/replayed grant cannot commit a
  // business operation after losing the one-time consumption race. Because all
