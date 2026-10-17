@@ -477,6 +477,20 @@ test('team payload redacts MFA secret fields',async()=>{
  }
 });
 
+test('employee list exposes MFA and last-login summary without secret fields',async()=>{
+ selected=A;user=owner;extraCookies='';
+ const page=await team.teamMembersPage({page:1,pageSize:20});
+ assert(page.total>=7);
+ assert.equal(page.items.length,Math.min(page.total,20));
+ const ownerRow=page.items.find((row)=>row.email===owner.email);
+ assert.equal(ownerRow.mfa_enabled,0);
+ assert.match(String(ownerRow.last_login_at),/^2026-/);
+ for(const row of page.items){
+  assert.equal(Object.hasOwn(row,'mfa_secret'),false);
+  assert.equal(Object.hasOwn(row,'pending_mfa_secret'),false);
+ }
+});
+
 test('state mutation rejects non-JSON and malformed envelopes',async()=>{
  const api=await mod('@/app/api/state/route');selected='';user=owner;extraCookies='';
  const wrongType=await api.POST(new Request('http://localhost/api/state',{method:'POST',headers:{origin:'http://localhost','content-type':'text/plain'},body:'{}'}));
