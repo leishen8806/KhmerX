@@ -119,3 +119,8 @@ test('team data reads do not create organization records',()=>{
   assert.doesNotMatch(teamDataBody,/INSERT OR IGNORE INTO team_units/,'只读组织数据不得隐式创建贷后部门');
   assert.match(teamServer,/bind\('postloan:'\+id,id,'运营贷后部','postloan'\)/,'新公司创建时应显式初始化贷后部门');
 });
+
+test('expired staff sessions redirect without rendering the company chooser',()=>{
+  assert.match(source,/setData\(null\);setWork\(null\);window\.location\.replace\('\/team\/login'\);return/);
+  assert.doesNotMatch(source,/setData\(null\);setWork\(null\);setCompanyResolving\(false\);window\.location/,'认证失效时不能先关闭解析状态再跳转，避免短暂闪现公司选择页');
+});
