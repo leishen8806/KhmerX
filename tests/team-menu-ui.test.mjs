@@ -9,12 +9,18 @@ const router=fs.readFileSync(path.join(process.cwd(),'components/crm-subpages.ts
 const products=fs.readFileSync(path.join(process.cwd(),'app/api/team/products/route.ts'),'utf8');
 const riskRules=fs.readFileSync(path.join(process.cwd(),'lib/team/risk-rules.ts'),'utf8');
 const customerTags=fs.readFileSync(path.join(process.cwd(),'app/api/team/customer-tags/route.ts'),'utf8');
+const localeRoute=fs.readFileSync(path.join(process.cwd(),'app/api/team/locale/route.ts'),'utf8');
 
 test('customer tag writes enforce the current employee data scope',()=>{
   assert.match(customerTags,/import \{assignment,audit,db,staff\} from ['"]@\/lib\/team\/server['"]/);
   assert.match(customerTags,/import \{canSee\} from ['"]@\/lib\/team\/policy['"]/);
   assert.match(customerTags,/const target=await assignment\(s\.tenant\.id,customerId\);if\(!target\|\|!canSee\(s\.member,target,'summary'\)\)/);
   assert.match(customerTags,/links\.results as any\[\]\)\.filter\(link=>canSee\(s\.member,link,'summary'\)\)/,'客户标签读取也必须按当前岗位范围过滤');
+});
+
+test('staff locale changes write an audit record',()=>{
+  assert.match(localeRoute,/import \{staff,db,audit\} from ['"]@\/lib\/team\/server['"]/);
+  assert.match(localeRoute,/staff_locale_change/);
 });
 
 test('service backend menu keeps merged customer and KYC entries unique',()=>{
