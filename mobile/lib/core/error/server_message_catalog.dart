@@ -220,5 +220,5 @@ final class ServerMessageCatalog {
 final class LocalizedLabel {
   LocalizedLabel._();
 
-  static const String zhNative = '中文 (Chinese)';
+  static const String zhNative = '\u4e2d\u6587 (Chinese)';
 }

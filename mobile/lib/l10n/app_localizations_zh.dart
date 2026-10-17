@@ -1531,4 +1531,21 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get kycLocWait => '请稍候，最多可能需要 30 秒。';
+
+  @override
+  String get errInternalError => '服务处理失败，请稍后重试。';
+
+  @override
+  String get errValidationFailed => '请检查填写的信息后重试。';
+
+  @override
+  String get errAccountRegistered => '该账号已注册，请直接登录。';
+
+  @override
+  String get errPayloadTooLarge => '文件超出上传大小限制。';
+
+  @override
+  String errWithRequestId(String message, String requestId) {
+    return '$message 参考编号：$requestId';
+  }
 }

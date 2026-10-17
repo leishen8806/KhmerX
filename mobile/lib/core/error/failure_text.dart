@@ -3,7 +3,19 @@ import 'failure.dart';
 
 /// User-facing, localized text for a failure. Never returns a message key.
 String describeFailure(AppLocalizations l, AppFailure f) {
+  final message = _message(l, f), id = f.requestId;
+  return id != null && id.isNotEmpty && [500, 503].contains(f.statusCode)
+      ? l.errWithRequestId(message, id) : message;
+}
+
+String _message(AppLocalizations l, AppFailure f) {
   final k = f.messageKey;
+  switch (k) {
+    case 'error.internal_error': return l.errInternalError;
+    case 'error.validation_failed': return l.errValidationFailed;
+    case 'error.account_registered': return l.errAccountRegistered;
+    case 'error.payload_too_large': return l.errPayloadTooLarge;
+  }
   if (f is NetworkFailure) return l.errNetwork;
   if (f is OfflineFailure) return l.errOffline;
   if (f is ServiceUnavailableFailure) return l.errServiceUnavailable;

@@ -1629,4 +1629,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get kycLocWait => 'Please wait, this can take up to 30 seconds.';
+
+  @override
+  String get errInternalError =>
+      'Something went wrong. Please try again later.';
+
+  @override
+  String get errValidationFailed => 'Check your input and try again.';
+
+  @override
+  String get errAccountRegistered =>
+      'This account is already registered. Please sign in.';
+
+  @override
+  String get errPayloadTooLarge => 'This file exceeds the upload size limit.';
+
+  @override
+  String errWithRequestId(String message, String requestId) {
+    return '$message Reference: $requestId';
+  }
 }

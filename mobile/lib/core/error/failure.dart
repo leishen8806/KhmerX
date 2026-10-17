@@ -6,6 +6,7 @@ sealed class AppFailure extends Equatable {
   String get messageKey;
   int? get statusCode;
   String? get traceId;
+  String? get requestId => null;
   Map<String, dynamic> get context => const {};
 }
 
@@ -337,8 +338,12 @@ final class RateLimitFailure extends AppFailure {
 }
 
 final class ServiceUnavailableFailure extends AppFailure {
-  ServiceUnavailableFailure({this.traceId, this.statusCode})
+  ServiceUnavailableFailure({this.traceId, this.statusCode, this.requestId, this.retryAfter})
       : messageKey = 'error.service_unavailable';
+
+  @override
+  final String? requestId;
+  final Duration? retryAfter;
 
   @override
   final String messageKey;
@@ -350,7 +355,7 @@ final class ServiceUnavailableFailure extends AppFailure {
   final String? traceId;
 
   @override
-  List<Object?> get props => [messageKey, statusCode, traceId];
+  List<Object?> get props => [messageKey, statusCode, traceId, requestId, retryAfter];
 }
 
 final class OfflineFailure extends AppFailure {
@@ -379,8 +384,11 @@ final class ServerMessageFailure extends AppFailure {
     this.statusCode,
     this.traceId,
     this.serverText,
+    this.requestId,
   });
 
+  @override
+  final String? requestId;
   final String? serverText;
 
   @override
@@ -398,7 +406,7 @@ final class ServerMessageFailure extends AppFailure {
       };
 
   @override
-  List<Object?> get props => [messageKey, statusCode, traceId, serverText];
+  List<Object?> get props => [messageKey, statusCode, traceId, serverText, requestId];
 }
 
 final class UnknownFailure extends AppFailure {

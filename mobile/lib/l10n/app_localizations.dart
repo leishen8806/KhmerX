@@ -3063,6 +3063,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Please wait, this can take up to 30 seconds.'**
   String get kycLocWait;
+
+  /// No description provided for @errInternalError.
+  ///
+  /// In en, this message translates to:
+  /// **'Something went wrong. Please try again later.'**
+  String get errInternalError;
+
+  /// No description provided for @errValidationFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Check your input and try again.'**
+  String get errValidationFailed;
+
+  /// No description provided for @errAccountRegistered.
+  ///
+  /// In en, this message translates to:
+  /// **'This account is already registered. Please sign in.'**
+  String get errAccountRegistered;
+
+  /// No description provided for @errPayloadTooLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'This file exceeds the upload size limit.'**
+  String get errPayloadTooLarge;
+
+  /// No description provided for @errWithRequestId.
+  ///
+  /// In en, this message translates to:
+  /// **'{message} Reference: {requestId}'**
+  String errWithRequestId(String message, String requestId);
 }
 
 class _AppLocalizationsDelegate

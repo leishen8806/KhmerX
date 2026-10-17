@@ -142,8 +142,8 @@ void main() {
       expect(retrySeconds(dio429(headerRetryAfter: '10000')), 3600);
     });
 
-    test('EM-21 §17 case 14: PRECEDENCE body=30 header=120 → 30 (body wins!)', () {
-      expect(retrySeconds(dio429(bodyRetryAfter: 30, headerRetryAfter: '120')), 30);
+    test('EM-21 §17 case 14: PRECEDENCE body=30 header=120 -> 120 (ARC-00 header priority)', () {
+      expect(retrySeconds(dio429(bodyRetryAfter: 30, headerRetryAfter: '120')), 120);
     });
 
     test('EM-22 §17 case 15: body=null header="5" → 5', () {

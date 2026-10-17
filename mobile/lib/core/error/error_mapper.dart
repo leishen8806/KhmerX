@@ -43,14 +43,29 @@ final class ErrorMapper {
       return UnknownFailure(originalError: e, stackTrace: e.stackTrace, traceId: traceId);
     }
 
-    final (code, message, bodyRetryAfter) = _extractPayload(e.response);
+    final (code, message, _) = _extractPayload(e.response);
     final effectiveStatusCode = statusCode;
+    final requestId = _payload(e.response)?.caseInsensitiveString(['requestId']) ??
+        e.response?.headers.value('X-Request-Id');
+    final key = switch ((statusCode, code?.toUpperCase())) {
+      (500, 'INTERNAL_ERROR') => 'error.internal_error',
+      (400, 'VALIDATION_FAILED') => 'error.validation_failed',
+      (409, 'ACCOUNT_ALREADY_REGISTERED') => 'error.account_registered',
+      (413, 'PAYLOAD_TOO_LARGE') => 'error.payload_too_large',
+      _ => null,
+    };
+    if (key != null) {
+      return ServerMessageFailure(messageKey: key,
+          statusCode: statusCode, traceId: traceId, requestId: requestId);
+    }
+    if (statusCode == 503) {
+      return ServiceUnavailableFailure(statusCode: statusCode,
+          traceId: traceId, requestId: requestId,
+          retryAfter: Duration(seconds: retryAfterSeconds(e.response)));
+    }
 
     if (statusCode == 429) {
-      final seconds = _parseRetryAfterSeconds(
-        e.response,
-        bodyRetryAfter: bodyRetryAfter,
-      );
+      final seconds = retryAfterSeconds(e.response);
       return RateLimitFailure(
         retryAfter: Duration(seconds: seconds),
         traceId: traceId,
@@ -131,10 +146,22 @@ final class ErrorMapper {
     return 3600;
   }
 
-  static int _parseRetryAfterSeconds(Response? response, {int? bodyRetryAfter}) {
-    final header = response?.headers.value('Retry-After')?.trim();
-    final int? fromHeader = int.tryParse(header ?? '');
-    final int? effectiveRaw = bodyRetryAfter ?? fromHeader;
-    return _normalizeRetrySeconds(effectiveRaw);
+  static Map<String, Object?>? _payload(Response? response) {
+    final data = response?.data;
+    if (data is Map<String, Object?>) {return data;}
+    if (data is String) {try {final decoded = jsonDecode(data);
+      if (decoded is Map<String, Object?>) {return decoded;}
+    } catch (_) {}}
+    return null;
+  }
+
+  /// ARC-00: header, params, legacy fields; invalid selected values default to 60.
+  static int retryAfterSeconds(Response? response) {
+    final body = _payload(response), params = body?['params'];
+    final raw = response?.headers.value('Retry-After') ??
+        (params is Map ? params['retryAfterSeconds'] : null) ??
+        body?['retryAfter'] ?? body?['retry_after'];
+    return _normalizeRetrySeconds(raw is int ? raw :
+        raw is String ? int.tryParse(raw.trim()) : null);
   }
 }

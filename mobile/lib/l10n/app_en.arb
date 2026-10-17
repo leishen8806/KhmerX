@@ -628,5 +628,20 @@
   "kycLocFailed": "Could not get your address. Please type it.",
   "kycLocStagePosition": "Getting your location...",
   "kycLocStageAddress": "Finding your address...",
-  "kycLocWait": "Please wait, this can take up to 30 seconds."
+  "kycLocWait": "Please wait, this can take up to 30 seconds.",
+  "errInternalError": "Something went wrong. Please try again later.",
+  "errValidationFailed": "Check your input and try again.",
+  "errAccountRegistered": "This account is already registered. Please sign in.",
+  "errPayloadTooLarge": "This file exceeds the upload size limit.",
+  "errWithRequestId": "{message} Reference: {requestId}",
+  "@errWithRequestId": {
+    "placeholders": {
+      "message": {
+        "type": "String"
+      },
+      "requestId": {
+        "type": "String"
+      }
+    }
+  }
 }
