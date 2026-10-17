@@ -141,7 +141,7 @@ function TeamClientInner({initialQueue=''}:{initialQueue?:string}){
  function queueRoute(queue:string){const routes:Record<string,[string,string]>={customers:['/team/customers','客户列表'],reports:['/team/reports','客户漏斗'],notifications:['/team/notifications','通知发送记录'],tickets:['/team/tickets','客服工单'],kyc:['/team/kyc','KYC 审核队列'],loans:['/team/loans','贷款申请'],funding:['/team/funding','风控事件'],repayment:['/team/repayment','账单与还款'],postloan:['/team/postloan','贷后任务']};const [path,view]=routes[queue]||['/team',''];return view?`${path}?view=${encodeURIComponent(view)}`:path}
  function CrmOverview({work,member,admin}:any){
   const loans=work?.state?.loans||[],kyc=work?.kycOrders||[],events=work?.state?.events||[];
-  const lender=member.role==='checker'||member.role==='finance_checker';
+  const lender=member.role==='lender'||member.role==='checker'||member.role==='finance_checker';
   const pendingKyc=kyc.filter((x:any)=>['submitted','needs_info'].includes(x.status)).length;
   const pendingLoans=loans.filter((x:any)=>['decision_pending','signed'].includes(x.status)).length;
   const activeLoans=loans.filter((x:any)=>x.status==='active').length;
