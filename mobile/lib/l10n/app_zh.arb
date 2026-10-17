@@ -482,7 +482,7 @@
   "kycProblemDupPhone": "紧急联系人电话不能重复。",
   "kycProblemConsent": "请阅读并同意授权。",
   "kycErrConflict": "资料已变化或已锁定，已重新加载。",
-  "kycErrFileTooLarge": "文件过大（最大 10 MB）。",
+  "kycErrFileTooLarge": "图片不得超过 5 MB，PDF 文件不得超过 10 MB。",
   "kycErrFileRejected": "文件未被接受，请更换照片。",
   "kycErrInvalid": "部分资料无效，请检查后重试。",
   "kycErrUnavailable": "服务暂不可用，资料未保存，请重试。",
@@ -559,5 +559,7 @@
         "type": "String"
       }
     }
-  }
+  },
+  "kycUploadRetrying": "正在重试上传…",
+  "kycUploadCancel": "取消上传"
 }

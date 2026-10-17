@@ -566,7 +566,7 @@
   "kycProblemDupPhone": "Emergency contacts must have different phone numbers.",
   "kycProblemConsent": "Please read and accept the authorization.",
   "kycErrConflict": "Your information was changed or is locked. It has been reloaded.",
-  "kycErrFileTooLarge": "The file is too large (max 10 MB).",
+  "kycErrFileTooLarge": "Images must be 5 MB or smaller; PDF files must be 10 MB or smaller.",
   "kycErrFileRejected": "The file was not accepted. Please choose another photo.",
   "kycErrInvalid": "Some information is not valid. Please check and try again.",
   "kycErrUnavailable": "The service is temporarily unavailable. Nothing was saved. Please try again.",
@@ -643,5 +643,7 @@
         "type": "String"
       }
     }
-  }
+  },
+  "kycUploadRetrying": "Retrying upload...",
+  "kycUploadCancel": "Cancel upload"
 }

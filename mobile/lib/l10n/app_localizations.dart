@@ -2809,7 +2809,7 @@ abstract class AppLocalizations {
   /// No description provided for @kycErrFileTooLarge.
   ///
   /// In en, this message translates to:
-  /// **'The file is too large (max 10 MB).'**
+  /// **'Images must be 5 MB or smaller; PDF files must be 10 MB or smaller.'**
   String get kycErrFileTooLarge;
 
   /// No description provided for @kycErrFileRejected.
@@ -3093,6 +3093,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{message} Reference: {requestId}'**
   String errWithRequestId(String message, String requestId);
+
+  /// No description provided for @kycUploadRetrying.
+  ///
+  /// In en, this message translates to:
+  /// **'Retrying upload...'**
+  String get kycUploadRetrying;
+
+  /// No description provided for @kycUploadCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel upload'**
+  String get kycUploadCancel;
 }
 
 class _AppLocalizationsDelegate

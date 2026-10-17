@@ -784,7 +784,8 @@ final class _SlotTile extends StatelessWidget {
                 const SizedBox(
                     height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2)),
                 const SizedBox(width: 8),
-                Text(l.kycUploading),
+                Expanded(child: Text(state.retrying.contains(slot.id) ? l.kycUploadRetrying : l.kycUploading)),
+                TextButton(onPressed: () => controller.cancelUpload(slot.id), child: Text(l.kycUploadCancel)),
               ])
             else if (uploaded)
               Row(children: [
@@ -792,6 +793,8 @@ final class _SlotTile extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(l.kycUploaded),
               ]),
+            if (state.uploadFailures[slot.id] != null)
+              Text(describeFailure(l, state.uploadFailures[slot.id]!), style: TextStyle(color: Theme.of(context).colorScheme.error)),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
