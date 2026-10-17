@@ -1632,4 +1632,23 @@ class AppLocalizationsKm extends AppLocalizations {
 
   @override
   String get kycLocWait => 'សូមរង់ចាំ ការនេះអាចចំណាយពេលរហូតដល់ 30 វិនាទី។';
+
+  @override
+  String get errInternalError =>
+      'មានបញ្ហាក្នុងការដំណើរការ។ សូមព្យាយាមម្តងទៀតនៅពេលក្រោយ។';
+
+  @override
+  String get errValidationFailed =>
+      'សូមពិនិត្យព័ត៌មានដែលបានបញ្ចូល ហើយព្យាយាមម្តងទៀត។';
+
+  @override
+  String get errAccountRegistered => 'គណនីនេះបានចុះឈ្មោះរួចហើយ។ សូមចូលគណនី។';
+
+  @override
+  String get errPayloadTooLarge => 'ឯកសារនេះលើសទំហំដែលអនុញ្ញាតឱ្យផ្ទុកឡើង។';
+
+  @override
+  String errWithRequestId(String message, String requestId) {
+    return '$message លេខយោង៖ $requestId';
+  }
 }

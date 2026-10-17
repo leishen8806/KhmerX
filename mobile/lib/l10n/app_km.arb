@@ -544,5 +544,20 @@
   "kycLocFailed": "មិនអាចទទួលបានអាសយដ្ឋានទេ។ សូមវាយបញ្ចូល។",
   "kycLocStagePosition": "កំពុងស្វែងរកទីតាំងរបស់អ្នក...",
   "kycLocStageAddress": "កំពុងស្វែងរកអាសយដ្ឋានរបស់អ្នក...",
-  "kycLocWait": "សូមរង់ចាំ ការនេះអាចចំណាយពេលរហូតដល់ 30 វិនាទី។"
+  "kycLocWait": "សូមរង់ចាំ ការនេះអាចចំណាយពេលរហូតដល់ 30 វិនាទី។",
+  "errInternalError": "មានបញ្ហាក្នុងការដំណើរការ។ សូមព្យាយាមម្តងទៀតនៅពេលក្រោយ។",
+  "errValidationFailed": "សូមពិនិត្យព័ត៌មានដែលបានបញ្ចូល ហើយព្យាយាមម្តងទៀត។",
+  "errAccountRegistered": "គណនីនេះបានចុះឈ្មោះរួចហើយ។ សូមចូលគណនី។",
+  "errPayloadTooLarge": "ឯកសារនេះលើសទំហំដែលអនុញ្ញាតឱ្យផ្ទុកឡើង។",
+  "errWithRequestId": "{message} លេខយោង៖ {requestId}",
+  "@errWithRequestId": {
+    "placeholders": {
+      "message": {
+        "type": "String"
+      },
+      "requestId": {
+        "type": "String"
+      }
+    }
+  }
 }
