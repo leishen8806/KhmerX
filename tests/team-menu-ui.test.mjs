@@ -112,3 +112,10 @@ test('audit staff can reach read-only organization pages from the sidebar',()=>{
   assert.match(source,/groupName==='组织与系统'&&role==='audit'.*\['数据范围','字段权限','系统健康'\]/);
   assert.match(router,/if\(role==='audit'\)return \['字段权限','数据范围','系统健康'/);
 });
+
+test('team data reads do not create organization records',()=>{
+  const teamServer=fs.readFileSync(path.join(process.cwd(),'lib/team/server.ts'),'utf8');
+  const teamDataBody=teamServer.slice(teamServer.indexOf('export async function teamData()'),teamServer.indexOf('export async function teamMembersPage'));
+  assert.doesNotMatch(teamDataBody,/INSERT OR IGNORE INTO team_units/,'只读组织数据不得隐式创建贷后部门');
+  assert.match(teamServer,/bind\('postloan:'\+id,id,'运营贷后部','postloan'\)/,'新公司创建时应显式初始化贷后部门');
+});
