@@ -43,6 +43,7 @@ test('service backend menu keeps merged customer and KYC entries unique',()=>{
   assert.match(subpages,/view==='贷款复核'\?'贷款申请':view==='放款复核'\?'放款管理'/,'持牌机构复核入口必须规范化到实际业务页面');
   assert.match(router,/const view=canonicalCrmView\(props\.view\)/,'独立子页面组件必须复用统一别名规范化');
   assert.match(router,/function AuditExportPage\(\{role\}/,'审计完整性页面必须接收当前岗位');
+  assert.match(router,/view==='审计导出'.*<AuditExportPage role=\{props\.member\?\.role\|\|''\}/,'审计导出直达路由必须传递当前岗位');
   const auditIntegrity=fs.readFileSync(path.join(process.cwd(),'lib/team/audit-integrity.ts'),'utf8');
   assert.match(auditIntegrity,/async function writer\(\).*s\.member\.role!==['"]admin['"]/,'审计完整性快照写操作仅限公司管理员');
   assert.match(auditIntegrity,/async function reader\(\).*\[['"]admin['"],'audit'\]/,'审计完整性列表允许管理员和审计员只读查看');
