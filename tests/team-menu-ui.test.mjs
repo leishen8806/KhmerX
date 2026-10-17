@@ -8,6 +8,13 @@ const subpages=fs.readFileSync(path.join(process.cwd(),'lib/team/crm-subpages.ts
 const router=fs.readFileSync(path.join(process.cwd(),'components/crm-subpages.tsx'),'utf8');
 const products=fs.readFileSync(path.join(process.cwd(),'app/api/team/products/route.ts'),'utf8');
 const riskRules=fs.readFileSync(path.join(process.cwd(),'lib/team/risk-rules.ts'),'utf8');
+const customerTags=fs.readFileSync(path.join(process.cwd(),'app/api/team/customer-tags/route.ts'),'utf8');
+
+test('customer tag writes enforce the current employee data scope',()=>{
+  assert.match(customerTags,/import \{assignment,audit,db,staff\} from ['"]@\/lib\/team\/server['"]/);
+  assert.match(customerTags,/import \{canSee\} from ['"]@\/lib\/team\/policy['"]/);
+  assert.match(customerTags,/const target=await assignment\(s\.tenant\.id,customerId\);if\(!target\|\|!canSee\(s\.member,target,'summary'\)\)/);
+});
 
 test('service backend menu keeps merged customer and KYC entries unique',()=>{
   assert.doesNotMatch(source,/\['客户 360° 详情','\/team\/customers'/);
