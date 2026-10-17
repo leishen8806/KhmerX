@@ -32,9 +32,32 @@
 - **T1 销毁取消（F1）**：启动一次上传并让它停在"重试等待"中；销毁 provider/容器；断言令牌已被取消且**之后不再有新的 HTTP 请求**（适配器请求计数不增加），随后不抛出未处理异常。
 - **T2 取消不呈现失败（F2）**：启动上传、触发重试等待、点击取消；断言 `uploadFailures[slot]` 为空、`notice` 不是失败类通知、界面没有失败文案、`uploading`/`retrying` 已清空、文件未附加；再次选图可以重新上传。
 - **T3 同槽位重入（F3）**：对同一槽位在 `pick` 未完成时连续触发两次；断言只发起**一个**上传请求；第一个完成后取消按钮、销毁取消仍对"当前"上传有效。
-- **T4 令牌归属**：第一个上传完成时不会移除第二个（若 R-A2 之前存在两个令牌的路径）；用可控的假仓库复现。
-- **变异要求**：在 PR 描述附上变异结果表——① 删除 `ref.onDispose` 的取消 → T1 必须失败；② 删除取消守卫 `if (token.isCancelled)` → T2 必须失败；③ 去掉重入保护 → T3 必须失败；④ 完成时无条件 `_uploads.remove(slot)` → T4 必须失败。任何一条幸存即未达标。
+- **T4 令牌归属（2026-10-17 修订，见 §3.4）**：实现保留"完成时只移除自己的令牌"的防御性比较（`identical`）；**不再要求用测试杀死"无条件移除"变异**，因为在"同一槽位同一时刻至多一个在途上传（含选图阶段）"的约束下，该变异不可达、行为等价。T4 改为：由 T3 证明该约束成立，并在 PR 描述附 §3.4 的等价性核对表。（原条款："第一个上传完成时不会移除第二个；用可控的假仓库复现"——见 §3.4 历史记录。）
+- **变异要求**：在 PR 描述附上变异结果表——① 删除 `ref.onDispose` 的取消 → T1 必须失败；② 删除取消守卫 `if (token.isCancelled)` → T2 必须失败；③ 去掉重入保护 → T3 必须失败（以上三条必须由目标断言触发失败，不得是编译错误或环境错误）；④ 完成时无条件 `_uploads.remove(slot)` → **按 §3.4 作为经独立审核的等价变异记录，允许幸存**。①–③ 任一幸存即未达标；④ 必须如实记录为 SURVIVED，不得改写成 KILLED，也不得为杀死它而新增生产测试入口、破坏重入保护或组合多个变异后冒充单项结果。
 - 原有 435 项测试**全部保持通过**，不降低、不删除；`upload_retry_test.dart` 的 18 项不变。
+
+### 3.4 T4 条款修订记录与等价性证明（2026-10-17，独立评审后）
+
+**历史记录（不得抹去）**：原 T4 要求"完成时无条件 `_uploads.remove(slot)` 的变异必须被杀死"。Codex 实测该变异 **SURVIVED**；独立评审在 `e6fea36` 上复现，同样 **SURVIVED**（其余三条变异在目标断言处被杀死：T1 `Expected: true / Actual: false`；T2 `uploadFailures` 期望为空、实际含 `UnknownFailure`，en/km/zh 各一；T3 `Expected: <1> / Actual: <2>`）。
+
+**修订理由**：该变异只有在"同一槽位同一时刻存在两个令牌"时才会与防御性比较产生差异；评审核对表明，在当前代码下这条路径不可达（核对表如下，行号为 `e6fea36` 的 `mobile/lib/features/kyc/presentation/kyc_controller.dart`）。因此第四条变异是**等价变异**，而不是测试缺口。
+
+| # | 不可达路径的必要条件 | 代码依据 |
+|---|---|---|
+| E1 | 选图阶段同槽位重入被同步集合阻止 | `:338` `!_picking.add(slot)`；`:176` `_picking` |
+| E2 | 释放选图保护到建立上传状态之间**没有 `await`** | `:345-351`：`finally` 释放后只有同步语句（`bytes == null` 判断、`CancelToken()`、`_uploads[slot] = token`、`state = copyWith(uploading: {...})`） |
+| E3 | 上传期间 `uploading` 一直占用槽位，且入口检查它 | `:338` `state.uploading.contains(slot)`；`uploading` 只在 `:351` 加入、`:362/:366/:372` 移除 |
+| E4 | 令牌移除先于释放 `uploading` | `:359` 先 `_uploads.remove`，`:360-362` 之后才从 `uploading` 移除 |
+| E5 | `cancelUpload` 不提前释放槽位 | `:177` 只调用 `cancel()`；槽位在仓库返回、控制器继续执行时才释放 |
+| E6 | 其他入口不能重置 `uploading` 或令牌表 | `_adopt`/`load` 使用 `state.copyWith`（`:188`），保留 `uploading`；provider 不会被 `invalidate`（全仓无 `invalidate(` 调用），`build` 只执行一次；销毁时 `onDispose` 取消全部令牌（`:172`） |
+
+**由此得到的约束（必须保持）**：**单槽位至多一个在途上传（含选图阶段）**。T3 负责证明该约束。
+
+**保留项**：防御性比较 `if (identical(_uploads[slot], token)) _uploads.remove(slot);` 继续保留，不得删除。
+
+**再次开启条件**：若今后允许"取消后立即启动同槽位新请求"，或允许同槽位并发上传，必须**恢复 T4**：新增双令牌竞争测试（可控的假仓库，让旧请求在新请求建立后才完成），并要求"无条件移除"变异被杀死。
+
+**独立评审发现真实可达反例时**：必须列出具体调用时序，并修实现或测试；**不得**以本条款豁免。
 
 ## 4. B：主线整合（修 F4）
 
@@ -48,7 +71,7 @@
 
 ## 5. 验收（缺一不通过）
 - 本机 Flutter 3.47.0 / Dart 3.13.0（与 CI 一致）：`flutter analyze` 0 问题；`flutter test` 全部通过且**不少于 435 项加新增用例**；`flutter gen-l10n` 重新生成后无 diff；Dart 源码无 CJK（仓库既有 grep 测试通过）。
-- 变异结果表（§3.3）四条全部被杀死。
+- 变异结果表（§3.3）：①②③ 被目标断言杀死；④ 记录为 SURVIVED，并附 §3.4 的等价性核对（已由独立评审确认）。
 - 整合：`20bd678` 在 main 中；`git diff --check` 无输出；无服务端/网页端改动；`git diff --stat origin/main` 只包含 `mobile/` 下的文件。
 - 回归：`npm test`、`typecheck`、`lint`（errors = 0）、`check:client-boundary`（容器内）无新增失败（本卡不应触及，确认即可）。
 - 如实写明未验证项：没有真机/模拟器、没有真实网络、没有灰度。
@@ -66,6 +89,6 @@
 【任务】C3R：补强 C3-b 的测试、修复同槽位上传竞态，并把 C3-b 整合进 main。严格按 docs/tasks/codex-prompts/C3R-flutter-upload-fixes-and-integration.md 执行；先读 §2 的文件。
 在独立 worktree 里基于最新 origin/main 建分支 fix/app/D5-upload-integration，先 `git merge --no-ff origin/feat/app/D5` 带入 C3-b，再追加 §3 的修复与测试。PR 目标分支是 main，不要再把 PR 指向 feat/app/D5。
 只改 mobile/lib/features/kyc/presentation/kyc_controller.dart 与 mobile/test/features/kyc/**；不改重试范围/次数/等待上限，不改服务端与网页端，不新增依赖，Dart 源码不得出现中日韩文字。
-先写 T1–T4，并在 PR 描述附变异结果表（四条都必须被杀死）；原 435 项测试全部保持通过。本机验证：Flutter 3.47.0；不要操作 159.223.77.134 / 165.22.108.5，不要访问任何 khmerx.org 域名；只用虚构数据。
+先写 T1–T3，并在 PR 描述附变异结果表（前三条必须被目标断言杀死；第四条按 §3.4 的等价性条款如实记录为幸存）；原 435 项测试全部保持通过。本机验证：Flutter 3.47.0；不要操作 159.223.77.134 / 165.22.108.5，不要访问任何 khmerx.org 域名；只用虚构数据。
 PR 小于 400 行；提交末尾 `Line: app`；按固定格式汇报，假设写进 PR 描述；未验证真机/真实网络/灰度要如实写明。
 ```
