@@ -45,8 +45,10 @@ test('service backend menu keeps merged customer and KYC entries unique',()=>{
   assert.match(riskRules,/if\(!readerRoles\.has\(role\)\)throw new AuthError\(['"]当前岗位无权模拟风控规则/,'风控规则模拟必须复用读取岗位范围');
   assert.match(router,/function RiskEvents\(\{work,role\}/,'资金风险页面必须接收当前岗位');
   assert.match(router,/const canResolve=role==='admin';/,'资金风险处置控件只能由公司管理员看到');
-  assert.match(router,/function FundingFreeze\(\{work,units,role\}/,'冻结页面必须接收当前岗位');
+  assert.match(router,/function FundingFreeze\(\{work,units,role,memberId\}/,'冻结页面必须接收当前岗位');
   assert.match(router,/role==='admin'\?<EmergencyAccess units=\{units\}/,'应急授权控件仅公司管理员可见');
+  const emergency=fs.readFileSync(path.join(process.cwd(),'components/emergency-access.tsx'),'utf8');
+  assert.match(emergency,/item\.requester_id!==memberId/,'应急申请人不得看到自己的批准按钮');
   assert.match(router,/if\(!roleAllowsCrmView\(props\.member\?\.role\|\|'',view\)\)return <Frame view=\{view\} title="无权访问">/,'无权岗位不得渲染业务页面');
   assert.match(router,/if\(role==='audit'\)return \['字段权限','数据范围'/,'审计员独立页面必须限制为只读业务视图');
   assert.match(router,/if\(role==='ops'\)return \['我的待办',[\s\S]*'贷款产品','风控规则与版本'\]/,'运营岗位页面必须与产品和风控规则读写接口保持一致');
