@@ -155,3 +155,11 @@ test('loan product listings tolerate malformed terms and config JSON',()=>{
   assert.match(productRoute,/function parseConfig\(raw:unknown\)/);
   assert.match(productRoute,/config:parseConfig\(r\.config_json\)/);
 });
+
+test('loan product review controls have responsive toolbar styling',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-panel-toolbar\{display:flex;align-items:flex-end/);
+  assert.match(css,/\.crm-panel-toolbar>\.inline-field\{display:flex/);
+  assert.match(css,/\.loan-products-panel \.table-scroll\{margin-top:4px\}/);
+  assert.match(css,/\.crm-panel-toolbar>button\{width:100%\}/);
+});
