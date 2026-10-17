@@ -46,6 +46,7 @@ test('service backend menu keeps merged customer and KYC entries unique',()=>{
   assert.match(router,/const canResolve=role==='admin';/,'资金风险处置控件只能由公司管理员看到');
   assert.match(router,/if\(!roleAllowsCrmView\(props\.member\?\.role\|\|'',view\)\)return <Frame view=\{view\} title="无权访问">/,'无权岗位不得渲染业务页面');
   assert.match(router,/if\(role==='audit'\)return \['字段权限','数据范围'/,'审计员独立页面必须限制为只读业务视图');
+  assert.match(router,/if\(role==='ops'\)return \['我的待办',[\s\S]*'贷款产品','风控规则与版本'\]/,'运营岗位页面必须与产品和风控规则读写接口保持一致');
   assert.match(router,/\['lender','checker'\]\.includes\(role\)/,'机构审批员与机构复核员必须共享贷款业务页面守卫');
   assert.match(subpages,/view==='贷款复核'\?'贷款申请':view==='放款复核'\?'放款管理'/,'持牌机构复核入口必须规范化到实际业务页面');
   assert.match(router,/const view=canonicalCrmView\(props\.view\)/,'独立子页面组件必须复用统一别名规范化');
