@@ -5,6 +5,7 @@ import {route} from '@/lib/http/route';
 import {ApiError} from '@/lib/http/api-error';
 export const dynamic='force-dynamic';
 const text=(v:unknown,max=200)=>typeof v==='string'?v.trim().slice(0,max):'';
+function parseConfig(raw:unknown){if(typeof raw!=='string'||!raw)return null;try{const parsed=JSON.parse(raw);return parsed&&typeof parsed==='object'&&!Array.isArray(parsed)?parsed:null}catch{return null}}
 const rolesWrite=['admin','ops'];
 function configOf(p:any):{minCents:number;maxCents:number;terms:number[];pricing:Pricing}{
  const minCents=Math.round(Number(p.minCents)),maxCents=Math.round(Number(p.maxCents));
@@ -19,7 +20,7 @@ export const GET=route({handler:async()=>{
  const s=await context();
  if(!rolesWrite.includes(s.member.role)&&s.member.role!=='admin')throw new ApiError(403,'FORBIDDEN','当前岗位无权查看贷款产品');
  const rows=await db().prepare(`SELECT p.*,v.version,v.config_json,v.status AS version_status,v.change_reason,v.created_at AS version_created_at FROM loan_products p LEFT JOIN loan_product_versions v ON v.product_id=p.id AND v.version=p.current_version WHERE p.tenant_id=? ORDER BY p.updated_at DESC`).bind(s.tenant.id).all<any>();
- return json({products:rows.results.map(r=>({...r,config:r.config_json?JSON.parse(r.config_json):null,config_json:undefined}))});
+ return json({products:rows.results.map(r=>({...r,config:parseConfig(r.config_json),config_json:undefined}))});
 }});
 export const POST=route({origin:'required',handler:async(request:Request)=>{
  try{

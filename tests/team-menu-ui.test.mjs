@@ -145,3 +145,13 @@ test('loan product high risk actions require an MFA code in the UI',()=>{
   assert.match(productRoute,/product_retire[\s\S]*下线产品必须填写原因/);
   assert.match(productRoute,/loan_product_retire',\{productId,version:product\.current_version,reason\}/);
 });
+
+test('loan product listings tolerate malformed terms and config JSON',()=>{
+  const products=fs.readFileSync(path.join(process.cwd(),'components/loan-products.tsx'),'utf8');
+  assert.match(products,/function termsOf\(p:Product\)/);
+  assert.match(products,/catch\{return \[\]\}/);
+  assert.match(products,/未配置/);
+  const productRoute=fs.readFileSync(path.join(process.cwd(),'app/api/team/products/route.ts'),'utf8');
+  assert.match(productRoute,/function parseConfig\(raw:unknown\)/);
+  assert.match(productRoute,/config:parseConfig\(r\.config_json\)/);
+});
