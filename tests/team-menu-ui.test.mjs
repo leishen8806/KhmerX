@@ -138,4 +138,5 @@ test('loan product high risk actions require an MFA code in the UI',()=>{
   assert.match(products,/action:'product_review',[\s\S]*code:mfaCode/);
   assert.match(products,/action:'product_retire',[\s\S]*code:mfaCode/);
   assert.match(products,/disabled=\{busy\|\|!mfaCode\}/);
+  assert.match(products,/setNotice\('已保存并写入审计记录'\);setShow\(false\);setMfaCode\('\'\)/);
 });
