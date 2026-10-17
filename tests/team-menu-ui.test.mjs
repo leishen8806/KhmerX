@@ -37,6 +37,8 @@ test('service backend menu keeps merged customer and KYC entries unique',()=>{
   assert.match(source,/member\.role==='lender'\?\[\['loans','贷款审批'/,'机构审批员首页快捷卡必须进入贷款审批');
   assert.match(source,/queue==='funding'&&role==='finance_checker'\)view='放款复核'/,'放款复核员首页快捷卡必须进入放款复核');
   assert.match(source,/\['audit','kyc','ops','dept_admin','finance','collection_admin','collector'\]\.includes\(role\)/,'放款员不得看到贷款审批类通用菜单');
+  assert.match(source,/initialQueue==='loans'&&currentRole==='checker'\)setSubview\('贷款复核'\)/,'机构复核员直接进入贷款路径时必须落到复核页面');
+  assert.match(source,/initialQueue==='funding'&&currentRole==='finance_checker'\)setSubview\('放款复核'\)/,'放款复核员直接进入资金路径时必须落到复核页面');
   assert.match(source,/role==='finance'\?\['客户中心','服务中心'\]/,'放款员不得看到客户与贷后服务菜单');
   assert.match(router,/role==='finance'\)return \['放款管理','账单与还款'/,'放款员页面守卫必须保留资金业务入口');
 });
