@@ -200,6 +200,7 @@ PR 小于 400 行。
 - **R2**　`docs/tasks/codex-prompts/R2-locale-render-refs.md`　分支 `fix/client/locale-render-refs`（`Line: client`）：消除两处渲染期写 ref 的 lint error，不降级规则。
 - **R3**　`docs/tasks/codex-prompts/R3-full-recheck.md`：R1、R2 合并后做全量复核，只出报告。
 - 仅本机 Docker（`node:22.22.1-bookworm-slim`，`--network none`）验证；L2/Q12、灰度/VPS 仍为 HOLD。
+- **状态（2026-10-17）：R1-A、R1-B（#58，Claude 评审通过，P0/P1 为 0）、R2、R3 均已合并，修复队列关闭。** 证据范围：本机 SQLite 适配器与 Miniflare D1；**未做远端 D1 验证**。L2/Q12、灰度/VPS 仍为 HOLD。
 
 ---
 
