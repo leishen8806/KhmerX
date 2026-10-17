@@ -3,6 +3,7 @@ import {clientRequestId} from './client-id';
 import {currentErrorLocale, messageForError} from './error-messages';
 
 export type ApiFailure={error?:string;code?:string;requestId?:string;params?:Record<string,unknown>;retryAfter?:number};
+export type StaffPagination={page:number;pageSize:number;total:number;pages:number};
 export type ApiFetchInit=RequestInit & {timeoutMs?:number;totalTimeoutMs?:number;idempotencyKey?:string;notifyAuth?:boolean};
 export class ApiClientError extends Error{
  readonly code:string;
