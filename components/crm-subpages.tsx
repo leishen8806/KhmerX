@@ -83,7 +83,7 @@ function ContentPage({view,work,units,members,member,tenant,busy,post}:{view:str
  if(view==='通知发送记录')return <Frame view={view}><TelegramNotifications admin canManage={member?.role==='admin'}/></Frame>;
  if(view==='应急事件')return <Frame view={view}><EmergencyAccess units={units} memberId={member?.id}/></Frame>;
  if(view==='审计导出')return <Frame view={view}><AuditIntegrity role={member?.role||''}/></Frame>;
- if(['客户漏斗','KYC 与审批','放款与还款','逾期与催收报表','资金监管报表','客服与投诉','自定义报表'].includes(view))return <Frame view={view}><ReportCenter customers={work?.customers||[]} loans={work?.state?.loans||[]} entries={work?.state?.entries||[]} notifications={work?.state?.notifications||[]}/></Frame>;
+ if(['客户漏斗','KYC 与审批','放款与还款','逾期与催收报表','资金监管报表','客服与投诉','自定义报表'].includes(view))return <Frame view={view}><ReportCenter customers={work?.customers||[]} loans={work?.state?.loans||[]} entries={work?.state?.entries||[]} notifications={work?.state?.notifications||[]} role={member?.role||''}/></Frame>;
      if(view==='KYC 审核队列')return <Frame view={view} title="KYC 审核订单"><KycOrders orders={work?.kycOrders||[]} scope={work?.scope||[]} units={units} members={members} role={member?.role||'audit'} renderAssignment={()=>null}/></Frame>;
  if(view==='贷款申请'||view==='审批协同')return <LoanWorkflowPanel view={view} work={work} member={member} busy={busy} post={post}/>;
  if(view==='放款管理')return <Frame view={view}><FundingPanel scope={work?.scope||[]} units={units} loans={work?.state?.loans||[]} events={work?.state?.events||[]} entries={work?.state?.entries||[]} role={member?.role||''} busy={busy} post={post}/></Frame>;

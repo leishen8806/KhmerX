@@ -10,6 +10,7 @@ const products=fs.readFileSync(path.join(process.cwd(),'app/api/team/products/ro
 const riskRules=fs.readFileSync(path.join(process.cwd(),'lib/team/risk-rules.ts'),'utf8');
 const customerTags=fs.readFileSync(path.join(process.cwd(),'app/api/team/customer-tags/route.ts'),'utf8');
 const localeRoute=fs.readFileSync(path.join(process.cwd(),'app/api/team/locale/route.ts'),'utf8');
+const reportCenter=fs.readFileSync(path.join(process.cwd(),'components/report-center.tsx'),'utf8');
 
 test('customer tag writes enforce the current employee data scope',()=>{
   assert.match(customerTags,/import \{assignment,audit,db,staff\} from ['"]@\/lib\/team\/server['"]/);
@@ -21,6 +22,14 @@ test('customer tag writes enforce the current employee data scope',()=>{
 test('staff locale changes write an audit record',()=>{
   assert.match(localeRoute,/import \{staff,db,audit\} from ['"]@\/lib\/team\/server['"]/);
   assert.match(localeRoute,/staff_locale_change/);
+});
+
+test('report export controls match the server role allowlist',()=>{
+  assert.match(reportCenter,/const reportExportRoles=new Set\(\['admin','audit','finance','finance_checker','collection_admin','collector'\]\)/);
+  assert.match(reportCenter,/role\?:string/);
+  assert.match(reportCenter,/const canExport=reportExportRoles\.has\(role\|\|''\)/);
+  assert.match(reportCenter,/canExport\?<><select aria-label="导出报表类型"/,'无导出权限岗位不得看到会失败的导出控件');
+  assert.match(router,/ReportCenter customers=\{work\?\.customers\|\|\[\]\} loans=\{work\?\.state\?\.loans\|\|\[\]\} entries=\{work\?\.state\?\.entries\|\|\[\]\} notifications=\{work\?\.state\?\.notifications\|\|\[\]\} role=\{member\?\.role\|\|''\}/,'报表页面必须传递当前岗位');
 });
 
 test('service backend menu keeps merged customer and KYC entries unique',()=>{
