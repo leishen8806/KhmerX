@@ -49,6 +49,9 @@ test('service backend menu keeps merged customer and KYC entries unique',()=>{
   const notifications=fs.readFileSync(path.join(process.cwd(),'components/telegram-notifications.tsx'),'utf8');
   assert.match(notifications,/canManage=admin/,'通知记录页必须区分管理员写权限与审计员只读权限');
   assert.match(notifications,/canManage&&\['failed','unknown'\]\.includes\(d\.status\)/,'通知人工重试按钮仅管理员可见');
+  const tickets=fs.readFileSync(path.join(process.cwd(),'components/service-tickets.tsx'),'utf8');
+  assert.match(tickets,/canEdit=true/,'工单页面必须接收可编辑权限');
+  assert.match(tickets,/canEdit&&<Button variant="outline"/,'审计员工单页面不得显示处理按钮');
   assert.match(source,/role==='lender'\|\|role==='checker'\|\|role==='finance_checker'/,'持牌机构角色必须显示专属菜单');
   assert.match(source,/member\.role==='lender'\|\|member\.role==='checker'\|\|member\.role==='finance_checker'/,'机构审批员必须看到机构待办与风险摘要');
   assert.match(source,/member\.role==='lender'\?\[\['loans','贷款审批'/,'机构审批员首页快捷卡必须进入贷款审批');
