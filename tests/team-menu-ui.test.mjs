@@ -36,6 +36,7 @@ test('service backend menu keeps merged customer and KYC entries unique',()=>{
   assert.match(router,/if\(role==='admin'\)return true;const audit=\[/,'只有管理员先获得全量页面守卫');
   assert.match(router,/if\(audit\.includes\(view\)\)return role==='audit';/,'审计与安全页面不得被普通员工通过直链访问');
   assert.match(products,/if\(!rolesWrite\.includes\(role\)&&role!==['"]admin['"]\)/,'贷款产品写接口不得把审计员当作可写岗位');
+  assert.match(products,/export const GET=route\(\{handler:async\(\)=>\{\s*const s=await context\(\);\s*if\(!rolesWrite\.includes\(s\.member\.role\)&&s\.member\.role!==['"]admin['"]\)/,'贷款产品读取接口必须与产品管理岗位范围一致');
   assert.match(products,/if\(role!==['"]admin['"]\)throw new ApiError\(403,'FORBIDDEN','仅公司管理员可审核产品'/,'贷款产品审核必须由公司管理员执行');
   assert.match(riskRules,/const reviewerRoles=new Set\(\[['"]admin['"]\]\)/,'风控规则审核不得授予审计员写权限');
   assert.match(router,/function RiskEvents\(\{work,role\}/,'资金风险页面必须接收当前岗位');

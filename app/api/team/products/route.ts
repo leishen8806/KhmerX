@@ -17,6 +17,7 @@ function configOf(p:any):{minCents:number;maxCents:number;terms:number[];pricing
 async function context(){const s=await staff();if(!s)throw new ApiError(403,'FORBIDDEN','请先选择公司');return {...s,userId:s.user.userId}}
 export const GET=route({handler:async()=>{
  const s=await context();
+ if(!rolesWrite.includes(s.member.role)&&s.member.role!=='admin')throw new ApiError(403,'FORBIDDEN','当前岗位无权查看贷款产品');
  const rows=await db().prepare(`SELECT p.*,v.version,v.config_json,v.status AS version_status,v.change_reason,v.created_at AS version_created_at FROM loan_products p LEFT JOIN loan_product_versions v ON v.product_id=p.id AND v.version=p.current_version WHERE p.tenant_id=? ORDER BY p.updated_at DESC`).bind(s.tenant.id).all<any>();
  return json({products:rows.results.map(r=>({...r,config:r.config_json?JSON.parse(r.config_json):null,config_json:undefined}))});
 }});
