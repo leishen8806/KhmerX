@@ -56,8 +56,9 @@ export const POST=route({origin:'required',handler:async(request:Request)=>{
   if(p.action==='product_retire'){
    if(role!=='admin')throw new ApiError(403,'FORBIDDEN','仅公司管理员可下线产品');
    await requireMfaStepUp(s,p.code);
+   const reason=text(p.reason,300);if(!reason)throw new ApiError(400,'VALIDATION_FAILED','下线产品必须填写原因');
    if(product.status!=='active')throw new ApiError(409,'CONFLICT','仅已生效产品可下线');
-   await db().batch([db().prepare("UPDATE loan_products SET status='retired',updated_by=?,updated_at=? WHERE id=? AND tenant_id=? AND status='active'").bind(s.userId,now,productId,s.tenant.id),db().prepare("UPDATE loan_product_versions SET status='retired' WHERE product_id=? AND tenant_id=? AND version=?").bind(productId,s.tenant.id,product.current_version),audit(s.tenant.id,s.userId,'loan_product_retire',{productId,version:product.current_version})]);
+   await db().batch([db().prepare("UPDATE loan_products SET status='retired',updated_by=?,updated_at=? WHERE id=? AND tenant_id=? AND status='active'").bind(s.userId,now,productId,s.tenant.id),db().prepare("UPDATE loan_product_versions SET status='retired' WHERE product_id=? AND tenant_id=? AND version=?").bind(productId,s.tenant.id,product.current_version),audit(s.tenant.id,s.userId,'loan_product_retire',{productId,version:product.current_version,reason})]);
    return json({ok:true});
   }
   throw new ApiError(400,'VALIDATION_FAILED','操作无效');

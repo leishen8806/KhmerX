@@ -137,8 +137,11 @@ test('loan product high risk actions require an MFA code in the UI',()=>{
   assert.match(products,/安全验证码/);
   assert.match(products,/action:'product_review',[\s\S]*code:mfaCode/);
   assert.match(products,/action:'product_retire',[\s\S]*code:mfaCode/);
-  assert.match(products,/disabled=\{busy\|\|!mfaCode\}/);
+  assert.match(products,/disabled=\{busy\|\|!mfaCode\|\|!reviewReason\.trim\(\)\}/);
   assert.match(products,/setNotice\('已保存并写入审计记录'\);setShow\(false\);setMfaCode\('\'\)/);
   assert.match(products,/审核意见/);
   assert.match(products,/reason:reviewReason\.trim\(\)/);
+  const productRoute=fs.readFileSync(path.join(process.cwd(),'app/api/team/products/route.ts'),'utf8');
+  assert.match(productRoute,/product_retire[\s\S]*下线产品必须填写原因/);
+  assert.match(productRoute,/loan_product_retire',\{productId,version:product\.current_version,reason\}/);
 });
