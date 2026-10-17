@@ -22,8 +22,9 @@ test('service backend menu keeps merged customer and KYC entries unique',()=>{
   const labels=groups.flat();
   assert.equal(labels.length,new Set(labels).size,'菜单二级名称必须唯一');
   assert.match(source,/const nonLoanRole=\['audit','kyc','ops','dept_admin','finance','collection_admin','collector'\]\.includes\(role\)/,'非贷款岗位需要显式识别');
-  assert.match(source,/const hiddenGroups=\['组织与系统','产品与运营',\.\.\.\(nonLoanRole\?\['业务中心'\]\:\[\]\),\.\.\.\(role==='finance'\?\['客户中心','服务中心'\]/,'非贷款岗位不得显示越权业务菜单');
-  assert.match(source,/const visibleGroups=admin\|\|lender\?groups:groups\.filter/,'普通员工不得显示组织与产品管理菜单');
+  assert.match(source,/const hiddenGroups=\['组织与系统',\.\.\.\(nonLoanRole&&role!=='ops'\?\['产品与运营'\]\:\[\]\),\.\.\.\(nonLoanRole\?\['业务中心'\]\:\[\]\),\.\.\.\(role==='finance'\?\['客户中心','服务中心'\]/,'非贷款岗位不得显示越权业务菜单');
+  assert.match(source,/groupName==='产品与运营'&&role==='ops'.*\['贷款产品','风控规则与版本'\]/,'运营岗位产品菜单只能显示已授权页面');
+  assert.match(source,/const visibleGroups=\(admin\|\|lender\?groups:groups\.filter[\s\S]*\.filter\(\(\[,children\]:any\)=>children\.length\)/,'普通员工不得显示越权菜单，运营岗位只保留授权产品入口');
   assert.match(source,/const workspaceTabs=\(admin\|\|member\?\.role==='audit'/,'工作区业务标签必须按岗位范围收敛');
   assert.match(source,/const activeWorkspaceTab=workspaceTabs\.some\(\(\[key\]\)=>key===queueView\)\?queueView:defaultWorkspaceTab/,'隐藏标签不能成为当前工作区');
   assert.match(source,/member\.role==='kyc'\|\|member\.role==='dept_admin'\|\|member\.role==='ops'\?\[\['kyc','KYC 待审核'/,'非贷款岗位概览不得显示贷款和资金快捷入口');
