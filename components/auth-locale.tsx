@@ -19,6 +19,7 @@ Object.assign(copy,{
  ,'输入手机号继续，新用户自动创建账号。':['输入手机号继续，新用户自动创建账号。','Enter your phone number to continue. New users are created automatically.','បញ្ចូលលេខទូរស័ព្ទដើម្បីបន្ត។ អ្នកប្រើថ្មីនឹងបង្កើតគណនីដោយស្វ័យប្រវត្តិ។']
  ,'仅需完成当前渠道开启的账号设置。':['仅需完成当前渠道开启的账号设置。','Only the account steps enabled for this channel are required.','ត្រូវបំពេញតែជំហានគណនីដែលបានបើកសម្រាប់ឆានែលនេះប៉ុណ្ណោះ។']
  ,'测试资金':['测试资金','Test funds','ប្រាក់សាកល្បង']
+ ,'客户账号 · 测试资金':['客户账号 · 测试资金','Customer account · Test funds','គណនីអតិថិជន · ប្រាក់សាកល្បង']
 } as Record<string,[string,string,string]>);
 const reverse=new Map<string,string>();for(const [key,values] of Object.entries(copy))for(const value of values)reverse.set(value,key);
 function localize(root:HTMLElement,locale:Locale){const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);const nodes:Text[]=[];let n:Node|null;while((n=walker.nextNode())){const tag=n.parentElement?.tagName.toLowerCase();if(tag&&['script','style'].includes(tag))continue;nodes.push(n as Text)}for(const node of nodes){const raw=node.textContent||'',trimmed=raw.trim(),key=reverse.get(trimmed);if(!key)continue;const value=copy[key][locale==='zh'?0:locale==='km'?2:1];node.textContent=raw.replace(trimmed,value)}root.querySelectorAll<HTMLElement>('input,textarea,select,[aria-label],[title]').forEach(el=>{for(const attr of ['placeholder','aria-label','title']){const raw=el.getAttribute(attr);if(!raw)continue;const key=reverse.get(raw.trim());if(key)el.setAttribute(attr,copy[key][locale==='zh'?0:locale==='km'?2:1])}})}
