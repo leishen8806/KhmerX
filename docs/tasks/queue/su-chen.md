@@ -213,6 +213,11 @@ PR 小于 400 行。
 - 仍无代码的计划项（不是 Codex 卡）：Litestream（现用 rclone 日备份，恢复未演练）、监控、临时放大的同构压测环境。
 - 仅本机 Docker 验证；任何灰度操作不得标记为可执行。
 
+**评审返修（2026-10-17，对 #60/#62/#64/#66/#67 的独立评审；C1-a、C1-b、C3-a 已在 main，无需返修卡）：**
+- **C2R**　`docs/tasks/codex-prompts/C2R-gray-artifact-fixes.md`　继续使用分支 `feat/server/gray-artifact`（PR #60，追加提交）：依赖复用校验与来源记录、构建前 `dist` 处理、校验脚本运行方式文档、`.gitattributes`。**真实构建证据仍受阻塞（缺 Linux 依赖，需技术负责人指示），PR 保持 Draft，验收为 EVIDENCE PENDING。**
+- **C3R**　`docs/tasks/codex-prompts/C3R-flutter-upload-fixes-and-integration.md`　新分支 `fix/app/D5-upload-integration`（`Line: app`，**PR 目标 main**）：补销毁取消与取消不呈现失败的测试、修同槽位上传竞态，并把 C3-b（`20bd678`，目前只在 `feat/app/D5`、不在 main）整合进 main。
+- 执行顺序：C2R 与 C3R 互不依赖，可并行；C3R 合并后 C3 才完整进入 main。
+
 ---
 
 ## L2 灰度机压测执行与报告（人工 + 脚本）
