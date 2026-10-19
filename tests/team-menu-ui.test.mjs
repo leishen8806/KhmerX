@@ -12,6 +12,15 @@ const customerTags=fs.readFileSync(path.join(process.cwd(),'app/api/team/custome
 const localeRoute=fs.readFileSync(path.join(process.cwd(),'app/api/team/locale/route.ts'),'utf8');
 const reportCenter=fs.readFileSync(path.join(process.cwd(),'components/report-center.tsx'),'utf8');
 const teamClient=fs.readFileSync(path.join(process.cwd(),'app/team/client.tsx'),'utf8');
+const teamAuth=fs.readFileSync(path.join(process.cwd(),'app/api/team/auth/route.ts'),'utf8');
+const teamRoute=fs.readFileSync(path.join(process.cwd(),'app/api/team/route.ts'),'utf8');
+
+test('multi-company SSO restores the last company and updates it on switch',()=>{
+  assert.match(teamAuth,/STAFF_LAST_COMPANY/,'登录流程必须保留上次公司选择');
+  assert.match(teamAuth,/remembered&&m\.tenant_id===remembered/,'SSO 必须优先恢复上次登录公司');
+  assert.match(teamRoute,/STAFF_LAST_COMPANY/,'公司切换必须更新上次公司记录');
+  assert.match(teamRoute,/\[cookie\(request,TEAM_COOKIE,t\.id,86400\),cookie\(request,STAFF_LAST_COMPANY,t\.id,31536000\)\]/,'公司切换需同时更新当前公司与持久化记忆');
+});
 
 test('customer tag writes enforce the current employee data scope',()=>{
   assert.match(customerTags,/import \{assignment,audit,db,staff\} from ['"]@\/lib\/team\/server['"]/);

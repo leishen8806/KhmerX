@@ -3,6 +3,7 @@ import {headers} from 'next/headers';
 import {getChatGPTUser} from '@/app/chatgpt-auth';
 import {AuthError,randomToken,digest} from '@/lib/h5-auth-core';
 export const STAFF_SESSION='payease_staff_session',STAFF_MODE='payease_staff_mode',STAFF_COMPANY='payease_staff_company',STAFF_PORTAL='payease_staff_portal',STAFF_MFA_SETUP='payease_staff_mfa_setup';
+export const STAFF_LAST_COMPANY='payease_last_team_company';
 export type StaffPortal='business'|'lender';
 export function portal(value:unknown):StaffPortal{return value==='lender'?'lender':'business'}
 export function portalAllows(role:string,selected:StaffPortal){return selected==='lender'?['checker','finance_checker'].includes(role):!['lender','checker','finance','finance_checker'].includes(role)}
