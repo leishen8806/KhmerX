@@ -52,6 +52,11 @@
 
 .h5-other-login{border-top:1px solid var(--border);padding-top:20px;font-size:14px;color:var(--muted-foreground)}.h5-other-login summary{cursor:pointer;min-height:44px;display:flex;align-items:center}.h5-other-login .button-row{flex-wrap:wrap;margin-top:8px}
 
+/* Company management uses the same independent-page frame as every CRM subpage. */
+.crm-subpage-shell>.crm-independent-page:not(.panel){margin:20px 0;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;min-width:0}
+.crm-independent-page>.crm-independent-head{min-width:0}
+@media(max-width:620px){.crm-subpage-shell>.crm-independent-page:not(.panel){margin:16px 0;padding:16px}.crm-independent-head{display:block}.crm-independent-head .crm-page-badge{display:inline-flex;margin-top:12px}.crm-independent-head h1{font-size:22px}.crm-action-panel{padding:16px}.crm-page-kpis{display:grid;grid-template-columns:1fr;gap:10px}.crm-page-kpis strong{font-size:22px}}
+
 .assignment-workspace{margin-top:24px;border-top:1px solid var(--border);padding-top:20px}.assignment-tabs{display:flex!important;width:100%;height:auto!important;flex-wrap:wrap;gap:8px;margin-bottom:24px}.assignment-tabs>button{flex:1;min-height:48px;white-space:normal}.assignment-workspace details{margin:16px 0}.assignment-workspace summary{cursor:pointer;color:var(--primary);min-height:32px}.assignment-workspace .team-assignment{overflow-wrap:anywhere}.assignment-workspace .panel{border:0;padding:0}.assignment-unsubmitted{border-top:1px solid var(--border);padding-top:16px}@media(max-width:600px){.assignment-tabs>button{flex:1 1 100%;justify-content:flex-start}}
 
 .test-flow-toolbar{display:flex;justify-content:flex-end;max-width:1480px;margin:auto;padding:10px 24px 0;position:relative;z-index:40}.test-flow-menu{width:240px;max-width:calc(100vw - 24px)}.test-flow-menu a{min-height:44px;gap:12px;font-size:14px}.test-flow-menu .fine{padding:0 8px;font-size:12px}@media(max-width:600px){.test-flow-toolbar{padding:8px 16px 0}}
