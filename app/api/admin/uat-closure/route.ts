@@ -33,7 +33,7 @@ async function seed(request:Request,p:any,operator:any){
  const tenant=await tenantFor(slug),existing=await db().prepare('SELECT * FROM team_uat_closure_batches WHERE tenant_id=? AND batch_id=?').bind(tenant.id,batchId).first<any>();
  if(existing)return {ok:true,replayed:true,batch:existing};
  const {customerId,caseId}=ids(batchId),now=new Date().toISOString(),customer={id:customerId,phoneMasked:'+855 12 •••• 0001',channel:'SY' as const};
- await db().prepare('INSERT OR IGNORE INTO h5_accounts (customer_id,owner,phone_mask,mode,created_at,verification_completed) VALUES (?,?,?,?,?,1)').bind(customerId,tenant.id,customer.phoneMasked,'demo',Date.now(),1).run();
+ await db().prepare('INSERT OR IGNORE INTO h5_accounts (customer_id,owner,phone_mask,mode,created_at,verification_completed) VALUES (?,?,?,?,?,?)').bind(customerId,tenant.id,customer.phoneMasked,'demo',Date.now(),1).run();
  await ensureAssignment(tenant.id,customerId);
  try{
   const row=await initialize(tenant.id,customerId,true);
