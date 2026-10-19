@@ -7,8 +7,8 @@
 - 公司入口代码：`uat-acceptance-20261019`
 - 状态：启用
 - 默认公司：`KhmerX UAT Closed Loop 20261019`
-- 本次发布提交：`3f655fd3b4b1dd7bc88ac40f85f432dd10f12049`
-- Sites 发布：版本 `314`，部署状态 `succeeded`
+- 本次发布提交：`667d33f35a7411b50786884c50f450fd45622999`
+- Sites 发布：版本 `319`，部署状态 `succeeded`
 
 ## 2. 本次修复
 
@@ -36,19 +36,18 @@
 - 双人复核、停用员工、MFA、登录/退出、公司切换与审计；
 - 附件配额、跨公司访问拒绝、报表导出脱敏和审计完整性。
 
-结果：`npm test` 247 passed、0 failed、1 explicit skip；专项团队集成测试 69 passed、0 failed。
+结果：`npm test` 250 passed、0 failed、1 explicit skip；专项团队集成测试 70 passed、0 failed。
 
 ## 5. 发布前检查
 
 - `npm run typecheck`：通过
 - `npm run lint`：通过，0 errors（既有 warnings）
 - `npm run audit:i18n`：通过
-- `npm run build`：通过，client boundary 113 files
-- `npm run build:separated`：通过，leaks 0
+- `npm run build:separated`：通过，client boundary 113 files、leaks 0
 
 ## 6. 数据闭环边界与后续动作
 
-线上专用租户已完成创建、默认公司绑定、头像切换和组织范围回读；生产共享数据未通过隐式 seed 写入合成贷款/账单，避免把测试业务混入共享租户。完整 KYC→审批→放款→账单→还款→审计闭环已在隔离 SQLite UAT 批次验证。若要在生产租户进行可追溯业务演练，应先增加受控的 UAT seed/清理入口（带批次号、幂等键和审计），再执行同一批次的浏览器回放。
+线上专用租户已完成创建、默认公司绑定、头像切换和组织范围回读；生产共享数据未通过隐式 seed 写入合成贷款/账单，避免把测试业务混入共享租户。完整 KYC→审批→放款→账单→还款→审计闭环已在隔离 SQLite UAT 批次验证。受控 UAT seed/清理入口已上线但保持关闭，待明确授权后才可对专用 `uat-*` 租户执行可追溯业务演练。
 
 ## 7. 最终完整业务闭环验收矩阵（本轮执行）
 
@@ -65,21 +64,21 @@
 
 ### 自动化结果
 
-- 专项团队集成回归：`69 passed / 0 failed / 0 skipped`。
-- 全量回归：`247 passed / 0 failed / 1 explicit skip`。
+- 专项团队集成回归：`70 passed / 0 failed / 0 skipped`。
+- 全量回归：`250 passed / 0 failed / 1 explicit skip`。
 - 既有发布检查：类型检查、Lint、国际化审计、双构建和泄漏检查均通过。
-- 生产版本：Sites `314`，部署状态 `succeeded`。
+- 生产版本：Sites `319`，部署状态 `succeeded`。
 
 ### 发布判定
 
-当前结论为“隔离 UAT 业务闭环通过、生产控制面通过”。不将生产共享租户直接写入不可清理的 KYC/贷款/账单合成数据，因此“生产租户业务数据复放”暂列发布前阻断项，而不是将本地隔离测试结果冒充线上业务数据。解除阻断所需的唯一前置是提供受控 UAT seed/清理能力：平台管理员可用、批次号和幂等键必填、每次写入/清理写入审计、只能作用于专用 UAT 租户；入口上线后即可按本矩阵重复浏览器验收并回读服务端数据。
+当前结论为“隔离 UAT 业务闭环通过、生产控制面通过、受控入口已部署但默认关闭”。不将生产共享租户直接写入合成 KYC/贷款/账单数据；只有在明确授权并开启专用开关后，才允许平台管理员按批次对 `uat-*` 租户执行 seed/clear，并通过浏览器、接口和服务端回读完成线上复放验收。
 
 ## 8. 继续复测记录（2026-10-19）
 
-- 复跑专项团队集成测试：`69 passed / 0 failed / 0 skipped`。
-- 复跑全量测试：`247 passed / 0 failed / 1 explicit skip`。
-- 生产站点复核：状态 `active`，最新版本 `314`；本轮无源代码变更，因此未创建重复发布版本。
-- 复核结论不变：隔离 UAT 闭环和生产控制面保持通过；生产业务数据复放仍等待受控 seed/清理入口，禁止通过临时脚本直接改写共享生产数据。
+- 复跑专项团队集成测试：`70 passed / 0 failed / 0 skipped`。
+- 复跑全量测试：`250 passed / 0 failed / 1 explicit skip`。
+- 生产站点复核：状态 `active`，最新版本 `319`；本轮为验收记录与受控入口发布后的最终复核。
+- 复核结论：隔离 UAT 闭环和生产控制面保持通过；受控 seed/清理入口已具备但生产开关关闭，禁止通过临时脚本直接改写共享生产数据。
 
 ## 9. 受控 UAT 入口发布记录（2026-10-19）
 
@@ -87,6 +86,6 @@
 - 每个批次写入 `team_uat_closure_batches`，以租户和 `batchId` 保证幂等；seed/clear 均写入 `team_audit`，清理保留批次和审计记录。
 - 入口默认 fail-closed：未设置 `UAT_CLOSURE_ENABLED=true` 或专用 `x-uat-closure-token` 时不可访问；本次部署未开启生产写入开关。
 - 发布前验证：类型检查、Lint、分离构建（client boundary 113 files、leaks 0）、专项 70/70、全量 250/251（1 个显式 skip）及入口静态测试 2/2 通过。
-- 部署后复测：Sites 版本 `318`，部署状态 `succeeded`；Chrome 线上后台加载完成，组织与系统菜单、公司管理页、默认公司提示和头像切换公司入口均可见。
+- 部署后复测：Sites 版本 `319`，部署状态 `succeeded`；Chrome 线上后台加载完成，组织与系统菜单、公司管理页、默认公司提示和头像切换公司入口均可见。
 - 受控入口 SQLite 回放：`seed → 幂等 seed → clear` 全部通过；清理后贷款、账务分录、H5 账号、KYC 案件、KYC 历史、分配记录为零，`uat_closure_seed` 与 `uat_closure_clear` 审计记录保留。
 - 生产结论：代码已部署，真实生产合成数据 seed/clear 未执行；后续只有在明确启用专用开关后，才按批次执行浏览器、接口和服务端回读验收。

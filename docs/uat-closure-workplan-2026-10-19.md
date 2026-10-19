@@ -26,7 +26,7 @@
 - 专项回归：`node --experimental-vm-modules --test tests/team-integration.test.mjs` → `70 passed / 0 failed / 0 skipped`。
 - 全量回归：`npm test` → `250 passed / 0 failed / 1 explicit skip`。
 - 生产控制面：专用租户创建、头像切换、公司切换、组织页范围回读通过。
-- 生产版本：Sites `318`，状态 `active`，部署状态 `succeeded`。
+- 生产版本：Sites `319`，状态 `active`，部署状态 `succeeded`。
 - 受控入口实现：`POST /api/admin/uat-closure`，支持 `seed`/`clear`；默认关闭，要求 `UAT_CLOSURE_ENABLED=true`、专用令牌和平台管理员权限。
 - 入口静态回归：`tests/uat-closure-route.test.mjs` → `2 passed / 0 failed`；迁移 `drizzle/0063_uat_closure_batches.sql` 保证租户、批次唯一性和状态索引。
 - 入口集成回归：团队 SQLite 集成测试新增“seed → 幂等回放 → clear → 零数据/审计回读”，专项结果 `70 passed / 0 failed`。
