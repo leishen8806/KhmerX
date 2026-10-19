@@ -176,4 +176,5 @@ test('organization tables keep language options horizontal and select arrows ins
   assert.match(css,/company-language-cell label\{display:inline-flex!important;flex:0 0 auto;flex-direction:row!important;align-items:center/,'公司语言选项不得被通用表单标签样式挤成纵向');
   assert.match(css,/company-language-cell input\{flex:0 0 auto;width:auto;margin:0\}/,'语言复选框应与文字保持同一行');
   assert.match(css,/select:not\(\[multiple\]\)\{[^}]*background-position:right 14px center[^}]*padding-right:44px/,'下拉箭头需要与右边框保留稳定间距');
+  assert.match(teamClient,/select aria-label=\{company\.slug\+' 状态'\}/,'公司状态下拉框必须有可读标签，便于键盘和辅助技术操作');
 });
