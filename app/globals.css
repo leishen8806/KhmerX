@@ -329,7 +329,7 @@ body:has(.mini-app) .auth-locale{display:none}
 .loan-products-panel .button-row{gap:8px}
 .loan-products-panel .table-scroll{margin-top:4px}
 @media(max-width:760px){.crm-panel-toolbar{align-items:stretch}.crm-panel-toolbar>.inline-field{flex:1 1 100%}.crm-panel-toolbar>button{width:100%}}
-.crm-independent-page .table-scroll{overflow-x:auto;max-width:100%;-webkit-overflow-scrolling:touch}.crm-independent-page .table-scroll>table{min-width:760px}.crm-independent-page .table-scroll th,.crm-independent-page .table-scroll td{vertical-align:middle}.crm-independent-page .table-scroll td.company-language-cell{min-width:190px;white-space:nowrap}.crm-independent-page .table-scroll td.company-language-cell label{display:inline-flex;flex-direction:row;align-items:center;gap:6px;margin:0 14px 0 0;white-space:nowrap}.crm-independent-page .table-scroll td.company-language-cell input{flex:0 0 auto}
+.crm-independent-page .table-scroll{overflow-x:auto;max-width:100%;-webkit-overflow-scrolling:touch}.crm-independent-page .table-scroll>table{min-width:760px}.crm-independent-page .table-scroll th,.crm-independent-page .table-scroll td{vertical-align:middle}.crm-independent-page .table-scroll td.company-language-cell{min-width:190px;white-space:nowrap}.crm-independent-page .table-scroll td.company-language-cell label{display:inline-flex!important;flex:0 0 auto;flex-direction:row!important;align-items:center;gap:6px;margin:0 14px 0 0;white-space:nowrap}.crm-independent-page .table-scroll td.company-language-cell input{flex:0 0 auto;width:auto;margin:0}
 .crm-table-scroll-hint{display:none;margin:0 0 8px;color:var(--muted-foreground);font-size:12px}
 .crm-action-panel>button{margin-top:16px}
 .crm-action-panel>.team-grid+label{margin-top:16px}
