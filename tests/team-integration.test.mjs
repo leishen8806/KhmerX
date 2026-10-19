@@ -467,6 +467,7 @@ test('staff auth HTTP logout, SSO choice, same-origin and company entry enforcem
  const out=await route.POST(make({action:'logout'}));assert.equal(out.status,200);assert.match(out.headers.get('set-cookie'),/payease_staff_mode=out/);assert(!out.headers.get('set-cookie').includes('payease_h5_session'));
  assert.equal((await route.POST(make({action:'sso'},'https://evil.invalid'))).status,403);
  assert.equal((await route.POST(make({action:'sso'}))).status,200);env.KHMERX_TEST_MODE='false';extraCookies='';assert.equal((await api.GET()).status,401);env.KHMERX_TEST_MODE='true';
+ const remembered=await route.POST(new Request('http://localhost/api/team/auth',{method:'POST',headers:{origin:'http://localhost','content-type':'application/json','cookie':`payease_last_team_company=${B}`},body:JSON.stringify({action:'sso'})}));assert.equal(remembered.status,200);assert.match(remembered.headers.get('set-cookie')||'',new RegExp(`payease_staff_company=${B}`));
  user=lender;assert.equal((await api.POST(make({action:'enter',slug:'synthetic-b'}))).status,403);
  user=owner;extraCookies='';
 });
