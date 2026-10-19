@@ -107,6 +107,13 @@ test('service backend menu keeps merged customer and KYC entries unique',()=>{
   assert.match(router,/role==='finance'\)return \['放款管理','账单与还款'/,'放款员页面守卫必须保留资金业务入口');
 });
 
+test('MFA security menu label stays unified while legacy links remain compatible',()=>{
+  assert.match(source,/操作审计','#team-audit','audit'\],\['MFA 与登录安全','#team-audit','audit'\]/,'侧栏必须使用统一的 MFA 与登录安全名称');
+  assert.match(subpages,/view==='登录与 IP'\|\|view==='MFA 与登录安全'\?'登录与 IP'/,'旧登录与 IP 链接必须继续规范化到同一内部页面');
+  assert.match(router,/if\(view==='登录与 IP'\)return <Frame view=\{view\} title="MFA 与登录安全">/,'页面标题必须把旧内部视图显示为统一的新名称');
+  assert.match(teamClient,/subview==='登录与 IP'\?'MFA 与登录安全':subview/,'面包屑必须把旧内部视图显示为统一的新名称');
+});
+
 test('audit staff can reach read-only organization pages from the sidebar',()=>{
   assert.match(source,/role==='audit'&&groupName==='组织与系统'\|\|!hiddenGroups\.includes\(groupName\)/);
   assert.match(source,/groupName==='组织与系统'&&role==='audit'.*\['数据范围','字段权限','系统健康'\]/);
