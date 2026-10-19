@@ -29,7 +29,7 @@ import {canonicalCrmView,crmSubpageByView,crmSubpageHref} from '@/lib/team/crm-s
 import {LayoutDashboard,UsersRound,BriefcaseBusiness,Headphones,ShieldCheck,WalletCards,BarChart3,Settings2,ClipboardCheck} from 'lucide-react';
 import {apiFetch,ApiClientError} from '@/lib/api-client';
 const localeFlags:Record<Locale,string>={zh:'🇨🇳',en:'🇬🇧',km:'🇰🇭'};
-function companyContextLabel(data:any){return data?.platform&&!data?.company?'平台范围：全部公司':`所属公司：${data?.company?.name||'未选择公司'}`}
+function companyContextLabel(data:any){const company=data?.company?.name||data?.platformDefaultCompany?.name||data?.companies?.[0]?.name;return company?(data?.company?`所属公司：${company}`:`默认公司：${company}`):'默认公司：未配置'}
 const crmSidebarIcons:Record<string,typeof LayoutDashboard>={工作台:LayoutDashboard,客户中心:UsersRound,业务中心:BriefcaseBusiness,服务中心:Headphones,风控与资金:ShieldCheck,产品与运营:WalletCards,报表中心:BarChart3,组织与系统:Settings2,审计与安全:ClipboardCheck};
 function CrmSidebarIcon({label}:{label:string}){const Icon=crmSidebarIcons[label]||ClipboardCheck;return <Icon className="crm-sidebar-icon" aria-hidden="true"/>}
 function CompanySwitcher({data,busy,post}:{data:any;busy:boolean;post:(body:any,path?:string)=>Promise<boolean>}){const memberships=data?.memberships||[];if(memberships.length<2)return null;return <div className="crm-company-switcher"><span>切换公司</span>{memberships.map((m:any)=>{const current=m.tenant_id===data?.company?.id;return <button type="button" key={m.tenant_id} aria-label={`${current?'当前':'进入'}：${m.name} · ${roleLabels[m.role as TeamRole]}`} disabled={busy||current} onClick={()=>void post({action:'enter',slug:m.slug})}>{current?'当前：':'进入：'}{m.name} · {roleLabels[m.role as TeamRole]}</button>})}</div>}
