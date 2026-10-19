@@ -13,6 +13,8 @@ test('UAT closure endpoint is fail-closed and tenant-scoped',()=>{
  assert.match(route,/uat_closure_seed/);
  assert.match(route,/uat_closure_clear/);
  assert.match(route,/team_uat_closure_batches/);
+ assert.match(route,/assertEmptyUatTenant/);
+ assert.match(route,/UAT_TENANT_NOT_EMPTY/);
 });
 
 test('UAT closure batch storage supports idempotency and audit retention',()=>{

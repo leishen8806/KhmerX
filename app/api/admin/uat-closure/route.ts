@@ -27,11 +27,28 @@ async function tenantFor(slug:string){
 }
 function ids(batch:string){return {customerId:`uat-customer-${batch}`,caseId:`uat-kyc-${batch}`}}
 
+async function assertEmptyUatTenant(tenant:any){
+ const workspace=await db().prepare('SELECT payload FROM demo_workspaces WHERE owner=?').bind(tenant.id).first<any>();
+ if(workspace){
+  let state:any;
+  try{state=JSON.parse(workspace.payload)}catch{throw new AuthError('专用 UAT 租户工作区数据无效，禁止覆盖',409,'UAT_TENANT_NOT_EMPTY')}
+  const collections=['customers','loans','entries','events','notifications'];
+  if(collections.some(key=>Array.isArray(state?.[key])&&state[key].length>0))throw new AuthError('专用 UAT 租户已有业务数据，请先清理对应批次',409,'UAT_TENANT_NOT_EMPTY');
+ }
+ const existing=await db().batch([
+  db().prepare('SELECT COUNT(*) AS n FROM h5_accounts WHERE owner=?').bind(tenant.id),
+  db().prepare('SELECT COUNT(*) AS n FROM kyc_cases WHERE owner=?').bind(tenant.id),
+  db().prepare('SELECT COUNT(*) AS n FROM team_assignments WHERE tenant_id=?').bind(tenant.id)
+ ]);
+ if(existing.some(row=>Number((row.results?.[0] as any)?.n||0)>0))throw new AuthError('专用 UAT 租户已有业务数据，请先清理对应批次',409,'UAT_TENANT_NOT_EMPTY');
+}
+
 async function seed(request:Request,p:any,operator:any){
  const batchId=text(p.batchId,64).toLowerCase(),slug=text(p.company,64).toLowerCase();
  if(!/^[a-z0-9][a-z0-9-]{2,63}$/.test(batchId))throw new AuthError('batchId 格式无效');
  const tenant=await tenantFor(slug),existing=await db().prepare('SELECT * FROM team_uat_closure_batches WHERE tenant_id=? AND batch_id=?').bind(tenant.id,batchId).first<any>();
  if(existing)return {ok:true,replayed:true,batch:existing};
+ await assertEmptyUatTenant(tenant);
  const {customerId,caseId}=ids(batchId),now=new Date().toISOString(),customer={id:customerId,phoneMasked:'+855 12 •••• 0001',channel:'SY' as const};
  await db().prepare('INSERT OR IGNORE INTO h5_accounts (customer_id,owner,phone_mask,mode,created_at,verification_completed) VALUES (?,?,?,?,?,?)').bind(customerId,tenant.id,customer.phoneMasked,'demo',Date.now(),1).run();
  await ensureAssignment(tenant.id,customerId);
