@@ -87,4 +87,5 @@
 - 每个批次写入 `team_uat_closure_batches`，以租户和 `batchId` 保证幂等；seed/clear 均写入 `team_audit`，清理保留批次和审计记录。
 - 入口默认 fail-closed：未设置 `UAT_CLOSURE_ENABLED=true` 或专用 `x-uat-closure-token` 时不可访问；本次部署未开启生产写入开关。
 - 发布前验证：类型检查、Lint、分离构建（client boundary 113 files、leaks 0）、专项 69/69、全量 249/250（1 个显式 skip）及入口静态测试 2/2 通过。
+- 部署后复测：Sites 版本 `315`，部署状态 `succeeded`；Chrome 线上后台加载完成，组织与系统菜单、公司管理页、默认公司提示和头像切换公司入口均可见。
 - 生产结论：代码已部署，真实生产合成数据 seed/clear 未执行；后续只有在明确启用专用开关后，才按批次执行浏览器、接口和服务端回读验收。
