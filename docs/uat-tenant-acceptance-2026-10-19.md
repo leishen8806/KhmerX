@@ -89,3 +89,12 @@
 - 部署后复测：Sites 版本 `319`，部署状态 `succeeded`；Chrome 线上后台加载完成，组织与系统菜单、公司管理页、默认公司提示和头像切换公司入口均可见。
 - 受控入口 SQLite 回放：`seed → 幂等 seed → clear` 全部通过；清理后贷款、账务分录、H5 账号、KYC 案件、KYC 历史、分配记录为零，`uat_closure_seed` 与 `uat_closure_clear` 审计记录保留。
 - 生产结论：代码已部署，真实生产合成数据 seed/clear 未执行；后续只有在明确启用专用开关后，才按批次执行浏览器、接口和服务端回读验收。
+
+## 10. 本轮最终复验（2026-10-19）
+
+- 专项团队集成回归：`70 passed / 0 failed / 0 skipped`。
+- UAT 入口静态回归：`2 passed / 0 failed`。
+- 全量回归：`250 passed / 0 failed / 1 explicit skip`。
+- 类型检查、分离构建通过，构建泄漏数为 `0`；Lint 为 `0 errors / 659 warnings`。
+- Chrome 只读复测公司管理、KYC 审核、贷款申请、账单与还款、审计与安全页面，均正常加载，无 `chrome-error` 或站点错误页。
+- 生产 UAT 开关保持关闭，未对生产租户写入或清理合成 KYC、贷款、账单数据。

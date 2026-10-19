@@ -44,3 +44,13 @@
 ## 当前结论
 
 业务逻辑闭环已由隔离 UAT 通过；生产业务数据闭环尚未宣称完成，唯一原因是缺少可审计、可回滚、可重复的生产 UAT 数据入口。该边界已记录，后续开发应先完成 UAT-10，再进行线上业务数据复放验收。
+
+## 本轮复验（2026-10-19）
+
+- 专项团队集成回归：`70 passed / 0 failed / 0 skipped`。
+- UAT 入口静态回归：`2 passed / 0 failed`。
+- 全量回归：`250 passed / 0 failed / 1 explicit skip`。
+- `npm run typecheck`、`npm run build:separated`：通过；分离构建 `leaks: 0`。
+- `npm run lint`：0 errors，659 warnings（均为既有告警）。
+- 线上只读复测：公司管理、KYC 审核、贷款申请、账单与还款、审计与安全页面均完成加载；未出现浏览器错误页。
+- 本轮未启用 `UAT_CLOSURE_ENABLED`，未写入或清理生产合成业务数据。
