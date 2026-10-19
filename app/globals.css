@@ -328,3 +328,4 @@ body:has(.mini-app) .auth-locale{display:none}
 .loan-products-panel .button-row{gap:8px}
 .loan-products-panel .table-scroll{margin-top:4px}
 @media(max-width:760px){.crm-panel-toolbar{align-items:stretch}.crm-panel-toolbar>.inline-field{flex:1 1 100%}.crm-panel-toolbar>button{width:100%}}
+.crm-independent-page .table-scroll{overflow-x:auto;max-width:100%;-webkit-overflow-scrolling:touch}.crm-independent-page .table-scroll>table{min-width:760px}.crm-independent-page .table-scroll th,.crm-independent-page .table-scroll td{vertical-align:middle}
