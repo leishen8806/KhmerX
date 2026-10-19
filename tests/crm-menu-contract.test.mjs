@@ -10,7 +10,7 @@ const source=fs.readFileSync(path.join(here,'..','lib','team','crm-subpages.ts')
 test('CRM menu contract keeps every configured submenu independently described',()=>{
   const labels=[...source.matchAll(/items:\[([\s\S]*?)\]/g)]
     .flatMap(([,items])=>[...items.matchAll(/['"]([^'"]+)['"]/g)].map(([,label])=>label));
-  assert.equal(labels.length,58,'menu item count changed; update the acceptance matrix intentionally');
+  assert.equal(labels.length,59,'menu item count changed; update the acceptance matrix intentionally');
   assert.equal(labels.includes('补件任务'),false,'legacy supplement task must stay merged into KYC 审核队列');
   assert.equal(new Set(labels).size,labels.length,'menu labels must be unique for in-page routing');
   const descriptions=source.match(/const descriptions:Record<string,string>=\{([\s\S]*?)\};/);
