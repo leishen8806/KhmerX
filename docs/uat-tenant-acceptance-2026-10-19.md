@@ -80,3 +80,11 @@
 - 复跑全量测试：`247 passed / 0 failed / 1 explicit skip`。
 - 生产站点复核：状态 `active`，最新版本 `314`；本轮无源代码变更，因此未创建重复发布版本。
 - 复核结论不变：隔离 UAT 闭环和生产控制面保持通过；生产业务数据复放仍等待受控 seed/清理入口，禁止通过临时脚本直接改写共享生产数据。
+
+## 9. 受控 UAT 入口发布记录（2026-10-19）
+
+- 新增 `POST /api/admin/uat-closure`，提供批次化 `seed` 与 `clear`；仅允许平台管理员操作，并强制目标公司代码匹配 `uat-*`。
+- 每个批次写入 `team_uat_closure_batches`，以租户和 `batchId` 保证幂等；seed/clear 均写入 `team_audit`，清理保留批次和审计记录。
+- 入口默认 fail-closed：未设置 `UAT_CLOSURE_ENABLED=true` 或专用 `x-uat-closure-token` 时不可访问；本次部署未开启生产写入开关。
+- 发布前验证：类型检查、Lint、分离构建（client boundary 113 files、leaks 0）、专项 69/69、全量 249/250（1 个显式 skip）及入口静态测试 2/2 通过。
+- 生产结论：代码已部署，真实生产合成数据 seed/clear 未执行；后续只有在明确启用专用开关后，才按批次执行浏览器、接口和服务端回读验收。
