@@ -98,6 +98,18 @@ test('admin directly creates, changes, disables and re-enables members; old invi
  user={userId:'correct',email:'pending@example.test'};assert.equal((await team.staff()).member.role,'audit');
  user={userId:'different',email:'pending@example.test'};await assert.rejects(team.staff());
 });
+
+test('platform company creation stays on platform scope and does not set a company cookie',async()=>{
+ selected='';user=owner;extraCookies='';
+ const api=await mod('@/app/api/team/route');
+ const response=await api.POST(new Request('http://localhost/api/team',{method:'POST',headers:{origin:'http://localhost','content-type':'application/json'},body:JSON.stringify({action:'create_company',name:'Synthetic Cookie Check',slug:'synthetic-cookie-check',en:true,km:true,zh:true})}));
+ assert.equal(response.status,200);
+ assert.equal(response.headers.get('set-cookie'),null);
+ const payload=await response.json();assert(payload.companyId);
+ const platformData=await team.teamData();assert(platformData.companies.some((company)=>company.id===payload.companyId));
+ selected=payload.companyId;const selectedData=await team.teamData();assert(selectedData.companies.some((company)=>company.id===payload.companyId));
+ selected='';
+});
 test('same-person checks remain forbidden even if their role changes',async()=>{const policy=await mod('@/lib/team/policy');assert.throws(()=>policy.requireDifferent('same','same'));assert.throws(()=>policy.requireDifferent('same',undefined));assert.doesNotThrow(()=>policy.requireDifferent('checker','maker'))});
 test('independent loan signature remains bound to the reviewed profile and bill',async()=>{selected=A;user=owner;const row=await kyc.findCase(A,'customer-1'),data=await kyc.payload(row),loan=(await store.readState(A)).state.loans.find(l=>l.id===loanId);const contract=await signing.validLoanContract(A,loan,row);assert.equal(contract.loanId,loanId);assert.equal(contract.termsLocale,'zh');await assert.rejects(signing.validLoanContract(A,{...loan,amount:loan.amount+1},row));await assert.rejects(signing.validLoanContract(A,{...loan,kycRevision:row.revision+1},row));});
 test('legacy contract snapshots without signing locale are rejected',async()=>{selected=A;user=owner;const row=await kyc.findCase(A,'customer-1'),loan=(await store.readState(A)).state.loans.find(l=>l.id===loanId),stored=sql.prepare('SELECT payload FROM kyc_contracts WHERE signature_id=? AND owner=? AND customer_id=?').get(loan.contract&&JSON.parse(loan.contract).signatureId,A,'customer-1');const contract=JSON.parse(loan.contract);const legacy={...contract};delete legacy.termsLocale;delete legacy.contractHash;legacy.contractHash=await kyc.digest(JSON.stringify(legacy));const encrypted=await kyc.encryptBytes(new TextEncoder().encode(JSON.stringify(legacy)),'contract:'+contract.signatureId);const encoded=btoa(String.fromCharCode(...encrypted));sql.prepare('UPDATE kyc_contracts SET payload=? WHERE signature_id=? AND owner=? AND customer_id=?').run(encoded,contract.signatureId,A,'customer-1');try{await assert.rejects(signing.validLoanContract(A,loan,row),/请完成当前申请的费用确认与手写签约/)}finally{sql.prepare('UPDATE kyc_contracts SET payload=? WHERE signature_id=? AND owner=? AND customer_id=?').run(stored.payload,contract.signatureId,A,'customer-1')}});
