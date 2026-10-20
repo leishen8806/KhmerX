@@ -557,3 +557,8 @@ test('audit cards keep event labels and timestamps aligned on narrow screens',()
   assert.match(css,/\.team-audit-head strong,\.team-audit-head span\{min-width:0;overflow-wrap:anywhere\}/,'审计事件和时间需要允许收缩换行');
   assert.match(css,/@media\(max-width:480px\)\{\.team-audit-head\{display:block\}/,'超窄屏审计标题与时间需要上下排列');
 });
+test('audit card correlation details wrap long identifiers',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.team-audit p,\.team-audit small\{overflow-wrap:anywhere\}/,'审计摘要和关联 ID 需要允许换行');
+  assert.match(css,/\.team-audit small\{display:block;color:var\(--muted-foreground\);font-size:12px;line-height:1\.6\}/,'审计关联信息需要保持统一辅助文字样式');
+});
