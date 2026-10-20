@@ -357,6 +357,9 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 .crm-independent-page table select{min-width:120px}
 .crm-filter-row>.fine{min-width:0;overflow-wrap:anywhere}
 @media(max-width:760px){.crm-filter-row>.fine{flex-basis:100%}}
+/* Keep search inputs and export actions on the same 48px baseline. */
+.crm-filter-row>label>input[data-slot=input]{height:48px;min-height:48px;box-sizing:border-box}
+.crm-filter-row>button[data-slot=button]{height:48px;min-height:48px;box-sizing:border-box;align-self:flex-end}
 .crm-independent-head>div:first-child{min-width:0}
 .crm-independent-head>.crm-page-badge{flex:0 0 auto}
 .crm-panel-title-row>div:first-child{min-width:0}

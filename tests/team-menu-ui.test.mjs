@@ -220,6 +220,12 @@ test('responsive filter labels can shrink inside narrow independent pages',()=>{
   assert.match(css,/\.crm-filter-row>label\{min-width:0\}/,'筛选字段需要允许收缩，避免窄屏横向溢出');
 });
 
+test('filter search and export controls share a stable baseline',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-filter-row>label>input\[data-slot=input\]\{height:48px;min-height:48px;box-sizing:border-box\}/,'搜索框需要固定为 48px 高度');
+  assert.match(css,/\.crm-filter-row>button\[data-slot=button\]\{height:48px;min-height:48px;box-sizing:border-box;align-self:flex-end\}/,'导出按钮需要与搜索框底部基线对齐');
+});
+
 test('report export controls stack cleanly on narrow pages',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.report-center-head>\.button-row\{align-items:center;justify-content:flex-end;min-width:0(?:;[^}]*)?\}/,'报表头部操作区需要保持可收缩并支持响应式换行');
