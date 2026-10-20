@@ -205,3 +205,14 @@ test('organization tables keep language options horizontal and select arrows ins
   assert.match(css,/select:not\(\[multiple\]\)\{[^}]*background-position:right 14px center[^}]*padding-right:44px/,'下拉箭头需要与右边框保留稳定间距');
   assert.match(teamClient,/select aria-label=\{company\.slug\+' 状态'\}/,'公司状态下拉框必须有可读标签，便于键盘和辅助技术操作');
 });
+
+test('internal entry links use client navigation to avoid full-page flashes',()=>{
+  const teamLogin=fs.readFileSync(path.join(process.cwd(),'app/team/login/client.tsx'),'utf8');
+  const agreementPage=fs.readFileSync(path.join(process.cwd(),'app/agreements/loan/page.tsx'),'utf8');
+  assert.match(teamLogin,/import Link from ['"]next\/link['"]/,'后台登录入口应使用应用内导航');
+  assert.match(teamLogin,/<Link className="brand" href="\/team\/login">/,'登录页品牌入口应保留应用内导航');
+  assert.match(teamLogin,/<Link href="\/h5">客户入口<\/Link>/,'客户入口应避免整页刷新');
+  assert.match(agreementPage,/import Link from ['"]next\/link['"]/,'协议页应使用应用内导航');
+  assert.match(agreementPage,/<Link className="brand" href="\/h5">/,'协议页品牌入口应保留应用内导航');
+  assert.doesNotMatch(agreementPage,/<a className="text-link" href="\/kyc">/,'协议页返回资料填写不得触发整页刷新');
+});
