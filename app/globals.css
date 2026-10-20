@@ -330,6 +330,7 @@ body:has(.mini-app) .auth-locale{display:none}
 .crm-panel-toolbar>div:first-child{flex:1 1 320px;min-width:240px}
 .crm-panel-toolbar>.inline-field{display:flex;flex:0 1 220px;flex-direction:column;gap:5px;margin:0;font-size:12px;color:#52627a}
 .crm-panel-toolbar>.inline-field input{min-width:0}
+.crm-panel-toolbar>button{align-self:flex-end;min-height:48px}
 .loan-products-panel .button-row{gap:8px}
 .loan-products-panel .table-scroll{margin-top:4px}
 @media(max-width:760px){.crm-panel-toolbar{align-items:stretch}.crm-panel-toolbar>.inline-field{flex:1 1 100%}.crm-panel-toolbar>button{width:100%}}

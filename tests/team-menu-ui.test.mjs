@@ -181,6 +181,7 @@ test('loan product review controls have responsive toolbar styling',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.crm-panel-toolbar\{display:flex;align-items:flex-end/);
   assert.match(css,/\.crm-panel-toolbar>\.inline-field\{display:flex/);
+  assert.match(css,/\.crm-panel-toolbar>button\{align-self:flex-end;min-height:48px\}/,'工具栏主按钮应与输入框底部和高度对齐');
   assert.match(css,/\.loan-products-panel \.table-scroll\{margin-top:4px\}/);
   assert.match(css,/\.crm-panel-toolbar>button\{width:100%\}/);
 });
