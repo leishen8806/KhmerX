@@ -216,3 +216,9 @@ test('internal entry links use client navigation to avoid full-page flashes',()=
   assert.match(agreementPage,/<Link className="brand" href="\/h5">/,'协议页品牌入口应保留应用内导航');
   assert.doesNotMatch(agreementPage,/<a className="text-link" href="\/kyc">/,'协议页返回资料填写不得触发整页刷新');
 });
+
+test('mini app KYC cards keep status before the chevron with a five pixel gap',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.mini-app \.customer-kyc \.kyc-group-arrow\{order:4;margin-left:5px\}/,'KYC 卡片箭头应紧跟状态并保持 5px 间距');
+  assert.match(css,/\.mini-app \.customer-kyc \.kyc-group-copy em\{order:3;width:auto;flex:0 0 auto;margin-left:auto/,'KYC 卡片状态应位于箭头前并靠右对齐');
+});
