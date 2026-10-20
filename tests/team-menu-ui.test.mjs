@@ -321,3 +321,11 @@ test('independent table empty rows use a consistent centered layout',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.crm-independent-page \.table-scroll td\[colspan\]\{padding:40px 20px;text-align:center;color:var\(--muted-foreground\)\}/,'独立表格无数据时应居中展示并保留稳定留白');
 });
+
+test('independent page KPI cards stay readable with long values on narrow screens',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-page-kpis\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\);align-items:start\}/,'窄屏 KPI 卡片需要改为可收缩网格');
+  assert.match(css,/\.crm-page-kpis>div\{min-width:0\}/,'KPI 卡片内容需要允许收缩');
+  assert.match(css,/\.crm-page-kpis strong\{font-size:22px;overflow-wrap:anywhere\}/,'公司名称、代码和邮箱等长值需要自动换行');
+  assert.match(css,/\.crm-page-kpis\{grid-template-columns:1fr\}/,'超窄屏 KPI 卡片需要单列排列');
+});
