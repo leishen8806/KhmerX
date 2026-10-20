@@ -487,3 +487,8 @@ test('team form grids collapse at the same narrow-screen breakpoint as the shell
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/@media\(max-width:760px\)\{\.team-grid\{grid-template-columns:1fr\}/,'团队表单网格需要在窄屏统一单列，避免 700-760px 区间溢出');
 });
+
+test('team tables wrap long identities and permission labels inside cells',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.team-shell td,\.team-shell th\{overflow-wrap:anywhere\}/,'组织与员工表格单元格需要允许长文案换行');
+});

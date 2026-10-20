@@ -395,3 +395,4 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 .crm-activity-dot{flex:0 0 7px}
 .crm-link{min-width:0;overflow-wrap:anywhere;text-align:center}
 @media(max-width:760px){.team-grid{grid-template-columns:1fr}}
+.team-shell td,.team-shell th{overflow-wrap:anywhere}
