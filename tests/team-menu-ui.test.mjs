@@ -235,6 +235,7 @@ test('report export controls stack cleanly on narrow pages',()=>{
 
 test('organization tables keep language options horizontal and select arrows inset',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/company-language-cell\{min-width:260px;white-space:nowrap\}/,'公司语言列需要保留足够宽度，避免选项被挤成多行');
   assert.match(css,/company-language-cell label\{display:inline-flex!important;flex:0 0 auto;flex-direction:row!important;align-items:center/,'公司语言选项不得被通用表单标签样式挤成纵向');
   assert.match(css,/company-language-cell input\{flex:0 0 auto;width:auto;margin:0\}/,'语言复选框应与文字保持同一行');
   assert.match(css,/select:not\(\[multiple\]\):not\(\[data-slot=select\]\)\{[^}]*background-position:right 14px center[^}]*padding-right:44px/,'原生下拉箭头需要与右边框保留稳定间距');
