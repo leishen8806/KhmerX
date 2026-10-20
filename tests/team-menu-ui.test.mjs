@@ -492,3 +492,8 @@ test('team tables wrap long identities and permission labels inside cells',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.team-shell td,\.team-shell th\{overflow-wrap:anywhere\}/,'组织与员工表格单元格需要允许长文案换行');
 });
+
+test('sidebar navigation group labels wrap without affecting disclosure controls',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-sidebar nav summary\{overflow-wrap:anywhere\}/,'侧边栏分组标题需要允许长文案换行');
+});
