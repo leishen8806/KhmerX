@@ -551,3 +551,9 @@ test('funding risk banners wrap long status copy safely',()=>{
   assert.match(css,/\.funding-risk-banner strong\{min-width:0;font-size:15px;overflow-wrap:anywhere\}/,'资金状态标题需要允许收缩换行');
   assert.match(css,/\.funding-risk-banner span\{min-width:0;font-size:12px;color:var\(--muted-foreground\);text-align:right;overflow-wrap:anywhere\}/,'资金状态说明需要允许收缩换行');
 });
+test('audit cards keep event labels and timestamps aligned on narrow screens',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.team-audit-head\{display:flex;align-items:flex-start;justify-content:space-between;gap:12px\}/,'审计卡片标题行需要保持两端对齐');
+  assert.match(css,/\.team-audit-head strong,\.team-audit-head span\{min-width:0;overflow-wrap:anywhere\}/,'审计事件和时间需要允许收缩换行');
+  assert.match(css,/@media\(max-width:480px\)\{\.team-audit-head\{display:block\}/,'超窄屏审计标题与时间需要上下排列');
+});
