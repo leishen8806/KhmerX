@@ -421,3 +421,10 @@ test('workspace overview columns collapse before narrow screens overflow',()=>{
   assert.match(css,/@media\(max-width:900px\)\{\.crm-overview-grid\{grid-template-columns:1fr\}\.crm-quick-grid\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)\}/,'快捷卡片在折叠后仍应保持两列');
   assert.match(css,/@media\(max-width:480px\)\{\.crm-quick-grid\{grid-template-columns:1fr\}\}/,'超窄屏快捷卡片需要单列展示');
 });
+
+test('workspace overview KPI cards reflow across tablet and mobile widths',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/@media\(max-width:1100px\)\{\.crm-kpis\{grid-template-columns:repeat\(3,minmax\(0,1fr\)\)\}\}/,'平板宽度指标卡片需要调整为三列');
+  assert.match(css,/@media\(max-width:760px\)\{\.crm-kpis\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)\}\}/,'窄屏指标卡片需要调整为两列');
+  assert.match(css,/@media\(max-width:480px\)\{\.crm-kpis\{grid-template-columns:1fr\}\}/,'超窄屏指标卡片需要单列展示');
+});
