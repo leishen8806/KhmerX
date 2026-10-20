@@ -76,6 +76,11 @@ test('shared textarea keeps a visible border and usable multiline height',()=>{
   assert.match(textarea,/focus-visible:border-ring/,'多行文本框需要有清晰的焦点边框');
 });
 
+test('independent pages keep raw text fields visibly bordered',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.team-shell input:not\(\[type=checkbox\]\):not\(\[type=radio\]\),\.crm-independent-page input:not\(\[type=checkbox\]\):not\(\[type=radio\]\)\{border:1px solid var\(--border\);border-radius:8px;background:var\(--card\);color:var\(--foreground\)\}/,'后台原生文本框需要保持统一边框与背景');
+});
+
 test('service backend menu keeps merged customer and KYC entries unique',()=>{
   assert.doesNotMatch(source,/\['客户 360° 详情','\/team\/customers'/);
   assert.doesNotMatch(source,/\['待补件','\/team\/kyc'/);
