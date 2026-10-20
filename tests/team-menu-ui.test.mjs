@@ -546,3 +546,8 @@ test('report header actions wrap before overflowing tablet widths',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.report-center-head>\.button-row\{align-items:center;justify-content:flex-end;min-width:0;flex-wrap:wrap;row-gap:8px\}/,'报表头部操作区需要允许在平板宽度换行');
 });
+test('funding risk banners wrap long status copy safely',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.funding-risk-banner strong\{min-width:0;font-size:15px;overflow-wrap:anywhere\}/,'资金状态标题需要允许收缩换行');
+  assert.match(css,/\.funding-risk-banner span\{min-width:0;font-size:12px;color:var\(--muted-foreground\);text-align:right;overflow-wrap:anywhere\}/,'资金状态说明需要允许收缩换行');
+});
