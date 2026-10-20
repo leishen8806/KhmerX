@@ -22,6 +22,11 @@ test('multi-company SSO restores the last company and updates it on switch',()=>
   assert.match(teamRoute,/\[cookie\(request,TEAM_COOKIE,t\.id,86400\),cookie\(request,STAFF_LAST_COMPANY,t\.id,31536000\)\]/,'公司切换需同时更新当前公司与持久化记忆');
 });
 
+test('platform company list prioritizes an active default',()=>{
+  const teamServer=fs.readFileSync(path.join(process.cwd(),'lib/team/server.ts'),'utf8');
+  assert.match(teamServer,/FROM team_companies ORDER BY active DESC,name/,'平台公司列表必须把启用公司排在停用公司之前，避免默认公司进入失败');
+});
+
 test('customer tag writes enforce the current employee data scope',()=>{
   assert.match(customerTags,/import \{assignment,audit,db,staff\} from ['"]@\/lib\/team\/server['"]/);
   assert.match(customerTags,/import \{canSee\} from ['"]@\/lib\/team\/policy['"]/);
