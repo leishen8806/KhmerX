@@ -527,3 +527,8 @@ test('customer detail facts become single-column on very narrow screens',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/@media\(max-width:480px\)\{\.customer-detail-facts\{grid-template-columns:1fr\}/,'客户详情事实摘要在极窄屏需要改单列');
 });
+
+test('customer list helper text wraps long identifiers inside rows',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.customer-list-row small\{overflow-wrap:anywhere\}/,'客户列表辅助信息需要允许长标识换行');
+});
