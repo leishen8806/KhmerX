@@ -335,3 +335,10 @@ test('independent page headers stack title and badge on narrow screens',()=>{
   assert.match(css,/\.crm-independent-head\{display:block\}/,'窄屏独立页面头部需要上下排列');
   assert.match(css,/\.crm-independent-head>\.crm-page-badge\{display:inline-flex;margin-top:10px\}/,'独立页面徽标需要与标题保持稳定间距');
 });
+
+test('workspace headings allow long company and scope labels to wrap',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.admin-heading>div:first-child\{min-width:0\}/,'工作台标题内容区需要允许收缩');
+  assert.match(css,/\.admin-heading h2\{overflow-wrap:anywhere\}/,'长页面标题需要自动换行');
+  assert.match(css,/\.admin-heading \.data-label\{flex:0 1 auto;min-width:0;white-space:normal;text-align:right\}/,'数据范围标签需要允许换行且不撑宽标题栏');
+});
