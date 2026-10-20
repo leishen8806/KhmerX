@@ -477,3 +477,8 @@ test('workspace navigation group headings wrap without widening the rail',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.crm-nav strong\{min-width:0;overflow-wrap:anywhere\}/,'工作台导航分组标题需要允许收缩换行');
 });
+
+test('customer toolbar helper copy wraps instead of forcing horizontal overflow',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.customer-center-toolbar>\.button-row \.fine\{margin:0;white-space:normal;overflow-wrap:anywhere\}/,'客户工具栏辅助文案需要允许窄屏换行');
+});
