@@ -297,3 +297,9 @@ test('narrow panel toolbars allow their title block to shrink',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.crm-panel-toolbar>div:first-child\{min-width:0\}/,'窄屏工具栏标题区需要取消固定最小宽度');
 });
+
+test('independent tables wrap long values without widening the page',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-independent-page \.table-scroll th\{vertical-align:middle;white-space:nowrap\}/,'表头需要保持单行，避免表格列头高度不一致');
+  assert.match(css,/\.crm-independent-page \.table-scroll td\{vertical-align:middle;overflow-wrap:anywhere\}/,'长编号、邮箱和备注需要在单元格内安全换行');
+});
