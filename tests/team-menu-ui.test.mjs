@@ -273,3 +273,9 @@ test('narrow filter result summaries wrap without pushing controls off screen',(
   assert.match(css,/\.crm-filter-row>\.fine\{min-width:0;overflow-wrap:anywhere\}/,'筛选结果摘要需要允许换行');
   assert.match(css,/\.crm-filter-row>\.fine\{flex-basis:100%\}/,'窄屏筛选摘要应独占一行');
 });
+
+test('independent page headers keep long titles from pushing badges off screen',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-independent-head>div:first-child\{min-width:0\}/,'独立页面标题区域需要允许收缩');
+  assert.match(css,/\.crm-independent-head>\.crm-page-badge\{flex:0 0 auto\}/,'页面徽标需要保持稳定宽度');
+});
