@@ -418,4 +418,5 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 .crm-overview-head>div:first-child{min-width:0}.crm-overview-head h1,.crm-overview-head h2{overflow-wrap:anywhere}
 .crm-page-kpis span{min-width:0;overflow-wrap:anywhere}
 .crm-loading-shell{width:100%;max-width:100%}
-.crm-account-popover{max-height:calc(100dvh - 80px);overflow-y:auto}
+.crm-account-popover{max-height:calc(100dvh - 80px);max-width:min(320px,calc(100vw - 20px));overflow-x:hidden;overflow-y:auto}
+.crm-account-popover button{white-space:normal;overflow-wrap:anywhere}

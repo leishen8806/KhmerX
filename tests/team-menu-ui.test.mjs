@@ -496,7 +496,8 @@ test('workspace loading shell follows the full content width',()=>{
 
 test('account popover stays usable with many companies',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
-  assert.match(css,/\.crm-account-popover\{max-height:calc\(100dvh - 80px\);overflow-y:auto\}/,'多公司切换菜单需要限制高度并支持滚动');
+  assert.match(css,/\.crm-account-popover\{max-height:calc\(100dvh - 80px\);max-width:min\(320px,calc\(100vw - 20px\)\);overflow-x:hidden;overflow-y:auto\}/,'多公司切换菜单需要限制尺寸并支持滚动');
+  assert.match(css,/\.crm-account-popover button\{white-space:normal;overflow-wrap:anywhere\}/,'公司切换项长名称需要在弹层内安全换行');
 });
 
 test('workspace funding risk card wraps long limit and warning copy',()=>{
