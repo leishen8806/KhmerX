@@ -355,3 +355,5 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 /* Native selects may shrink inside narrow filter grids; table selects retain a readable minimum. */
 .team-shell select{min-width:0}
 .crm-independent-page table select{min-width:120px}
+.crm-filter-row>.fine{min-width:0;overflow-wrap:anywhere}
+@media(max-width:760px){.crm-filter-row>.fine{flex-basis:100%}}

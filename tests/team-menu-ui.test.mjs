@@ -267,3 +267,9 @@ test('native selects can shrink in narrow forms while table selects stay readabl
   assert.match(css,/\.team-shell select\{min-width:0\}/,'窄屏表单下拉框需要允许收缩');
   assert.match(css,/\.crm-independent-page table select\{min-width:120px\}/,'表格中的下拉框需要保留可读宽度');
 });
+
+test('narrow filter result summaries wrap without pushing controls off screen',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-filter-row>\.fine\{min-width:0;overflow-wrap:anywhere\}/,'筛选结果摘要需要允许换行');
+  assert.match(css,/\.crm-filter-row>\.fine\{flex-basis:100%\}/,'窄屏筛选摘要应独占一行');
+});
