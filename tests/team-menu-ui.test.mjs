@@ -480,6 +480,11 @@ test('independent page KPI values shrink inside cards',()=>{
   assert.match(css,/\.crm-page-kpis span\{min-width:0;overflow-wrap:anywhere\}/,'独立页面 KPI 长标签需要安全断行');
 });
 
+test('workspace loading shell follows the full content width',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-loading-shell\{width:100%;max-width:100%\}/,'工作台加载态需要与正式内容保持同宽');
+});
+
 test('workspace funding risk card wraps long limit and warning copy',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.crm-risk-card>div,\.crm-risk-card>strong,\.crm-risk-card>span,\.crm-risk-card>small\{min-width:0;overflow-wrap:anywhere\}/,'风控资金卡片文案需要允许收缩换行');

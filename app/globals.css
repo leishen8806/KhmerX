@@ -414,3 +414,4 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 .crm-risk-card>div{min-width:0;flex-wrap:wrap}.crm-risk-card>div span{min-width:0;overflow-wrap:anywhere}
 .crm-overview-head>div:first-child{min-width:0}.crm-overview-head h1,.crm-overview-head h2{overflow-wrap:anywhere}
 .crm-page-kpis span{min-width:0;overflow-wrap:anywhere}
+.crm-loading-shell{width:100%;max-width:100%}
