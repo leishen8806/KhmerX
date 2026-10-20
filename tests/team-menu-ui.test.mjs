@@ -356,3 +356,10 @@ test('workspace sidebar labels shrink and wrap on narrow layouts',()=>{
   assert.match(css,/\.crm-sidebar-subnav a\{overflow-wrap:anywhere\}/,'长侧栏文案需要自动换行');
   assert.match(css,/\.crm-sidebar-subnav a span\{min-width:0;overflow-wrap:anywhere\}/,'侧栏标签文本不能撑宽导航');
 });
+
+test('workspace overview heading preserves action controls beside long titles',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-overview-head>div:first-child\{min-width:0\}/,'概览标题内容区需要允许收缩');
+  assert.match(css,/\.crm-overview-head h1,\.crm-overview-head h2\{overflow-wrap:anywhere\}/,'概览长标题需要自动换行');
+  assert.match(css,/\.crm-head-actions\{flex:0 0 auto\}/,'概览操作区需要保持固定宽度');
+});

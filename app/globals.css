@@ -372,3 +372,4 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 .admin-heading>div:first-child{min-width:0}.admin-heading h2{overflow-wrap:anywhere}.admin-heading .data-label{flex:0 1 auto;min-width:0;white-space:normal;text-align:right}
 .crm-breadcrumb{max-width:100%}.crm-breadcrumb strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.crm-top-actions{flex:0 0 auto}
 .crm-sidebar nav summary,.crm-sidebar-subnav a{min-width:0}.crm-sidebar-subnav a{overflow-wrap:anywhere}.crm-sidebar-subnav a span{min-width:0;overflow-wrap:anywhere}
+.crm-overview-head>div:first-child{min-width:0}.crm-overview-head h1,.crm-overview-head h2{overflow-wrap:anywhere}.crm-head-actions{flex:0 0 auto}
