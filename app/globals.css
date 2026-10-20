@@ -352,3 +352,6 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 .crm-filter-row>label{min-width:0}.crm-panel-toolbar>.inline-field{min-width:0}
 .report-center-head>.button-row{align-items:center;justify-content:flex-end;min-width:0}.report-center-head>.button-row>select,.report-center-head>.button-row>button{min-width:0}
 @media(max-width:760px){.report-center-head>.button-row{display:grid;grid-template-columns:1fr;align-items:stretch;gap:8px;margin-top:12px}.report-center-head>.button-row>select,.report-center-head>.button-row>button{width:100%}.report-center-head>.button-row>.fine{white-space:normal}}
+/* Native selects may shrink inside narrow filter grids; table selects retain a readable minimum. */
+.team-shell select{min-width:0}
+.crm-independent-page table select{min-width:120px}

@@ -261,3 +261,9 @@ test('shared native select fills narrow form width and keeps arrow inset',()=>{
   assert.match(nativeSelect,/border border-input/,'共享下拉框需要保留统一边框');
   assert.match(nativeSelect,/px-3 py-2 pr-9/,'共享下拉箭头需要与右边框保持稳定内边距');
 });
+
+test('native selects can shrink in narrow forms while table selects stay readable',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.team-shell select\{min-width:0\}/,'窄屏表单下拉框需要允许收缩');
+  assert.match(css,/\.crm-independent-page table select\{min-width:120px\}/,'表格中的下拉框需要保留可读宽度');
+});
