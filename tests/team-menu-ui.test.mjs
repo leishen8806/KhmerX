@@ -341,6 +341,11 @@ test('independent page headers stack title and badge on narrow screens',()=>{
   assert.match(css,/\.crm-independent-head>\.crm-page-badge\{display:inline-flex;margin-top:10px\}/,'独立页面徽标需要与标题保持稳定间距');
 });
 
+test('independent page headers can wrap between title and badge',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-independent-head\{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:18px/,'独立页面头部需要允许标题和徽标在中等宽度换行');
+});
+
 test('workspace headings allow long company and scope labels to wrap',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.admin-heading>div:first-child\{min-width:0\}/,'工作台标题内容区需要允许收缩');
