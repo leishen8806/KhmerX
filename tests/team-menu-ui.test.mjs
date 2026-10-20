@@ -342,3 +342,10 @@ test('workspace headings allow long company and scope labels to wrap',()=>{
   assert.match(css,/\.admin-heading h2\{overflow-wrap:anywhere\}/,'长页面标题需要自动换行');
   assert.match(css,/\.admin-heading \.data-label\{flex:0 1 auto;min-width:0;white-space:normal;text-align:right\}/,'数据范围标签需要允许换行且不撑宽标题栏');
 });
+
+test('workspace top bar keeps long breadcrumbs from pushing account actions off screen',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-breadcrumb\{max-width:100%\}/,'顶部面包屑需要限制最大宽度');
+  assert.match(css,/\.crm-breadcrumb strong\{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap\}/,'长面包屑标题需要省略而不撑开右侧操作区');
+  assert.match(css,/\.crm-top-actions\{flex:0 0 auto\}/,'账户和语言操作区需要保持固定宽度');
+});
