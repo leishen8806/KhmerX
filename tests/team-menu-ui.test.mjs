@@ -336,6 +336,12 @@ test('crm action panels keep consistent mobile side spacing',()=>{
   assert.match(css,/@media\(max-width:620px\)\{\.crm-action-panel\{padding:16px\}\}/,'窄屏操作卡片需要统一左右内边距');
 });
 
+test('independent page headers stack cleanly on mobile',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/@media\(max-width:620px\)\{\.crm-independent-head\{display:block;padding-bottom:14px;margin-bottom:14px\}/,'窄屏独立页面标题区需要收紧并改为单列');
+  assert.match(css,/\.crm-independent-head>\.crm-page-badge\{display:inline-flex;margin-top:10px\}/,'窄屏页面标记需要落到标题下方并保留间距');
+});
+
 test('independent tables expose one consistent narrow-screen scroll hint',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.crm-independent-page \.table-scroll::before\{content:none\}/,'桌面端不应显示窄屏滚动提示');
