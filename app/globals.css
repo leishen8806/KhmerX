@@ -391,3 +391,4 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 .crm-nav a{min-width:0}.crm-nav a span:first-child{min-width:0;overflow-wrap:anywhere}.crm-nav a span:last-child{flex:0 0 auto;white-space:nowrap}
 .crm-kpi strong{min-width:0;overflow-wrap:anywhere}
 .crm-kpi span,.crm-kpi small{min-width:0;overflow-wrap:anywhere}
+.crm-activity-dot{flex:0 0 7px}

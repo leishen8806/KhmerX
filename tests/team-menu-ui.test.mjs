@@ -457,3 +457,8 @@ test('workspace KPI labels wrap for multilingual text',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.crm-kpi span,\.crm-kpi small\{min-width:0;overflow-wrap:anywhere\}/,'工作台 KPI 多语言标签需要允许换行');
 });
+
+test('workspace activity status dots keep a stable size',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-activity-dot\{flex:0 0 7px\}/,'审计活动状态圆点需要保持固定尺寸');
+});
