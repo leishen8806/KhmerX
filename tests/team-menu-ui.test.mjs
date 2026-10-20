@@ -482,3 +482,8 @@ test('customer toolbar helper copy wraps instead of forcing horizontal overflow'
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.customer-center-toolbar>\.button-row \.fine\{margin:0;white-space:normal;overflow-wrap:anywhere\}/,'客户工具栏辅助文案需要允许窄屏换行');
 });
+
+test('team form grids collapse at the same narrow-screen breakpoint as the shell',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/@media\(max-width:760px\)\{\.team-grid\{grid-template-columns:1fr\}/,'团队表单网格需要在窄屏统一单列，避免 700-760px 区间溢出');
+});
