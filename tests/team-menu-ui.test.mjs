@@ -517,3 +517,8 @@ test('activity timestamps can wrap on very narrow screens',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/@media\(max-width:480px\)\{\.crm-activity-row\{align-items:flex-start\}\.crm-activity-row time\{white-space:normal;max-width:72px;text-align:right;overflow-wrap:anywhere\}/,'审计活动时间在极窄屏需要允许换行');
 });
+
+test('customer timeline descriptions wrap inside the detail card',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.customer-timeline-row span\{min-width:0;overflow-wrap:anywhere\}/,'客户时间线描述需要允许长文案换行');
+});
