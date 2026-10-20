@@ -387,3 +387,4 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 @media(max-width:760px){.crm-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:480px){.crm-kpis{grid-template-columns:1fr}}
 .crm-activity-row>span:nth-child(2){min-width:0;overflow-wrap:anywhere}.crm-activity-row time{flex:0 0 auto;white-space:nowrap}
+.crm-risk-card>div,.crm-risk-card>strong,.crm-risk-card>span,.crm-risk-card>small{min-width:0;overflow-wrap:anywhere}.crm-risk-dot{flex:0 0 8px}
