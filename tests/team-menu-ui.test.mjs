@@ -68,6 +68,14 @@ test('form controls expose a consistent keyboard focus state',()=>{
   assert.match(css,/input:focus-visible,select:focus-visible,textarea:focus-visible\{outline:3px solid var\(--ring\);outline-offset:2px\}/,'输入、下拉和多行文本控件需要统一键盘焦点样式');
 });
 
+test('shared textarea keeps a visible border and usable multiline height',()=>{
+  const textarea=fs.readFileSync(path.join(process.cwd(),'components/ui/textarea.tsx'),'utf8');
+  assert.match(textarea,/min-h-\[120px\]/,'多行文本框需要稳定的最小高度，避免内容为空时塌陷');
+  assert.match(textarea,/resize-y/,'多行文本框应允许用户按需调整高度');
+  assert.match(textarea,/border border-input/,'多行文本框需要沿用统一输入边框');
+  assert.match(textarea,/focus-visible:border-ring/,'多行文本框需要有清晰的焦点边框');
+});
+
 test('service backend menu keeps merged customer and KYC entries unique',()=>{
   assert.doesNotMatch(source,/\['客户 360° 详情','\/team\/customers'/);
   assert.doesNotMatch(source,/\['待补件','\/team\/kyc'/);
