@@ -389,3 +389,8 @@ test('KYC case routing and actions wrap long organization and reviewer labels',(
   assert.match(css,/\.kyc-case-primary span,\.kyc-case-routing span\{min-width:0;overflow-wrap:anywhere\}/,'KYC 部门机构和审核员信息需要可换行');
   assert.match(css,/\.kyc-case-actions \.text-link\{min-width:0;overflow-wrap:anywhere\}/,'KYC 操作链接长文案需要可换行');
 });
+
+test('KYC queue empty results use a centered consistent state',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.kyc-queue>\.sample\{margin:14px 0 0;text-align:center\}/,'KYC 无结果状态需要居中并保持统一间距');
+});
