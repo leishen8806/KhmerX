@@ -455,6 +455,12 @@ test('workspace activity timestamps wrap before tablet rows overflow',()=>{
   assert.match(css,/@media\(max-width:620px\)\{\.crm-activity-row\{align-items:flex-start\}\.crm-activity-row time\{white-space:normal;max-width:96px;text-align:right;overflow-wrap:anywhere\}\}/,'平板窄屏活动时间需要允许收缩换行');
 });
 
+test('workspace activity card headers wrap helper copy cleanly',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-activity>div:first-child\{flex-wrap:wrap\}/,'活动卡片标题行需要允许辅助说明换行');
+  assert.match(css,/\.crm-activity>div:first-child span\{min-width:0;overflow-wrap:anywhere\}/,'活动卡片辅助说明需要允许收缩换行');
+});
+
 test('workspace funding risk card wraps long limit and warning copy',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.crm-risk-card>div,\.crm-risk-card>strong,\.crm-risk-card>span,\.crm-risk-card>small\{min-width:0;overflow-wrap:anywhere\}/,'风控资金卡片文案需要允许收缩换行');
