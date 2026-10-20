@@ -473,6 +473,12 @@ test('workspace overview titles shrink beside action controls',()=>{
   assert.match(css,/\.crm-overview-head h1,\.crm-overview-head h2\{overflow-wrap:anywhere\}/,'工作台总览标题需要允许长名称断行');
 });
 
+test('independent page KPI values shrink inside cards',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-page-kpis>div\{min-width:0\}/,'独立页面 KPI 卡片需要允许内容收缩');
+  assert.match(css,/\.crm-page-kpis strong\{overflow-wrap:anywhere\}/,'独立页面 KPI 长值需要安全断行');
+});
+
 test('workspace funding risk card wraps long limit and warning copy',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.crm-risk-card>div,\.crm-risk-card>strong,\.crm-risk-card>span,\.crm-risk-card>small\{min-width:0;overflow-wrap:anywhere\}/,'风控资金卡片文案需要允许收缩换行');
