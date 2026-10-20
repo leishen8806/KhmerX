@@ -472,3 +472,8 @@ test('workspace overview action links wrap long labels cleanly',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.crm-link\{min-width:0;overflow-wrap:anywhere;text-align:center\}/,'工作台操作链接需要允许长文案换行并保持居中');
 });
+
+test('workspace navigation group headings wrap without widening the rail',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-nav strong\{min-width:0;overflow-wrap:anywhere\}/,'工作台导航分组标题需要允许收缩换行');
+});
