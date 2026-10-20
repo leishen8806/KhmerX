@@ -279,3 +279,10 @@ test('independent page headers keep long titles from pushing badges off screen',
   assert.match(css,/\.crm-independent-head>div:first-child\{min-width:0\}/,'独立页面标题区域需要允许收缩');
   assert.match(css,/\.crm-independent-head>\.crm-page-badge\{flex:0 0 auto\}/,'页面徽标需要保持稳定宽度');
 });
+
+test('panel title rows wrap readonly badges on narrow screens',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-panel-title-row>div:first-child\{min-width:0\}/,'面板标题文案需要允许收缩');
+  assert.match(css,/\.crm-panel-title-row>\.crm-readonly-badge\{flex:0 0 auto\}/,'只读徽标需要保持稳定宽度');
+  assert.match(css,/\.crm-panel-title-row\{display:block\}/,'窄屏面板标题区需要纵向排列');
+});
