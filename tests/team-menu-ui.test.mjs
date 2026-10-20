@@ -331,6 +331,11 @@ test('independent table actions stay compact inside the operation column',()=>{
   assert.match(css,/\.crm-independent-page \.table-scroll td:last-child \.button-row>button,\.crm-independent-page \.table-scroll td:last-child \.button-row>a\{flex:0 1 auto\}/,'操作按钮不应因全局窄屏规则被强制拉伸');
 });
 
+test('crm action panels keep consistent mobile side spacing',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/@media\(max-width:620px\)\{\.crm-action-panel\{padding:16px\}\}/,'窄屏操作卡片需要统一左右内边距');
+});
+
 test('independent tables expose one consistent narrow-screen scroll hint',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.crm-independent-page \.table-scroll::before\{content:none\}/,'桌面端不应显示窄屏滚动提示');
