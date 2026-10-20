@@ -377,3 +377,9 @@ test('KYC queue toolbar keeps result text and actions within the page width',()=
   assert.match(css,/\.kyc-queue-toolbar \.button-row\{min-width:0;flex:0 0 auto\}/,'KYC 工具栏操作区需要保持独立宽度');
   assert.match(css,/\.kyc-queue-toolbar \.button-row>button,\.kyc-queue-toolbar \.button-row>a\{min-width:0;overflow-wrap:anywhere\}/,'KYC 操作按钮长文案需要可换行');
 });
+
+test('KYC case headings keep status pills visible beside long references',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.kyc-case-heading>div\{min-width:0\}/,'KYC 案件编号内容区需要允许收缩');
+  assert.match(css,/\.kyc-case-heading \.pill\{flex:0 0 auto;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap\}/,'KYC 状态标签需要固定并截断过长内容');
+});
