@@ -392,3 +392,4 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 .crm-kpi strong{min-width:0;overflow-wrap:anywhere}
 .crm-kpi span,.crm-kpi small{min-width:0;overflow-wrap:anywhere}
 .crm-activity-dot{flex:0 0 7px}
+.crm-link{min-width:0;overflow-wrap:anywhere;text-align:center}

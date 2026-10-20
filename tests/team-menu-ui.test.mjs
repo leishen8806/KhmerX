@@ -467,3 +467,8 @@ test('workspace section helper copy can shrink beside long headings',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.crm-section-heading>span\{flex:0 1 auto;min-width:0;white-space:normal;text-align:right;overflow-wrap:anywhere\}/,'工作台分区辅助说明需要可收缩换行');
 });
+
+test('workspace overview action links wrap long labels cleanly',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-link\{min-width:0;overflow-wrap:anywhere;text-align:center\}/,'工作台操作链接需要允许长文案换行并保持居中');
+});
