@@ -374,6 +374,11 @@ test('workspace overview heading preserves action controls beside long titles',(
   assert.match(css,/\.crm-head-actions\{flex:0 0 auto\}/,'概览操作区需要保持固定宽度');
 });
 
+test('workspace overview header can wrap title and actions',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-overview-head\{display:flex;justify-content:space-between;flex-wrap:wrap;gap:20px;align-items:flex-start\}/,'工作台总览头部需要允许标题与操作区换行');
+});
+
 test('KYC queue title keeps count badge visible beside long labels',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.kyc-queue-title>div:first-child\{min-width:0\}/,'KYC 队列标题内容区需要允许收缩');
