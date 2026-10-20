@@ -349,3 +349,10 @@ test('workspace top bar keeps long breadcrumbs from pushing account actions off 
   assert.match(css,/\.crm-breadcrumb strong\{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap\}/,'长面包屑标题需要省略而不撑开右侧操作区');
   assert.match(css,/\.crm-top-actions\{flex:0 0 auto\}/,'账户和语言操作区需要保持固定宽度');
 });
+
+test('workspace sidebar labels shrink and wrap on narrow layouts',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-sidebar nav summary,\.crm-sidebar-subnav a\{min-width:0\}/,'侧栏菜单项需要允许收缩');
+  assert.match(css,/\.crm-sidebar-subnav a\{overflow-wrap:anywhere\}/,'长侧栏文案需要自动换行');
+  assert.match(css,/\.crm-sidebar-subnav a span\{min-width:0;overflow-wrap:anywhere\}/,'侧栏标签文本不能撑宽导航');
+});
