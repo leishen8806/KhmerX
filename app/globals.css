@@ -380,3 +380,4 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 .kyc-queue>.sample{margin:14px 0 0;text-align:center}
 .report-center-head>div:first-child,.funding-settings-head>div:first-child{min-width:0}.report-center-head h2,.funding-settings-head h2{overflow-wrap:anywhere}.report-center-head>.button-row,.funding-settings-head>.crm-page-badge{flex:0 0 auto}
 .crm-section-heading h2{min-width:0;overflow-wrap:anywhere}.crm-section-heading>span{flex:0 0 auto;min-width:0;white-space:normal;text-align:right}
+.crm-quick-card{min-width:0}.crm-quick-card strong,.crm-quick-card small{min-width:0;overflow-wrap:anywhere}.crm-quick-card b{flex:0 0 auto}

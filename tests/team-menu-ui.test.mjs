@@ -407,3 +407,10 @@ test('workspace section headings keep long labels and side notes within cards',(
   assert.match(css,/\.crm-section-heading h2\{min-width:0;overflow-wrap:anywhere\}/,'工作台分区标题需要允许收缩换行');
   assert.match(css,/\.crm-section-heading>span\{flex:0 0 auto;min-width:0;white-space:normal;text-align:right\}/,'工作台分区辅助说明需要保持对齐并可换行');
 });
+
+test('workspace quick cards keep long labels from pushing arrows out',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-quick-card\{min-width:0\}/,'快捷业务卡片需要允许收缩');
+  assert.match(css,/\.crm-quick-card strong,\.crm-quick-card small\{min-width:0;overflow-wrap:anywhere\}/,'快捷卡片长标题与说明需要换行');
+  assert.match(css,/\.crm-quick-card b\{flex:0 0 auto\}/,'快捷卡片箭头需要保持可见');
+});
