@@ -316,3 +316,8 @@ test('independent tables expose one consistent narrow-screen scroll hint',()=>{
   assert.match(css,/\.crm-independent-page \.crm-table-scroll-hint\{display:none\}/,'独立页面已有提示文案应避免与统一提示重复');
   assert.match(css,/\.crm-independent-page \.table-scroll::before\{content:'窄屏可左右滑动查看更多字段';display:block/,'窄屏独立表格必须明确提示可横向滚动');
 });
+
+test('independent table empty rows use a consistent centered layout',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-independent-page \.table-scroll td\[colspan\]\{padding:40px 20px;text-align:center;color:var\(--muted-foreground\)\}/,'独立表格无数据时应居中展示并保留稳定留白');
+});

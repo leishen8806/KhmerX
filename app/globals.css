@@ -365,3 +365,4 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 .crm-independent-page .button-row{min-width:0}
 .crm-independent-page .button-row>button,.crm-independent-page .button-row>a{min-width:0;overflow-wrap:anywhere}
 @media(max-width:760px){.crm-panel-toolbar>div:first-child{min-width:0}}
+.crm-independent-page .table-scroll td[colspan]{padding:40px 20px;text-align:center;color:var(--muted-foreground)}
