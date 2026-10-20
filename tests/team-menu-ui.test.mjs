@@ -447,3 +447,8 @@ test('workspace navigation keeps long labels and counters aligned',()=>{
   assert.match(css,/\.crm-nav a span:first-child\{min-width:0;overflow-wrap:anywhere\}/,'导航长名称需要自动换行');
   assert.match(css,/\.crm-nav a span:last-child\{flex:0 0 auto;white-space:nowrap\}/,'导航数量或箭头需要保持对齐');
 });
+
+test('workspace KPI values wrap instead of widening cards',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-kpi strong\{min-width:0;overflow-wrap:anywhere\}/,'工作台 KPI 长数值需要允许收缩换行');
+});
