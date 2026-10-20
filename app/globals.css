@@ -407,4 +407,5 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 .team-shell td,.team-shell th{overflow-wrap:anywhere}
 .team-audit p,.team-audit small{overflow-wrap:anywhere}.team-audit small{display:block;color:var(--muted-foreground);font-size:12px;line-height:1.6}
 .team-audit .button-row{margin-top:10px;min-width:0}.team-audit .button-row>button{min-width:0;overflow-wrap:anywhere}
+.team-audit-head span.success{display:inline-flex;align-items:center;padding:4px 8px;margin:0;border-radius:999px;font-size:12px;line-height:1.4}
 @media(max-width:480px){.team-audit .button-row>button{flex:1 1 100%;width:100%}}

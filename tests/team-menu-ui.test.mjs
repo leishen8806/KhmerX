@@ -567,3 +567,7 @@ test('audit card actions stay usable on narrow screens',()=>{
   assert.match(css,/\.team-audit \.button-row\{margin-top:10px;min-width:0\}/,'审计操作区需要与摘要保持间距并允许收缩');
   assert.match(css,/@media\(max-width:480px\)\{\.team-audit \.button-row>button\{flex:1 1 100%;width:100%\}/,'超窄屏审计按钮需要满宽便于点击');
 });
+test('audit success states stay compact inside heading rows',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.team-audit-head span\.success\{display:inline-flex;align-items:center;padding:4px 8px;margin:0;border-radius:999px;font-size:12px;line-height:1\.4\}/,'审计标题行成功状态需要使用紧凑徽标样式');
+});
