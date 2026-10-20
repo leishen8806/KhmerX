@@ -502,3 +502,8 @@ test('sidebar disclosure arrows stay aligned when group labels wrap',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.crm-sidebar nav summary>span\{min-width:0;overflow-wrap:anywhere\}\s*\.crm-sidebar nav summary i\{flex:0 0 auto\}/,'侧边栏展开箭头需要固定宽度并与换行标题保持对齐');
 });
+
+test('topbar breadcrumb yields space to account actions on narrow screens',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-breadcrumb\{flex:1 1 auto;overflow:hidden\}/,'顶部面包屑需要可收缩并为账户操作区留出空间');
+});
