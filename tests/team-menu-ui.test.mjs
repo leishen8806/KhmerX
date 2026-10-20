@@ -507,3 +507,8 @@ test('topbar breadcrumb yields space to account actions on narrow screens',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.crm-breadcrumb\{flex:1 1 auto;overflow:hidden\}/,'顶部面包屑需要可收缩并为账户操作区留出空间');
 });
+
+test('overview section helpers stack below titles on narrow screens',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/@media\(max-width:620px\)\{\.crm-section-heading\{display:block\}\.crm-section-heading>span\{display:block;margin-top:4px;text-align:left\}/,'工作台分区辅助说明需要在窄屏置于标题下方');
+});
