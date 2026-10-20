@@ -401,3 +401,9 @@ test('report and funding headers preserve controls beside long titles',()=>{
   assert.match(css,/\.report-center-head h2,\.funding-settings-head h2\{overflow-wrap:anywhere\}/,'报表和资金长标题需要自动换行');
   assert.match(css,/\.report-center-head>\.button-row,\.funding-settings-head>\.crm-page-badge\{flex:0 0 auto\}/,'报表导出和资金状态控件需要保持可见');
 });
+
+test('workspace section headings keep long labels and side notes within cards',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-section-heading h2\{min-width:0;overflow-wrap:anywhere\}/,'工作台分区标题需要允许收缩换行');
+  assert.match(css,/\.crm-section-heading>span\{flex:0 0 auto;min-width:0;white-space:normal;text-align:right\}/,'工作台分区辅助说明需要保持对齐并可换行');
+});
