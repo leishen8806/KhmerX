@@ -398,6 +398,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 .customer-timeline-row span{min-width:0;overflow-wrap:anywhere}
 @media(max-width:480px){.customer-detail-facts{grid-template-columns:1fr}}
 .customer-list-row small{overflow-wrap:anywhere}
+.report-grid p span{min-width:0;overflow-wrap:anywhere}.report-grid b{flex:0 0 auto;white-space:nowrap}
 .crm-kpi strong{min-width:0;overflow-wrap:anywhere}
 .crm-kpi span,.crm-kpi small{min-width:0;overflow-wrap:anywhere}
 .crm-activity-dot{flex:0 0 7px}

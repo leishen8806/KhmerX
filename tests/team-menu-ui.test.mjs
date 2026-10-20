@@ -532,3 +532,8 @@ test('customer list helper text wraps long identifiers inside rows',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.customer-list-row small\{overflow-wrap:anywhere\}/,'客户列表辅助信息需要允许长标识换行');
 });
+
+test('report metric labels wrap while values stay aligned',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.report-grid p span\{min-width:0;overflow-wrap:anywhere\}\.report-grid b\{flex:0 0 auto;white-space:nowrap\}/,'报表指标名称需要换行且数值保持对齐');
+});
