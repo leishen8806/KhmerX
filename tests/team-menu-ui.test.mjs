@@ -428,3 +428,9 @@ test('workspace overview KPI cards reflow across tablet and mobile widths',()=>{
   assert.match(css,/@media\(max-width:760px\)\{\.crm-kpis\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)\}\}/,'窄屏指标卡片需要调整为两列');
   assert.match(css,/@media\(max-width:480px\)\{\.crm-kpis\{grid-template-columns:1fr\}\}/,'超窄屏指标卡片需要单列展示');
 });
+
+test('workspace audit activity keeps timestamps visible beside long notes',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-activity-row>span:nth-child\(2\)\{min-width:0;overflow-wrap:anywhere\}/,'审计操作描述需要允许收缩换行');
+  assert.match(css,/\.crm-activity-row time\{flex:0 0 auto;white-space:nowrap\}/,'审计时间戳需要保持完整且不被挤压');
+});
