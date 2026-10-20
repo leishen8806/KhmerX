@@ -344,6 +344,14 @@ test('independent table empty rows use a consistent centered layout',()=>{
   assert.match(css,/\.crm-independent-page \.table-scroll td\[colspan\]>\.empty\{min-height:180px\}/,'独立表格空状态容器需要统一高度，避免页面留白过大');
 });
 
+test('independent table action buttons keep a stable click target',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-independent-page \.table-scroll td:last-child \.button-row\{align-items:flex-start\}/,'独立表格操作区需要从单元格顶部开始排列');
+  assert.match(css,/\.crm-independent-page \.table-scroll td:last-child \.button-row\{row-gap:8px\}/,'独立表格操作按钮组需要保持行间距');
+  assert.match(css,/\.crm-independent-page \.table-scroll td:last-child \.button-row>button,\.crm-independent-page \.table-scroll td:last-child \.button-row>a\{flex:0 1 auto\}/,'独立表格操作按钮不应被全局窄屏规则强制拉伸');
+  assert.match(css,/\.crm-independent-page \.table-scroll td:last-child \.button-row>button,\.crm-independent-page \.table-scroll td:last-child \.button-row>a\{min-height:40px;line-height:1\.4\}/,'独立表格操作按钮需要保持稳定点击高度');
+});
+
 test('independent page KPI cards stay readable with long values on narrow screens',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.crm-page-kpis\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\);align-items:start\}/,'窄屏 KPI 卡片需要改为可收缩网格');
