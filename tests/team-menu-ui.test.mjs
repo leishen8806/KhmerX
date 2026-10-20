@@ -467,6 +467,12 @@ test('workspace risk status rows wrap long labels safely',()=>{
   assert.match(css,/\.crm-risk-card>div span\{min-width:0;overflow-wrap:anywhere\}/,'风控资金状态文案需要允许收缩换行');
 });
 
+test('workspace overview titles shrink beside action controls',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-overview-head>div:first-child\{min-width:0\}/,'工作台总览标题容器需要允许收缩');
+  assert.match(css,/\.crm-overview-head h1,\.crm-overview-head h2\{overflow-wrap:anywhere\}/,'工作台总览标题需要允许长名称断行');
+});
+
 test('workspace funding risk card wraps long limit and warning copy',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.crm-risk-card>div,\.crm-risk-card>strong,\.crm-risk-card>span,\.crm-risk-card>small\{min-width:0;overflow-wrap:anywhere\}/,'风控资金卡片文案需要允许收缩换行');

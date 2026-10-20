@@ -412,3 +412,4 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 @media(max-width:480px){.team-audit .button-row>button{flex:1 1 100%;width:100%}}
 .crm-activity>div:first-child{flex-wrap:wrap}.crm-activity>div:first-child span{min-width:0;overflow-wrap:anywhere}
 .crm-risk-card>div{min-width:0;flex-wrap:wrap}.crm-risk-card>div span{min-width:0;overflow-wrap:anywhere}
+.crm-overview-head>div:first-child{min-width:0}.crm-overview-head h1,.crm-overview-head h2{overflow-wrap:anywhere}
