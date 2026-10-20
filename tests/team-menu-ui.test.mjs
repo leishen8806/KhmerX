@@ -215,6 +215,11 @@ test('loan product review controls have responsive toolbar styling',()=>{
   assert.match(css,/\.crm-panel-toolbar>button\{width:100%\}/);
 });
 
+test('responsive filter labels can shrink inside narrow independent pages',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-filter-row>label\{min-width:0\}/,'筛选字段需要允许收缩，避免窄屏横向溢出');
+});
+
 test('organization tables keep language options horizontal and select arrows inset',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/company-language-cell label\{display:inline-flex!important;flex:0 0 auto;flex-direction:row!important;align-items:center/,'公司语言选项不得被通用表单标签样式挤成纵向');
