@@ -383,3 +383,9 @@ test('KYC case headings keep status pills visible beside long references',()=>{
   assert.match(css,/\.kyc-case-heading>div\{min-width:0\}/,'KYC 案件编号内容区需要允许收缩');
   assert.match(css,/\.kyc-case-heading \.pill\{flex:0 0 auto;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap\}/,'KYC 状态标签需要固定并截断过长内容');
 });
+
+test('KYC case routing and actions wrap long organization and reviewer labels',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.kyc-case-primary span,\.kyc-case-routing span\{min-width:0;overflow-wrap:anywhere\}/,'KYC 部门机构和审核员信息需要可换行');
+  assert.match(css,/\.kyc-case-actions \.text-link\{min-width:0;overflow-wrap:anywhere\}/,'KYC 操作链接长文案需要可换行');
+});

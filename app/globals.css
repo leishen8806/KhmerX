@@ -376,3 +376,4 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 .kyc-queue-title>div:first-child{min-width:0}.kyc-queue-title h3{overflow-wrap:anywhere}.kyc-queue-count{flex:0 0 auto}
 .kyc-queue-toolbar>span{min-width:0;overflow-wrap:anywhere}.kyc-queue-toolbar .button-row{min-width:0;flex:0 0 auto}.kyc-queue-toolbar .button-row>button,.kyc-queue-toolbar .button-row>a{min-width:0;overflow-wrap:anywhere}
 .kyc-case-heading>div{min-width:0}.kyc-case-heading .pill{flex:0 0 auto;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kyc-case-primary span,.kyc-case-routing span{min-width:0;overflow-wrap:anywhere}.kyc-case-actions .text-link{min-width:0;overflow-wrap:anywhere}
