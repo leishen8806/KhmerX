@@ -282,6 +282,12 @@ test('native selects can shrink in narrow forms while table selects stay readabl
   assert.match(css,/\.crm-independent-page table select\{min-width:120px\}/,'表格中的下拉框需要保留可读宽度');
 });
 
+test('team native selects match the shared 48px form height',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.team-shell select\{min-height:48px;border:1px solid var\(--border\);border-radius:8px;padding:10px 44px 10px 12px;background:var\(--card\);color:var\(--foreground\)\}/,'后台原生下拉框需要与输入框保持 48px 高度和统一箭头内边距');
+  assert.match(css,/\.team-shell select\{padding-right:44px\}/,'后台原生下拉框的箭头需要与右边框保持稳定内边距');
+});
+
 test('narrow filter result summaries wrap without pushing controls off screen',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.crm-filter-row>\.fine\{min-width:0;overflow-wrap:anywhere\}/,'筛选结果摘要需要允许换行');
