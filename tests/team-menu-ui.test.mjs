@@ -522,3 +522,8 @@ test('customer timeline descriptions wrap inside the detail card',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.customer-timeline-row span\{min-width:0;overflow-wrap:anywhere\}/,'客户时间线描述需要允许长文案换行');
 });
+
+test('customer detail facts become single-column on very narrow screens',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/@media\(max-width:480px\)\{\.customer-detail-facts\{grid-template-columns:1fr\}/,'客户详情事实摘要在极窄屏需要改单列');
+});
