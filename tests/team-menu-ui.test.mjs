@@ -537,3 +537,8 @@ test('report metric labels wrap while values stay aligned',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.report-grid p span\{min-width:0;overflow-wrap:anywhere\}\.report-grid b\{flex:0 0 auto;white-space:nowrap\}/,'报表指标名称需要换行且数值保持对齐');
 });
+test('report KPI cards keep long values inside narrow columns',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.report-kpis>div\{min-width:0\}/,'报表 KPI 卡片列需要允许收缩');
+  assert.match(css,/\.report-kpis strong\{display:block;min-width:0;margin-top:8px;font-size:22px;overflow-wrap:anywhere\}/,'报表 KPI 数值需要允许在窄列内换行');
+});
