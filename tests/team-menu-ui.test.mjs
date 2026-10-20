@@ -237,7 +237,7 @@ test('organization tables keep language options horizontal and select arrows ins
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/company-language-cell label\{display:inline-flex!important;flex:0 0 auto;flex-direction:row!important;align-items:center/,'公司语言选项不得被通用表单标签样式挤成纵向');
   assert.match(css,/company-language-cell input\{flex:0 0 auto;width:auto;margin:0\}/,'语言复选框应与文字保持同一行');
-  assert.match(css,/select:not\(\[multiple\]\)\{[^}]*background-position:right 14px center[^}]*padding-right:44px/,'下拉箭头需要与右边框保留稳定间距');
+  assert.match(css,/select:not\(\[multiple\]\):not\(\[data-slot=select\]\)\{[^}]*background-position:right 14px center[^}]*padding-right:44px/,'原生下拉箭头需要与右边框保留稳定间距');
   assert.match(teamClient,/select aria-label=\{company\.slug\+' 状态'\}/,'公司状态下拉框必须有可读标签，便于键盘和辅助技术操作');
 });
 
@@ -266,6 +266,8 @@ test('shared native select fills narrow form width and keeps arrow inset',()=>{
   assert.match(nativeSelect,/group\/native-select relative w-full min-w-0/,'共享下拉容器需要占满可用宽度并允许收缩');
   assert.match(nativeSelect,/border border-input/,'共享下拉框需要保留统一边框');
   assert.match(nativeSelect,/px-3 py-2 pr-9/,'共享下拉箭头需要与右边框保持稳定内边距');
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/select:not\(\[multiple\]\):not\(\[data-slot=select\]\)/,'共享下拉组件应使用自身箭头，避免被原生箭头样式覆盖');
 });
 
 test('native selects can shrink in narrow forms while table selects stay readable',()=>{
