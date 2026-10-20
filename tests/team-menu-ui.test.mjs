@@ -414,3 +414,10 @@ test('workspace quick cards keep long labels from pushing arrows out',()=>{
   assert.match(css,/\.crm-quick-card strong,\.crm-quick-card small\{min-width:0;overflow-wrap:anywhere\}/,'快捷卡片长标题与说明需要换行');
   assert.match(css,/\.crm-quick-card b\{flex:0 0 auto\}/,'快捷卡片箭头需要保持可见');
 });
+
+test('workspace overview columns collapse before narrow screens overflow',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/@media\(max-width:900px\)\{\.crm-overview-grid\{grid-template-columns:1fr\}/,'工作台概览三栏布局需要在中等宽度折叠为单列');
+  assert.match(css,/@media\(max-width:900px\)\{\.crm-overview-grid\{grid-template-columns:1fr\}\.crm-quick-grid\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)\}/,'快捷卡片在折叠后仍应保持两列');
+  assert.match(css,/@media\(max-width:480px\)\{\.crm-quick-grid\{grid-template-columns:1fr\}\}/,'超窄屏快捷卡片需要单列展示');
+});
