@@ -370,3 +370,10 @@ test('KYC queue title keeps count badge visible beside long labels',()=>{
   assert.match(css,/\.kyc-queue-title h3\{overflow-wrap:anywhere\}/,'KYC 长标题需要自动换行');
   assert.match(css,/\.kyc-queue-count\{flex:0 0 auto\}/,'KYC 结果数量标签需要保持完整显示');
 });
+
+test('KYC queue toolbar keeps result text and actions within the page width',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.kyc-queue-toolbar>span\{min-width:0;overflow-wrap:anywhere\}/,'KYC 结果说明需要允许收缩换行');
+  assert.match(css,/\.kyc-queue-toolbar \.button-row\{min-width:0;flex:0 0 auto\}/,'KYC 工具栏操作区需要保持独立宽度');
+  assert.match(css,/\.kyc-queue-toolbar \.button-row>button,\.kyc-queue-toolbar \.button-row>a\{min-width:0;overflow-wrap:anywhere\}/,'KYC 操作按钮长文案需要可换行');
+});
