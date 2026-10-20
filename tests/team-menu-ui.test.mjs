@@ -405,7 +405,7 @@ test('report and funding headers preserve controls beside long titles',()=>{
 test('workspace section headings keep long labels and side notes within cards',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.crm-section-heading h2\{min-width:0;overflow-wrap:anywhere\}/,'工作台分区标题需要允许收缩换行');
-  assert.match(css,/\.crm-section-heading>span\{flex:0 0 auto;min-width:0;white-space:normal;text-align:right\}/,'工作台分区辅助说明需要保持对齐并可换行');
+  assert.match(css,/\.crm-section-heading>span\{flex:0 1 auto;min-width:0;white-space:normal;text-align:right;overflow-wrap:anywhere\}/,'工作台分区辅助说明需要保持对齐并可换行');
 });
 
 test('workspace quick cards keep long labels from pushing arrows out',()=>{
@@ -461,4 +461,9 @@ test('workspace KPI labels wrap for multilingual text',()=>{
 test('workspace activity status dots keep a stable size',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.crm-activity-dot\{flex:0 0 7px\}/,'审计活动状态圆点需要保持固定尺寸');
+});
+
+test('workspace section helper copy can shrink beside long headings',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-section-heading>span\{flex:0 1 auto;min-width:0;white-space:normal;text-align:right;overflow-wrap:anywhere\}/,'工作台分区辅助说明需要可收缩换行');
 });
