@@ -512,3 +512,8 @@ test('overview section helpers stack below titles on narrow screens',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/@media\(max-width:620px\)\{\.crm-section-heading\{display:block\}\.crm-section-heading>span\{display:block;margin-top:4px;text-align:left\}/,'工作台分区辅助说明需要在窄屏置于标题下方');
 });
+
+test('activity timestamps can wrap on very narrow screens',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/@media\(max-width:480px\)\{\.crm-activity-row\{align-items:flex-start\}\.crm-activity-row time\{white-space:normal;max-width:72px;text-align:right;overflow-wrap:anywhere\}/,'审计活动时间在极窄屏需要允许换行');
+});

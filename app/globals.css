@@ -394,6 +394,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 .crm-sidebar nav summary>span{min-width:0;overflow-wrap:anywhere}.crm-sidebar nav summary i{flex:0 0 auto}
 .crm-breadcrumb{flex:1 1 auto;overflow:hidden}
 @media(max-width:620px){.crm-section-heading{display:block}.crm-section-heading>span{display:block;margin-top:4px;text-align:left}}
+@media(max-width:480px){.crm-activity-row{align-items:flex-start}.crm-activity-row time{white-space:normal;max-width:72px;text-align:right;overflow-wrap:anywhere}}
 .crm-kpi strong{min-width:0;overflow-wrap:anywhere}
 .crm-kpi span,.crm-kpi small{min-width:0;overflow-wrap:anywhere}
 .crm-activity-dot{flex:0 0 7px}
