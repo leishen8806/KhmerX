@@ -54,6 +54,15 @@ test('empty CSV exports are disabled and expose an accessible result count',()=>
   assert.match(csvExport,/aria-label=\{rows\.length\?`导出当前结果 CSV，共 \$\{rows\.length\} 条`:'暂无可导出的结果'\}/,'导出按钮必须提供当前结果数量和空状态说明');
 });
 
+test('customer search and export controls share one aligned toolbar',()=>{
+  const customerCenter=fs.readFileSync(path.join(process.cwd(),'components/customer-center.tsx'),'utf8');
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(customerCenter,/className="customer-center-toolbar"/,'客户搜索与导出控件必须使用统一工具栏');
+  assert.match(customerCenter,/customer-center-toolbar[\s\S]*统一搜索[\s\S]*CsvExport/,'导出按钮必须与当前客户搜索处于同一工具栏');
+  assert.match(css,/\.customer-center-toolbar\{display:flex;align-items:flex-end/,'工具栏需按搜索框底部对齐');
+  assert.match(css,/\.customer-center-toolbar>\.button-row\{flex:0 0 auto;align-items:center;min-height:48px\}/,'导出区域需与输入框高度对齐');
+});
+
 test('form controls expose a consistent keyboard focus state',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/input:focus-visible,select:focus-visible,textarea:focus-visible\{outline:3px solid var\(--ring\);outline-offset:2px\}/,'输入、下拉和多行文本控件需要统一键盘焦点样式');
