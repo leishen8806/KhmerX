@@ -222,7 +222,7 @@ test('responsive filter labels can shrink inside narrow independent pages',()=>{
 
 test('report export controls stack cleanly on narrow pages',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
-  assert.match(css,/\.report-center-head>\.button-row\{align-items:center;justify-content:flex-end;min-width:0\}/);
+  assert.match(css,/\.report-center-head>\.button-row\{align-items:center;justify-content:flex-end;min-width:0(?:;[^}]*)?\}/,'报表头部操作区需要保持可收缩并支持响应式换行');
   assert.match(css,/\.report-center-head>\.button-row\{display:grid;grid-template-columns:1fr;align-items:stretch/,'窄屏报表操作区需要纵向排列');
   assert.match(css,/\.report-center-head>\.button-row>select,\.report-center-head>\.button-row>button\{width:100%\}/,'窄屏报表控件需要占满操作区宽度');
 });
@@ -541,4 +541,8 @@ test('report KPI cards keep long values inside narrow columns',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.report-kpis>div\{min-width:0\}/,'报表 KPI 卡片列需要允许收缩');
   assert.match(css,/\.report-kpis strong\{display:block;min-width:0;margin-top:8px;font-size:22px;overflow-wrap:anywhere\}/,'报表 KPI 数值需要允许在窄列内换行');
+});
+test('report header actions wrap before overflowing tablet widths',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.report-center-head>\.button-row\{align-items:center;justify-content:flex-end;min-width:0;flex-wrap:wrap;row-gap:8px\}/,'报表头部操作区需要允许在平板宽度换行');
 });
