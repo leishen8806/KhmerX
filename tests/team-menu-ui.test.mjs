@@ -254,3 +254,10 @@ test('mini app KYC cards keep status before the chevron with a five pixel gap',(
   assert.match(overrides,/\.mini-app \.customer-kyc \.kyc-group-arrow \{ order: 4;[\s\S]*?right: 14px/,'覆盖样式中的箭头必须保持在最右侧');
   assert.match(overrides,/\.mini-app \.customer-kyc \.kyc-group-copy em \{\n  order: 3;[\s\S]*?right: 43px;/,'覆盖样式中的状态必须与箭头保持 5px 间距');
 });
+
+test('shared native select fills narrow form width and keeps arrow inset',()=>{
+  const nativeSelect=fs.readFileSync(path.join(process.cwd(),'components/ui/native-select.tsx'),'utf8');
+  assert.match(nativeSelect,/group\/native-select relative w-full min-w-0/,'共享下拉容器需要占满可用宽度并允许收缩');
+  assert.match(nativeSelect,/border border-input/,'共享下拉框需要保留统一边框');
+  assert.match(nativeSelect,/px-3 py-2 pr-9/,'共享下拉箭头需要与右边框保持稳定内边距');
+});
