@@ -14,6 +14,7 @@ const reportCenter=fs.readFileSync(path.join(process.cwd(),'components/report-ce
 const teamClient=fs.readFileSync(path.join(process.cwd(),'app/team/client.tsx'),'utf8');
 const teamAuth=fs.readFileSync(path.join(process.cwd(),'app/api/team/auth/route.ts'),'utf8');
 const teamRoute=fs.readFileSync(path.join(process.cwd(),'app/api/team/route.ts'),'utf8');
+const csvExport=fs.readFileSync(path.join(process.cwd(),'components/csv-export.tsx'),'utf8');
 
 test('multi-company SSO restores the last company and updates it on switch',()=>{
   assert.match(teamAuth,/STAFF_LAST_COMPANY/,'登录流程必须保留上次公司选择');
@@ -46,6 +47,11 @@ test('report export controls match the server role allowlist',()=>{
   assert.match(reportCenter,/canExport\?<><select aria-label="导出报表类型"/,'无导出权限岗位不得看到会失败的导出控件');
   assert.match(router,/ReportCenter customers=\{work\?\.customers\|\|\[\]\} loans=\{work\?\.state\?\.loans\|\|\[\]\} entries=\{work\?\.state\?\.entries\|\|\[\]\} notifications=\{work\?\.state\?\.notifications\|\|\[\]\} role=\{member\?\.role\|\|''\}/,'报表页面必须传递当前岗位');
   assert.match(teamClient,/TabsContent value="reports"><ReportCenter customers=\{work\?\.customers\|\|\[\]\} loans=\{work\?\.state\?\.loans\|\|\[\]\} entries=\{work\?\.state\?\.entries\|\|\[\]\} notifications=\{work\?\.state\?\.notifications\|\|\[\]\} role=\{member\?\.role\|\|''\}/,'工作台报表标签也必须传递当前岗位');
+});
+
+test('empty CSV exports are disabled and expose an accessible result count',()=>{
+  assert.match(csvExport,/disabled=\{!rows\.length\}/,'无结果时导出按钮必须不可点击');
+  assert.match(csvExport,/aria-label=\{rows\.length\?`导出当前结果 CSV，共 \$\{rows\.length\} 条`:'暂无可导出的结果'\}/,'导出按钮必须提供当前结果数量和空状态说明');
 });
 
 test('service backend menu keeps merged customer and KYC entries unique',()=>{
