@@ -341,6 +341,7 @@ test('independent tables expose one consistent narrow-screen scroll hint',()=>{
 test('independent table empty rows use a consistent centered layout',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.crm-independent-page \.table-scroll td\[colspan\]\{padding:40px 20px;text-align:center;color:var\(--muted-foreground\)\}/,'独立表格无数据时应居中展示并保留稳定留白');
+  assert.match(css,/\.crm-independent-page \.table-scroll td\[colspan\]>\.empty\{min-height:180px\}/,'独立表格空状态容器需要统一高度，避免页面留白过大');
 });
 
 test('independent page KPI cards stay readable with long values on narrow screens',()=>{
