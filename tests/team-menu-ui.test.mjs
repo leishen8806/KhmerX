@@ -292,3 +292,8 @@ test('independent page action buttons can shrink and wrap long labels',()=>{
   assert.match(css,/\.crm-independent-page \.button-row\{min-width:0\}/,'独立页面操作区需要允许收缩');
   assert.match(css,/\.crm-independent-page \.button-row>button,\.crm-independent-page \.button-row>a\{min-width:0;overflow-wrap:anywhere\}/,'长按钮文案需要在窄屏安全换行');
 });
+
+test('narrow panel toolbars allow their title block to shrink',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-panel-toolbar>div:first-child\{min-width:0\}/,'窄屏工具栏标题区需要取消固定最小宽度');
+});

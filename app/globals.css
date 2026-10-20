@@ -364,3 +364,4 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 @media(max-width:620px){.crm-panel-title-row{display:block}.crm-panel-title-row>.crm-readonly-badge{display:inline-flex;margin-top:10px}}
 .crm-independent-page .button-row{min-width:0}
 .crm-independent-page .button-row>button,.crm-independent-page .button-row>a{min-width:0;overflow-wrap:anywhere}
+@media(max-width:760px){.crm-panel-toolbar>div:first-child{min-width:0}}
