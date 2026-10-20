@@ -562,3 +562,8 @@ test('audit card correlation details wrap long identifiers',()=>{
   assert.match(css,/\.team-audit p,\.team-audit small\{overflow-wrap:anywhere\}/,'审计摘要和关联 ID 需要允许换行');
   assert.match(css,/\.team-audit small\{display:block;color:var\(--muted-foreground\);font-size:12px;line-height:1\.6\}/,'审计关联信息需要保持统一辅助文字样式');
 });
+test('audit card actions stay usable on narrow screens',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.team-audit \.button-row\{margin-top:10px;min-width:0\}/,'审计操作区需要与摘要保持间距并允许收缩');
+  assert.match(css,/@media\(max-width:480px\)\{\.team-audit \.button-row>button\{flex:1 1 100%;width:100%\}/,'超窄屏审计按钮需要满宽便于点击');
+});
