@@ -452,3 +452,8 @@ test('workspace KPI values wrap instead of widening cards',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.crm-kpi strong\{min-width:0;overflow-wrap:anywhere\}/,'工作台 KPI 长数值需要允许收缩换行');
 });
+
+test('workspace KPI labels wrap for multilingual text',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-kpi span,\.crm-kpi small\{min-width:0;overflow-wrap:anywhere\}/,'工作台 KPI 多语言标签需要允许换行');
+});
