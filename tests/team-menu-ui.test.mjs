@@ -220,6 +220,13 @@ test('responsive filter labels can shrink inside narrow independent pages',()=>{
   assert.match(css,/\.crm-filter-row>label\{min-width:0\}/,'筛选字段需要允许收缩，避免窄屏横向溢出');
 });
 
+test('report export controls stack cleanly on narrow pages',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.report-center-head>\.button-row\{align-items:center;justify-content:flex-end;min-width:0\}/);
+  assert.match(css,/\.report-center-head>\.button-row\{display:grid;grid-template-columns:1fr;align-items:stretch/,'窄屏报表操作区需要纵向排列');
+  assert.match(css,/\.report-center-head>\.button-row>select,\.report-center-head>\.button-row>button\{width:100%\}/,'窄屏报表控件需要占满操作区宽度');
+});
+
 test('organization tables keep language options horizontal and select arrows inset',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/company-language-cell label\{display:inline-flex!important;flex:0 0 auto;flex-direction:row!important;align-items:center/,'公司语言选项不得被通用表单标签样式挤成纵向');
