@@ -435,6 +435,11 @@ test('workspace audit activity keeps timestamps visible beside long notes',()=>{
   assert.match(css,/\.crm-activity-row time\{flex:0 0 auto;white-space:nowrap\}/,'审计时间戳需要保持完整且不被挤压');
 });
 
+test('workspace activity timestamps wrap before tablet rows overflow',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/@media\(max-width:620px\)\{\.crm-activity-row\{align-items:flex-start\}\.crm-activity-row time\{white-space:normal;max-width:96px;text-align:right;overflow-wrap:anywhere\}\}/,'平板窄屏活动时间需要允许收缩换行');
+});
+
 test('workspace funding risk card wraps long limit and warning copy',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.crm-risk-card>div,\.crm-risk-card>strong,\.crm-risk-card>span,\.crm-risk-card>small\{min-width:0;overflow-wrap:anywhere\}/,'风控资金卡片文案需要允许收缩换行');
