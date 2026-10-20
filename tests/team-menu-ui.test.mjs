@@ -394,3 +394,10 @@ test('KYC queue empty results use a centered consistent state',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.kyc-queue>\.sample\{margin:14px 0 0;text-align:center\}/,'KYC 无结果状态需要居中并保持统一间距');
 });
+
+test('report and funding headers preserve controls beside long titles',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.report-center-head>div:first-child,\.funding-settings-head>div:first-child\{min-width:0\}/,'报表和资金标题区需要允许收缩');
+  assert.match(css,/\.report-center-head h2,\.funding-settings-head h2\{overflow-wrap:anywhere\}/,'报表和资金长标题需要自动换行');
+  assert.match(css,/\.report-center-head>\.button-row,\.funding-settings-head>\.crm-page-badge\{flex:0 0 auto\}/,'报表导出和资金状态控件需要保持可见');
+});
