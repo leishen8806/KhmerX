@@ -330,6 +330,11 @@ test('independent page KPI cards stay readable with long values on narrow screen
   assert.match(css,/\.crm-page-kpis\{grid-template-columns:1fr\}/,'超窄屏 KPI 卡片需要单列排列');
 });
 
+test('independent page KPI summaries wrap long labels without overflow',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-page-kpis\{display:flex;align-items:baseline;flex-wrap:wrap;gap:10px/,'独立页面 KPI 摘要栏需要允许长标签换行');
+});
+
 test('independent page headers stack title and badge on narrow screens',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.crm-independent-head\{display:block\}/,'窄屏独立页面头部需要上下排列');
