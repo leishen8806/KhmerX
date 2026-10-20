@@ -476,7 +476,8 @@ test('workspace overview titles shrink beside action controls',()=>{
 test('independent page KPI values shrink inside cards',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.crm-page-kpis>div\{min-width:0\}/,'独立页面 KPI 卡片需要允许内容收缩');
-  assert.match(css,/\.crm-page-kpis strong\{overflow-wrap:anywhere\}/,'独立页面 KPI 长值需要安全断行');
+  assert.match(css,/\.crm-page-kpis>div strong\{overflow-wrap:anywhere;line-height:1\.35\}/,'独立页面 KPI 长值需要安全断行');
+  assert.match(css,/\.crm-page-kpis span\{min-width:0;overflow-wrap:anywhere\}/,'独立页面 KPI 长标签需要安全断行');
 });
 
 test('workspace funding risk card wraps long limit and warning copy',()=>{
