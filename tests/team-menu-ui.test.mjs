@@ -497,3 +497,8 @@ test('sidebar navigation group labels wrap without affecting disclosure controls
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.crm-sidebar nav summary\{overflow-wrap:anywhere\}/,'侧边栏分组标题需要允许长文案换行');
 });
+
+test('sidebar disclosure arrows stay aligned when group labels wrap',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-sidebar nav summary>span\{min-width:0;overflow-wrap:anywhere\}\s*\.crm-sidebar nav summary i\{flex:0 0 auto\}/,'侧边栏展开箭头需要固定宽度并与换行标题保持对齐');
+});
