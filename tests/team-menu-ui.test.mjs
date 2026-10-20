@@ -54,6 +54,11 @@ test('empty CSV exports are disabled and expose an accessible result count',()=>
   assert.match(csvExport,/aria-label=\{rows\.length\?`导出当前结果 CSV，共 \$\{rows\.length\} 条`:'暂无可导出的结果'\}/,'导出按钮必须提供当前结果数量和空状态说明');
 });
 
+test('form controls expose a consistent keyboard focus state',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/input:focus-visible,select:focus-visible,textarea:focus-visible\{outline:3px solid var\(--ring\);outline-offset:2px\}/,'输入、下拉和多行文本控件需要统一键盘焦点样式');
+});
+
 test('service backend menu keeps merged customer and KYC entries unique',()=>{
   assert.doesNotMatch(source,/\['客户 360° 详情','\/team\/customers'/);
   assert.doesNotMatch(source,/\['待补件','\/team\/kyc'/);
