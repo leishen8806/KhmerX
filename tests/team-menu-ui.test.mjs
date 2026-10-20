@@ -336,6 +336,11 @@ test('crm action panels keep consistent mobile side spacing',()=>{
   assert.match(css,/@media\(max-width:620px\)\{\.crm-action-panel\{padding:16px\}\}/,'窄屏操作卡片需要统一左右内边距');
 });
 
+test('independent page cards keep mobile side margins',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-subpage-shell>\.crm-independent-page:not\(\.panel\)\{margin:16px 12px;padding:16px\}/,'窄屏独立页面卡片需要保留稳定左右外边距');
+});
+
 test('independent page headers stack cleanly on mobile',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/@media\(max-width:620px\)\{\.crm-independent-head\{display:block;padding-bottom:14px;margin-bottom:14px\}/,'窄屏独立页面标题区需要收紧并改为单列');
