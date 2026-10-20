@@ -219,6 +219,9 @@ test('internal entry links use client navigation to avoid full-page flashes',()=
 
 test('mini app KYC cards keep status before the chevron with a five pixel gap',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  const overrides=fs.readFileSync(path.join(process.cwd(),'app/kyc-overrides.css'),'utf8');
   assert.match(css,/\.mini-app \.customer-kyc \.kyc-group-arrow\{order:4;margin-left:5px\}/,'KYC 卡片箭头应紧跟状态并保持 5px 间距');
   assert.match(css,/\.mini-app \.customer-kyc \.kyc-group-copy em\{order:3;width:auto;flex:0 0 auto;margin-left:auto/,'KYC 卡片状态应位于箭头前并靠右对齐');
+  assert.match(overrides,/\.mini-app \.customer-kyc \.kyc-group-arrow \{ order: 4;[\s\S]*?right: 14px/,'覆盖样式中的箭头必须保持在最右侧');
+  assert.match(overrides,/\.mini-app \.customer-kyc \.kyc-group-copy em \{\n  order: 3;[\s\S]*?right: 43px;/,'覆盖样式中的状态必须与箭头保持 5px 间距');
 });
