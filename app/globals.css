@@ -341,7 +341,7 @@ body:has(.mini-app) .auth-locale{display:none}
 .crm-action-panel>.team-grid+label.check{display:flex;align-items:center;gap:8px}
 .crm-action-panel>.team-grid+label.check input{width:auto}
 .crm-action-panel>.team-grid+button,.crm-action-panel>.check+button{margin-top:16px}
-.crm-independent-page .table-scroll td:first-child .team-grid{margin-top:10px;gap:8px}
+.crm-independent-page .table-scroll td:first-child .team-grid{margin-top:10px;gap:8px}.crm-independent-page .table-scroll td:last-child .button-row{align-items:flex-start}.crm-independent-page .table-scroll td:last-child .button-row>button,.crm-independent-page .table-scroll td:last-child .button-row>a{flex:0 1 auto}
 .crm-independent-page .table-scroll td:first-child .team-grid input{min-width:0}
 @media(max-width:760px){.crm-table-scroll-hint{display:block}.crm-filter-row>button{width:100%}.crm-action-panel>button{width:100%}.crm-action-panel>.team-grid+button,.crm-action-panel>.check+button{position:sticky;bottom:10px;z-index:3;box-shadow:0 6px 18px #17203324}.crm-independent-page .table-scroll td:last-child{min-width:220px}}
 .customer-center-toolbar{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin:0 0 18px}.customer-center-toolbar>label{display:flex;flex:1 1 320px;min-width:240px;flex-direction:column;gap:8px;margin:0}.customer-center-toolbar>.button-row{flex:0 0 auto;align-items:center;min-height:48px}.customer-center-toolbar>.button-row .fine{margin:0;white-space:nowrap}

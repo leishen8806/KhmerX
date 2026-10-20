@@ -303,3 +303,9 @@ test('independent tables wrap long values without widening the page',()=>{
   assert.match(css,/\.crm-independent-page \.table-scroll th\{vertical-align:middle;white-space:nowrap\}/,'表头需要保持单行，避免表格列头高度不一致');
   assert.match(css,/\.crm-independent-page \.table-scroll td\{vertical-align:middle;overflow-wrap:anywhere\}/,'长编号、邮箱和备注需要在单元格内安全换行');
 });
+
+test('independent table actions stay compact inside the operation column',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-independent-page \.table-scroll td:last-child \.button-row\{align-items:flex-start\}/,'表格操作区需要从单元格顶部开始排列');
+  assert.match(css,/\.crm-independent-page \.table-scroll td:last-child \.button-row>button,\.crm-independent-page \.table-scroll td:last-child \.button-row>a\{flex:0 1 auto\}/,'操作按钮不应因全局窄屏规则被强制拉伸');
+});
