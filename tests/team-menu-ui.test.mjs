@@ -329,3 +329,9 @@ test('independent page KPI cards stay readable with long values on narrow screen
   assert.match(css,/\.crm-page-kpis strong\{font-size:22px;overflow-wrap:anywhere\}/,'公司名称、代码和邮箱等长值需要自动换行');
   assert.match(css,/\.crm-page-kpis\{grid-template-columns:1fr\}/,'超窄屏 KPI 卡片需要单列排列');
 });
+
+test('independent page headers stack title and badge on narrow screens',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-independent-head\{display:block\}/,'窄屏独立页面头部需要上下排列');
+  assert.match(css,/\.crm-independent-head>\.crm-page-badge\{display:inline-flex;margin-top:10px\}/,'独立页面徽标需要与标题保持稳定间距');
+});
