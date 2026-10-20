@@ -440,3 +440,10 @@ test('workspace funding risk card wraps long limit and warning copy',()=>{
   assert.match(css,/\.crm-risk-card>div,\.crm-risk-card>strong,\.crm-risk-card>span,\.crm-risk-card>small\{min-width:0;overflow-wrap:anywhere\}/,'风控资金卡片文案需要允许收缩换行');
   assert.match(css,/\.crm-risk-dot\{flex:0 0 8px\}/,'风控状态圆点需要保持固定尺寸');
 });
+
+test('workspace navigation keeps long labels and counters aligned',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-nav a\{min-width:0\}/,'工作台业务导航项需要允许收缩');
+  assert.match(css,/\.crm-nav a span:first-child\{min-width:0;overflow-wrap:anywhere\}/,'导航长名称需要自动换行');
+  assert.match(css,/\.crm-nav a span:last-child\{flex:0 0 auto;white-space:nowrap\}/,'导航数量或箭头需要保持对齐');
+});
