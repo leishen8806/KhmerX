@@ -286,3 +286,9 @@ test('panel title rows wrap readonly badges on narrow screens',()=>{
   assert.match(css,/\.crm-panel-title-row>\.crm-readonly-badge\{flex:0 0 auto\}/,'只读徽标需要保持稳定宽度');
   assert.match(css,/\.crm-panel-title-row\{display:block\}/,'窄屏面板标题区需要纵向排列');
 });
+
+test('independent page action buttons can shrink and wrap long labels',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/\.crm-independent-page \.button-row\{min-width:0\}/,'独立页面操作区需要允许收缩');
+  assert.match(css,/\.crm-independent-page \.button-row>button,\.crm-independent-page \.button-row>a\{min-width:0;overflow-wrap:anywhere\}/,'长按钮文案需要在窄屏安全换行');
+});
