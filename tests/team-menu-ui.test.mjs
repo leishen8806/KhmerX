@@ -341,6 +341,11 @@ test('independent page cards keep mobile side margins',()=>{
   assert.match(css,/\.crm-subpage-shell>\.crm-independent-page:not\(\.panel\)\{margin:16px 12px;padding:16px\}/,'窄屏独立页面卡片需要保留稳定左右外边距');
 });
 
+test('crm sidebar becomes single column on phone widths',()=>{
+  const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
+  assert.match(css,/@media\(max-width:480px\)\{\.crm-sidebar nav\{grid-template-columns:1fr\}\.crm-sidebar nav details\[open\]\{grid-column:auto\}\}/,'手机端侧栏导航需要单列排列，避免双列挤压触控区域');
+});
+
 test('independent page headers stack cleanly on mobile',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/@media\(max-width:620px\)\{\.crm-independent-head\{display:block;padding-bottom:14px;margin-bottom:14px\}/,'窄屏独立页面标题区需要收紧并改为单列');
