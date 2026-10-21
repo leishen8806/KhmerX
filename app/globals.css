@@ -427,3 +427,4 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 /* Legacy/raw text fields use the same border treatment as shared inputs. */
 .team-shell input:not([type=checkbox]):not([type=radio]),.crm-independent-page input:not([type=checkbox]):not([type=radio]),.team-shell textarea,.crm-independent-page textarea{border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--foreground);box-sizing:border-box}
 .team-shell textarea,.crm-independent-page textarea{min-height:120px;padding:12px;line-height:1.5;resize:vertical}
+.ticket-action-row{display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap;margin-top:10px}.ticket-action-row input{flex:1 1 260px;min-width:0}.ticket-action-row button{flex:0 0 auto}@media(max-width:560px){.ticket-action-row{display:grid;grid-template-columns:1fr}.ticket-action-row input,.ticket-action-row button{width:100%}}

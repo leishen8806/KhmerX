@@ -138,7 +138,9 @@ test('service backend menu keeps merged customer and KYC entries unique',()=>{
   assert.match(notifications,/canManage&&\['failed','unknown'\]\.includes\(d\.status\)/,'通知人工重试按钮仅管理员可见');
   const tickets=fs.readFileSync(path.join(process.cwd(),'components/service-tickets.tsx'),'utf8');
   assert.match(tickets,/canEdit=true/,'工单页面必须接收可编辑权限');
-  assert.match(tickets,/canEdit&&<Button variant="outline"/,'审计员工单页面不得显示处理按钮');
+  assert.match(tickets,/canEdit&&\(/,'审计员工单页面不得显示处理按钮');
+  assert.doesNotMatch(tickets,/window\.prompt\(['"]填写处理记录/,'工单处理记录不得依赖阻塞式浏览器弹窗');
+  assert.match(tickets,/ticket-action-row/,'工单处理应使用页面内联操作区');
   const kycFiles=fs.readFileSync(path.join(process.cwd(),'app/api/kyc/files/route.ts'),'utf8');
   assert.match(kycFiles,/reviewerSession\.team\?\.member\.role==='audit'.*不可下载 KYC 材料/,'审计员不得通过文件接口下载 KYC 原始材料');
   const teamServer=fs.readFileSync(path.join(process.cwd(),'lib/team/server.ts'),'utf8');
