@@ -41,6 +41,7 @@ test('customer tag editing stays inline instead of using a blocking browser prom
   assert.match(customerTagsUi,/editingTagId/,'客户标签编辑需要保留页面内编辑状态');
   assert.match(customerTagsUi,/aria-label=\{`\$\{t\.name\}新名称`\}/,'客户标签编辑输入框需要提供可读标签');
   assert.match(customerTagsUi,/取消/,'客户标签编辑需要提供取消操作');
+  assert.match(customerTagsUi,/if\(await act\(\{action:'rename'/,'标签重命名只有服务端保存成功后才退出编辑态');
 });
 
 test('staff locale changes write an audit record',()=>{
