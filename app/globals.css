@@ -426,3 +426,4 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 .crm-account-popover button{white-space:normal;overflow-wrap:anywhere}
 /* Legacy/raw text fields use the same border treatment as shared inputs. */
 .team-shell input:not([type=checkbox]):not([type=radio]),.crm-independent-page input:not([type=checkbox]):not([type=radio]),.team-shell textarea,.crm-independent-page textarea{border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--foreground);box-sizing:border-box}
+.team-shell textarea,.crm-independent-page textarea{min-height:120px;padding:12px;line-height:1.5;resize:vertical}

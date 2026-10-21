@@ -79,6 +79,7 @@ test('shared textarea keeps a visible border and usable multiline height',()=>{
 test('independent pages keep raw text fields visibly bordered',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.team-shell input:not\(\[type=checkbox\]\):not\(\[type=radio\]\),\.crm-independent-page input:not\(\[type=checkbox\]\):not\(\[type=radio\]\),\.team-shell textarea,\.crm-independent-page textarea\{border:1px solid var\(--border\);border-radius:8px;background:var\(--card\);color:var\(--foreground\);box-sizing:border-box\}/,'后台原生文本框和多行输入框需要保持统一边框与背景');
+  assert.match(css,/\.team-shell textarea,\.crm-independent-page textarea\{min-height:120px;padding:12px;line-height:1\.5;resize:vertical\}/,'后台多行输入框需要保持统一高度、内边距和可调整行为');
 });
 
 test('service backend menu keeps merged customer and KYC entries unique',()=>{
