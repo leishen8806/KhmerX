@@ -9,6 +9,7 @@ const router=fs.readFileSync(path.join(process.cwd(),'components/crm-subpages.ts
 const products=fs.readFileSync(path.join(process.cwd(),'app/api/team/products/route.ts'),'utf8');
 const riskRules=fs.readFileSync(path.join(process.cwd(),'lib/team/risk-rules.ts'),'utf8');
 const customerTags=fs.readFileSync(path.join(process.cwd(),'app/api/team/customer-tags/route.ts'),'utf8');
+const customerTagsUi=fs.readFileSync(path.join(process.cwd(),'components/customer-tags.tsx'),'utf8');
 const localeRoute=fs.readFileSync(path.join(process.cwd(),'app/api/team/locale/route.ts'),'utf8');
 const reportCenter=fs.readFileSync(path.join(process.cwd(),'components/report-center.tsx'),'utf8');
 const teamClient=fs.readFileSync(path.join(process.cwd(),'app/team/client.tsx'),'utf8');
@@ -33,6 +34,13 @@ test('customer tag writes enforce the current employee data scope',()=>{
   assert.match(customerTags,/import \{canSee\} from ['"]@\/lib\/team\/policy['"]/);
   assert.match(customerTags,/const target=await assignment\(s\.tenant\.id,customerId\);if\(!target\|\|!canSee\(s\.member,target,'summary'\)\)/);
   assert.match(customerTags,/links\.results as any\[\]\)\.filter\(link=>canSee\(s\.member,link,'summary'\)\)/,'客户标签读取也必须按当前岗位范围过滤');
+});
+
+test('customer tag editing stays inline instead of using a blocking browser prompt',()=>{
+  assert.doesNotMatch(customerTagsUi,/window\.prompt\(/,'客户标签编辑不得依赖阻塞式浏览器弹窗');
+  assert.match(customerTagsUi,/editingTagId/,'客户标签编辑需要保留页面内编辑状态');
+  assert.match(customerTagsUi,/aria-label=\{`\$\{t\.name\}新名称`\}/,'客户标签编辑输入框需要提供可读标签');
+  assert.match(customerTagsUi,/取消/,'客户标签编辑需要提供取消操作');
 });
 
 test('staff locale changes write an audit record',()=>{
