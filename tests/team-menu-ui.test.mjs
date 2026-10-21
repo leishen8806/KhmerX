@@ -44,6 +44,11 @@ test('customer tag editing stays inline instead of using a blocking browser prom
   assert.match(customerTagsUi,/if\(await act\(\{action:'rename'/,'标签重命名只有服务端保存成功后才退出编辑态');
 });
 
+test('MFA setup uses page controls without a native prompt',()=>{
+  assert.doesNotMatch(teamClient,/window\.prompt\(/,'MFA 设置不得依赖阻塞式浏览器弹窗');
+  assert.match(teamClient,/action:'mfa_enroll_start'/,'MFA 设置必须通过页面操作发起');
+});
+
 test('staff locale changes write an audit record',()=>{
   assert.match(localeRoute,/import \{staff,db,audit\} from ['"]@\/lib\/team\/server['"]/);
   assert.match(localeRoute,/staff_locale_change/);
