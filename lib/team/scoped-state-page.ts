@@ -15,11 +15,12 @@ export async function scopedStatePage(input:StaffPage={}){
   return {...result,team:{company:s.tenant.name,role:s.member.role,unitId:s.member.unit_id}};
  }
  const page=await readStaffPage(db(),s.member,input);
- const result=await filtered(page,s.member);
+ const filteredResult:any=await filtered(page,s.member,new Set(page.scopeIds||page.customerIds));
+ const {customerLoans:_,...result}=filteredResult;
  const customerIds=new Set(page.customerIds);
  return {
   ...result,
-  customers:result.customers.filter(customer=>(customerIds.has(customer.customerId))),
+  customers:result.customers.filter((customer:any)=>(customerIds.has(customer.customerId))),
   pagination:page.pagination,
   customerPagination:page.customerPagination,
   team:{company:s.tenant.name,role:s.member.role,unitId:s.member.unit_id},

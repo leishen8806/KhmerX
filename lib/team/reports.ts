@@ -1,10 +1,21 @@
 import {AuthError} from '@/lib/h5-auth-core';
 import {audit,staff} from './server';
 import {reportState as scopedState} from './workflow';
+import {scopedStatePage} from './scoped-state-page';
+import {customerRowsMode} from '@/lib/customer-shards';
 import {csvCell} from './csv';
 
 const reportRoles=['admin','audit','ops','dept_admin','finance','finance_checker','collection_admin','collector'];
 const maskedId=(value:string)=>value.length>10?`${value.slice(0,6)}…${value.slice(-4)}`:value;
+
+async function exportState(){
+ if(customerRowsMode()!=='on')return scopedState();
+ const pageSize=200,first:any=await scopedStatePage({page:1,pageSize}),pages=Math.max(first.pagination?.pages||1,first.customerPagination?.pages||1),chunks:any[]=[first];
+ for(let page=2;page<=pages;page++)chunks.push(await scopedStatePage({page,pageSize}));
+ const customers=new Map<string,any>(),loans=new Map<string,any>(),entries=new Map<string,any>(),events=new Map<string,any>(),notifications=new Map<string,any>();
+ for(const chunk of chunks){for(const row of chunk.customers||[])customers.set(row.customerId,row);for(const row of chunk.state?.loans||[])loans.set(row.id,row);for(const row of chunk.state?.entries||[])entries.set(row.id,row);for(const row of chunk.state?.events||[])events.set(row.id,row);for(const row of chunk.state?.notifications||[])notifications.set(row.id,row)}
+ return {...first,customers:[...customers.values()],state:{...first.state,loans:[...loans.values()],entries:[...entries.values()],events:[...events.values()],notifications:[...notifications.values()]}};
+}
 
 export async function exportCustomerSummary(input:any){
  const s=await staff();
@@ -12,7 +23,7 @@ export async function exportCustomerSummary(input:any){
  const report=String(input?.report||'');if(!['customer_summary','kyc_funnel','loan_cashflow','collections'].includes(report))throw new AuthError('报表类型无效');
  const requestId=typeof input?.requestId==='string'?input.requestId.trim():'';
  if(!/^[A-Za-z0-9_-]{8,100}$/.test(requestId))throw new AuthError('请求编号无效');
- const data=await scopedState(),exportedAt=new Date().toISOString();
+ const data=await exportState(),exportedAt=new Date().toISOString();
  const header=report==='customer_summary'?['customer_id_masked','phone_masked','registered_at','kyc_status','kyc_revision','loan_count','loan_statuses','disbursed_usd','repaid_usd']:report==='kyc_funnel'?['kyc_status','customer_count']:report==='loan_cashflow'?['loan_id_masked','customer_id_masked','status','principal_usd','fee_usd','paid_usd','due_at']:['loan_id_masked','customer_id_masked','status','overdue_days','outstanding_usd'];
  const overdueDays=(loan:any)=>{const due=Date.parse(loan.dueAt||'');return Number.isFinite(due)&&due<Date.now()?Math.max(1,Math.floor((Date.now()-due)/86400000)):Number(loan.demoDays||0)>0?Number(loan.demoDays):0};
  const rows=report==='customer_summary'?data.customers.map((customer:any)=>{
