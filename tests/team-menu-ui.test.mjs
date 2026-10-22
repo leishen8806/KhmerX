@@ -22,6 +22,7 @@ test('multi-company SSO restores the last company and updates it on switch',()=>
   assert.match(teamAuth,/remembered&&m\.tenant_id===remembered/,'SSO 必须优先恢复上次登录公司');
   assert.match(teamRoute,/STAFF_LAST_COMPANY/,'公司切换必须更新上次公司记录');
   assert.match(teamRoute,/\[cookie\(request,TEAM_COOKIE,t\.id,86400\),cookie\(request,STAFF_LAST_COMPANY,t\.id,31536000\)\]/,'公司切换需同时更新当前公司与持久化记忆');
+  assert.match(teamClient,/label=slug\?`\$\{name\}（\$\{slug\}）`/,'公司切换菜单需要同时展示公司代码，避免同名公司误切换');
 });
 
 test('platform company list prioritizes an active default',()=>{
