@@ -85,21 +85,32 @@ async function clear(request:Request,p:any,operator:any){
  const tenant=await tenantFor(slug),row=await db().prepare('SELECT * FROM team_uat_closure_batches WHERE tenant_id=? AND batch_id=?').bind(tenant.id,batchId).first<any>();
  if(!row)return {ok:true,replayed:true,cleared:false,batchId};
  const workspace=await db().prepare('SELECT revision,payload FROM demo_workspaces WHERE owner=?').bind(tenant.id).first<any>();
+ const expectedRevision=typeof p.workspaceRevision==='number'&&Number.isInteger(p.workspaceRevision)?p.workspaceRevision:null;
+ if(workspace&&expectedRevision!==null&&workspace.revision!==expectedRevision)throw new AuthError('工作区版本已变化，请刷新后重试',409,'UAT_WORKSPACE_CONFLICT');
  let next=workspace?JSON.parse(workspace.payload):null;
  if(next){next.loans=next.loans.filter((loan:any)=>loan.id!==row.loan_id);next.events=next.events.filter((event:any)=>event.loanId!==row.loan_id);next.entries=next.entries.filter((entry:any)=>entry.loanId!==row.loan_id);next.notifications=next.notifications.filter((item:any)=>item.loanId!==row.loan_id)}
  const now=new Date().toISOString();
+ const nextPayload=workspace&&next?serializeWorkspacePayload(next):null;
+ const guard=workspace?' AND EXISTS (SELECT 1 FROM demo_workspaces WHERE owner=? AND revision=? AND payload=?)':'';
+ const guardArgs=workspace?[tenant.id,workspace.revision+1,nextPayload]:[];
+ const guarded=(sql:string,...args:unknown[])=>db().prepare(sql+guard).bind(...args,...guardArgs);
+ const detail=JSON.stringify({batchId,customerId:row.customer_id,loanId:row.loan_id,kycCaseId:row.kyc_case_id,status:'cleared'});
+ const auditStatement=workspace
+  ? db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) SELECT ?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM demo_workspaces WHERE owner=? AND revision=? AND payload=?)').bind(crypto.randomUUID(),tenant.id,operator.email,'uat_closure_clear',detail,now,tenant.id,workspace.revision+1,nextPayload)
+  : audit(tenant.id,operator.email,'uat_closure_clear',JSON.parse(detail));
  const statements=[
-  db().prepare("UPDATE kyc_cases SET status='draft' WHERE owner=? AND id=?").bind(tenant.id,row.kyc_case_id),
-  db().prepare('DELETE FROM kyc_history WHERE owner=? AND case_id=?').bind(tenant.id,row.kyc_case_id),
-  db().prepare('DELETE FROM kyc_files WHERE owner=? AND customer_id=?').bind(tenant.id,row.customer_id),
-  db().prepare('DELETE FROM kyc_cases WHERE owner=? AND id=?').bind(tenant.id,row.kyc_case_id),
-  db().prepare('DELETE FROM team_assignments WHERE tenant_id=? AND customer_id=?').bind(tenant.id,row.customer_id),
-  db().prepare('DELETE FROM h5_accounts WHERE owner=? AND customer_id=?').bind(tenant.id,row.customer_id),
-  db().prepare('UPDATE team_uat_closure_batches SET status=\'cleared\',cleaned_at=? WHERE tenant_id=? AND batch_id=? AND status=\'seeded\'').bind(now,tenant.id,batchId),
-  audit(tenant.id,operator.email,'uat_closure_clear',{batchId,customerId:row.customer_id,loanId:row.loan_id,kycCaseId:row.kyc_case_id,status:'cleared'})
+  ...(workspace&&next?[db().prepare('UPDATE demo_workspaces SET payload=?,revision=revision+1 WHERE owner=? AND revision=?').bind(nextPayload,tenant.id,workspace.revision)]:[]),
+  guarded("UPDATE kyc_cases SET status='draft' WHERE owner=? AND id=?",tenant.id,row.kyc_case_id),
+  guarded('DELETE FROM kyc_history WHERE owner=? AND case_id=?',tenant.id,row.kyc_case_id),
+  guarded('DELETE FROM kyc_files WHERE owner=? AND customer_id=?',tenant.id,row.customer_id),
+  guarded('DELETE FROM kyc_cases WHERE owner=? AND id=?',tenant.id,row.kyc_case_id),
+  guarded('DELETE FROM team_assignments WHERE tenant_id=? AND customer_id=?',tenant.id,row.customer_id),
+  guarded('DELETE FROM h5_accounts WHERE owner=? AND customer_id=?',tenant.id,row.customer_id),
+  guarded('UPDATE team_uat_closure_batches SET status=\'cleared\',cleaned_at=? WHERE tenant_id=? AND batch_id=? AND status=\'seeded\'',now,tenant.id,batchId),
+  auditStatement
  ];
- if(workspace&&next)statements.push(db().prepare('UPDATE demo_workspaces SET payload=?,revision=revision+1 WHERE owner=? AND revision=?').bind(serializeWorkspacePayload(next),tenant.id,workspace.revision));
- await db().batch(statements);
+ const results=await db().batch(statements);
+ if(workspace&&next&&results[0].meta.changes!==1)throw new AuthError('工作区版本已变化，请刷新后重试',409,'UAT_WORKSPACE_CONFLICT');
  return {ok:true,replayed:false,cleared:true,batchId,tenantId:tenant.id,remainingLoan:false,cleanedAt:now};
 }
 
