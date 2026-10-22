@@ -638,3 +638,20 @@ test('Q7 actual state route pages 5000 customers and CSV export retains every pa
   const exported=await reports.exportCustomerSummary({report:'loan_cashflow',requestId:'q7-export-complete'});assert.equal(exported.count,5000);assert.match(exported.csv,/loan_id_masked/);
  }finally{delete env.CUSTOMER_ROWS;selected=A;user=owner}
 });
+
+test('controlled UAT closure seed is tenant-scoped, idempotent and clearable',async()=>{
+ const previousEnabled=env.UAT_CLOSURE_ENABLED,previousToken=env.UAT_CLOSURE_TOKEN;
+ env.UAT_CLOSURE_ENABLED='true';env.UAT_CLOSURE_TOKEN='runtime-uat-token';selected='';user=owner;extraCookies='';
+ try{
+  const company=(await team.manage({action:'create_company',name:'Runtime UAT Closure',slug:'uat-runtime-qa'})).companyId;
+  const route=await mod('@/app/api/admin/uat-closure/route');
+  const request=(body,token='runtime-uat-token')=>new Request('http://localhost/api/admin/uat-closure',{method:'POST',headers:{origin:'http://localhost','content-type':'application/json','x-uat-closure-token':token},body:JSON.stringify(body)});
+  const first=await route.POST(request({action:'seed',company:'uat-runtime-qa',batchId:'runtime-001'}));assert.equal(first.status,200);const seeded=await first.json();assert.equal(seeded.batch.status,'seeded');assert.equal(seeded.batch.loanStatus,'closed');
+  const replay=await route.POST(request({action:'seed',company:'uat-runtime-qa',batchId:'runtime-001'}));assert.equal(replay.status,200);assert.equal((await replay.json()).replayed,true);
+  const row=sql.prepare('SELECT customer_id,loan_id,kyc_case_id FROM team_uat_closure_batches WHERE tenant_id=? AND batch_id=?').get(company,'runtime-001');assert(row);
+  const workspace=JSON.parse(sql.prepare('SELECT payload FROM demo_workspaces WHERE owner=?').get(company).payload);assert.equal(workspace.loans.length,1);assert.equal(workspace.loans[0].status,'closed');assert(workspace.entries.length>0);
+  const cleared=await route.POST(request({action:'clear',company:'uat-runtime-qa',batchId:'runtime-001'}));assert.equal(cleared.status,200);assert.equal((await cleared.json()).cleared,true);
+  const after=JSON.parse(sql.prepare('SELECT payload FROM demo_workspaces WHERE owner=?').get(company).payload);assert.equal(after.loans.length,0);assert.equal(after.entries.length,0);assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM h5_accounts WHERE owner=?').get(company).n,0);assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM kyc_cases WHERE owner=?').get(company).n,0);assert.equal(sql.prepare('SELECT status FROM team_uat_closure_batches WHERE tenant_id=? AND batch_id=?').get(company,'runtime-001').status,'cleared');assert.equal(sql.prepare("SELECT COUNT(*) AS n FROM team_audit WHERE tenant_id=? AND action IN ('uat_closure_seed','uat_closure_clear')").get(company).n,2);
+  const forbidden=await route.POST(request({action:'seed',company:'uat-runtime-qa',batchId:'runtime-002'},'wrong-token'));assert.equal(forbidden.status,403);
+ }finally{if(previousEnabled===undefined)delete env.UAT_CLOSURE_ENABLED;else env.UAT_CLOSURE_ENABLED=previousEnabled;if(previousToken===undefined)delete env.UAT_CLOSURE_TOKEN;else env.UAT_CLOSURE_TOKEN=previousToken;selected=A;user=owner;extraCookies=''}
+});

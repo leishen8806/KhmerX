@@ -49,11 +49,12 @@ async function seed(request:Request,p:any,operator:any){
  const tenant=await tenantFor(slug),existing=await db().prepare('SELECT * FROM team_uat_closure_batches WHERE tenant_id=? AND batch_id=?').bind(tenant.id,batchId).first<any>();
  if(existing)return {ok:true,replayed:true,batch:existing};
  await assertEmptyUatTenant(tenant);
- const {customerId,caseId}=ids(batchId),now=new Date().toISOString(),customer={id:customerId,phoneMasked:'+855 12 •••• 0001',channel:'SY' as const};
+ const {customerId}=ids(batchId),now=new Date().toISOString(),customer={id:customerId,phoneMasked:'+855 12 •••• 0001',channel:'SY' as const};
+ let caseId='';
  await db().prepare('INSERT OR IGNORE INTO h5_accounts (customer_id,owner,phone_mask,mode,created_at,verification_completed) VALUES (?,?,?,?,?,?)').bind(customerId,tenant.id,customer.phoneMasked,'demo',Date.now(),1).run();
  await ensureAssignment(tenant.id,customerId);
  try{
-  const row=await initialize(tenant.id,customerId,true);
+  const row=await initialize(tenant.id,customerId,true);caseId=row.id;
   const profile=emptyProfile();profile.consent=true;profile.values.surname='UAT';profile.values.givenName='ACCEPTANCE';
   const approved=await transition(row,'approved',{profile,phoneVerified:true,ruleVersion:RULE_VERSION,submittedAt:now,review:{decision:'approved',reason:'受控 UAT 合成资料',checklist:{identity:true,contacts:true,employment:true,income:true,assets:true,bank:true,consent:true},actor:operator.email,at:now,revision:row.revision}},'uat:approved',operator.email);
   let state=initialState();
@@ -87,6 +88,7 @@ async function clear(request:Request,p:any,operator:any){
  if(next){next.loans=next.loans.filter((loan:any)=>loan.id!==row.loan_id);next.events=next.events.filter((event:any)=>event.loanId!==row.loan_id);next.entries=next.entries.filter((entry:any)=>entry.loanId!==row.loan_id);next.notifications=next.notifications.filter((item:any)=>item.loanId!==row.loan_id)}
  const now=new Date().toISOString();
  const statements=[
+  db().prepare("UPDATE kyc_cases SET status='draft' WHERE owner=? AND id=?").bind(tenant.id,row.kyc_case_id),
   db().prepare('DELETE FROM kyc_history WHERE owner=? AND case_id=?').bind(tenant.id,row.kyc_case_id),
   db().prepare('DELETE FROM kyc_files WHERE owner=? AND customer_id=?').bind(tenant.id,row.customer_id),
   db().prepare('DELETE FROM kyc_cases WHERE owner=? AND id=?').bind(tenant.id,row.kyc_case_id),
