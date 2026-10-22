@@ -646,6 +646,8 @@ test('controlled UAT closure seed is tenant-scoped, idempotent and clearable',as
   const company=(await team.manage({action:'create_company',name:'Runtime UAT Closure',slug:'uat-runtime-qa'})).companyId;
   const route=await mod('@/app/api/admin/uat-closure/route');
   const request=(body,token='runtime-uat-token')=>new Request('http://localhost/api/admin/uat-closure',{method:'POST',headers:{origin:'http://localhost','content-type':'application/json','x-uat-closure-token':token},body:JSON.stringify(body)});
+  const invalidAction=await route.POST(request({action:'purge',company:'uat-runtime-qa',batchId:'runtime-invalid-action'}));assert.equal(invalidAction.status,400);
+  const malformed=await route.POST(new Request('http://localhost/api/admin/uat-closure',{method:'POST',headers:{origin:'http://localhost','content-type':'application/json','x-uat-closure-token':'runtime-uat-token'},body:'{"action":'}));assert.equal(malformed.status,400);
   const first=await route.POST(request({action:'seed',company:'uat-runtime-qa',batchId:'runtime-001'}));assert.equal(first.status,200);const seeded=await first.json();assert.equal(seeded.batch.status,'seeded');assert.equal(seeded.batch.loanStatus,'closed');
   const replay=await route.POST(request({action:'seed',company:'uat-runtime-qa',batchId:'runtime-001'}));assert.equal(replay.status,200);assert.equal((await replay.json()).replayed,true);
   const row=sql.prepare('SELECT customer_id,loan_id,kyc_case_id FROM team_uat_closure_batches WHERE tenant_id=? AND batch_id=?').get(company,'runtime-001');assert(row);
