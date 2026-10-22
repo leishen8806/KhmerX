@@ -84,6 +84,7 @@ async function clear(request:Request,p:any,operator:any){
  const batchId=text(p.batchId,64).toLowerCase(),slug=text(p.company,64).toLowerCase();
  const tenant=await tenantFor(slug),row=await db().prepare('SELECT * FROM team_uat_closure_batches WHERE tenant_id=? AND batch_id=?').bind(tenant.id,batchId).first<any>();
  if(!row)return {ok:true,replayed:true,cleared:false,batchId};
+ if(row.status==='cleared')return {ok:true,replayed:true,cleared:false,batchId};
  const workspace=await db().prepare('SELECT revision,payload FROM demo_workspaces WHERE owner=?').bind(tenant.id).first<any>();
  const expectedRevision=typeof p.workspaceRevision==='number'&&Number.isInteger(p.workspaceRevision)?p.workspaceRevision:null;
  if(workspace&&expectedRevision!==null&&workspace.revision!==expectedRevision)throw new AuthError('工作区版本已变化，请刷新后重试',409,'UAT_WORKSPACE_CONFLICT');
