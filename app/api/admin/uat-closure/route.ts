@@ -32,8 +32,8 @@ async function assertEmptyUatTenant(tenant:any){
  if(workspace){
   let state:any;
   try{state=JSON.parse(workspace.payload)}catch{throw new AuthError('专用 UAT 租户工作区数据无效，禁止覆盖',409,'UAT_TENANT_NOT_EMPTY')}
-  const collections=['customers','loans','entries','events','notifications'];
-  if(collections.some(key=>Array.isArray(state?.[key])&&state[key].length>0))throw new AuthError('专用 UAT 租户已有业务数据，请先清理对应批次',409,'UAT_TENANT_NOT_EMPTY');
+  const collections=['loans','entries','events','notifications'];
+  if(collections.some(key=>!Array.isArray(state?.[key])||state[key].length>0))throw new AuthError('专用 UAT 租户工作区结构无效或已有业务数据，请先清理对应批次',409,'UAT_TENANT_NOT_EMPTY');
  }
  const existing=await db().batch([
   db().prepare('SELECT COUNT(*) AS n FROM h5_accounts WHERE owner=?').bind(tenant.id),
@@ -88,7 +88,7 @@ async function clear(request:Request,p:any,operator:any){
  const expectedRevision=typeof p.workspaceRevision==='number'&&Number.isInteger(p.workspaceRevision)?p.workspaceRevision:null;
  if(workspace&&expectedRevision!==null&&workspace.revision!==expectedRevision)throw new AuthError('工作区版本已变化，请刷新后重试',409,'UAT_WORKSPACE_CONFLICT');
  let next:any=null;
- if(workspace){try{next=JSON.parse(workspace.payload)}catch{throw new AuthError('专用 UAT 租户工作区数据无效，禁止覆盖',409,'UAT_TENANT_NOT_EMPTY')}}
+ if(workspace){try{next=JSON.parse(workspace.payload)}catch{throw new AuthError('专用 UAT 租户工作区数据无效，禁止覆盖',409,'UAT_TENANT_NOT_EMPTY')}if(['loans','entries','events','notifications'].some(key=>!Array.isArray(next?.[key])))throw new AuthError('专用 UAT 租户工作区结构无效，禁止覆盖',409,'UAT_TENANT_NOT_EMPTY')}
  if(next){next.loans=next.loans.filter((loan:any)=>loan.id!==row.loan_id);next.events=next.events.filter((event:any)=>event.loanId!==row.loan_id);next.entries=next.entries.filter((entry:any)=>entry.loanId!==row.loan_id);next.notifications=next.notifications.filter((item:any)=>item.loanId!==row.loan_id)}
  const now=new Date().toISOString();
  const nextPayload=workspace&&next?serializeWorkspacePayload(next):null;
