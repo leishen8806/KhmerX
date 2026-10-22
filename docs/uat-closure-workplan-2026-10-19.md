@@ -23,13 +23,13 @@
 
 ## 实际证据
 
-- 专项回归：`node --experimental-vm-modules --test tests/team-integration.test.mjs` → `70 passed / 0 failed / 0 skipped`。
-- 全量回归：`npm test` → `250 passed / 0 failed / 1 explicit skip`。
+- 专项回归：`node --experimental-vm-modules --test tests/team-integration.test.mjs` → `61 passed / 0 failed / 0 skipped`。
+- 全量回归：`npm test` → `390 passed / 0 failed / 10 skipped`（400 tests）。
 - 生产控制面：专用租户创建、头像切换、公司切换、组织页范围回读通过。
 - 生产版本：Sites `319`，状态 `active`，部署状态 `succeeded`。
 - 受控入口实现：`POST /api/admin/uat-closure`，支持 `seed`/`clear`；默认关闭，要求 `UAT_CLOSURE_ENABLED=true`、专用令牌和平台管理员权限。
 - 入口静态回归：`tests/uat-closure-route.test.mjs` → `2 passed / 0 failed`；迁移 `drizzle/0063_uat_closure_batches.sql` 保证租户、批次唯一性和状态索引。
-- 入口集成回归：团队 SQLite 集成测试新增“seed → 幂等回放 → clear → 零数据/审计回读”，专项结果 `70 passed / 0 failed`。
+- 入口集成回归：团队 SQLite 集成测试新增“seed → 幂等回放 → clear → 零数据/审计回读”，专项结果 `61 passed / 0 failed`。
 
 ## 发布门槛
 
@@ -47,9 +47,9 @@
 
 ## 本轮复验（2026-10-19）
 
-- 专项团队集成回归：`70 passed / 0 failed / 0 skipped`。
+- 专项团队集成回归：`61 passed / 0 failed / 0 skipped`。
 - UAT 入口静态回归：`2 passed / 0 failed`。
-- 全量回归：`250 passed / 0 failed / 1 explicit skip`。
+- 全量回归：`390 passed / 0 failed / 10 skipped`（400 tests）。
 - `npm run typecheck`、`npm run build:separated`：通过；分离构建 `leaks: 0`。
 - `npm run lint`：0 errors，659 warnings（均为既有告警）。
 - 线上只读复测：公司管理、KYC 审核、贷款申请、账单与还款、审计与安全页面均完成加载；未出现浏览器错误页。
