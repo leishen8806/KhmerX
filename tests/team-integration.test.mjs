@@ -646,6 +646,7 @@ test('controlled UAT closure seed is tenant-scoped, idempotent and clearable',as
   const company=(await team.manage({action:'create_company',name:'Runtime UAT Closure',slug:'uat-runtime-qa'})).companyId;
   const route=await mod('@/app/api/admin/uat-closure/route');
   const request=(body,token='runtime-uat-token')=>new Request('http://localhost/api/admin/uat-closure',{method:'POST',headers:{origin:'http://localhost','content-type':'application/json','x-uat-closure-token':token},body:JSON.stringify(body)});
+  env.UAT_CLOSURE_ENABLED='false';const disabled=await route.POST(request({action:'seed',company:'uat-runtime-qa',batchId:'runtime-disabled'}));assert.equal(disabled.status,404);env.UAT_CLOSURE_ENABLED='true';
   const invalidAction=await route.POST(request({action:'purge',company:'uat-runtime-qa',batchId:'runtime-invalid-action'}));assert.equal(invalidAction.status,400);
   const malformed=await route.POST(new Request('http://localhost/api/admin/uat-closure',{method:'POST',headers:{origin:'http://localhost','content-type':'application/json','x-uat-closure-token':'runtime-uat-token'},body:'{"action":'}));assert.equal(malformed.status,400);
   const crossOrigin=await route.POST(new Request('http://localhost/api/admin/uat-closure',{method:'POST',headers:{origin:'https://evil.example.test','content-type':'application/json','x-uat-closure-token':'runtime-uat-token'},body:JSON.stringify({action:'seed',company:'uat-runtime-qa',batchId:'runtime-cross-origin'})}));assert.equal(crossOrigin.status,403);
