@@ -82,6 +82,7 @@ async function seed(request:Request,p:any,operator:any){
 
 async function clear(request:Request,p:any,operator:any){
  const batchId=text(p.batchId,64).toLowerCase(),slug=text(p.company,64).toLowerCase();
+ if(!/^[a-z0-9][a-z0-9-]{2,63}$/.test(batchId))throw new AuthError('batchId 格式无效');
  const tenant=await tenantFor(slug),row=await db().prepare('SELECT * FROM team_uat_closure_batches WHERE tenant_id=? AND batch_id=?').bind(tenant.id,batchId).first<any>();
  if(!row)return {ok:true,replayed:true,cleared:false,batchId};
  if(row.status==='cleared')return {ok:true,replayed:true,cleared:false,batchId};
