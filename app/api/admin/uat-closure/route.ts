@@ -52,8 +52,8 @@ async function seed(request:Request,p:any,operator:any){
  const {customerId}=ids(batchId),now=new Date().toISOString(),customer={id:customerId,phoneMasked:'+855 12 •••• 0001',channel:'SY' as const};
  let caseId='';
  await db().prepare('INSERT OR IGNORE INTO h5_accounts (customer_id,owner,phone_mask,mode,created_at,verification_completed) VALUES (?,?,?,?,?,?)').bind(customerId,tenant.id,customer.phoneMasked,'demo',Date.now(),1).run();
- await ensureAssignment(tenant.id,customerId);
  try{
+  await ensureAssignment(tenant.id,customerId);
   const row=await initialize(tenant.id,customerId,true);caseId=row.id;
   const profile=emptyProfile();profile.consent=true;profile.values.surname='UAT';profile.values.givenName='ACCEPTANCE';
   const approved=await transition(row,'approved',{profile,phoneVerified:true,ruleVersion:RULE_VERSION,submittedAt:now,review:{decision:'approved',reason:'受控 UAT 合成资料',checklist:{identity:true,contacts:true,employment:true,income:true,assets:true,bank:true,consent:true},actor:operator.email,at:now,revision:row.revision}},'uat:approved',operator.email);
@@ -70,6 +70,7 @@ async function seed(request:Request,p:any,operator:any){
   return {ok:true,replayed:false,batch:{batchId,tenantId:tenant.id,tenant:tenant.name,customerId,loanId:actualLoanId,kycCaseId:caseId,status:'seeded',loanStatus:'closed',createdAt:now}};
  }catch(error){
   await db().batch([
+   db().prepare("UPDATE kyc_cases SET status='draft' WHERE owner=? AND id=?").bind(tenant.id,caseId),
    db().prepare('DELETE FROM kyc_history WHERE owner=? AND case_id=?').bind(tenant.id,caseId),
    db().prepare('DELETE FROM kyc_cases WHERE owner=? AND id=?').bind(tenant.id,caseId),
    db().prepare('DELETE FROM team_assignments WHERE tenant_id=? AND customer_id=?').bind(tenant.id,customerId),

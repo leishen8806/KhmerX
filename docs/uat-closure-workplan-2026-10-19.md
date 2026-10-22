@@ -55,6 +55,14 @@
 - 线上只读复测：公司管理、KYC 审核、贷款申请、账单与还款、审计与安全页面均完成加载；未出现浏览器错误页。
 - 本轮未启用 `UAT_CLOSURE_ENABLED`，未写入或清理生产合成业务数据。
 
+## 本轮增量复验（2026-10-22）
+
+- `tests/team-integration.test.mjs` 的受控入口运行时回归：61 passed / 0 failed / 0 skipped。
+- 新增失败路径：部门分配异常时，合成账号、分配记录和 KYC 草稿均回滚；append-only 审核历史不会遮蔽原始错误。
+- 修复批次记录保存真实 KYC case id，清理后 KYC、账号、分配、贷款和账务条目回读为零，批次状态与审计记录保留。
+- 全量门禁：`npm test` 退出码 0；`npm run typecheck`、`npm run build:separated` 通过，分离构建 `leaks: 0`。
+- 线上仍保持受控入口关闭，未写入生产合成业务数据；生产业务闭环仍须在审批后的专用 UAT 开关下复测。
+
 ## 线上安全边界复验（2026-10-19）
 
 - 对线上 `POST /api/admin/uat-closure` 进行无令牌安全探测，返回 HTTP `401`，未发生任何业务写入。
