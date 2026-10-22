@@ -81,3 +81,20 @@
 3. UAT 入口（R1）和对生产域名的验收操作是否授权；在没有书面授权前，保持排除。
 4. 业务权限变更（S4）和合同校验（S9）是否同意。
 5. 今后是否禁止"一条长期分支 + 自动发布"的做法，统一回到"任务卡 → 分支 → PR（< 400 行）→ 评审 → 负责人合并"。
+
+## 增补（2026-10-22 16:57，冻结之后的变化；Claude 只读核对）
+
+负责人在 14:29 决定**冻结** #63。此后该分支在 14:44 到 16:39 又增加了约 65 个提交（署名大旺，约每分钟一个，测试与文档交替），**冻结没有被遵守**。分支头 `e6d1048`。
+
+| 项 | 变化 |
+|---|---|
+| 与 main 的关系 | 14:44 起 `origin/main`（`9355f3a`）已被合入该分支；现在领先 462、落后 0，**与 main 干跑 0 个冲突**，也就是现在可以被一键合并 |
+| 冲突解决方式 | 多处直接采用了 main 的版本：`app/workspace.tsx`、`components/auth-locale.tsx`、`lib/customer-shards.ts`、`app/api/telegram/route.ts`、`app/api/kyc/review/route.ts`、`deploy/standalone/hosts.mjs`、`tests/customer-shards.test.mjs` 相对 main 的差异已归零 |
+| 相对 main 的净差异 | 127 个文件，+2335/-344（清单时为 +2263/-322） |
+| 新增或扩大的服务端改动 | `lib/team/workflow.ts`（+25/-31）、**新文件** `lib/team/scoped-state-page.ts`（+28）、`app/api/state/route.ts`、`lib/team/reports.ts`：提交信息为"serve paged staff state from shard indexes""close shard-backed staff workflow and exports"，即员工端分页与分片读取的服务端逻辑，**与 main 上已评审的 C1/Q7 同一区域** |
+| UAT 入口 | `app/api/admin/uat-closure/route.ts` 由 103 行增至 121 行，并新增大量围绕它的测试与文档；清单里它是"默认排除"项 |
+| 触碰了 L1 灰度 fixture | `scripts/loadtest/fixture/private-file.mjs`（"normalize private manifest paths across macOS aliases"），该文件属于 L1-A、保存会话 token 的 manifest 的私有目录检查，**必须单独评审** |
+| 其他 | 新增 `CLAUDE.md`（+20 行，"gstack skill routing rules"）、`scripts/dev-app-backend/*`、验收文档 3 份 |
+
+结论：**清单中的结论不变，并且更紧迫**——分支在冻结后仍在增长，且已经变成可以直接合并的状态。建议：负责人确认谁在提交（共用机器；提交节奏像是自动循环）；让提交方停止；在 GitHub 上把 #63 置为 Draft 并加"frozen"标记、必要时对该分支设置保护；任何合并都按清单 §6 的切片另开任务卡、基于最新 main 重做。
+
