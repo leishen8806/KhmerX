@@ -25,6 +25,7 @@
 | `INVALID_FILE` | 文件类型、内容或安全扫描不通过 |
 | `INVALID_KYC` | KYC 资料不完整或不符合规则 |
 | `INVALID_ARGUMENT` | 参数值无效 |
+| `LOCALE_DISABLED` | 公司尚未启用请求的客户端语言 |
 | `REQUEST_FAILED` | 其他可预期业务失败 |
 | `SERVICE_UNAVAILABLE` | 服务、数据库或第三方依赖暂不可用 |
 

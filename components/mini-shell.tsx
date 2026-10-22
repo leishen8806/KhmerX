@@ -24,9 +24,9 @@ export function MiniShell({screen,backHref,children}:{screen:string;backHref?:st
  const goTo=(href:string)=>{if(navigate){navigate(href);return}const target=new URL(href,window.location.origin);target.hash=window.location.hash;window.location.assign(target.toString())};
  const [language,setLanguage]=useState<Locale>(()=>{if(typeof window==='undefined')return 'en';const query=new URLSearchParams(window.location.search).get('lang');const saved=window.localStorage.getItem('payease-language');return supported(query)?query:supported(saved)?saved:defaultLocale()});
  const languageRef=useRef(language);
+ useEffect(()=>{languageRef.current=language},[language]);
  const [enabledLanguages,setEnabledLanguages]=useState<Record<Locale,boolean>>({en:true,km:true,zh:true});
  const [languageOpen,setLanguageOpen]=useState(false);
- useEffect(()=>{languageRef.current=language},[language]);
  useEffect(()=>{const removeLoginLocale=()=>document.querySelector('.auth-locale')?.remove();removeLoginLocale();const observer=new MutationObserver(removeLoginLocale);observer.observe(document.body,{childList:true,subtree:true});return()=>observer.disconnect()},[]);
  useEffect(()=>{void apiFetch<AuthBootstrap>('/api/h5/auth',{cache:'no-store'}).then(({data:d})=>{const flags=d?.languages;if(!flags)return;const next={en:flags.en!==false,km:flags.km!==false,zh:flags.zh!==false};setEnabledLanguages(next);if(!next[language]){const fallback=next.en?'en':next.km?'km':'zh';setLanguage(fallback);window.localStorage.setItem('payease-language',fallback)}}).catch(()=>undefined)},[]);
  const chooseLanguage=(next:Locale)=>{if(!enabledLanguages[next])return;

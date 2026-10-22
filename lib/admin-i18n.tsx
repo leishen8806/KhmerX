@@ -16,12 +16,12 @@ function translate(text:string,locale:Locale){const key=phrases[text];return key
 function translateTree(root:HTMLElement,locale:Locale){const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);let node:Node|null;while((node=walker.nextNode())){const tag=node.parentElement?.tagName.toLowerCase();if(['input','textarea','script','style'].includes(tag||''))continue;const raw=node.textContent||'',trim=raw.trim(),out=translate(trim,locale);if(out!==trim)node.textContent=raw.replace(trim,out)}}
 export function AdminLocaleShell({children}:{children:ReactNode}){
  const [locale,setLocale]=useState<Locale>(()=>{if(typeof window==='undefined')return 'zh';const saved=window.localStorage.getItem('payease-admin-language');return saved==='en'||saved==='km'||saved==='zh'?saved:'zh'});
- useEffect(()=>{void apiFetch<any>('/api/team',{cache:'no-store'}).then(({data})=>{const server=data?.member?.locale;if(server==='en'||server==='km'||server==='zh'){setLocale(server);window.localStorage.setItem('payease-admin-language',server)}}).catch(()=>undefined)},[]);
  const choose=(next:Locale)=>{setLocale(next);window.localStorage.setItem('payease-admin-language',next);void apiFetch('/api/team/locale',{method:'POST',body:JSON.stringify({locale:next})}).catch(()=>undefined)};
- const value=useMemo(()=>({locale,t:(key:string)=>copy[locale][key]||key,setLocale:choose}),[locale]);
+ const syncLocale=(next:Locale)=>{setLocale(next);window.localStorage.setItem('payease-admin-language',next)};
+ const value=useMemo(()=>({locale,t:(key:string)=>copy[locale][key]||key,setLocale:choose,syncLocale}),[locale]);
  useEffect(()=>{const root=document.querySelector<HTMLElement>('.team-shell');if(!root)return;translateTree(root,locale);const observer=new MutationObserver(()=>translateTree(root,locale));observer.observe(root,{subtree:true,childList:true,characterData:true});return()=>observer.disconnect()},[locale]);
  return <AdminLocaleContext.Provider value={value}><div className="admin-locale-root" lang={locale}>{children}</div></AdminLocaleContext.Provider>
 }
-type AdminLocaleValue={locale:Locale;t:(key:string)=>string;setLocale:(locale:Locale)=>void};
-export const AdminLocaleContext=createContext<AdminLocaleValue>({locale:'zh',t:key=>copy.zh[key]||key,setLocale:()=>undefined});
+type AdminLocaleValue={locale:Locale;t:(key:string)=>string;setLocale:(locale:Locale)=>void;syncLocale:(locale:Locale)=>void};
+export const AdminLocaleContext=createContext<AdminLocaleValue>({locale:'zh',t:key=>copy.zh[key]||key,setLocale:()=>undefined,syncLocale:()=>undefined});
 export const useAdminLocale=()=>useContext(AdminLocaleContext);

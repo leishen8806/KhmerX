@@ -2,7 +2,10 @@ import {AuthError} from '@/lib/h5-auth-core';
 import {defaultFundingLimits} from '@/lib/funding-limits';
 import {db,staff} from './server';
 
-const roles=new Set(['admin','audit','finance','finance_checker','checker']);
+// Funding limits are company-level controls. Institution approval staff must
+// not be able to read them through the API just because they can review loans;
+// keep the API scope aligned with the CRM page guard and funding workbench.
+const roles=new Set(['admin','audit','finance','finance_checker']);
 const integer=(value:unknown)=>typeof value==='number'&&Number.isSafeInteger(value)&&value>0?value:null;
 
 export async function fundingSettingsForTenant(tenantId:string){

@@ -39,6 +39,12 @@ export async function POST(request:Request){
   await db.prepare('DELETE FROM institution_callback_nonces WHERE expires_at<?').bind(now).run();
   const existing=await db.prepare('SELECT id,event_type,status FROM institution_callback_events WHERE institution_id=? AND idempotency_key=?').bind(institutionId,idempotency).first<ExistingCallback>();
   if(existing){const prior=await db.prepare('SELECT payload_hash,event_id FROM institution_callback_events WHERE id=?').bind(existing.id).first<{payload_hash:string|null;event_id:string|null}>();if(prior?.payload_hash&&prior.payload_hash!==payloadHash)return failure('幂等键已绑定其他载荷','IDEMPOTENCY_PAYLOAD_MISMATCH',409,requestId);return response({ok:true,duplicate:true,eventId:existing.id,eventType:existing.event_type,status:existing.status},200,requestId)}
+  // A retry may keep the original idempotency key, but reusing the nonce with
+  // a new key must be rejected before event-id deduplication. Otherwise an
+  // institution could rotate only the idempotency header and receive a
+  // misleading success for a replayed signed request.
+  const usedNonce=await db.prepare('SELECT 1 AS used FROM institution_callback_nonces WHERE institution_id=? AND nonce=?').bind(institutionId,nonce).first<{used:number}>();
+  if(usedNonce)return failure('回调 nonce 已使用','CALLBACK_REPLAYED',409,requestId);
   if(eventId){const sameEvent=await db.prepare('SELECT id,payload_hash FROM institution_callback_events WHERE institution_id=? AND event_id=?').bind(institutionId,eventId).first<{id:string;payload_hash:string|null}>();if(sameEvent){if(sameEvent.payload_hash!==payloadHash)return failure('事件编号已绑定其他载荷','EVENT_PAYLOAD_MISMATCH',409,requestId);return response({ok:true,duplicate:true,eventId:sameEvent.id,eventType:eventEnvelope.eventType,status:'received'},200,requestId)}}
   const storedEventId=crypto.randomUUID(),eventType=eventEnvelope.eventType;
   const retry=nextCallbackRetry(0,now);
