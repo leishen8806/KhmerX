@@ -3,9 +3,7 @@ import {audit,staff} from './server';
 import {reportState as scopedState} from './workflow';
 import {csvCell} from './csv';
 
-// Report exports follow the same role surface as the CRM report center.
-// Routing and KYC review roles do not receive company-wide export access.
-const reportRoles=['admin','audit','finance','finance_checker','collection_admin','collector'];
+const reportRoles=['admin','audit','ops','dept_admin','finance','finance_checker','collection_admin','collector'];
 const maskedId=(value:string)=>value.length>10?`${value.slice(0,6)}…${value.slice(-4)}`:value;
 
 export async function exportCustomerSummary(input:any){
