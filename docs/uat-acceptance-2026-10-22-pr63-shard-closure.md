@@ -39,3 +39,5 @@ L1 manifest 测试此前因 macOS `/tmp` 与 `/private/tmp` 路径别名导致�
 2. 复测默认公司自动进入、右上角切换公司、退出后不闪现公司选择页。
 3. 复测不同角色的 KYC/审批/放款/还款数据范围和审计回写。
 4. 在非 root CI 环境重跑 L1 manifest 权限测试后再发布。
+
+设备级执行步骤见：[线上 SSO 设备验收清单](./live-sso-acceptance-checklist-2026-10-22.md)。
