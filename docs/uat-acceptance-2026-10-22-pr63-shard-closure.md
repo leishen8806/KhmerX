@@ -2,7 +2,7 @@
 
 日期：2026-10-22
 分支：`codex/pr63-featureui`
-提交：`4f6b778 fix: close shard-backed staff workflow and exports`
+提交：`dd28b6b fix: normalize private manifest paths across macOS aliases`
 
 ## 本阶段完成项
 
@@ -22,9 +22,9 @@
 | 分页、多角色、5000 客户数据隔离 | 9/9 通过，无重复/遗漏 |
 | 分离构建、客户端边界、泄漏扫描 | 通过；114 个源文件，泄漏 0 |
 | ESLint | 0 错误；仅存在既有警告 |
-| 全量测试 | 385 通过、10 跳过、4 失败 |
+| 全量测试 | 389 通过、10 跳过、0 失败 |
 
-全量测试的 4 个失败均为 L1 manifest 测试对私有目录权限的环境前置条件，在当前 root 测试环境下无法复现权限拒绝；未命中本阶段修改文件。
+L1 manifest 测试此前因 macOS `/tmp` 与 `/private/tmp` 路径别名导致目录比较失败；现已统一使用真实路径比较，同时继续拒绝符号链接目录，权限测试全部通过。
 
 ## 线上/设备验收边界
 
