@@ -15,7 +15,8 @@ export function privateDirectory(dir){check(statSync(dir).isDirectory(),'Manifes
 export function privateFile(file){privateDirectory(dirname(file));check(statSync(file).isFile(),'Manifest file missing');accessCheck(file)}
 export function writer(root,file,gray=false){
  const dir=gray?'/out/manifests':resolve(root,'scripts/loadtest/manifests');if(gray)grayOutput(dir);else mkdirSync(dir,{recursive:true,mode:0o700});
- check(realpathSync(dir)===dir&&dirname(resolve(file))===dir,'Use private manifests directory without links');
+ const resolvedDir=realpathSync(dir),resolvedFileDir=realpathSync(dirname(resolve(file)));
+ check(!lstatSync(dir).isSymbolicLink()&&resolvedFileDir===resolvedDir,'Use private manifests directory without links');
  if(process.platform==='win32'){const user=execFileSync('whoami',[],{encoding:'utf8'}).trim();execFileSync('icacls',[dir,'/inheritance:r','/grant:r',user+':(OI)(CI)F'],{stdio:'ignore'})}
  privateDirectory(dir);
  let written=false;
