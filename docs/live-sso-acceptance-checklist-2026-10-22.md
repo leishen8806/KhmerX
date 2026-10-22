@@ -83,4 +83,5 @@
 - 对 seed/clear 传入非法 `batchId`，确认统一返回 400 且不触发任何写入。
 - 对 clear 传入字符串或非整数 `workspaceRevision`，确认返回 400 且不会绕过版本冲突保护。
 - 对 clear 传入负数或超大 `workspaceRevision`，确认返回 400 且不触发写入。
+- 对并发版本冲突执行 clear，确认返回 409 且不新增清理审计。
 - 线上 `UAT_CLOSURE_ENABLED` 与令牌仍保持关闭/未配置；未向线上写入合成客户、贷款或审核数据。线上业务闭环仍需在专用 UAT 租户开关经审批开启后复测。

@@ -74,6 +74,7 @@
 - seed 与 clear 对 `batchId` 使用相同格式校验，非法批次编号统一返回 400。
 - `clear` 对 `workspaceRevision` 执行严格整数校验，错误类型统一返回 400，不得绕过 CAS 保护。
 - `workspaceRevision` 进一步限制为非负安全整数，负数或超大值统一拒绝。
+- 版本冲突返回 409 时不新增清理审计，工作区和批次数据保持不变。
 - 全量门禁：`npm test` 退出码 0；`npm run typecheck`、`npm run build:separated` 通过，分离构建 `leaks: 0`。
 - 线上仍保持受控入口关闭，未写入生产合成业务数据；生产业务闭环仍须在审批后的专用 UAT 开关下复测。
 
