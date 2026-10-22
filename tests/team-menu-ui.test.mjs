@@ -161,6 +161,9 @@ test('service backend menu keeps merged customer and KYC entries unique',()=>{
   assert.match(tickets,/priorityLabels:Record<string,string>/,'工单优先级需要使用用户可读文案');
   assert.match(tickets,/messageError/,'工单反馈需要区分成功与失败状态');
   assert.match(tickets,/role=\{messageError\?'alert':'status'\}/,'工单失败反馈需要用 alert 通知辅助技术');
+  const customerTags=fs.readFileSync(path.join(process.cwd(),'components/customer-tags.tsx'),'utf8');
+  assert.match(customerTags,/messageError/,'客户标签反馈需要区分成功与失败状态');
+  assert.match(customerTags,/role=\{messageError\?'alert':'status'\}/,'客户标签失败反馈需要用 alert 通知辅助技术');
   const kycFiles=fs.readFileSync(path.join(process.cwd(),'app/api/kyc/files/route.ts'),'utf8');
   assert.match(kycFiles,/reviewerSession\.team\?\.member\.role==='audit'.*不可下载 KYC 材料/,'审计员不得通过文件接口下载 KYC 原始材料');
   const teamServer=fs.readFileSync(path.join(process.cwd(),'lib/team/server.ts'),'utf8');
