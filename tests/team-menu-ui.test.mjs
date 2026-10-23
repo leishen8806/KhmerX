@@ -46,6 +46,11 @@ test('platform company list prioritizes an active default',()=>{
   assert.match(teamServer,/FROM team_companies ORDER BY active DESC,name/,'平台公司列表必须把启用公司排在停用公司之前，避免默认公司进入失败');
 });
 
+test('platform auto-entry never targets a stopped company',()=>{
+  assert.match(teamClient,/data\.companies\?\.find\(company=>company\.active!==0\)/,'平台管理员自动进入公司时必须跳过停用公司');
+  assert.match(teamClient,/target\.active!==0&&autoEnteredCompany/,'停用公司不能触发自动进入请求');
+});
+
 test('platform company list warns when names are duplicated',()=>{
   assert.match(teamClient,/nameCounts=companies\.reduce/,'公司管理页需要识别重复公司名称');
   assert.match(teamClient,/nameDuplicateCount/,'公司行需要接收重复名称计数');
