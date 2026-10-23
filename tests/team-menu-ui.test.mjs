@@ -141,8 +141,8 @@ test('funding actions require an assigned licensed institution before execution'
 });
 
 test('funding initiation requires completed approval review and signing',()=>{
-  assert.match(fundingPanel,/approvalReady=action!==['"]disburse_request['"]\|\|Boolean\(l\.approvalCheckedBy\)/,'放款发起必须检查审批复核完成标记');
-  assert.match(fundingPanel,/action==='disburse_request'&&!l\.approvalCheckedBy&&<p className="error" role="alert">贷款审批复核和客户签约尚未完成/,'审批复核或签约未完成时必须明确阻断放款发起');
+  assert.match(fundingPanel,/approvalReviewReady=Boolean\(l\.approvalActor&&l\.approvalCheckedBy&&l\.approvalActor!==l\.approvalCheckedBy\)/,'放款发起必须检查初审与复核为不同人员');
+  assert.match(fundingPanel,/action==='disburse_request'&&l\.approvalActor&&!approvalReviewReady&&<p className="error" role="alert">贷款审批复核或客户签约尚未完成，暂不能发起放款；初审人与复核人必须不同/,'同人复核或复核未完成时必须阻断放款发起');
 });
 
 test('workspace employee permission changes roll back local edits when persistence fails',()=>{
