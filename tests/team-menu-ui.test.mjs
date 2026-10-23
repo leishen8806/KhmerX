@@ -127,6 +127,11 @@ test('manual assignment changes roll back local routing when persistence fails',
   assert.match(teamClient,/onClick=\{\(\)=>void save\(\)\}>保存人工分单/,'人工分单按钮必须使用回滚处理器');
 });
 
+test('workspace employee permission changes roll back local edits when persistence fails',()=>{
+  assert.match(teamClient,/async function save\(\)\{const ok=await post\(\{action:'update_member'/,'工作台员工权限保存应集中到可回滚的保存函数');
+  assert.match(teamClient,/if\(!ok\)\{setRole\(m\.role\);setUnit\(m\.unit_id\|\|''\);setActive\(!!m\.active\)\}/,'工作台员工权限保存失败时应回滚岗位、数据范围和启用状态');
+});
+
 test('platform company list warns when names are duplicated',()=>{
   assert.match(teamClient,/nameCounts=companies\.reduce/,'公司管理页需要识别重复公司名称');
   assert.match(teamClient,/nameDuplicateCount/,'公司行需要接收重复名称计数');
