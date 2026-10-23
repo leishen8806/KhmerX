@@ -58,6 +58,12 @@ test('employee creation warns and disables duplicate company email',()=>{
   assert.match(teamClient,/members\.some\(\(m:any\)=>String\(m\.email\|\|''\)\.trim\(\)\.toLowerCase\(\)===email\.trim\(\)\.toLowerCase\(\)/,'同公司重复邮箱不得继续提交新增员工');
 });
 
+test('organization unit form separates departments from licensed institutions',()=>{
+  assert.match(teamClient,/新增组织单元/,'组织单元入口应避免把部门和机构混称');
+  assert.match(teamClient,/部门负责内部职责与数据范围；持牌机构负责外部审批、放款及牌照信息/,'组织单元表单应解释部门与持牌机构的职责边界');
+  assert.match(teamClient,/组织类型/,'组织单元表单应明确区分类型');
+});
+
 test('customer tag writes enforce the current employee data scope',()=>{
   assert.match(customerTags,/import \{assignment,audit,db,staff\} from ['"]@\/lib\/team\/server['"]/);
   assert.match(customerTags,/import \{canSee\} from ['"]@\/lib\/team\/policy['"]/);
