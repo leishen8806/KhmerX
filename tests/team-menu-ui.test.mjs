@@ -950,4 +950,5 @@ test('mini app cache is isolated by company and phone',()=>{
   assert.match(miniClient,/dataCache\.get\(cacheKey\)/,'Mini App 首次读取必须使用隔离后的缓存键');
   assert.match(miniClient,/dataCache\.set\(cacheKey,d\)/,'Mini App 读取和写入必须使用隔离后的缓存键');
   assert.match(h5Login,/MiniClient key=\{`mini-client:\$\{company\}:\$\{session\.phoneMasked\}`/,'公司上下文变化时必须重新挂载 Mini App，避免首帧复用旧状态');
+  assert.match(miniClient,/dataCache\.delete\(cacheKey\);onLogout\(\)/,'Mini App 退出登录前必须清理当前公司缓存');
 });
