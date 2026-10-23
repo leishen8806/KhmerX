@@ -570,6 +570,13 @@ test('workspace loading shell follows the full content width',()=>{
   assert.match(css,/\.crm-loading-shell\{width:100%;max-width:100%\}/,'工作台加载态需要与正式内容保持同宽');
 });
 
+test('workspace timeout exposes a direct re-login action',()=>{
+  const source=fs.readFileSync(path.join(process.cwd(),'app/team/client.tsx'),'utf8');
+  assert.match(source,/error\.includes\('工作台加载超时'\)/,'工作台超时需要识别为可恢复的认证状态');
+  assert.match(source,/重新登录/,'工作台超时需要提供明确的重新登录入口');
+  assert.match(source,/window\.location\.assign\('\/team\/login'\)/,'重新登录入口需要回到统一登录页');
+});
+
 test('account popover stays usable with many companies',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.crm-account-popover\{max-height:calc\(100dvh - 80px\);max-width:min\(320px,calc\(100vw - 20px\)\);overflow-x:hidden;overflow-y:auto\}/,'多公司切换菜单需要限制尺寸并支持滚动');
