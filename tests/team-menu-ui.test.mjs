@@ -81,6 +81,11 @@ test('company management default card only shows an enabled company',()=>{
   assert.match(teamClient,/暂无启用公司/,'全部公司停用时必须给出明确状态');
 });
 
+test('organization rows remount after server-normalized values change',()=>{
+  assert.match(teamClient,/UnitRow key=\{`\$\{u\.id\}:\$\{u\.name\}:\$\{u\.active\}/,'部门/机构行需要在服务端回写后重新加载本地字段');
+  assert.match(teamClient,/PlatformCompanyRow key=\{`\$\{c\.id\}:\$\{c\.name\}:\$\{c\.active\}:\$\{c\.client_en_enabled\}/,'公司行需要在服务端回写后重新加载本地字段');
+});
+
 test('organization and employee creation clear transient fields only after success',()=>{
   assert.match(teamClient,/if\(await post\(\{action:'add_unit',name:unitName,kind\}\)\)setUnitName\(''\)/,'组织单元创建成功后应清空名称输入');
   assert.match(teamClient,/if\(await post\(\{action:'create_member',email,role,unitId:unit,passwordLogin,emergencyId:emergencyId\|\|undefined\}\)\)\{setEmail\(''\);setUnit\(''\);setEmergencyId\(''\)\}/,'员工创建成功后应清空邮箱、归属范围和授权 ID');

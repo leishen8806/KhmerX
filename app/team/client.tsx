@@ -194,7 +194,7 @@ function LegacyMemberRow({m,units,editable,busy,post}:any){
 }
 
 function UnitManagement({units,busy,post}:{units:any[];busy:boolean;post:any}){
- return <section className="panel"><h2>部门与持牌机构</h2><p className="fine">停用前需先迁移启用员工、业务分配和承接路由；历史记录不会被删除。</p><div className="table-scroll"><table><thead><tr><th>名称</th><th>类型</th><th>状态</th><th>变更</th></tr></thead><tbody>{units.map((u:any)=><UnitRow key={u.id} unit={u} busy={busy} post={post}/>)}</tbody></table></div></section>
+ return <section className="panel"><h2>部门与持牌机构</h2><p className="fine">停用前需先迁移启用员工、业务分配和承接路由；历史记录不会被删除。</p><div className="table-scroll"><table><thead><tr><th>名称</th><th>类型</th><th>状态</th><th>变更</th></tr></thead><tbody>{units.map((u:any)=><UnitRow key={`${u.id}:${u.name}:${u.active}:${u.institution_code||''}:${u.license_number||''}:${u.license_expires_at||''}:${u.callback_url||''}:${u.supported_currencies_json||''}`} unit={u} busy={busy} post={post}/>)}</tbody></table></div></section>
 }
 function UnitRow({unit,busy,post}:{unit:any;busy:boolean;post:any}){
  const [name,setName]=useState(unit.name),[active,setActive]=useState(unit.active!==0),[reason,setReason]=useState('');
@@ -206,7 +206,7 @@ function UnitRow({unit,busy,post}:{unit:any;busy:boolean;post:any}){
 function PlatformCompanyManagement({companies,busy,post}:{companies:any[];busy:boolean;post:any}){
  const defaultCompany=companies.find(company=>company.active!==0);
  const nameCounts=companies.reduce((counts:any,c:any)=>{const key=String(c.name||'').trim().toLocaleLowerCase();if(key)counts[key]=(counts[key]||0)+1;return counts},{});
- return <><section className="crm-action-panel"><h2>默认公司</h2><p className="fine">平台管理员进入后台后先绑定默认公司；如需处理其他公司业务，请从右上角账户菜单切换公司。公司业务账号登录后会自动恢复上次公司。</p><p className="success">默认公司：{defaultCompany?.name||'暂无启用公司'}</p></section><section className="panel"><h2>公司与平台状态</h2><p className="fine">停用公司前必须先完成进行中贷款业务的收尾；变更会写入平台审计记录。公司名称可重复，切换和审计请始终以“名称 + 入口代码”为准。</p><div className="table-scroll"><table><thead><tr><th>公司</th><th>入口代码</th><th>状态</th><th>语言</th><th>变更</th></tr></thead><tbody>{companies.map((c:any)=><PlatformCompanyRow key={c.id} company={{...c,nameDuplicateCount:nameCounts[String(c.name||'').trim().toLocaleLowerCase()]||0}} busy={busy} post={post}/>)}</tbody></table></div></section></>
+ return <><section className="crm-action-panel"><h2>默认公司</h2><p className="fine">平台管理员进入后台后先绑定默认公司；如需处理其他公司业务，请从右上角账户菜单切换公司。公司业务账号登录后会自动恢复上次公司。</p><p className="success">默认公司：{defaultCompany?.name||'暂无启用公司'}</p></section><section className="panel"><h2>公司与平台状态</h2><p className="fine">停用公司前必须先完成进行中贷款业务的收尾；变更会写入平台审计记录。公司名称可重复，切换和审计请始终以“名称 + 入口代码”为准。</p><div className="table-scroll"><table><thead><tr><th>公司</th><th>入口代码</th><th>状态</th><th>语言</th><th>变更</th></tr></thead><tbody>{companies.map((c:any)=><PlatformCompanyRow key={`${c.id}:${c.name}:${c.active}:${c.client_en_enabled}:${c.client_km_enabled}:${c.client_zh_enabled}`} company={{...c,nameDuplicateCount:nameCounts[String(c.name||'').trim().toLocaleLowerCase()]||0}} busy={busy} post={post}/>)}</tbody></table></div></section></>
 }
 function PlatformCompanyRow({company,busy,post}:{company:any;busy:boolean;post:any}){
  const [name,setName]=useState(company.name),[active,setActive]=useState(company.active!==0),[langs,setLangs]=useState({en:company.client_en_enabled!==0,km:company.client_km_enabled!==0,zh:company.client_zh_enabled!==0}),[reason,setReason]=useState('');async function save(){const ok=await post({action:'platform_update_company',companyId:company.id,name,active,reason,...langs});if(!ok)setActive(company.active!==0)}
