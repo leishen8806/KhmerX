@@ -22,6 +22,7 @@ const customerJourney=fs.readFileSync(path.join(process.cwd(),'components/custom
 const workspace=fs.readFileSync(path.join(process.cwd(),'app/workspace.tsx'),'utf8');
 const miniClient=fs.readFileSync(path.join(process.cwd(),'components/mini-client.tsx'),'utf8');
 const h5Login=fs.readFileSync(path.join(process.cwd(),'app/h5/login.tsx'),'utf8');
+const businessBots=fs.readFileSync(path.join(process.cwd(),'components/business-bots.tsx'),'utf8');
 const teamRoute=fs.readFileSync(path.join(process.cwd(),'app/api/team/route.ts'),'utf8');
 const teamServer=fs.readFileSync(path.join(process.cwd(),'lib/team/server.ts'),'utf8');
 const teamWorkflow=fs.readFileSync(path.join(process.cwd(),'lib/team/workflow.ts'),'utf8');
@@ -957,4 +958,9 @@ test('mini app cache is isolated by company and phone',()=>{
   assert.match(miniClient,/dataCache\.set\(cacheKey,d\)/,'Mini App 读取和写入必须使用隔离后的缓存键');
   assert.match(h5Login,/MiniClient key=\{`mini-client:\$\{company\}:\$\{session\.phoneMasked\}`/,'公司上下文变化时必须重新挂载 Mini App，避免首帧复用旧状态');
   assert.match(miniClient,/dataCache\.delete\(cacheKey\);onLogout\(\)/,'Mini App 退出登录前必须清理当前公司缓存');
+});
+test('telegram channel cards sync all server-normalized settings',()=>{
+  assert.match(businessBots,/setEnabled\(bot\.enabled\)/,'Telegram 渠道启用状态必须同步服务端回写');
+  assert.match(businessBots,/setPhoneVerification\(bot\.phoneVerification!==false\)/,'Telegram 手机号验证开关必须同步服务端回写');
+  assert.match(businessBots,/setPasswordSetup\(bot\.passwordSetup!==false\)/,'Telegram 密码设置开关必须同步服务端回写');
 });
