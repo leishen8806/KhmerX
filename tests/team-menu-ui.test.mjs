@@ -82,6 +82,12 @@ test('credential result panels never keep stale invite or login details',()=>{
   assert.match(teamClient,/else if\(body\.action==='platform_bootstrap_admin'\)\{setLoginDetails\(null\);setInviteDetails\(v\.inviteDetails\|\|null\)\}/,'管理员引导结果不得叠加旧的员工账号详情');
 });
 
+test('independent employee creation clears success feedback before a retry',()=>{
+  const crmSubpages=fs.readFileSync(path.join(process.cwd(),'components/crm-subpages.tsx'),'utf8');
+  assert.match(crmSubpages,/onChange=\{e=>\{setEmail\(e\.target\.value\);setMessage\('\'\)\}\}/,'修改员工邮箱后应清除上一笔成功提示');
+  assert.match(crmSubpages,/onClick=\{async\(\)=>\{setMessage\('\'\);if\(await post\(\{action:'create_member',email:email\.trim\(\)/,'重新提交前应先清除上一笔成功提示');
+});
+
 test('platform company list warns when names are duplicated',()=>{
   assert.match(teamClient,/nameCounts=companies\.reduce/,'公司管理页需要识别重复公司名称');
   assert.match(teamClient,/nameDuplicateCount/,'公司行需要接收重复名称计数');
