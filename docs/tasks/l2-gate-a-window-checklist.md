@@ -9,8 +9,8 @@
 |---|---|---|---|
 | 1 | 灰度源站 `/opt/payease/data/config.json` 已填真实凭据（Telegram Gateway 令牌、bot-1 令牌、管理员密码哈希、各 32 字节密钥），`check-config.mjs` 输出 `GRAY CONFIG CHECK: PASS` | 操作员 | ☐ |
 | 2 | `bootstrap-gray.sh` 已执行（属主/权限：data 1000:1000 700，config 0:1000 640，scanner-secrets 1000:65534 2750） | 操作员 | ☐ |
-| 3 | 应用与扫描器已 `up -d --build`，`/healthz`、`/readyz` 正常；`curl -H 'Host: testapi.khmerx.org' http://127.0.0.1:4300/api/h5/auth` 返回 200、mode telegram | 操作员 | ☐ |
-| 4 | DNS：`testapi/testpayease/testadmin/test.khmerx.org` 指向 159.223.77.134 且 Cloudflare 代理；SSL 模式「完整」；`testapi.khmerx.org` 不再 521 | 技术负责人 | ☐ |
+| 3 | **`dist` 来源已核对**（C2 合并后用 `verify-artifact.sh <SHA>`，并用 `/version` 的 `buildId` 与 `BUILD_INFO.json` 对照；C2 未合并前，操作员须记录 `dist` 的构建提交与构建方式）；应用与扫描器已 `up -d --build`，`/healthz`、`/readyz` 正常；`curl -H 'Host: testapi.khmerx.org' http://127.0.0.1:4300/api/h5/auth` 返回 200、mode telegram | 操作员 | ☐ |
+| 4 | DNS：`testapi/testpayease/testadmin/test.khmerx.org` 指向 159.223.77.134 且 Cloudflare 代理；SSL 模式「完整」；`testapi.khmerx.org` 不再 521；Caddy 实际加载的是 `/etc/caddy/Caddyfile.gray`（`systemctl show caddy -p ExecStart` 核对，`caddy validate` 只证明文件有效） | 技术负责人 | ☐ |
 | 5 | 压测机 165.22.108.5：已装 k6 与本仓库脚本；`LOADTEST_ALLOWED_HOSTS=159.223.77.134,testapi.khmerx.org` | 操作员 | ☐ |
 | 6 | `/opt/payease/loadtest`、`/opt/payease/loadtest/manifests` 已按 1000:1000、700 建好 | 操作员 | ☐ |
 | 7 | 技术负责人书面批准本窗口（见 §2） | 技术负责人 | ☐ |
@@ -18,7 +18,7 @@
 ## 2. 窗口批准单（复制到 PR/聊天里，由技术负责人填写后回复"批准"）
 
 ```
-窗口：2026-__-__ __:__ – __:__（须早于周六 17:45）
+窗口：2026-__-__ __:__ – __:__（时区 Asia/Phnom_Penh，须早于周六 17:45）
 CUSTOMER_ROWS：off / on（本窗口只测一种；切换另开窗口，需改 config 并重建容器）
 规模：main = ___ 客户（建议先 100）
 PAYEASE_GATEWAY_RATE_SCALE：___（建议 30，仅灰度；压测结束后恢复 1）
