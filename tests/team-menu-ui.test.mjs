@@ -135,9 +135,14 @@ test('manual assignment controls are disabled outside company admin scope',()=>{
 });
 
 test('funding actions require an assigned licensed institution before execution',()=>{
-  assert.match(fundingPanel,/canExecute=Boolean\(action&&institution\)/,'放款动作必须先确认已分配承接机构');
+  assert.match(fundingPanel,/canExecute=Boolean\(action&&institution&&approvalReady\)/,'放款动作必须先确认已分配承接机构和审批前置条件');
   assert.match(fundingPanel,/action&&!institution&&<p className="error" role="alert">放款承接机构未分配，暂不能执行放款操作。/,'缺少承接机构时必须明确提示并阻断放款');
   assert.match(fundingPanel,/canExecute&&!confirm&&<Button/,'放款按钮只能在前置条件满足时显示');
+});
+
+test('funding initiation requires completed approval review and signing',()=>{
+  assert.match(fundingPanel,/approvalReady=action!==['"]disburse_request['"]\|\|Boolean\(l\.approvalCheckedBy\)/,'放款发起必须检查审批复核完成标记');
+  assert.match(fundingPanel,/action==='disburse_request'&&!l\.approvalCheckedBy&&<p className="error" role="alert">贷款审批复核和客户签约尚未完成/,'审批复核或签约未完成时必须明确阻断放款发起');
 });
 
 test('workspace employee permission changes roll back local edits when persistence fails',()=>{
