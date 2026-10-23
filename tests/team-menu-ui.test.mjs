@@ -77,6 +77,11 @@ test('organization and employee creation clear transient fields only after succe
   assert.match(teamClient,/if\(await post\(\{action:'create_member',email,role,unitId:unit,passwordLogin,emergencyId:emergencyId\|\|undefined\}\)\)\{setEmail\(''\);setUnit\(''\);setEmergencyId\(''\)\}/,'员工创建成功后应清空邮箱、归属范围和授权 ID');
 });
 
+test('credential result panels never keep stale invite or login details',()=>{
+  assert.match(teamClient,/if\(body\.action==='create_member'\)\{setLoginDetails\(v\.loginDetails\|\|null\);setInviteDetails\(v\.inviteDetails\|\|null\)\}/,'员工创建结果必须只显示本次生成的账号或邀请信息');
+  assert.match(teamClient,/else if\(body\.action==='platform_bootstrap_admin'\)\{setLoginDetails\(null\);setInviteDetails\(v\.inviteDetails\|\|null\)\}/,'管理员引导结果不得叠加旧的员工账号详情');
+});
+
 test('platform company list warns when names are duplicated',()=>{
   assert.match(teamClient,/nameCounts=companies\.reduce/,'公司管理页需要识别重复公司名称');
   assert.match(teamClient,/nameDuplicateCount/,'公司行需要接收重复名称计数');
