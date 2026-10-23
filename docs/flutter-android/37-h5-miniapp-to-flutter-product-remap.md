@@ -82,7 +82,7 @@ Not done:  不写 Flutter 代码；不改 04；不改 Trae 实现；不改后端
 | **用户动作** | `POST /api/h5/state` | REAL | 有效客户动作：`create`、`confirm_bill`、`apply`（`sign`/旧动作不可达）；`repay`/`withdraw` **403** |
 | KYC 视图/保存/提交 | `GET/POST /api/kyc` | REAL | revision 乐观锁；首次 GET 创建 `draft` |
 | KYC 文件 | `POST/GET /api/kyc/files` | REAL | 原始字节 + `x-kyc-slot`；JPEG/PNG/PDF；≤10 MB；每客户 ≤40 行；生产需杀毒扫描 |
-| 地址地理编码 | `POST /api/kyc/geocode` | REAL（需 Google Key） | 可选；无限流 |
+| 地址地理编码 | `POST /api/kyc/geocode` | REAL（需 Google Key） | 可选；需登录，按租户+客户每 60 秒最多 10 次，地址最多 240 字符 |
 | 协议/签名 | `GET/POST /api/loan/sign` | REAL | 签名 PNG/JPEG，三个自定义头；**协议仅中文** |
 | 合同查看 | `GET /api/kyc/contract?loan=` | REAL | |
 | Telegram 提醒 | `GET/POST /api/telegram` | REAL，**仅 Mini App 可订阅** | |

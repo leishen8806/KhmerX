@@ -1,7 +1,7 @@
 import {channelToken} from '@/lib/bot-credentials';
 import {env} from 'cloudflare:workers';
 import {runtime} from '@/lib/h5-auth';
-import {db,staff} from '@/lib/team/server';
+import {db,staff,audit} from '@/lib/team/server';
 import {readState} from '@/lib/store';
 import {AuthError,telegramCustomerKey} from '@/lib/h5-auth-core';
 import {validateInitData} from '@/lib/telegram';
@@ -37,7 +37,8 @@ export async function bindNotifications(owner:string,customerId:string,p:any){co
 export async function dispatchCompany(owner:string,now=new Date().toISOString()){
  const {state}=await readState(owner),today=localDay(now);let sent=0;
  // A crashed sender is ambiguous. Preserve the attempt, do not silently duplicate it.
- await db().prepare("UPDATE telegram_outbox SET status='unknown',reason='上次发送中断，需人工核对' WHERE owner=? AND status='sending' AND updated_at<?").bind(owner,new Date(Date.parse(now)-120000).toISOString()).run();
+ const stale=await db().prepare("UPDATE telegram_outbox SET status='unknown',reason='上次发送中断，需人工核对' WHERE owner=? AND status='sending' AND updated_at<?").bind(owner,new Date(Date.parse(now)-120000).toISOString()).run();
+ if(stale.meta.changes)await audit(owner,'system','notification_delivery_unknown',{count:stale.meta.changes,reason:'上次 Telegram 发送中断，结果不明确，已转人工核对',at:now}).run();
  for(const n of state.notifications.filter(n=>n.id.startsWith('postloan-reminder:'))){const l=state.loans.find(l=>l.id===n.loanId);if(!l?.customerId||l.status!=='active'||!l.dueAt||localDay(l.dueAt)<today)continue;const sub=await db().prepare('SELECT id FROM telegram_subscriptions WHERE owner=? AND customer_id=? AND bot_id=? AND active=1').bind(owner,l.customerId,l.botId).first<any>();if(!sub)continue;
   // A cancelled delivery may belong to a subscription that was disabled and
   // enabled again.  The unique (owner, notification_id) index must not make
@@ -58,7 +59,7 @@ export async function dispatchCompany(owner:string,now=new Date().toISOString())
  }
  const claim=await db().prepare("UPDATE telegram_outbox SET status='sending',attempts=attempts+1,updated_at=? WHERE id=? AND owner=? AND status IN ('pending','retry') AND attempts=? AND EXISTS (SELECT 1 FROM telegram_subscriptions WHERE id=? AND active=1)").bind(now,job.id,owner,job.attempts,sub.id).run();if(!claim.meta.changes)continue;
  let result;try{const chat=Number(new TextDecoder().decode(await decryptBytes(Uint8Array.from(atob(sub.chat_encrypted),c=>c.charCodeAt(0)),'telegram:'+sub.id)));const account=await db().prepare('SELECT locale FROM h5_accounts WHERE owner=? AND customer_id=?').bind(owner,l.customerId).first<{locale?:string}>();const locale:NotificationLocale=account?.locale==='km'?'km':account?.locale==='zh'?'zh':'en';const template=await db().prepare('SELECT title,body FROM team_notification_templates WHERE tenant_id=? AND event_key=? AND locale=? AND active=1').bind(owner,'repayment_reminder',locale).first<{title:string;body:string}>();const safeTemplate=template&&!/\{\{\s*(?:outstanding_usd|amount|principal|fee|total)\s*\}\}/i.test(`${template.title}\n${template.body}`)?template:null;const text=safeTemplate?`${safeTemplate.title}\n${safeTemplate.body}`.replaceAll('{{due_date}}',localDay(l.dueAt)).slice(0,4000):undefined;result=await sendTelegram(token,chat,fetch,locale,text)}catch{result={status:'failed',reason:'收件人资料无法读取'}}
- const status=result.status==='retry'&&job.attempts>=4?'failed':result.status;await db().prepare("UPDATE telegram_outbox SET status=?,reason=?,message_id=?,next_at=?,updated_at=? WHERE id=? AND owner=? AND status='sending'").bind(status,result.reason,'messageId' in result?result.messageId:null,Date.parse(now)+('retrySeconds' in result?(result.retrySeconds||60)*1000:0),new Date().toISOString(),job.id,owner).run();if(status==='sent')sent++;
+ const status=result.status==='retry'&&job.attempts>=4?'failed':result.status;await db().prepare("UPDATE telegram_outbox SET status=?,reason=?,message_id=?,next_at=?,updated_at=? WHERE id=? AND owner=? AND status='sending'").bind(status,result.reason,'messageId' in result?result.messageId:null,Date.parse(now)+('retrySeconds' in result?(result.retrySeconds||60)*1000:0),new Date().toISOString(),job.id,owner).run();if(status==='unknown')await audit(owner,'system','notification_delivery_unknown',{outboxId:job.id,loanId:job.loan_id,attempt:job.attempts+1,reason:result.reason,at:now,manualCheckRequired:true}).run();if(status==='sent')sent++;
  }
  return {sent}
 }
@@ -77,8 +78,8 @@ export async function retryNotificationDelivery(id:string){
  const now=new Date().toISOString();
  const result=await db().batch([
   db().prepare("UPDATE telegram_outbox SET status='retry',attempts=0,next_at=0,reason='管理员确认人工重试',updated_at=? WHERE id=? AND owner=? AND status IN ('failed','unknown')").bind(now,id,s.tenant.id),
-  db().prepare("INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) SELECT ?,?,?,'notification_delivery_manual_retry',?,? WHERE changes()=1").bind(crypto.randomUUID(),s.tenant.id,s.user.userId,JSON.stringify({outboxId:id,loanId:delivery.loan_id,previousStatus:delivery.status,previousAttempts:delivery.attempts,at:now}),now)
+  db().prepare("INSERT INTO team_audit(id,tenant_id,actor,action,detail,created_at) SELECT ?,?,?,?,?,? WHERE changes()=1").bind(crypto.randomUUID(),s.tenant.id,s.user.userId,'notification_delivery_manual_retry',JSON.stringify({outboxId:id,loanId:delivery.loan_id,previousStatus:delivery.status,previousAttempts:delivery.attempts,at:now}),now),
  ]);
- if(result[0].meta.changes!==1)throw new AuthError('通知状态已变化，请刷新后重试',409);
+ if(result[0]?.meta?.changes!==1)throw new AuthError('通知状态已变化，请刷新后重试',409);
  return {ok:true,id,status:'retry'};
 }

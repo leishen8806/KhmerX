@@ -20,7 +20,7 @@ export async function POST(request:Request){
    ON CONFLICT(key) DO UPDATE SET count=CASE WHEN window_start+60<=? THEN 1 ELSE count+1 END,
    window_start=CASE WHEN window_start+60<=? THEN ? ELSE window_start END,next_allowed=?
    WHERE (window_start+60<=? OR count<10) AND next_allowed<=? RETURNING key`).bind(limitKey,now,now,now,now,now,now,now,now).first();
-  if(!limited)throw new KycError('地址查询过于频繁，请稍后重试',429,'GEOCODE_RATE_LIMITED');
+  if(!limited)throw new KycError('地址查询过于频繁，请稍后重试',429,'GEOCODE_RATE_LIMITED',60);
   const key=settings().GOOGLE_MAPS_API_KEY?.trim();
   if(!key)throw new KycError('Google 地图定位服务尚未配置，请联系管理员',503);
   const language=p.language==='km'||p.language==='zh'||p.language==='en'?p.language:'en';
@@ -40,5 +40,5 @@ export async function POST(request:Request){
   const first=result.results?.[0],location=first?.geometry?.location;
   if(!first||typeof location?.lat!=='number'||typeof location.lng!=='number'||!first.formatted_address)throw new KycError('Google 地图未返回有效地址',503);
   return json({address,formattedAddress:first.formatted_address,lat:location.lat,lon:location.lng,placeId:first.place_id||'',types:first.types||[],source:'google_geocoding',customerId:c.customerId});
- }catch(e){return failed(e)}
+ }catch(e){return failed(e,request)}
 }
