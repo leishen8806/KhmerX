@@ -53,6 +53,11 @@ test('platform company list warns when names are duplicated',()=>{
   assert.match(teamClient,/role="alert"/,'重复名称提示必须可被辅助技术读取');
 });
 
+test('employee creation warns and disables duplicate company email',()=>{
+  assert.match(teamClient,/该公司已有此邮箱员工，请修改现有员工权限/,'新增员工时应明确提示同公司重复邮箱');
+  assert.match(teamClient,/members\.some\(\(m:any\)=>String\(m\.email\|\|''\)\.trim\(\)\.toLowerCase\(\)===email\.trim\(\)\.toLowerCase\(\)/,'同公司重复邮箱不得继续提交新增员工');
+});
+
 test('customer tag writes enforce the current employee data scope',()=>{
   assert.match(customerTags,/import \{assignment,audit,db,staff\} from ['"]@\/lib\/team\/server['"]/);
   assert.match(customerTags,/import \{canSee\} from ['"]@\/lib\/team\/policy['"]/);
