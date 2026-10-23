@@ -9,6 +9,7 @@ const router=fs.readFileSync(path.join(process.cwd(),'components/crm-subpages.ts
 const fundingPanel=fs.readFileSync(path.join(process.cwd(),'components/funding-panel.tsx'),'utf8');
 const repaymentPanel=fs.readFileSync(path.join(process.cwd(),'components/repayment-panel.tsx'),'utf8');
 const postloanPanel=fs.readFileSync(path.join(process.cwd(),'components/postloan-panel.tsx'),'utf8');
+const auditIntegrity=fs.readFileSync(path.join(process.cwd(),'components/audit-integrity.tsx'),'utf8');
 const products=fs.readFileSync(path.join(process.cwd(),'app/api/team/products/route.ts'),'utf8');
 const riskRules=fs.readFileSync(path.join(process.cwd(),'lib/team/risk-rules.ts'),'utf8');
 const customerTags=fs.readFileSync(path.join(process.cwd(),'app/api/team/customer-tags/route.ts'),'utf8');
@@ -154,6 +155,11 @@ test('repayment registration explains missing repayment institution before block
 
 test('postloan follow-up filter excludes settled tasks',()=>{
   assert.match(postloanPanel,/filter==='followup'&&t\.status!=='closed'&&t\.nextContactAt&&Date\.parse\(t\.nextContactAt\)<=Date\.now\(\)/,'贷后跟进筛选不得重新展示已结清任务');
+});
+
+test('audit integrity feedback exposes accessible success and failure status',()=>{
+  assert.match(auditIntegrity,/result\.match===false\?'alert':'status'/,'审计完整性结果必须按成功或失败暴露状态语义');
+  assert.match(auditIntegrity,/error" role="alert"/,'审计完整性错误必须可被辅助技术读取');
 });
 
 test('workspace employee permission changes roll back local edits when persistence fails',()=>{
