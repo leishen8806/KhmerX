@@ -20,6 +20,8 @@ const teamClient=fs.readFileSync(path.join(process.cwd(),'app/team/client.tsx'),
 const teamAuth=fs.readFileSync(path.join(process.cwd(),'app/api/team/auth/route.ts'),'utf8');
 const customerJourney=fs.readFileSync(path.join(process.cwd(),'components/customer-journey.tsx'),'utf8');
 const workspace=fs.readFileSync(path.join(process.cwd(),'app/workspace.tsx'),'utf8');
+const miniClient=fs.readFileSync(path.join(process.cwd(),'components/mini-client.tsx'),'utf8');
+const h5Login=fs.readFileSync(path.join(process.cwd(),'app/h5/login.tsx'),'utf8');
 const teamRoute=fs.readFileSync(path.join(process.cwd(),'app/api/team/route.ts'),'utf8');
 const teamServer=fs.readFileSync(path.join(process.cwd(),'lib/team/server.ts'),'utf8');
 const teamWorkflow=fs.readFileSync(path.join(process.cwd(),'lib/team/workflow.ts'),'utf8');
@@ -942,4 +944,10 @@ test('approved KYC without a loan stays in the pre-application state',()=>{
   assert.match(customerJourney,/const phase=!loan\?-1:loanPhase\(loan\)/,'KYC 通过但尚未创建贷款时不得显示贷款进行中步骤');
   assert.match(customerJourney,/phase<0\?\(approved\?'待申请':'待认证'\)/,'KYC 通过且无贷款时应明确显示待申请');
   assert.match(workspace,/kycStatus==='approved'&&\(loan\|\|newLoan\)&&<LoanSteps/,'工作台仅在存在贷款或新建贷款时显示步骤条');
+});
+test('mini app cache is isolated by company and phone',()=>{
+  assert.match(miniClient,/const cacheKey=`\$\{company\}:\$\{phone\}`/,'Mini App 缓存键必须同时包含公司和手机号');
+  assert.match(miniClient,/dataCache\.get\(cacheKey\)/,'Mini App 首次读取必须使用隔离后的缓存键');
+  assert.match(miniClient,/dataCache\.set\(cacheKey,d\)/,'Mini App 读取和写入必须使用隔离后的缓存键');
+  assert.match(h5Login,/MiniClient key=\{`mini-client:\$\{company\}:\$\{session\.phoneMasked\}`/,'公司上下文变化时必须重新挂载 Mini App，避免首帧复用旧状态');
 });
