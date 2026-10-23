@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:dio/dio.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -45,6 +47,8 @@ final class KycUiState {
     this.consent = false,
     this.busy = false,
     this.uploading = const {},
+    this.retrying = const {},
+    this.uploadFailures = const {},
     this.notice,
     this.problems = const [],
     this.locating = false,
@@ -63,6 +67,8 @@ final class KycUiState {
   final bool consent;
   final bool busy;
   final Set<String> uploading;
+  final Set<String> retrying;
+  final Map<String, AppFailure> uploadFailures;
   final KycNotice? notice;
   final List<KycProblem> problems;
 
@@ -93,6 +99,8 @@ final class KycUiState {
     bool? consent,
     bool? busy,
     Set<String>? uploading,
+    Set<String>? retrying,
+    Map<String, AppFailure>? uploadFailures,
     KycNotice? notice,
     bool clearNotice = false,
     List<KycProblem>? problems,
@@ -109,6 +117,8 @@ final class KycUiState {
       consent: consent ?? this.consent,
       busy: busy ?? this.busy,
       uploading: uploading ?? this.uploading,
+      retrying: retrying ?? this.retrying,
+      uploadFailures: uploadFailures ?? this.uploadFailures,
       notice: clearNotice ? null : (notice ?? this.notice),
       problems: problems ?? this.problems,
       locating: locating ?? this.locating,
@@ -131,7 +141,7 @@ final class DeviceKycImageSource implements KycImageSource {
 
   @override
   Future<Uint8List?> pick({required bool camera}) async {
-    // Downscale on the device so the upload stays far below the 10 MB limit.
+    // Downscale on the device so the upload stays far below the 5 MB image limit.
     final file = await _picker.pickImage(
       source: camera ? ImageSource.camera : ImageSource.gallery,
       maxWidth: 2000,
@@ -158,7 +168,13 @@ final class KycController extends Notifier<KycUiState> {
   CompanyId get _id => ref.read(activeCompanyIdProvider) ?? CompanyId.publicWorkspace;
 
   @override
-  KycUiState build() => const KycUiState();
+  KycUiState build() {
+    ref.onDispose(() {for (final token in _uploads.values) {token.cancel();}});
+    return const KycUiState();
+  }
+  final _uploads = <String, CancelToken>{};
+  final _picking = <String>{};
+  void cancelUpload(String slot) => _uploads[slot]?.cancel();
 
   Future<void> load() async {
     state = state.copyWith(phase: KycLoadPhase.loading, clearLoadFailure: true);
@@ -319,21 +335,31 @@ final class KycController extends Notifier<KycUiState> {
 
   /// Picks an image, uploads it for [slot] and attaches it by saving the draft.
   Future<void> uploadSlot(String slot, {required bool camera}) async {
-    if (!state.editable || state.uploading.contains(slot)) return;
+    if (!state.editable || state.uploading.contains(slot) || !_picking.add(slot)) return;
     Uint8List? bytes;
     try {
       bytes = await ref.read(kycImageSourceProvider).pick(camera: camera);
     } on Object {
-      state = state.copyWith(notice: KycNotice.pickFailed);
+      if (ref.mounted) state = state.copyWith(notice: KycNotice.pickFailed);
       return;
+    } finally {
+      _picking.remove(slot);
     }
-    if (bytes == null) return;
-    state = state.copyWith(
+    if (bytes == null || !ref.mounted) return;
+    final token = CancelToken();_uploads[slot] = token;
+    state = state.copyWith(uploadFailures: {...state.uploadFailures}..remove(slot),
       uploading: {...state.uploading, slot},
       clearNotice: true,
     );
-    final r = await ref.read(kycRepositoryProvider).upload(_id, slot: slot, bytes: bytes);
+    final r = await ref.read(kycRepositoryProvider).upload(_id, slot: slot, bytes: bytes,
+        cancelToken: token, onRetry: (_, _) {
+          if (ref.mounted && !token.isCancelled) {state = state.copyWith(retrying: {...state.retrying, slot});}
+        });
+    if (!ref.mounted) return;
+    if (identical(_uploads[slot], token)) _uploads.remove(slot);
     final still = {...state.uploading}..remove(slot);
+    state = state.copyWith(retrying: {...state.retrying}..remove(slot));
+    if (token.isCancelled) {state = state.copyWith(uploading: still);return;}
     switch (r) {
       case Right<AppFailure, KycFileRef>(value: final ref0):
         state = state.copyWith(
@@ -343,7 +369,7 @@ final class KycController extends Notifier<KycUiState> {
         // The upload only stores the file; attach it to the case.
         await saveDraft(announce: false);
       case Left<AppFailure, KycFileRef>(value: final f):
-        state = state.copyWith(uploading: still, notice: _noticeFor(f));
+        state = state.copyWith(uploading: still, uploadFailures: {...state.uploadFailures, slot: f}, notice: _noticeFor(f));
     }
   }
 
@@ -358,7 +384,7 @@ final class KycController extends Notifier<KycUiState> {
 
   KycNotice _noticeFor(AppFailure f) {
     final code = f.statusCode ?? 0;
-    if (f is OfflineFailure || f is NetworkFailure || code >= 500) {
+    if (f is OfflineFailure || f is NetworkFailure || f is RateLimitFailure || code >= 500) {
       return KycNotice.unavailable;
     }
     return switch (code) {

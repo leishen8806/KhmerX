@@ -1494,7 +1494,8 @@ class AppLocalizationsKm extends AppLocalizations {
       'ព័ត៌មានបានផ្លាស់ប្តូរ ឬត្រូវបានចាក់សោ។ បានផ្ទុកឡើងវិញ។';
 
   @override
-  String get kycErrFileTooLarge => 'ឯកសារធំពេក (អតិបរមា 10 MB)។';
+  String get kycErrFileTooLarge =>
+      'រូបភាពមិនត្រូវលើស 5 MB និងឯកសារ PDF មិនត្រូវលើស 10 MB ទេ។';
 
   @override
   String get kycErrFileRejected =>
@@ -1651,4 +1652,10 @@ class AppLocalizationsKm extends AppLocalizations {
   String errWithRequestId(String message, String requestId) {
     return '$message លេខយោង៖ $requestId';
   }
+
+  @override
+  String get kycUploadRetrying => 'កំពុងព្យាយាមផ្ទុកឡើងម្ដងទៀត…';
+
+  @override
+  String get kycUploadCancel => 'បោះបង់ការផ្ទុកឡើង';
 }
