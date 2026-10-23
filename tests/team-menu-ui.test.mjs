@@ -47,7 +47,7 @@ test('platform company list prioritizes an active default',()=>{
 });
 
 test('platform auto-entry never targets a stopped company',()=>{
-  assert.match(teamClient,/data\.companies\?\.find\(company=>company\.active!==0\)/,'平台管理员自动进入公司时必须跳过停用公司');
+  assert.match(teamClient,/data\.companies\?\.find\(\(company:any\)=>company\.active!==0\)/,'平台管理员自动进入公司时必须跳过停用公司');
   assert.match(teamClient,/target\.active!==0&&autoEnteredCompany/,'停用公司不能触发自动进入请求');
 });
 
@@ -58,7 +58,7 @@ test('company switcher disables stopped companies with an explicit status',()=>{
 });
 
 test('account context never labels a stopped company as the default',()=>{
-  assert.match(teamClient,/activeDefault=data\?\.platformDefaultCompany\?\.active!==0\?data\.platformDefaultCompany:data\?\.companies\?\.find\(company=>company\.active!==0\)/,'账户菜单默认公司必须只取启用公司');
+  assert.match(teamClient,/activeDefault=data\?\.platformDefaultCompany\?\.active!==0\?data\.platformDefaultCompany:data\?\.companies\?\.find\(\(company:any\)=>company\.active!==0\)/,'账户菜单默认公司必须只取启用公司');
   assert.doesNotMatch(teamClient,/platformDefaultCompany\?\.name\|\|data\?\.companies\?\.\[0\]\?\.name/,'账户菜单不得直接展示第一条可能已停用的公司');
 });
 
@@ -70,6 +70,11 @@ test('company creation clears only after a successful write',()=>{
 test('company management default card only shows an enabled company',()=>{
   assert.match(teamClient,/const defaultCompany=companies\.find\(company=>company\.active!==0\)/,'公司管理默认卡片必须跳过停用公司');
   assert.match(teamClient,/暂无启用公司/,'全部公司停用时必须给出明确状态');
+});
+
+test('organization and employee creation clear transient fields only after success',()=>{
+  assert.match(teamClient,/if\(await post\(\{action:'add_unit',name:unitName,kind\}\)\)setUnitName\(''\)/,'组织单元创建成功后应清空名称输入');
+  assert.match(teamClient,/if\(await post\(\{action:'create_member',email,role,unitId:unit,passwordLogin,emergencyId:emergencyId\|\|undefined\}\)\)\{setEmail\(''\);setUnit\(''\);setEmergencyId\(''\)\}/,'员工创建成功后应清空邮箱、归属范围和授权 ID');
 });
 
 test('platform company list warns when names are duplicated',()=>{
