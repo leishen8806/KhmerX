@@ -1400,7 +1400,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get kycErrConflict => '资料已变化或已锁定，已重新加载。';
 
   @override
-  String get kycErrFileTooLarge => '文件过大（最大 10 MB）。';
+  String get kycErrFileTooLarge => '图片不得超过 5 MB，PDF 文件不得超过 10 MB。';
 
   @override
   String get kycErrFileRejected => '文件未被接受，请更换照片。';
@@ -1548,4 +1548,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String errWithRequestId(String message, String requestId) {
     return '$message 参考编号：$requestId';
   }
+
+  @override
+  String get kycUploadRetrying => '正在重试上传…';
+
+  @override
+  String get kycUploadCancel => '取消上传';
 }
