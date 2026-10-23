@@ -68,6 +68,7 @@ test('employee invite copy reports clipboard failures without losing the token',
   assert.match(teamClient,/async function copyInviteToken\(token:string\)/,'邀请令牌复制应集中处理成功与失败状态');
   assert.match(teamClient,/无法自动复制邀请令牌，请手动选择令牌内容复制/,'剪贴板不可用时必须提示手动复制');
   assert.match(teamClient,/onClick=\{\(\)=>void copyInviteToken\(inviteDetails\.inviteToken\)\}/,'邀请令牌复制按钮必须使用可失败反馈的处理器');
+  assert.match(teamClient,/copyInviteToken=\{copyInviteToken\}/,'公司管理页必须复用同一失败反馈处理器');
 });
 
 test('organization unit form separates departments from licensed institutions',()=>{
