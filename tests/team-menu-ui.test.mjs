@@ -8,6 +8,7 @@ const subpages=fs.readFileSync(path.join(process.cwd(),'lib/team/crm-subpages.ts
 const router=fs.readFileSync(path.join(process.cwd(),'components/crm-subpages.tsx'),'utf8');
 const fundingPanel=fs.readFileSync(path.join(process.cwd(),'components/funding-panel.tsx'),'utf8');
 const repaymentPanel=fs.readFileSync(path.join(process.cwd(),'components/repayment-panel.tsx'),'utf8');
+const postloanPanel=fs.readFileSync(path.join(process.cwd(),'components/postloan-panel.tsx'),'utf8');
 const products=fs.readFileSync(path.join(process.cwd(),'app/api/team/products/route.ts'),'utf8');
 const riskRules=fs.readFileSync(path.join(process.cwd(),'lib/team/risk-rules.ts'),'utf8');
 const customerTags=fs.readFileSync(path.join(process.cwd(),'app/api/team/customer-tags/route.ts'),'utf8');
@@ -149,6 +150,10 @@ test('funding initiation requires completed approval review and signing',()=>{
 test('repayment registration explains missing repayment institution before blocking submit',()=>{
   assert.match(repaymentPanel,/role==='admin'&&l\.status==='active'&&!institution&&<p className="error" role="alert">还款承接机构未分配，暂不能登记还款。/,'缺少还款承接机构时必须明确提示并阻断登记');
   assert.match(repaymentPanel,/disabled=\{busy\|\|!institution\|\|!checked/,'还款登记按钮必须继续阻断缺少承接机构的提交');
+});
+
+test('postloan follow-up filter excludes settled tasks',()=>{
+  assert.match(postloanPanel,/filter==='followup'&&t\.status!=='closed'&&t\.nextContactAt&&Date\.parse\(t\.nextContactAt\)<=Date\.now\(\)/,'贷后跟进筛选不得重新展示已结清任务');
 });
 
 test('workspace employee permission changes roll back local edits when persistence fails',()=>{
