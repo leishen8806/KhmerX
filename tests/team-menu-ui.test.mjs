@@ -84,6 +84,7 @@ test('company management default card only shows an enabled company',()=>{
 test('organization rows remount after server-normalized values change',()=>{
   assert.match(teamClient,/UnitRow key=\{`\$\{u\.id\}:\$\{u\.name\}:\$\{u\.active\}/,'部门/机构行需要在服务端回写后重新加载本地字段');
   assert.match(teamClient,/PlatformCompanyRow key=\{`\$\{c\.id\}:\$\{c\.name\}:\$\{c\.active\}:\$\{c\.client_en_enabled\}/,'公司行需要在服务端回写后重新加载本地字段');
+  assert.match(router,/UnitManagementRow key=\{`\$\{u\.id\}:\$\{u\.name\}:\$\{u\.active\}/,'独立组织页面行需要在服务端回写后重新加载本地字段');
 });
 
 test('organization and employee creation clear transient fields only after success',()=>{
