@@ -15,6 +15,7 @@ const reportCenter=fs.readFileSync(path.join(process.cwd(),'components/report-ce
 const teamClient=fs.readFileSync(path.join(process.cwd(),'app/team/client.tsx'),'utf8');
 const teamAuth=fs.readFileSync(path.join(process.cwd(),'app/api/team/auth/route.ts'),'utf8');
 const teamRoute=fs.readFileSync(path.join(process.cwd(),'app/api/team/route.ts'),'utf8');
+const teamServer=fs.readFileSync(path.join(process.cwd(),'lib/team/server.ts'),'utf8');
 const teamWorkflow=fs.readFileSync(path.join(process.cwd(),'lib/team/workflow.ts'),'utf8');
 const scopedStatePage=fs.readFileSync(path.join(process.cwd(),'lib/team/scoped-state-page.ts'),'utf8');
 const csvExport=fs.readFileSync(path.join(process.cwd(),'components/csv-export.tsx'),'utf8');
@@ -32,6 +33,11 @@ test('workspace read paths do not block first paint on legacy loan migration',()
   assert.doesNotMatch(teamWorkflow,/scopedState[\s\S]{0,500}backfillLegacyLoanBindings/,'状态读取不得同步执行历史贷款迁移');
   assert.doesNotMatch(scopedStatePage,/backfillLegacyLoanBindings/,'分页状态读取不得同步执行历史贷款迁移');
   assert.match(teamWorkflow,/staffActionImpl[\s\S]{0,300}backfillLegacyLoanBindings/,'业务写入前仍需执行历史贷款迁移');
+});
+
+test('team metadata performs one staff lookup and keeps MFA setup lightweight',()=>{
+  assert.doesNotMatch(teamRoute,/await staff\(\)/,'团队元数据路由不得在 teamData 外重复查询员工身份');
+  assert.match(teamServer,/if\(s\.mfaSetup\)return \{user:\{email:u\.email\},platform:false,memberships:\[\],company:safeCompany\(t\),member:safeMember\(s\.member\),mfaSetupRequired:true\}/,'MFA 首次引导应直接返回最小安全数据集');
 });
 
 test('platform company list prioritizes an active default',()=>{
