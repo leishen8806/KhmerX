@@ -127,6 +127,12 @@ test('manual assignment changes roll back local routing when persistence fails',
   assert.match(teamClient,/onClick=\{\(\)=>void save\(\)\}>保存人工分单/,'人工分单按钮必须使用回滚处理器');
 });
 
+test('manual assignment controls are disabled outside company admin scope',()=>{
+  assert.match(teamClient,/<select disabled=\{!admin\} value=\{reviewer\}/,'非 Admin 不得编辑人工分单审核员');
+  assert.match(teamClient,/<select disabled=\{!admin\} value=\{inst\}/,'非 Admin 不得编辑人工分单承接机构');
+  assert.match(teamClient,/<Button disabled=\{!admin\|\|busy\|\|!reason\.trim\(\)\}/,'非 Admin 不得提交人工分单变更');
+});
+
 test('workspace employee permission changes roll back local edits when persistence fails',()=>{
   assert.match(teamClient,/async function save\(\)\{const ok=await post\(\{action:'update_member'/,'工作台员工权限保存应集中到可回滚的保存函数');
   assert.match(teamClient,/if\(!ok\)\{setRole\(m\.role\);setUnit\(m\.unit_id\|\|''\);setActive\(!!m\.active\)\}/,'工作台员工权限保存失败时应回滚岗位、数据范围和启用状态');
