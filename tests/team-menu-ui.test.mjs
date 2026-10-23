@@ -94,6 +94,13 @@ test('independent organization creation clears success feedback before a retry',
   assert.match(crmSubpages,/onClick=\{async\(\)=>\{setMessage\('\'\);const body:any=\{action:'add_unit'/,'重新提交组织单元前应先清除上一笔成功提示');
 });
 
+test('funding settings clear stale server feedback while editing',()=>{
+  const crmSubpages=fs.readFileSync(path.join(process.cwd(),'components/crm-subpages.tsx'),'utf8');
+  assert.match(crmSubpages,/async function save\(\)\{setBusy\(true\);setMessage\('\'\);setError\('\'\);try\{/,'资金配置重新保存前应清除旧错误');
+  assert.match(crmSubpages,/onChange=\{e=>\{setDaily\(e\.target\.value\);setError\('\'\);setMessage\('\'\)\}\}/,'修改日限额时应清除旧反馈');
+  assert.match(crmSubpages,/onChange=\{e=>\{setMonthly\(e\.target\.value\);setError\('\'\);setMessage\('\'\)\}\}/,'修改月限额时应清除旧反馈');
+});
+
 test('platform company list warns when names are duplicated',()=>{
   assert.match(teamClient,/nameCounts=companies\.reduce/,'公司管理页需要识别重复公司名称');
   assert.match(teamClient,/nameDuplicateCount/,'公司行需要接收重复名称计数');
