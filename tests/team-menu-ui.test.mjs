@@ -171,6 +171,11 @@ test('audit integrity remounts when the active company or employee changes',()=>
   assert.match(router,/AuditExportPage role=\{props\.member\?\.role\|\|['"]['"]\} tenant=\{props\.tenant\} memberId=\{props\.member\?\.id\}/,'审计导出页必须把当前公司和员工上下文传给完整性组件');
 });
 
+test('stateful product and risk pages remount on company switch',()=>{
+  assert.match(router,/LoanProducts key=\{['"]loan-products:['"]\+props\.tenant\+['"]:['"]\+props\.member\?\.id\} role=/,'贷款产品页面必须随公司和员工上下文重新加载');
+  assert.match(router,/RiskRules key=\{['"]risk-rules:['"]\+props\.tenant\+['"]:['"]\+props\.member\?\.id\} role=/,'风控规则页面必须随公司和员工上下文重新加载');
+});
+
 test('workspace employee permission changes roll back local edits when persistence fails',()=>{
   assert.match(teamClient,/async function save\(\)\{const ok=await post\(\{action:'update_member'/,'工作台员工权限保存应集中到可回滚的保存函数');
   assert.match(teamClient,/if\(!ok\)\{setRole\(m\.role\);setUnit\(m\.unit_id\|\|''\);setActive\(!!m\.active\)\}/,'工作台员工权限保存失败时应回滚岗位、数据范围和启用状态');
