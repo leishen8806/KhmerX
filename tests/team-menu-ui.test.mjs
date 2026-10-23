@@ -964,3 +964,6 @@ test('telegram channel cards sync all server-normalized settings',()=>{
   assert.match(businessBots,/setPhoneVerification\(bot\.phoneVerification!==false\)/,'Telegram 手机号验证开关必须同步服务端回写');
   assert.match(businessBots,/setPasswordSetup\(bot\.passwordSetup!==false\)/,'Telegram 密码设置开关必须同步服务端回写');
 });
+test('expired mini app sessions clear cached tenant data',()=>{
+  assert.match(miniClient,/status===401\)\{dataCache\.delete\(cacheKey\);setData\(null\);window\.location\.replace\('\/h5\/login'\)/,'Mini App 会话过期时必须清理缓存再跳转登录');
+});
