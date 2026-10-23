@@ -69,6 +69,11 @@ test('employee permission table explains the effective data scope',()=>{
   assert.match(teamClient,/数据范围由岗位规则与部门／持牌机构归属共同决定/,'员工权限表应说明数据范围计算规则');
 });
 
+test('high-risk unit changes require a second approval in the employee editor',()=>{
+  assert.match(teamClient,/needsApproval=roleCatalog\[role\]\.highRisk&&\(role!==m\.role\|\|unit!==m\.unit_id\)/,'高风险岗位更换部门或机构时应显示二次授权入口');
+  assert.match(teamServer,/highRiskRoles\.has\(role\)&&unitId!==m\.unit_id/,'服务端应把高风险组织范围变更纳入二次授权');
+});
+
 test('customer tag writes enforce the current employee data scope',()=>{
   assert.match(customerTags,/import \{assignment,audit,db,staff\} from ['"]@\/lib\/team\/server['"]/);
   assert.match(customerTags,/import \{canSee\} from ['"]@\/lib\/team\/policy['"]/);
