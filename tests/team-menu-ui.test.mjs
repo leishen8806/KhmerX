@@ -38,6 +38,7 @@ test('workspace read paths do not block first paint on legacy loan migration',()
 test('team metadata performs one staff lookup and keeps MFA setup lightweight',()=>{
   assert.doesNotMatch(teamRoute,/await staff\(\)/,'团队元数据路由不得在 teamData 外重复查询员工身份');
   assert.match(teamServer,/if\(s\.mfaSetup\)return \{user:\{email:u\.email\},platform:false,memberships:\[\],company:safeCompany\(t\),member:safeMember\(s\.member\),mfaSetupRequired:true\}/,'MFA 首次引导应直接返回最小安全数据集');
+  assert.match(teamServer,/platformAdmin\(u\)[\s\S]{0,700}staff\(u,t\)/,'团队元数据应复用同一请求中的身份与公司上下文');
 });
 
 test('platform company list prioritizes an active default',()=>{
