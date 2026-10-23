@@ -53,6 +53,12 @@ test('platform company list warns when names are duplicated',()=>{
   assert.match(teamClient,/role="alert"/,'重复名称提示必须可被辅助技术读取');
 });
 
+test('company creation gives a stable conflict for duplicate entry codes',()=>{
+  assert.match(teamServer,/SELECT id FROM team_companies WHERE lower\(slug\)=lower\(\?\)/,'创建公司前必须检查入口代码是否已存在');
+  assert.match(teamServer,/公司入口代码已存在，请更换后重试/,'重复入口代码必须返回可理解的业务错误');
+  assert.match(teamServer,/COMPANY_SLUG_EXISTS/,'重复入口代码必须提供稳定错误码');
+});
+
 test('employee creation warns and disables duplicate company email',()=>{
   assert.match(teamClient,/该公司已有此邮箱员工，请修改现有员工权限/,'新增员工时应明确提示同公司重复邮箱');
   assert.match(teamClient,/members\.some\(\(m:any\)=>String\(m\.email\|\|''\)\.trim\(\)\.toLowerCase\(\)===email\.trim\(\)\.toLowerCase\(\)/,'同公司重复邮箱不得继续提交新增员工');
