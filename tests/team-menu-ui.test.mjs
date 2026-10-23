@@ -7,6 +7,7 @@ const source=fs.readFileSync(path.join(process.cwd(),'app/team/client.tsx'),'utf
 const subpages=fs.readFileSync(path.join(process.cwd(),'lib/team/crm-subpages.ts'),'utf8');
 const router=fs.readFileSync(path.join(process.cwd(),'components/crm-subpages.tsx'),'utf8');
 const fundingPanel=fs.readFileSync(path.join(process.cwd(),'components/funding-panel.tsx'),'utf8');
+const repaymentPanel=fs.readFileSync(path.join(process.cwd(),'components/repayment-panel.tsx'),'utf8');
 const products=fs.readFileSync(path.join(process.cwd(),'app/api/team/products/route.ts'),'utf8');
 const riskRules=fs.readFileSync(path.join(process.cwd(),'lib/team/risk-rules.ts'),'utf8');
 const customerTags=fs.readFileSync(path.join(process.cwd(),'app/api/team/customer-tags/route.ts'),'utf8');
@@ -143,6 +144,11 @@ test('funding actions require an assigned licensed institution before execution'
 test('funding initiation requires completed approval review and signing',()=>{
   assert.match(fundingPanel,/approvalReviewReady=Boolean\(l\.approvalActor&&l\.approvalCheckedBy&&l\.approvalActor!==l\.approvalCheckedBy\)/,'放款发起必须检查初审与复核为不同人员');
   assert.match(fundingPanel,/action==='disburse_request'&&l\.approvalActor&&!approvalReviewReady&&<p className="error" role="alert">贷款审批复核或客户签约尚未完成，暂不能发起放款；初审人与复核人必须不同/,'同人复核或复核未完成时必须阻断放款发起');
+});
+
+test('repayment registration explains missing repayment institution before blocking submit',()=>{
+  assert.match(repaymentPanel,/role==='admin'&&l\.status==='active'&&!institution&&<p className="error" role="alert">还款承接机构未分配，暂不能登记还款。/,'缺少还款承接机构时必须明确提示并阻断登记');
+  assert.match(repaymentPanel,/disabled=\{busy\|\|!institution\|\|!checked/,'还款登记按钮必须继续阻断缺少承接机构的提交');
 });
 
 test('workspace employee permission changes roll back local edits when persistence fails',()=>{
