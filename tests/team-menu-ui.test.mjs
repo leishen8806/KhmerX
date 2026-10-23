@@ -30,6 +30,13 @@ test('platform company list prioritizes an active default',()=>{
   assert.match(teamServer,/FROM team_companies ORDER BY active DESC,name/,'平台公司列表必须把启用公司排在停用公司之前，避免默认公司进入失败');
 });
 
+test('platform company list warns when names are duplicated',()=>{
+  assert.match(teamClient,/nameCounts=companies\.reduce/,'公司管理页需要识别重复公司名称');
+  assert.match(teamClient,/nameDuplicateCount/,'公司行需要接收重复名称计数');
+  assert.match(teamClient,/名称重复，请核对入口代码/,'同名公司必须提示管理员核对入口代码');
+  assert.match(teamClient,/role="alert"/,'重复名称提示必须可被辅助技术读取');
+});
+
 test('customer tag writes enforce the current employee data scope',()=>{
   assert.match(customerTags,/import \{assignment,audit,db,staff\} from ['"]@\/lib\/team\/server['"]/);
   assert.match(customerTags,/import \{canSee\} from ['"]@\/lib\/team\/policy['"]/);
