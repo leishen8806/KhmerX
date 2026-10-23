@@ -21,6 +21,11 @@ function reviewer(){
  };
  for(const [file,names] of Object.entries({'button':['Button'],'input':['Input'],'checkbox':['Checkbox'],'select':['Select','SelectTrigger','SelectValue','SelectContent','SelectItem']}))mocks['@/components/ui/'+file]=Object.fromEntries(names.map(n=>[n,n]));
  const context=vm.createContext({URLSearchParams,window:{location:{search:'?id=synthetic-review'},addEventListener(){},removeEventListener(){}},document:{addEventListener(){},removeEventListener(){}},console});
+ // Exercise the real locale helper introduced by K1B while preserving the
+ // reviewer navigation test's narrow platform/network doubles.
+ const copyJs=ts.transpileModule(readFileSync('lib/kyc/ui-copy.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText;
+ const copy={};vm.runInContext('(function(exports,require){'+copyJs+'\n})',context)(copy,n=>n==='../i18n'?mocks['@/lib/i18n']:{messageForError(){throw Error('review navigation must not format a customer error')}});
+ mocks['@/lib/kyc/ui-copy']=copy;
  const js=ts.transpileModule(readFileSync('app/kyc/client.tsx','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
  const exports={};vm.runInContext('(function(exports,require){'+js+'\n})',context)(exports,n=>{assert(n in mocks,n);return mocks[n]});
  function render(){cursor=0;tree=exports.default({review:true});return tree}
