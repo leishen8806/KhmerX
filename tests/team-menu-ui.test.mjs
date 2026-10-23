@@ -162,6 +162,12 @@ test('audit integrity feedback exposes accessible success and failure status',()
   assert.match(auditIntegrity,/error" role="alert"/,'审计完整性错误必须可被辅助技术读取');
 });
 
+test('audit integrity remounts when the active company or employee changes',()=>{
+  assert.match(teamClient,/AuditIntegrity key=\{'audit-integrity:/,'工作台审计快照必须绑定租户上下文');
+  assert.match(teamClient,/data\.company\.id\+':'\+member\.id/,'工作台审计快照必须随公司和员工变化重新挂载');
+  assert.match(router,/AuditExportPage role=\{props\.member\?\.role\|\|['"]['"]\} tenant=\{props\.tenant\} memberId=\{props\.member\?\.id\}/,'审计导出页必须把当前公司和员工上下文传给完整性组件');
+});
+
 test('workspace employee permission changes roll back local edits when persistence fails',()=>{
   assert.match(teamClient,/async function save\(\)\{const ok=await post\(\{action:'update_member'/,'工作台员工权限保存应集中到可回滚的保存函数');
   assert.match(teamClient,/if\(!ok\)\{setRole\(m\.role\);setUnit\(m\.unit_id\|\|''\);setActive\(!!m\.active\)\}/,'工作台员工权限保存失败时应回滚岗位、数据范围和启用状态');
@@ -328,8 +334,8 @@ test('service backend menu keeps merged customer and KYC entries unique',()=>{
   assert.match(router,/\['lender','checker'\]\.includes\(role\)/,'机构审批员与机构复核员必须共享贷款业务页面守卫');
   assert.match(subpages,/view==='贷款复核'\?'贷款申请':view==='放款复核'\?'放款管理'/,'持牌机构复核入口必须规范化到实际业务页面');
   assert.match(router,/const view=canonicalCrmView\(props\.view\)/,'独立子页面组件必须复用统一别名规范化');
-  assert.match(router,/function AuditExportPage\(\{role\}/,'审计完整性页面必须接收当前岗位');
-  assert.match(router,/view==='审计导出'.*<AuditExportPage role=\{props\.member\?\.role\|\|''\}/,'审计导出直达路由必须传递当前岗位');
+  assert.match(router,/function AuditExportPage\(\{role,tenant,memberId\}/,'审计完整性页面必须接收当前公司和岗位上下文');
+  assert.match(router,/view==='审计导出'.*<AuditExportPage role=\{props\.member\?\.role\|\|''\} tenant=\{props\.tenant\} memberId=\{props\.member\?\.id\}/,'审计导出直达路由必须传递当前公司和岗位上下文');
   const auditIntegrity=fs.readFileSync(path.join(process.cwd(),'lib/team/audit-integrity.ts'),'utf8');
   assert.match(auditIntegrity,/async function writer\(\).*s\.member\.role!==['"]admin['"]/,'审计完整性快照写操作仅限公司管理员');
   assert.match(auditIntegrity,/async function reader\(\).*\[['"]admin['"],'audit'\]/,'审计完整性列表允许管理员和审计员只读查看');
