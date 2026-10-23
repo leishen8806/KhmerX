@@ -184,6 +184,7 @@ test('workspace stateful panels remount on company or employee switch',()=>{
   assert.match(teamClient,/ServiceTickets key=\{['"]tickets:/,'客服工单必须随公司和员工上下文重新加载');
   assert.match(teamClient,/RepaymentPanel key=\{['"]repayment:/,'还款页面必须随公司和员工上下文重新加载');
   assert.match(teamClient,/EmergencyAccess key=\{['"]emergency:/,'应急权限页面必须随公司和员工上下文重新加载');
+  assert.match(teamClient,/KycOrders key=\{['"]kyc-orders:/,'KYC 队列必须随公司和员工上下文重新加载');
 });
 
 test('workspace employee permission changes roll back local edits when persistence fails',()=>{
