@@ -57,6 +57,11 @@ test('company switcher disables stopped companies with an explicit status',()=>{
   assert.match(teamClient,/停用：/,'停用公司必须有明确的按钮状态文案');
 });
 
+test('account context never labels a stopped company as the default',()=>{
+  assert.match(teamClient,/activeDefault=data\?\.platformDefaultCompany\?\.active!==0\?data\.platformDefaultCompany:data\?\.companies\?\.find\(company=>company\.active!==0\)/,'账户菜单默认公司必须只取启用公司');
+  assert.doesNotMatch(teamClient,/platformDefaultCompany\?\.name\|\|data\?\.companies\?\.\[0\]\?\.name/,'账户菜单不得直接展示第一条可能已停用的公司');
+});
+
 test('platform company list warns when names are duplicated',()=>{
   assert.match(teamClient,/nameCounts=companies\.reduce/,'公司管理页需要识别重复公司名称');
   assert.match(teamClient,/nameDuplicateCount/,'公司行需要接收重复名称计数');
