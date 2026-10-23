@@ -177,6 +177,15 @@ test('stateful product and risk pages remount on company switch',()=>{
   assert.match(router,/ContentPage key=\{['"]crm-content:/,'其他独立页面必须随公司和员工上下文重新挂载');
 });
 
+test('workspace stateful panels remount on company or employee switch',()=>{
+  assert.match(teamClient,/CustomerCenter key=\{['"]customers:/,'客户中心必须随公司和员工上下文重新加载');
+  assert.match(teamClient,/ReportCenter customers=\{work\?\.customers\|\|\[\]\}[\s\S]{0,260}key=\{['"]reports:/,'报表中心必须随公司和员工上下文重新加载');
+  assert.match(teamClient,/TelegramNotifications key=\{['"]notifications:/,'通知页面必须随公司和员工上下文重新加载');
+  assert.match(teamClient,/ServiceTickets key=\{['"]tickets:/,'客服工单必须随公司和员工上下文重新加载');
+  assert.match(teamClient,/RepaymentPanel key=\{['"]repayment:/,'还款页面必须随公司和员工上下文重新加载');
+  assert.match(teamClient,/EmergencyAccess key=\{['"]emergency:/,'应急权限页面必须随公司和员工上下文重新加载');
+});
+
 test('workspace employee permission changes roll back local edits when persistence fails',()=>{
   assert.match(teamClient,/async function save\(\)\{const ok=await post\(\{action:'update_member'/,'工作台员工权限保存应集中到可回滚的保存函数');
   assert.match(teamClient,/if\(!ok\)\{setRole\(m\.role\);setUnit\(m\.unit_id\|\|''\);setActive\(!!m\.active\)\}/,'工作台员工权限保存失败时应回滚岗位、数据范围和启用状态');
