@@ -23,6 +23,7 @@ const workspace=fs.readFileSync(path.join(process.cwd(),'app/workspace.tsx'),'ut
 const miniClient=fs.readFileSync(path.join(process.cwd(),'components/mini-client.tsx'),'utf8');
 const h5Login=fs.readFileSync(path.join(process.cwd(),'app/h5/login.tsx'),'utf8');
 const businessBots=fs.readFileSync(path.join(process.cwd(),'components/business-bots.tsx'),'utf8');
+const kycOrders=fs.readFileSync(path.join(process.cwd(),'components/kyc-orders.tsx'),'utf8');
 const teamRoute=fs.readFileSync(path.join(process.cwd(),'app/api/team/route.ts'),'utf8');
 const teamServer=fs.readFileSync(path.join(process.cwd(),'lib/team/server.ts'),'utf8');
 const teamWorkflow=fs.readFileSync(path.join(process.cwd(),'lib/team/workflow.ts'),'utf8');
@@ -966,4 +967,7 @@ test('telegram channel cards sync all server-normalized settings',()=>{
 });
 test('expired mini app sessions clear cached tenant data',()=>{
   assert.match(miniClient,/status===401\)\{dataCache\.delete\(cacheKey\);setData\(null\);window\.location\.replace\('\/h5\/login'\)/,'Mini App 会话过期时必须清理缓存再跳转登录');
+});
+test('kyc details remount when the case revision changes',()=>{
+  assert.match(kycOrders,/OrderFollowups key=\{`\$\{k\.id\}:\$\{k\.revision\}`\}/,'KYC 详情必须随资料版本变化重新加载');
 });
