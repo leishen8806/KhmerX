@@ -52,7 +52,7 @@ button.kyc-group-button:not(:last-child)::after {
 }
 
 /* Final Mini App card alignment: amount wraps below the title and the state
-   sits immediately before the chevron with a five pixel gap. */
+   remains to the right of the chevron. */
 .mini-app .customer-kyc .kyc-steps:has(.kyc-group-button) {
   margin-top: 12px !important;
 }
@@ -74,11 +74,11 @@ button.kyc-group-button:not(:last-child)::after {
   width: 100%;
   white-space: pre-line;
 }
-.mini-app .customer-kyc .kyc-group-arrow { order: 4; position: absolute !important; right: 14px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; height: 24px; margin: 0 !important; line-height: 1; }
+.mini-app .customer-kyc .kyc-group-arrow { order: 3; position: absolute !important; right: 14px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; height: 24px; margin: 0 !important; line-height: 1; }
 .mini-app .customer-kyc .kyc-group-copy em {
-  order: 3;
+  order: 4;
   position: absolute !important;
-  right: 43px;
+  right: 25px;
   top: 50%;
   transform: translateY(-50%);
   display: flex !important;

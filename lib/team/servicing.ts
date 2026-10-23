@@ -1,6 +1,6 @@
 import {staff,db} from './server';
 import {AuthError} from '@/lib/h5-auth-core';
-export async function servicingData(){const s=await staff();if(!s||!['admin','audit'].includes(s.member.role))throw new AuthError('当前岗位无权查看承接配置',403);return {settings:await db().prepare('SELECT * FROM team_service_settings WHERE tenant_id=?').bind(s.tenant.id).first()}}
+export async function servicingData(){const s=await staff();if(!s)throw new AuthError('请先登录公司',403);return {settings:await db().prepare('SELECT * FROM team_service_settings WHERE tenant_id=?').bind(s.tenant.id).first()}}
 export async function servicingSave(p:any){
  const s=await staff();if(!s||s.member.role!=='admin')throw new AuthError('仅 Admin 可设置承接机构',403);
  const current=await db().prepare('SELECT * FROM team_service_settings WHERE tenant_id=?').bind(s.tenant.id).first<any>();

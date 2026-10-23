@@ -12,9 +12,6 @@ usage() {
   cat <<'EOF'
 Usage: run-b0.sh [--origin-ip IP --host HOST] [k6 options]
 
-Use -e SCENARIO=rows for the customer-shard consistency scenario. It keeps
-one deterministic synthetic customer per VU and reports final KYC state mismatches.
-
 When both target options are supplied, k6 resolves HOST directly to IP and
 sends HOST as the HTTP Host header. Both values must appear in the allowlist.
 Without them, BASE_URL defaults to localhost. Example:

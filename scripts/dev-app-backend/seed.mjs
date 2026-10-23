@@ -20,8 +20,6 @@ for (const [id, name, kind] of [[dept, 'Ops', 'department'], [institution, 'Test
 }
 db.prepare('INSERT OR IGNORE INTO team_service_settings(tenant_id,auto_assign,funding_id,repayment_id,collection_id) VALUES (?,1,?,?,?)')
   .run(t, institution, institution, post);
-db.prepare('INSERT OR IGNORE INTO team_members (id,tenant_id,user_id,email,role,active,version) VALUES (?,?,?,?,?,1,0)')
-  .run(t + ':local-admin', t, 'local-admin', 'local-admin@example.test', 'admin');
 const state = {
   loans: [],
   bots: [{ id: 'bot-1', label: 'Test channel', username: '', enabled: true, envKey: 'TELEGRAM_BOT_TOKEN_1', phoneVerification: false, passwordSetup: false }],

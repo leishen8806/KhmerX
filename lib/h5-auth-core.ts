@@ -64,7 +64,7 @@ export async function sendCode(r:AuthRuntime,owner:string,browserToken:string,in
  let provider:string|null=null;
  try{if(c.mode==='telegram'){const data=await gateway(r,'sendVerificationMessage',{phone_number:phone,code_length:6,ttl:AUTH_TTL});if(typeof data.request_id!=='string'||!data.request_id||data.phone_number!==phone)throw new AuthError('验证码服务响应无效，请稍后重试',503);provider=data.request_id}
   await r.db.prepare('UPDATE h5_challenges SET status=?,provider_request=? WHERE id=?').bind('ready',provider,id).run();
-  await r.db.prepare('UPDATE h5_challenges SET consumed=1,status=? WHERE owner=? AND phone_key=? AND purpose=? AND id<>? AND consumed=0').bind('replaced',owner,phoneKey,purpose,id).run();
+  await r.db.prepare('UPDATE h5_challenges SET consumed=1,status=? WHERE owner=? AND phone_key=? AND id<>? AND consumed=0').bind('replaced',owner,phoneKey,id).run();
  }catch(e){await r.db.prepare('UPDATE h5_challenges SET status=?,consumed=1 WHERE id=?').bind('failed',id).run();throw e}
  return {challengeId:id,phoneMasked:maskPhone(phone),expiresAt:(t+AUTH_TTL)*1000,retryAt:(t+RESEND_DELAY)*1000,mode:c.mode,...(code?{demoCode:code}:{}),message:c.mode==='demo'?'模拟验证码已生成，未向 Telegram 发送消息':'验证码请求已提交，请查看 Telegram 的 Verification Codes 会话'};
 }

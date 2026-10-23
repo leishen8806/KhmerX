@@ -86,7 +86,7 @@ test('report/customer totals are authoritative while summaries and funding diagn
  const customers=workspace(()=>null,{customers:[],events:[],pageOnly:true,total:5001},{source:'components/customer-center.tsx',exportName:'CustomerCenter'}).render();assert.match(text(customers),/本页 0 \/ 5001 位客户/);
  const funding=workspace(()=>null,{loans:[],events:[],entries:[],scope:[],units:[],role:'ops',busy:false,post(){},pageOnly:true},{source:'components/funding-panel.tsx',exportName:'FundingPanel',mocks:{'@/lib/funding-limits':{fundingStatus:()=>({})}}}).render();
  assert.match(text(funding),/本页 · 放款工作台/);assert(!nodes(funding).some(n=>n.props?.className==='funding-limit-summary'));
- for(const view of ['资金监管','冻结与解除']){let tree=workspace(()=>null,{view,work:paged(),units:[],members:[],member:{role:'admin'},busy:false,post(){}},{source:'components/crm-subpages.tsx',exportName:'CrmSubpageRouter',mocks:{'@/lib/team/crm-subpages':{canonicalCrmView:v=>v,crmSubpageByView:{}},'@/lib/funding-limits':{fundingStatus:()=>({dayCents:0,monthCents:0,dailyRemainingCents:0,monthlyRemainingCents:0,dailyPercent:0,monthlyPercent:0,warning:false,blocked:false,timezone:'Asia/Phnom_Penh'})}}}).render();for(let i=0;i<5&&typeof tree.type==='function';i++)tree=tree.type(tree.props);if(view==='资金监管'){assert.match(text(tree),/当前为测试资金监管视图/);assert.doesNotMatch(text(tree),/分页数据不能判定全公司剩余额度/)}else assert(nodes(tree).some(n=>n.type==='EmergencyAccess'))}
+ for(const view of ['资金监管','冻结与解除']){let tree=workspace(()=>null,{view,work:paged(),units:[],members:[],member:{role:'ops'},busy:false,post(){}},{source:'components/crm-subpages.tsx',exportName:'CrmSubpageRouter'}).render();for(let i=0;i<5&&typeof tree.type==='function';i++)tree=tree.type(tree.props);assert.match(text(tree),/分页数据不能判定全公司剩余额度/);if(view==='冻结与解除')assert(nodes(tree).some(n=>n.type==='EmergencyAccess'))}
 });
 
 test('staff off mode stays unpaged; customer mode keeps its existing local pagination',async()=>{
@@ -110,11 +110,11 @@ test('C1 Q7 fixture: all five roles page 5000 customers without duplicates or om
  const q7=original.slice(original.indexOf("test('Q7 actual state route pages 5000 customers"));
  const setup=q7.slice(q7.indexOf(' user=owner;'),q7.indexOf(' await kyc.initialize'));
  assert(prefix.includes('async function mod(')&&setup.includes('i<5000'));
- const source=prefix.replace("payease_company='+selected", "payease_staff_company='+selected")+setup+`
+ const source=prefix+setup+`
  const institution=crypto.randomUUID();sql.prepare('INSERT INTO team_units (id,tenant_id,kind,name,active) VALUES (?,?,?,?,1)').run(institution,P,'institution','Synthetic institution');
  const members={};for(const role of ['ops','kyc','lender','finance']){members[role]=crypto.randomUUID();sql.prepare('INSERT INTO team_members (id,tenant_id,user_id,email,role,unit_id,active,version) VALUES (?,?,?,?,?,?,1,0)').run(members[role],P,'c1-'+role,role+'@example.test',role,['ops','kyc'].includes(role)?department:institution)}
  sql.prepare('UPDATE team_assignments SET institution_id=?,reviewer_id=? WHERE tenant_id=?').run(institution,members.kyc,P);
- const route=await mod('@/app/api/state/route');env.CUSTOMER_ROWS='on';selected=P;
+ const route=await mod('@/app/api/state/route');env.CUSTOMER_ROWS='on';
  for(const role of ['admin','ops','kyc','lender','finance']){
   user=role==='admin'?owner:{userId:'c1-'+role,email:role+'@example.test'};
   const customers=new Set(),loans=new Set();let firstMs,midMs;

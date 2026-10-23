@@ -23,7 +23,7 @@ type KnownError = {
 function knownOf(e: unknown): KnownError | null {
   if (e instanceof ApiError) return {status: e.status, code: e.code, message: e.message, params: e.params, retryAfter: e.retryAfter};
   if (e instanceof AuthError) return {status: e.status, code: e.code, message: e.message, retryAfter: e.retryAfter};
-  if (e instanceof KycError) return {status: e.status, code: e.code, message: e.message, retryAfter: e.retryAfter};
+  if (e instanceof KycError) return {status: e.status, code: e.code, message: e.message};
   return null;
 }
 
