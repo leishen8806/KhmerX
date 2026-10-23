@@ -18,6 +18,7 @@ const localeRoute=fs.readFileSync(path.join(process.cwd(),'app/api/team/locale/r
 const reportCenter=fs.readFileSync(path.join(process.cwd(),'components/report-center.tsx'),'utf8');
 const teamClient=fs.readFileSync(path.join(process.cwd(),'app/team/client.tsx'),'utf8');
 const teamAuth=fs.readFileSync(path.join(process.cwd(),'app/api/team/auth/route.ts'),'utf8');
+const customerJourney=fs.readFileSync(path.join(process.cwd(),'components/customer-journey.tsx'),'utf8');
 const teamRoute=fs.readFileSync(path.join(process.cwd(),'app/api/team/route.ts'),'utf8');
 const teamServer=fs.readFileSync(path.join(process.cwd(),'lib/team/server.ts'),'utf8');
 const teamWorkflow=fs.readFileSync(path.join(process.cwd(),'lib/team/workflow.ts'),'utf8');
@@ -935,4 +936,8 @@ test('audit card actions stay usable on narrow screens',()=>{
 test('audit success states stay compact inside heading rows',()=>{
   const css=fs.readFileSync(path.join(process.cwd(),'app/globals.css'),'utf8');
   assert.match(css,/\.team-audit-head span\.success\{display:inline-flex;align-items:center;padding:4px 8px;margin:0;border-radius:999px;font-size:12px;line-height:1\.4\}/,'审计标题行成功状态需要使用紧凑徽标样式');
+});
+test('approved KYC without a loan stays in the pre-application state',()=>{
+  assert.match(customerJourney,/const phase=!loan\?-1:loanPhase\(loan\)/,'KYC 通过但尚未创建贷款时不得显示贷款进行中步骤');
+  assert.match(customerJourney,/phase<0\?\(approved\?'待申请':'待认证'\)/,'KYC 通过且无贷款时应明确显示待申请');
 });
