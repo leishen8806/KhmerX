@@ -101,6 +101,13 @@ test('funding settings clear stale server feedback while editing',()=>{
   assert.match(crmSubpages,/onChange=\{e=>\{setMonthly\(e\.target\.value\);setError\('\'\);setMessage\('\'\)\}\}/,'修改月限额时应清除旧反馈');
 });
 
+test('organization status changes roll back local state when persistence fails',()=>{
+  const crmSubpages=fs.readFileSync(path.join(process.cwd(),'components/crm-subpages.tsx'),'utf8');
+  assert.match(crmSubpages,/async function save\(\)\{const ok=await post\(\{action:'update_unit'/,'组织状态保存应集中到可回滚的保存函数');
+  assert.match(crmSubpages,/if\(!ok\)setActive\(unit\.active!==0\)/,'组织状态保存失败时应回滚本地启用状态');
+  assert.match(crmSubpages,/onClick=\{\(\)=>void save\(\)\}/,'组织状态保存按钮必须使用回滚处理器');
+});
+
 test('platform company list warns when names are duplicated',()=>{
   assert.match(teamClient,/nameCounts=companies\.reduce/,'公司管理页需要识别重复公司名称');
   assert.match(teamClient,/nameDuplicateCount/,'公司行需要接收重复名称计数');
