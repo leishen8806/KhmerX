@@ -64,6 +64,12 @@ test('employee creation warns and disables duplicate company email',()=>{
   assert.match(teamClient,/members\.some\(\(m:any\)=>String\(m\.email\|\|''\)\.trim\(\)\.toLowerCase\(\)===email\.trim\(\)\.toLowerCase\(\)/,'同公司重复邮箱不得继续提交新增员工');
 });
 
+test('employee invite copy reports clipboard failures without losing the token',()=>{
+  assert.match(teamClient,/async function copyInviteToken\(token:string\)/,'邀请令牌复制应集中处理成功与失败状态');
+  assert.match(teamClient,/无法自动复制邀请令牌，请手动选择令牌内容复制/,'剪贴板不可用时必须提示手动复制');
+  assert.match(teamClient,/onClick=\{\(\)=>void copyInviteToken\(inviteDetails\.inviteToken\)\}/,'邀请令牌复制按钮必须使用可失败反馈的处理器');
+});
+
 test('organization unit form separates departments from licensed institutions',()=>{
   assert.match(teamClient,/新增组织单元/,'组织单元入口应避免把部门和机构混称');
   assert.match(teamClient,/部门负责内部职责与数据范围；持牌机构负责外部审批、放款及牌照信息/,'组织单元表单应解释部门与持牌机构的职责边界');
