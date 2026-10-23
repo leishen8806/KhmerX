@@ -9,6 +9,7 @@
 // oai-authenticated-user-{id,email} headers — the HMAC identity proof branch is skipped.
 // The client side of this proxy is never trusted for those headers.
 import http from 'node:http';
+import { randomUUID } from 'node:crypto';
 import { MF_PORT, MF_ORIGIN, PROXY_PORT, PUBLIC_COMPANY_ID } from './common.mjs';
 
 http
@@ -26,10 +27,9 @@ http
     headers.cookie = cookie;
 
     // Test-mode synthetic identity (mirrors deploy/standalone/server.mjs).
-    // Keep one deterministic local identity so SSO sessions survive the next
-    // request. This is a dev-only stand-in and never runs in production.
-    headers['oai-authenticated-user-id'] = 'local-admin';
-    headers['oai-authenticated-user-email'] = 'local-admin@example.test';
+    const id = randomUUID();
+    headers['oai-authenticated-user-id'] = 'visitor:' + id;
+    headers['oai-authenticated-user-email'] = id + '@visitor.invalid';
 
     // sameOrigin() checks Origin === new URL(request.url).origin, and the worker
     // derives request.url from the connection host. Rewrite both so they match the

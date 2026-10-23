@@ -381,7 +381,7 @@ decision_pending ──[机构拒绝]──▶ rejected
 5. 不能选渠道：渠道由服务端当前业务机器人决定（telegram 模式下验证码账号的 `channel_id` 为空，策略取默认业务渠道）。
 6. 无邀请码解析、无 Telegram 深链登录、无推送接口。
 7. **`withdraw`、`repay`：BACKEND BLOCKED（HTTP 403 `CUSTOMER_SETTLEMENT_FORBIDDEN`，无任何开关）**；Android 当前路线图不得实现（见 3.6）。
-8. 已补读但本文仅作边界说明：`/api/kyc/geocode`（地址标准化；需登录，按租户+客户每 60 秒最多 10 次，并对地址长度做 240 字符上限）、`/api/analytics/events`（`source` 仅接受 `mini_app`/`h5`）、`/api/telegram`（**MINI APP ONLY**，见 2.7a）。`/api/h5/auth` 的其余分支未全部覆盖。
+8. 已补读但本文仅作边界说明：`/api/kyc/geocode`（地址标准化，路由内无限流）、`/api/analytics/events`（`source` 仅接受 `mini_app`/`h5`）、`/api/telegram`（**MINI APP ONLY**，见 2.7a）。`/api/h5/auth` 的其余分支未全部覆盖。
 9. **没有报价接口**：借款报价只在 `create` 之后产生，且创建后无法撤销、占用“进行中申请”名额。**CR-001（`POST /api/loan/quote`，无副作用；`create` 携带 `quoteId` 与 `billConfirmed:true`，Option B）已决策，契约见 `07-CR-001-quote-contract.md`。** 该接口**目前不存在**（截至 2026-10-07 在仓库的四份后端副本中均无 `/api/loan/quote` 路由与 `loan_quotes` 表），本文不把它当作现有契约；Android 贷款申请（G3）为 BLOCKED。
 10. **`create` 不是真正幂等（AF-6，P0）**：见 3.5。G3 解除条件之一是后端修复并通过未知结果重试测试。
 11. **贷款数量上限**：当前客户 `create` 路径（`POST /api/h5/state` → `mutate` 前置检查 → `customerAction`/`applyAction('create')` → 客户路径覆盖 → 持久化）中**不存在 100 单（或任何）贷款数量检查**（无 `loans.length`/`>=100`/`MAX_LOANS` 守卫，**CONFIRMED ABSENT**）；仅保留"不能已有未结束申请"（409）与 KYC `approved` 前置。**这是当前实现行为，不是永久产品政策保证。**

@@ -2,9 +2,7 @@ import {AuthError} from '@/lib/h5-auth-core';
 import {audit,db,staff} from './server';
 
 const text=(value:unknown,max:number)=>typeof value==='string'?value.trim().slice(0,max):'';
-// Risk events are company/funding controls. Loan approval reviewers do not
-// receive this feed through a direct API call; the UI also excludes them.
-const canRead=new Set(['admin','audit','finance_checker']);
+const canRead=new Set(['admin','audit','finance_checker','checker']);
 
 /** Build the insert used by funding mutations so the control event is committed
  * with the business mutation whenever a warning or block is reached. */

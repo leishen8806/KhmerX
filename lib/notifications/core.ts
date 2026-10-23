@@ -10,7 +10,6 @@ export async function sendTelegram(token:string,chatId:number,transport:typeof f
  try{const r=await transport('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:chatId,text:textOverride||reminderText[locale]||reminderText.en,protect_content:true}),signal:AbortSignal.timeout(8000)});const d=await r.json() as any;
  if(r.ok&&d.ok===true&&Number.isSafeInteger(d.result?.message_id)&&d.result?.chat?.id===chatId)return {status:'sent',messageId:d.result.message_id,reason:'Telegram 已接受'};
  if(d.ok===false&&d.error_code===429)return {status:'retry',retrySeconds:Math.min(86400,Math.max(1,Number(d.parameters?.retry_after)||60)),reason:'Telegram 限流'};
- if(r.status>=500&&r.status<600)return {status:'retry',retrySeconds:60,reason:'Telegram 服务暂时不可用，等待重试'};
  if(d.ok===false&&[400,401,403].includes(d.error_code))return {status:'failed',reason:d.error_code===403?'客户未允许消息或已停用机器人':'机器人或收件人配置无效'};
  return {status:'unknown',reason:'发送结果不明确，需人工核对，未自动重发'}
  }catch{return {status:'unknown',reason:'网络中断或超时，需人工核对，未自动重发'}}

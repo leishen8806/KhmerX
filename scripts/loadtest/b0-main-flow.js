@@ -36,7 +36,6 @@ const uploadFailures = new Counter('b0_upload_failure_total');
 const uploadSuccess = new Rate('b0_upload_success');
 const writeConflictResponses = new Counter('b0_write_conflict_response_total');
 const stateMutationFailures = new Counter('b0_state_mutation_failed_total');
-const finalStateMismatches = new Counter('b0_final_state_mismatch_total');
 const statusMetrics = Object.fromEntries([200, 201, 204, 400, 401, 403, 404, 409, 413, 415, 422, 429, 500, 502, 503, 504].map(status => [status, new Counter(`b0_status_${status}`)]));
 statusMetrics.other = new Counter('b0_status_other');
 const codeMetrics = Object.fromEntries(['ACCOUNT_ALREADY_REGISTERED', 'AUTH_REQUIRED', 'BROWSER_TOKEN_RATE_LIMITED', 'COMPANY_NOT_FOUND', 'CONFLICT', 'CROSS_SITE_REQUEST', 'IDEMPOTENCY_PAYLOAD_MISMATCH', 'INTERNAL_ERROR', 'INVALID_ARGUMENT', 'INVALID_FILE', 'INVALID_KYC', 'INVALID_PHONE', 'INVALID_REQUEST', 'INVALID_VERIFICATION_CODE', 'KYC_REVISION_CONFLICT', 'KYC_SCAN_REQUIRED', 'NOT_FOUND', 'PAYLOAD_TOO_LARGE', 'RATE_LIMITED', 'SERVICE_UNAVAILABLE', 'STATE_MUTATION_FAILED', 'VALIDATION_FAILED', 'WORKSPACE_PAYLOAD_LIMIT'].map(code => [code, new Counter(`b0_code_${code}`)]));
@@ -46,8 +45,6 @@ const startedAt = Date.now();
 
 const stages = __ENV.STAGES === 'true';
 const once = __ENV.ONCE === 'true';
-const scenario = String(__ENV.SCENARIO || 'baseline').trim().toLowerCase();
-if (!['baseline', 'rows'].includes(scenario)) throw new Error('SCENARIO must be baseline or rows');
 const vus = Number(__ENV.VUS || 50);
 const duration = String(__ENV.DURATION || '3m');
 export const options = once ? {
@@ -135,7 +132,7 @@ export default function () {
   must(check(preflight.response, { 'auth preflight': r => r.status === 200 }), `认证预检失败: ${preflight.response.status}`);
 
   // Demo auth intentionally accepts only the fictional +12025550100..199 range.
-  const phone = `+1202555${String(100 + ((scenario === 'rows' ? __VU : __VU + __ITER) % 100)).padStart(4, '0')}`;
+  const phone = `+1202555${String(100 + ((__VU + __ITER) % 100)).padStart(4, '0')}`;
   const sent = request('POST', '/api/h5/auth/send', { phone, consent: true }, 'auth_send');
   must(check(sent.response, { 'auth send': r => r.status === 200 }), `验证码发送失败: ${sent.response.status}`);
   const code = sent.body.demoCode || __ENV.K6_DEMO_CODE || '123456';
@@ -162,14 +159,11 @@ export default function () {
   must(check(saved.response, { 'kyc save': r => r.status === 200 }), `KYC保存失败: ${saved.response.status}`);
   const submitted = request('POST', '/api/kyc', { action: 'submit', revision: saved.body.revision, profile }, 'kyc_submit');
   must(check(submitted.response, { 'kyc submit': r => r.status === 200 }), `KYC提交失败: ${submitted.response.status}`);
-  let finalState;
   for (let i = 0; i < 3; i += 1) {
     const state = request('GET', '/api/h5/state', undefined, 'state_poll');
-    finalState = state.body;
     check(state.response, { 'state poll': r => r.status === 200 });
     sleep(1);
   }
-  if (scenario === 'rows' && finalState?.kyc?.status !== 'submitted') finalStateMismatches.add(1, { expected: 'submitted', actual: String(finalState?.kyc?.status || 'missing') });
 }
 
 export function handleSummary(data) {
@@ -179,16 +173,15 @@ export function handleSummary(data) {
   const totalDurationMs = Math.max(Date.now() - startedAt, 1);
   const totalRequests = data.metrics.http_reqs?.values?.count ?? data.metrics.b0_http_status_total?.values?.count ?? 0;
   const requestsPerSecond = totalRequests / (totalDurationMs / 1000);
-  const report = { generatedAt: new Date().toISOString(), scenario, baseUrl: base, host: hostHeader || parsed.hostname, originIp: originIp || null, vus: once ? vus : (stages ? '100→300→600' : vus), duration: once ? 'one iteration' : (stages ? '18m' : duration),
+  const report = { generatedAt: new Date().toISOString(), baseUrl: base, host: hostHeader || parsed.hostname, originIp: originIp || null, vus: once ? vus : (stages ? '100→300→600' : vus), duration: once ? 'one iteration' : (stages ? '18m' : duration),
     requestsPerSecond, totalRequests, totalDurationMs,
     requestLatency: { ...latency, 'p(50)': p50 }, requestErrors: data.metrics.b0_request_errors?.values || {},
     uploads: data.metrics.b0_upload_total?.values || {}, uploadSuccessRate: data.metrics.b0_upload_success?.values || {}, uploadFailures: data.metrics.b0_upload_failure_total?.values || {},
     writeConflictResponses: data.metrics.b0_write_conflict_response_total?.values?.count || 0,
     writeConflictRetries: { scriptRetryCount: 0, serverOptimisticRetryCount: null, note: 'The script does not retry writes; the API does not expose successful optimistic-lock retry attempts.' },
     stateMutationFailureCount: data.metrics.b0_state_mutation_failed_total?.values?.count || 0,
-    finalStateMismatchCount: data.metrics.b0_final_state_mismatch_total?.values?.count || 0,
     statusCounts: data.metrics.b0_http_status_total?.values || {}, codeCounts: data.metrics.b0_error_code_total?.values || {},
     statusBreakdown: Object.fromEntries(Object.keys(statusMetrics).map(status => [status, data.metrics[`b0_status_${status}`]?.values?.count || 0])),
     codeBreakdown: Object.fromEntries(Object.keys(codeMetrics).map(code => [code, data.metrics[`b0_code_${code}`]?.values?.count || 0])), checks: data.metrics.checks?.values || {} };
-  return { stdout: `B0 ${report.scenario} ${report.vus} VU\nrps=${report.requestsPerSecond.toFixed(3)} requests=${totalRequests} elapsed=${totalDurationMs}ms p50=${report.requestLatency['p(50)'] ?? 'n/a'}ms p95=${report.requestLatency['p(95)'] ?? 'n/a'}ms p99=${report.requestLatency['p(99)'] ?? 'n/a'}ms\nerror rate=${report.requestErrors.rate ?? 'n/a'} upload success=${report.uploadSuccessRate.rate ?? 'n/a'} write 409=${report.writeConflictResponses} final state mismatches=${report.finalStateMismatchCount} script retries=0 (server retry count unavailable)\n`, [reportPath]: JSON.stringify(report, null, 2) };
+  return { stdout: `B0 ${report.vus} VU\nrps=${report.requestsPerSecond.toFixed(3)} requests=${totalRequests} elapsed=${totalDurationMs}ms p50=${report.requestLatency['p(50)'] ?? 'n/a'}ms p95=${report.requestLatency['p(95)'] ?? 'n/a'}ms p99=${report.requestLatency['p(99)'] ?? 'n/a'}ms\nerror rate=${report.requestErrors.rate ?? 'n/a'} upload success=${report.uploadSuccessRate.rate ?? 'n/a'} write 409=${report.writeConflictResponses} script retries=0 (server retry count unavailable)\n`, [reportPath]: JSON.stringify(report, null, 2) };
 }

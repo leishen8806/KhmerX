@@ -6,24 +6,16 @@ const dist=join(root,'dist');
 const out=join(root,'dist-separated');
 const client=join(out,'client');
 const api=join(out,'api');
-const runtime=join(out,'dist');
 
 await rm(out,{recursive:true,force:true});
 await mkdir(client,{recursive:true});
 await mkdir(api,{recursive:true});
-await mkdir(join(runtime,'client'),{recursive:true});
-await mkdir(join(runtime,'server'),{recursive:true});
 
 // Vinext currently emits browser assets and the Worker/SSR bundle separately.
 // Keep those as independently deployable artifacts without pretending that the
 // SSR server has already been rewritten into a pure SPA/API split.
 await cp(join(dist,'client'),client,{recursive:true});
 await cp(join(dist,'server'),join(api,'server'),{recursive:true});
-// The Vinext worker resolves its assets binding relative to dist/server
-// (../client). Keep a deploy-ready runtime tree so hosted archives cannot
-// accidentally place browser assets beside, instead of alongside, the worker.
-await cp(join(dist,'client'),join(runtime,'client'),{recursive:true});
-await cp(join(dist,'server'),join(runtime,'server'),{recursive:true});
 for(const name of ['drizzle','deploy'])await cp(join(root,name),join(api,name),{recursive:true});
 await writeFile(join(client,'artifact.json'),JSON.stringify({kind:'edge-client-assets',generatedAt:new Date().toISOString(),source:'dist/client',apiMode:'same-origin-proxy-with-ssr-fallback',requiresApiFallback:true},null,2)+'\n');
 await writeFile(join(api,'artifact.json'),JSON.stringify({kind:'api-worker-compatible',generatedAt:new Date().toISOString(),source:'dist/server',clientMode:'same-origin-proxy',note:'SSR routes remain in the Worker bundle until the client-rendering spike is completed.'},null,2)+'\n');

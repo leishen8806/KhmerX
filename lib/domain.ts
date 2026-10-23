@@ -12,15 +12,9 @@ export type State={activeBotId?:string;postloan?:Postloan;loans:Loan[];bots:Bot[
 export function requestFingerprint(input:Record<string,unknown>){return JSON.stringify(Object.entries(input).filter(([key])=>key!=='requestId').sort(([a],[b])=>a.localeCompare(b)))}
 /** Keep idempotency payloads bounded; they are replay guards, not business history. */
 export function pruneRequestDigests(state:Pick<State,'requests'|'requestDigests'>,max=500){
- const requests=Array.isArray(state.requests)?state.requests:[];
- if(requests.length>max)requests.splice(0,requests.length-max);
- // Older workspace rows may contain digests after their request ids were
- // cleared (for example after customer-state redaction). Keep only digests
- // that still have a bounded replay key in the retained request window.
- const allowed=new Set(requests.slice(-max));
- for(const key of Object.keys(state.requestDigests||{})){
-  if(!allowed.has(key))delete state.requestDigests?.[key];
- }
+ if(state.requests.length<=max)return;
+ const removed=state.requests.splice(0,state.requests.length-max);
+ for(const key of removed)delete state.requestDigests?.[key];
 }
 export function businessBot(s:State){return s.activeBotId?s.bots.find(b=>b.id===s.activeBotId&&b.enabled):s.bots.find(b=>b.enabled)}
 export const statusNames:Record<Status,string>={registered:'已注册 · 待 KYC',kyc_pending:'待资料审核',needs_info:'待补件',kyc_approved:'资料通过',decision_pending:'待机构审批',approved:'待签约',rejected:'申请未通过',signed:'待放款',active:'还款中',closed:'已结清'};

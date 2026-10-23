@@ -37,5 +37,5 @@ export async function POST(request:Request){
   const sessionCookie=cookie(request,SESSION_COOKIE,result.token,SESSION_TTL);
   const companyCookie=cookie(request,'payease_company',id,86400);
   return json({authenticated:true,session:result.session,mode:'telegram',policy:await registrationPolicy(r,id,result.session.customerId)},200,{'Set-Cookie':[sessionCookie,companyCookie]})
- }catch(e){return failure(e,request)}
+ }catch(e){return failure(e)}
 }
