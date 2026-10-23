@@ -64,6 +64,11 @@ test('organization unit form separates departments from licensed institutions',(
   assert.match(teamClient,/组织类型/,'组织单元表单应明确区分类型');
 });
 
+test('employee permission table explains the effective data scope',()=>{
+  assert.match(teamClient,/岗位（含数据范围）/,'员工权限表应明确岗位列同时承载数据范围含义');
+  assert.match(teamClient,/数据范围由岗位规则与部门／持牌机构归属共同决定/,'员工权限表应说明数据范围计算规则');
+});
+
 test('customer tag writes enforce the current employee data scope',()=>{
   assert.match(customerTags,/import \{assignment,audit,db,staff\} from ['"]@\/lib\/team\/server['"]/);
   assert.match(customerTags,/import \{canSee\} from ['"]@\/lib\/team\/policy['"]/);
