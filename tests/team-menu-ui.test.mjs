@@ -51,6 +51,12 @@ test('platform auto-entry never targets a stopped company',()=>{
   assert.match(teamClient,/target\.active!==0&&autoEnteredCompany/,'停用公司不能触发自动进入请求');
 });
 
+test('company switcher disables stopped companies with an explicit status',()=>{
+  assert.match(teamClient,/active=item\.active!==0/,'公司切换器必须读取公司启用状态');
+  assert.match(teamClient,/disabled=\{busy\|\|current\|\|!active\}/,'停用公司不能触发切换请求');
+  assert.match(teamClient,/停用：/,'停用公司必须有明确的按钮状态文案');
+});
+
 test('platform company list warns when names are duplicated',()=>{
   assert.match(teamClient,/nameCounts=companies\.reduce/,'公司管理页需要识别重复公司名称');
   assert.match(teamClient,/nameDuplicateCount/,'公司行需要接收重复名称计数');
