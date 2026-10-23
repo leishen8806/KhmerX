@@ -67,6 +67,11 @@ test('company creation clears only after a successful write',()=>{
   assert.match(teamClient,/catch\(e\).*setError\(\(e as Error\)\.message\);return false/,'创建公司失败时必须保留输入并显示错误');
 });
 
+test('company management default card only shows an enabled company',()=>{
+  assert.match(teamClient,/const defaultCompany=companies\.find\(company=>company\.active!==0\)/,'公司管理默认卡片必须跳过停用公司');
+  assert.match(teamClient,/暂无启用公司/,'全部公司停用时必须给出明确状态');
+});
+
 test('platform company list warns when names are duplicated',()=>{
   assert.match(teamClient,/nameCounts=companies\.reduce/,'公司管理页需要识别重复公司名称');
   assert.match(teamClient,/nameDuplicateCount/,'公司行需要接收重复名称计数');
