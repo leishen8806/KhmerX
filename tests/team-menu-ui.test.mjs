@@ -30,6 +30,9 @@ test('multi-company SSO restores the last company and updates it on switch',()=>
   assert.match(teamRoute,/STAFF_LAST_COMPANY/,'公司切换必须更新上次公司记录');
   assert.match(teamRoute,/\[cookie\(request,TEAM_COOKIE,t\.id,86400\),cookie\(request,STAFF_LAST_COMPANY,t\.id,31536000\)\]/,'公司切换需同时更新当前公司与持久化记忆');
   assert.match(teamClient,/label=slug\?`\$\{name\}（\$\{slug\}）`/,'公司切换菜单需要同时展示公司代码，避免同名公司误切换');
+  assert.match(teamAuth,/set\(STAFF_COMPANY,'none'\)/,'退出登录必须清理当前公司会话');
+  assert.match(teamAuth,/set\(STAFF_MODE,'out'/,'退出登录必须标记会话已退出');
+  assert.doesNotMatch(teamAuth,/if\(p\.action==='logout'\)\{[^}]*set\(STAFF_LAST_COMPANY/,'退出登录不得清理上次公司记忆');
 });
 
 test('workspace read paths do not block first paint on legacy loan migration',()=>{
