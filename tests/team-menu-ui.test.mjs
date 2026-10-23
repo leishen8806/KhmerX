@@ -114,6 +114,13 @@ test('platform company status changes roll back local state when persistence fai
   assert.match(teamClient,/onClick=\{\(\)=>void save\(\)\}/,'公司状态保存按钮必须使用回滚处理器');
 });
 
+test('employee permission changes roll back local role and scope when persistence fails',()=>{
+  const crmSubpages=fs.readFileSync(path.join(process.cwd(),'components/crm-subpages.tsx'),'utf8');
+  assert.match(crmSubpages,/async function save\(\)\{const ok=await post\(\{action:'update_member'/,'员工权限保存应集中到可回滚的保存函数');
+  assert.match(crmSubpages,/if\(!ok\)\{setRole\(m\.role\);setUnit\(m\.unit_id\|\|''\);setActive\(!!m\.active\)\}/,'员工权限保存失败时应回滚岗位、数据范围和启用状态');
+  assert.match(crmSubpages,/onClick=\{\(\)=>void save\(\)\}/,'员工权限保存按钮必须使用回滚处理器');
+});
+
 test('platform company list warns when names are duplicated',()=>{
   assert.match(teamClient,/nameCounts=companies\.reduce/,'公司管理页需要识别重复公司名称');
   assert.match(teamClient,/nameDuplicateCount/,'公司行需要接收重复名称计数');
