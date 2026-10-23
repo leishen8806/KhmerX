@@ -35,6 +35,7 @@ test('multi-company SSO restores the last company and updates it on switch',()=>
   assert.doesNotMatch(teamAuth,/if\(p\.action==='logout'\)\{[^}]*set\(STAFF_LAST_COMPANY/,'退出登录不得清理上次公司记忆');
   assert.doesNotMatch(teamClient,/if\(body\.action==='enter'\)\{setCompanyResolving\(true\);setData\(null\);setWork\(null\)\}/,'公司切换失败时必须保留当前公司工作台，避免切换请求失败导致数据范围丢失');
   assert.doesNotMatch(teamClient,/if\(body\.action==='leave'\)\{setData\(null\);setWork\(null\)\}/,'返回公司选择失败时必须保留当前公司工作台，避免请求失败导致数据范围丢失');
+  assert.match(teamClient,/if\(body\.action==='enter'\)\{setCompanyResolving\(false\);autoEnteredCompany\.current=''\}/,'自动进入公司失败后必须允许再次尝试进入');
 });
 
 test('workspace read paths do not block first paint on legacy loan migration',()=>{
