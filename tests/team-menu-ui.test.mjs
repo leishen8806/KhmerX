@@ -62,6 +62,11 @@ test('account context never labels a stopped company as the default',()=>{
   assert.doesNotMatch(teamClient,/platformDefaultCompany\?\.name\|\|data\?\.companies\?\.\[0\]\?\.name/,'账户菜单不得直接展示第一条可能已停用的公司');
 });
 
+test('company creation clears only after a successful write',()=>{
+  assert.match(teamClient,/if\(body\.action==='create_company'\)\{setName\(''\);setSlug\(''\)\}/,'创建公司成功后应清空已提交字段');
+  assert.match(teamClient,/catch\(e\).*setError\(\(e as Error\)\.message\);return false/,'创建公司失败时必须保留输入并显示错误');
+});
+
 test('platform company list warns when names are duplicated',()=>{
   assert.match(teamClient,/nameCounts=companies\.reduce/,'公司管理页需要识别重复公司名称');
   assert.match(teamClient,/nameDuplicateCount/,'公司行需要接收重复名称计数');
