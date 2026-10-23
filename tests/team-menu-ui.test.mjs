@@ -88,6 +88,12 @@ test('independent employee creation clears success feedback before a retry',()=>
   assert.match(crmSubpages,/onClick=\{async\(\)=>\{setMessage\('\'\);if\(await post\(\{action:'create_member',email:email\.trim\(\)/,'重新提交前应先清除上一笔成功提示');
 });
 
+test('independent organization creation clears success feedback before a retry',()=>{
+  const crmSubpages=fs.readFileSync(path.join(process.cwd(),'components/crm-subpages.tsx'),'utf8');
+  assert.match(crmSubpages,/onChange=\{e=>\{setName\(e\.target\.value\);setMessage\('\'\)\}\}/,'修改组织名称后应清除上一笔成功提示');
+  assert.match(crmSubpages,/onClick=\{async\(\)=>\{setMessage\('\'\);const body:any=\{action:'add_unit'/,'重新提交组织单元前应先清除上一笔成功提示');
+});
+
 test('platform company list warns when names are duplicated',()=>{
   assert.match(teamClient,/nameCounts=companies\.reduce/,'公司管理页需要识别重复公司名称');
   assert.match(teamClient,/nameDuplicateCount/,'公司行需要接收重复名称计数');
