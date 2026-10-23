@@ -19,6 +19,7 @@ const reportCenter=fs.readFileSync(path.join(process.cwd(),'components/report-ce
 const teamClient=fs.readFileSync(path.join(process.cwd(),'app/team/client.tsx'),'utf8');
 const teamAuth=fs.readFileSync(path.join(process.cwd(),'app/api/team/auth/route.ts'),'utf8');
 const customerJourney=fs.readFileSync(path.join(process.cwd(),'components/customer-journey.tsx'),'utf8');
+const workspace=fs.readFileSync(path.join(process.cwd(),'app/workspace.tsx'),'utf8');
 const teamRoute=fs.readFileSync(path.join(process.cwd(),'app/api/team/route.ts'),'utf8');
 const teamServer=fs.readFileSync(path.join(process.cwd(),'lib/team/server.ts'),'utf8');
 const teamWorkflow=fs.readFileSync(path.join(process.cwd(),'lib/team/workflow.ts'),'utf8');
@@ -940,4 +941,5 @@ test('audit success states stay compact inside heading rows',()=>{
 test('approved KYC without a loan stays in the pre-application state',()=>{
   assert.match(customerJourney,/const phase=!loan\?-1:loanPhase\(loan\)/,'KYC 通过但尚未创建贷款时不得显示贷款进行中步骤');
   assert.match(customerJourney,/phase<0\?\(approved\?'待申请':'待认证'\)/,'KYC 通过且无贷款时应明确显示待申请');
+  assert.match(workspace,/kycStatus==='approved'&&\(loan\|\|newLoan\)&&<LoanSteps/,'工作台仅在存在贷款或新建贷款时显示步骤条');
 });
