@@ -108,6 +108,12 @@ test('organization status changes roll back local state when persistence fails',
   assert.match(crmSubpages,/onClick=\{\(\)=>void save\(\)\}/,'组织状态保存按钮必须使用回滚处理器');
 });
 
+test('platform company status changes roll back local state when persistence fails',()=>{
+  assert.match(teamClient,/async function save\(\)\{const ok=await post\(\{action:'platform_update_company'/,'公司状态保存应集中到可回滚的保存函数');
+  assert.match(teamClient,/if\(!ok\)setActive\(company\.active!==0\)/,'公司状态保存失败时应回滚本地启用状态');
+  assert.match(teamClient,/onClick=\{\(\)=>void save\(\)\}/,'公司状态保存按钮必须使用回滚处理器');
+});
+
 test('platform company list warns when names are duplicated',()=>{
   assert.match(teamClient,/nameCounts=companies\.reduce/,'公司管理页需要识别重复公司名称');
   assert.match(teamClient,/nameDuplicateCount/,'公司行需要接收重复名称计数');
