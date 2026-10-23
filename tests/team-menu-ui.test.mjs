@@ -15,6 +15,8 @@ const reportCenter=fs.readFileSync(path.join(process.cwd(),'components/report-ce
 const teamClient=fs.readFileSync(path.join(process.cwd(),'app/team/client.tsx'),'utf8');
 const teamAuth=fs.readFileSync(path.join(process.cwd(),'app/api/team/auth/route.ts'),'utf8');
 const teamRoute=fs.readFileSync(path.join(process.cwd(),'app/api/team/route.ts'),'utf8');
+const teamWorkflow=fs.readFileSync(path.join(process.cwd(),'lib/team/workflow.ts'),'utf8');
+const scopedStatePage=fs.readFileSync(path.join(process.cwd(),'lib/team/scoped-state-page.ts'),'utf8');
 const csvExport=fs.readFileSync(path.join(process.cwd(),'components/csv-export.tsx'),'utf8');
 
 test('multi-company SSO restores the last company and updates it on switch',()=>{
@@ -23,6 +25,13 @@ test('multi-company SSO restores the last company and updates it on switch',()=>
   assert.match(teamRoute,/STAFF_LAST_COMPANY/,'公司切换必须更新上次公司记录');
   assert.match(teamRoute,/\[cookie\(request,TEAM_COOKIE,t\.id,86400\),cookie\(request,STAFF_LAST_COMPANY,t\.id,31536000\)\]/,'公司切换需同时更新当前公司与持久化记忆');
   assert.match(teamClient,/label=slug\?`\$\{name\}（\$\{slug\}）`/,'公司切换菜单需要同时展示公司代码，避免同名公司误切换');
+});
+
+test('workspace read paths do not block first paint on legacy loan migration',()=>{
+  assert.doesNotMatch(teamRoute,/backfillLegacyLoanBindings/,'工作台元数据读取不得同步执行历史贷款迁移');
+  assert.doesNotMatch(teamWorkflow,/scopedState[\s\S]{0,500}backfillLegacyLoanBindings/,'状态读取不得同步执行历史贷款迁移');
+  assert.doesNotMatch(scopedStatePage,/backfillLegacyLoanBindings/,'分页状态读取不得同步执行历史贷款迁移');
+  assert.match(teamWorkflow,/staffActionImpl[\s\S]{0,300}backfillLegacyLoanBindings/,'业务写入前仍需执行历史贷款迁移');
 });
 
 test('platform company list prioritizes an active default',()=>{
