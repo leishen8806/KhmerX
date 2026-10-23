@@ -189,6 +189,8 @@ test('stateful product and risk pages remount on company switch',()=>{
   assert.match(router,/LoanProducts key=\{['"]loan-products:['"]\+props\.tenant\+['"]:['"]\+props\.member\?\.id\} role=/,'贷款产品页面必须随公司和员工上下文重新加载');
   assert.match(router,/RiskRules key=\{['"]risk-rules:['"]\+props\.tenant\+['"]:['"]\+props\.member\?\.id\} role=/,'风控规则页面必须随公司和员工上下文重新加载');
   assert.match(router,/ContentPage key=\{['"]crm-content:/,'其他独立页面必须随公司和员工上下文重新挂载');
+  assert.match(router,/BusinessBots key=\{['"]business-bots:/,'Telegram 业务渠道页面必须随公司和员工上下文重新加载');
+  assert.match(router,/EmergencyAccess key=\{['"]emergency:/,'应急事件页面必须随公司和员工上下文重新加载');
 });
 
 test('workspace stateful panels remount on company or employee switch',()=>{

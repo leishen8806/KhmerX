@@ -81,9 +81,9 @@ function ContentPage({view,work,units,members,member,tenant,busy,post}:{view:str
  if(view==='我的待办'||view==='团队队列'||view==='SLA 与提醒'||view==='风险摘要')return <WorkQueuePage view={view} work={work} member={member}/>;
  if(view==='客服工单'||view==='投诉与争议')return <Frame view={view}><ServiceTickets busy={busy} canEdit={member?.role!=='audit'}/></Frame>;
  if(view==='通知模板')return <Frame view={view}><NotificationTemplates busy={busy}/></Frame>;
- if(view==='Telegram 业务渠道')return <Frame view={view}><BusinessBots state={work?.state} tenant={tenant} busy={busy} post={post}/></Frame>;
+ if(view==='Telegram 业务渠道')return <Frame view={view}><BusinessBots key={'business-bots:'+tenant+':'+member?.id} state={work?.state} tenant={tenant} busy={busy} post={post}/></Frame>;
  if(view==='通知发送记录')return <Frame view={view}><TelegramNotifications admin canManage={member?.role==='admin'}/></Frame>;
- if(view==='应急事件')return <Frame view={view}><EmergencyAccess units={units} memberId={member?.id}/></Frame>;
+ if(view==='应急事件')return <Frame view={view}><EmergencyAccess key={'emergency:'+tenant+':'+member?.id} units={units} memberId={member?.id}/></Frame>;
  if(view==='审计导出')return <Frame view={view}><AuditIntegrity role={member?.role||''}/></Frame>;
  if(['客户漏斗','KYC 与审批','放款与还款','逾期与催收报表','资金监管报表','客服与投诉','自定义报表'].includes(view))return <Frame view={view}><ReportCenter customers={work?.customers||[]} loans={work?.state?.loans||[]} entries={work?.state?.entries||[]} notifications={work?.state?.notifications||[]} role={member?.role||''}/></Frame>;
      if(view==='KYC 审核队列')return <Frame view={view} title="KYC 审核订单"><KycOrders orders={work?.kycOrders||[]} scope={work?.scope||[]} units={units} members={members} role={member?.role||'audit'} renderAssignment={()=>null}/></Frame>;
