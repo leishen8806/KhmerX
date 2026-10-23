@@ -6,6 +6,7 @@ import path from 'node:path';
 const source=fs.readFileSync(path.join(process.cwd(),'app/team/client.tsx'),'utf8');
 const subpages=fs.readFileSync(path.join(process.cwd(),'lib/team/crm-subpages.ts'),'utf8');
 const router=fs.readFileSync(path.join(process.cwd(),'components/crm-subpages.tsx'),'utf8');
+const fundingPanel=fs.readFileSync(path.join(process.cwd(),'components/funding-panel.tsx'),'utf8');
 const products=fs.readFileSync(path.join(process.cwd(),'app/api/team/products/route.ts'),'utf8');
 const riskRules=fs.readFileSync(path.join(process.cwd(),'lib/team/risk-rules.ts'),'utf8');
 const customerTags=fs.readFileSync(path.join(process.cwd(),'app/api/team/customer-tags/route.ts'),'utf8');
@@ -131,6 +132,12 @@ test('manual assignment controls are disabled outside company admin scope',()=>{
   assert.match(teamClient,/<select disabled=\{!admin\} value=\{reviewer\}/,'非 Admin 不得编辑人工分单审核员');
   assert.match(teamClient,/<select disabled=\{!admin\} value=\{inst\}/,'非 Admin 不得编辑人工分单承接机构');
   assert.match(teamClient,/<Button disabled=\{!admin\|\|busy\|\|!reason\.trim\(\)\}/,'非 Admin 不得提交人工分单变更');
+});
+
+test('funding actions require an assigned licensed institution before execution',()=>{
+  assert.match(fundingPanel,/canExecute=Boolean\(action&&institution\)/,'放款动作必须先确认已分配承接机构');
+  assert.match(fundingPanel,/action&&!institution&&<p className="error" role="alert">放款承接机构未分配，暂不能执行放款操作。/,'缺少承接机构时必须明确提示并阻断放款');
+  assert.match(fundingPanel,/canExecute&&!confirm&&<Button/,'放款按钮只能在前置条件满足时显示');
 });
 
 test('workspace employee permission changes roll back local edits when persistence fails',()=>{
