@@ -14,7 +14,10 @@ const defaultLocale=():Locale=>typeof navigator!=='undefined'&&navigator.languag
 const localize=(root:HTMLElement,locale:Locale)=>{const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);const nodes:Text[]=[];let n:Node|null;while((n=walker.nextNode())){const parent=(n.parentElement?.tagName||'').toLowerCase();if(!['script','style','textarea','input'].includes(parent)&&n.textContent?.trim())nodes.push(n as Text)}for(const node of nodes){const original=node.textContent||'';const trimmed=original.trim();const translated=legacyText(trimmed,locale);if(translated!==trimmed)node.textContent=original.replace(trimmed,translated)}};
 export type MiniNavigate=(href:string)=>void;
 const MiniNavigationContext=createContext<MiniNavigate|null>(null);
-export function MiniNavigationProvider({navigate,children}:{navigate:MiniNavigate;children:ReactNode}){return <MiniNavigationContext.Provider value={navigate}>{children}</MiniNavigationContext.Provider>}
+export function MiniNavigationProvider({navigate,children}:{navigate:MiniNavigate;children:ReactNode}){
+ const guarded:MiniNavigate=href=>{const event=new CustomEvent('payease:before-navigate',{cancelable:true,detail:{href,resume:()=>navigate(href)}});if(window.dispatchEvent(event))navigate(href)};
+ return <MiniNavigationContext.Provider value={guarded}>{children}</MiniNavigationContext.Provider>;
+}
 export function useMiniNavigation(){return useContext(MiniNavigationContext)}
 export function MiniNavLink({href,className,children,ariaLabel}:{href:string;className?:string;children:ReactNode;ariaLabel?:string}){const navigate=useMiniNavigation();if(!navigate)return <Link href={href} className={className} aria-label={ariaLabel}>{children}</Link>;return <button type="button" className={[className,'mini-nav-button'].filter(Boolean).join(' ')} aria-label={ariaLabel} onClick={()=>navigate(href)}>{children}</button>}
 export function MiniTranslatedGreeting({name}:{name:string}){const {t}=useContext(I18nContext);return <p>{t('hello',{name})}</p>}
