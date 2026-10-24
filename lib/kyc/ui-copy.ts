@@ -3,6 +3,12 @@ import {messageForError} from '../error-messages';
 
 // UI copy only. Never pass customer field values, review notes or signed text here.
 const copy:Record<string,[string,string]>={
+ '需补充':['Update needed','ត្រូវបន្ថែម'],
+ '已修改，待审核':['Updated · awaiting review','បានកែប្រែ · រង់ចាំពិនិត្យ'],
+ '补件原因':['Reason for update','មូលហេតុនៃការបន្ថែម'],
+ '补充说明':['Additional note','ចំណាំបន្ថែម'],
+ '前往补充':['Update now','បន្ថែមឥឡូវ'],
+ '本次修改状态仅供参考，提交后由审核员确认。':['Edits are provisional until reviewed.','ការកែប្រែត្រូវរង់ចាំការបញ្ជាក់ពីអ្នកពិនិត្យ។'],
  '拍照上传':['Take a photo','ថតរូបដើម្បីផ្ទុកឡើង'],
  '从相册选择':['Choose from gallery','ជ្រើសពីវិចិត្រសាល'],
  '放大查看材料':['Enlarge document','ពង្រីកមើលឯកសារ'],

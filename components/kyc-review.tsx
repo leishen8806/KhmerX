@@ -3,15 +3,19 @@ import {useI18n} from '@/lib/i18n';
 import type {Locale} from '@/lib/i18n';
 import {kycText,kycDate} from '@/lib/kyc/ui-copy';
 import {fields,sections,statusLabels,completeness} from '@/lib/kyc/core';
+import {RequestEditor} from '@/components/kyc-supplement';
+import type {KycRequest} from '@/lib/kyc/requests';
+import {slots,slotVisible} from '@/lib/kyc/core';
 import {KycMaterialViewer} from '@/components/kyc-material-viewer';
 import type {RecordView} from '@/app/kyc/client';
 import './kyc-review.css';
 
-type Props={record:RecordView;locale?:Locale;checks:Record<string,boolean>;reason:string;decision:string;busy:boolean;error?:string;message?:string;onCheck:(id:string,value:boolean)=>void;onReason:(value:string)=>void;onDecision:(value:string)=>void;onDecide:()=>void;onAmend:()=>void};
-export function KycReview({record,locale:reviewLocale,checks,reason,decision,busy,error,message,onCheck,onReason,onDecision,onDecide,onAmend}:Props){
+type Props={requests?:KycRequest[];onRequest?:(target:string,request?:KycRequest)=>void;record:RecordView;locale?:Locale;checks:Record<string,boolean>;reason:string;decision:string;busy:boolean;error?:string;message?:string;onCheck:(id:string,value:boolean)=>void;onReason:(value:string)=>void;onDecision:(value:string)=>void;onDecide:()=>void;onAmend:()=>void};
+export function KycReview({requests=[],onRequest,record,locale:reviewLocale,checks,reason,decision,busy,error,message,onCheck,onReason,onDecision,onDecide,onAmend}:Props){
  const context=useI18n(),locale=reviewLocale||context.locale,t=(s:string)=>kycText(s,locale),p=record.profile;
  const mayReview=record.canReview!==false,mayDecide=mayReview&&record.status==='submitted';
  const score=completeness(p,record.phoneVerified);
+ const editor=(target:string)=>mayDecide&&decision==='needs_info'&&onRequest?<RequestEditor target={target} request={requests.find(r=>r.target===target)} locale={locale} disabled={busy} onChange={request=>onRequest(target,request)}/>:null;
  return <main className="kyc-review-workspace" lang={locale}><header><a href="/team/kyc">{t('返回业务工作台')}</a><h1>{t('KYC 人工审核')}</h1><p>{t(statusLabels[record.status])} · {t('版本')} {record.revision} · {record.id}</p></header>
   <p className="notice">{t('身份证核验、活体检测与 KESS 尚未接入。当前完成的是人工资料审核，贷款放款仍使用测试资金。')}</p>
   {!record.phoneVerified&&<p className="notice">{t('模拟会话，未完成真实手机号验证')}</p>}
@@ -20,7 +24,8 @@ export function KycReview({record,locale:reviewLocale,checks,reason,decision,bus
   <nav className="kyc-review-index" aria-label="KYC review sections">{sections.map(s=><a key={s.id} href={'#kyc-review-'+s.id}>{t(s.label)}</a>)}</nav>
   <div className="kyc-review-columns"><div className="kyc-review-cards">{sections.map(s=><details className="kyc-review-card" open id={'kyc-review-'+s.id} key={s.id}><summary>{t(s.label)}</summary>
    <label className="kyc-review-check"><input type="checkbox" checked={checks[s.id]===true} disabled={busy||!mayDecide} onChange={e=>onCheck(s.id,e.target.checked)}/>{t(decision==='needs_info'?'要求补充：':'已核对')} {t(s.label)}</label>
-   <dl>{fields.filter(f=>f.section===s.id).map(f=>{const value=p.values[f.id];return <div key={f.id}><dt>{t(f.label)}</dt><dd>{value?(f.options?.find(o=>o.value===value)?t(f.options.find(o=>o.value===value)!.label):value):t('未提供')}</dd></div>})}</dl>
+   <dl>{fields.filter(f=>f.section===s.id).map(f=>{const value=p.values[f.id];return <div key={f.id}><dt>{t(f.label)}</dt><dd>{value?(f.options?.find(o=>o.value===value)?t(f.options.find(o=>o.value===value)!.label):value):t('未提供')}</dd>{editor('field:'+f.id)}</div>})}</dl>
+   {editor('section:'+s.id)}{slots.filter(slot=>slot.section===s.id&&slot.id!=='signature'&&slotVisible(slot.id,p)).map(slot=><div key={slot.id}>{t(slot.label)}{editor('slot:'+slot.id)}</div>)}
    {s.id==='consent'&&<><p>{t('资料审核授权：')}{t(p.consent?'已确认':'未确认')} · {p.declarationVersion}</p><p>{t('定位：')}{p.location?`${p.location.lat}, ${p.location.lon} ±${p.location.accuracy}m`:t('未授权或未提供')}</p></>}
   </details>)}</div>
   <aside className="kyc-review-aside"><KycMaterialViewer profile={p} locale={locale}/><section className="kyc-review-panel kyc-review-decision"><h2>{t('人工审核决定')}</h2>{mayDecide?<><p>{t(decision==='needs_info'?'勾选需要客户补充的页面，客户重新进入时会直接定位到第一项。':'请逐项打开材料核对。勾选仅记录人工核对，不代表已完成外部实名、活体或银行验证。')}</p>

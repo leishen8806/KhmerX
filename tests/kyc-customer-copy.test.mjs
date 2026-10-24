@@ -5,12 +5,12 @@ import {readFileSync} from 'node:fs';
 import ts from 'typescript';
 import * as core from '../lib/kyc/core.ts';
 
-function customer({locale='km',review=false,section='personal',status='draft',mini=false,values={},file,uploadFile,prepareFile}={}){
+function customer({locale='km',review=false,section='personal',status='draft',mini=false,values={},file,uploadFile,prepareFile,reviewData}={}){
  let cursor=0,tree;const state=[],effects=[],focused=[];
  const profile=core.emptyProfile();profile.values={...profile.values,surname:'客户原文',...values};
  if(file)profile.files[section]=file;
- const record={id:'synthetic-customer',revision:1,status,profile,phoneVerified:false,updatedAt:'2026-10-23T00:00:00Z'};
- const hooks={createContext:v=>({value:v}),useContext:c=>c.value,useState(initial){const i=cursor++;if(!(i in state))state[i]=typeof initial==='function'?initial():initial;return [state[i],v=>state[i]=typeof v==='function'?v(state[i]):v]},useRef:()=>({current:null}),useEffect(fn,deps){const i=cursor++;if(!state[i]){state[i]=deps||[];effects.push(fn)}}};
+ const record={id:'synthetic-customer',revision:1,status,profile,review:reviewData?{decision:'needs_info',at:'2026-10-24T00:00:00Z',...reviewData}:undefined,phoneVerified:false,updatedAt:'2026-10-23T00:00:00Z'};
+ const hooks={createContext:v=>({value:v}),useContext:c=>c.value,useState(initial){const i=cursor++;if(!(i in state))state[i]=typeof initial==='function'?initial():initial;return [state[i],v=>state[i]=typeof v==='function'?v(state[i]):v]},useRef(initial){const i=cursor++;if(!(i in state))state[i]={current:initial};return state[i]},useEffect(fn,deps){const i=cursor++;if(!state[i]){state[i]=deps||[];effects.push(fn)}}};
  const jsx=(type,props)=>typeof type==='function'?type(props):({type,props});
  const mocks={react:hooks,'react/jsx-runtime':{jsx,jsxs:jsx},'next/link':{default:'a'},'next/navigation':{useRouter:()=>({push(){}})},'lucide-react':new Proxy({},{get:(_,k)=>k}),
   '@/lib/kyc/core':core,'@/lib/agreements/loan-terms':{LOAN_TERMS_VERSION:'test',LOAN_TERMS_URL:'/agreements/loan',loanTerms:{}},
@@ -22,6 +22,7 @@ function customer({locale='km',review=false,section='personal',status='draft',mi
  const load=file=>{const exports={},js=ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;vm.runInContext('(function(exports,require){'+js+'\n})',context)(exports,n=>{assert(n in mocks,n);return mocks[n]});return exports};
  mocks['@/lib/i18n']=load('lib/i18n.tsx');mocks['@/lib/i18n'].I18nContext.value=mocks['@/lib/i18n'].i18nValue(locale);
  mocks['@/lib/error-messages']=load('lib/error-messages.ts');mocks['../i18n']=mocks['@/lib/i18n'];mocks['../error-messages']=mocks['@/lib/error-messages'];mocks['@/lib/kyc/ui-copy']=load('lib/kyc/ui-copy.ts');
+ mocks['./core.ts']=core;mocks['@/lib/kyc/requests']=load('lib/kyc/requests.ts');mocks['./requests.ts']=mocks['@/lib/kyc/requests'];mocks['@/lib/kyc/supplement-ui']=load('lib/kyc/supplement-ui.ts');mocks['./kyc-supplement.css']={};mocks['@/components/kyc-supplement']=load('components/kyc-supplement.tsx');
  mocks['./kyc-material-viewer.css']={};mocks['@/components/kyc-material-viewer']=load('components/kyc-material-viewer.tsx');
  mocks['./kyc-review.css']={};mocks['@/components/kyc-review']=load('components/kyc-review.tsx');
  const component=load('app/kyc/client.tsx').default;
@@ -33,6 +34,12 @@ function customer({locale='km',review=false,section='personal',status='draft',mi
 }
 
 const steps=['personal','identityDetails','address','idFront','idBack','selfie','contact1','contact2','contact3','employment','income','assets','bank','consent'];
+test('structured supplementation focuses exact target, tracks edits and preserves original notes in all locales',async()=>{
+ for(const locale of ['zh','en','km']){const h=customer({locale,status:'needs_info',reviewData:{at:'2026-10-24',reason:'审核员原文',requests:[{target:'field:bankAccount',reasonCode:'data_mismatch',note:'客户原文 NOTE'}]}});await h.ready();const input=()=>h.nodes().find(n=>n.props?.id==='kyc-field-bankAccount');assert(input(),'must enter bank without guessing reason');const badge=()=>h.nodes().find(n=>n.props?.className==='kyc-supplement-item');assert.equal(badge().props['data-state'],'pending');assert(h.text().includes('客户原文 NOTE'));input().props.onChange({target:{value:'12345'}});h.render();assert.equal(badge().props['data-state'],'changed');input().props.onChange({target:{value:''}});h.render();assert.equal(badge().props['data-state'],'pending');}
+});
+test('legacy supplementary reason is never parsed; missing checklist uses first section',async()=>{
+ const h=customer({locale:'zh',status:'needs_info',reviewData:{reason:'银行账号补件',checklist:{}}});await h.ready();assert(h.nodes().some(n=>n.props?.id==='kyc-field-givenName'));assert(!h.nodes().some(n=>n.props?.id==='kyc-field-bankAccount'));
+});
 test('customer H5 and mini expose no internal test or scoring metadata, reviewer retains it',async()=>{
  for(const mini of [false,true])for(const section of steps){const h=customer({locale:'zh',section,mini});await h.ready();assert.doesNotMatch(h.text(),/KESS|模拟|测试合同|权重|单元格|KYC规范/)}
  const h=customer({review:true,section:'bank'});await h.ready();assert.match(h.text(),/KESS/);assert.match(h.text(),/B4:F5/);
