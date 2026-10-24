@@ -5,9 +5,9 @@ import {readFileSync} from 'node:fs';
 import ts from 'typescript';
 import * as core from '../lib/kyc/core.ts';
 
-function customer({locale='km',review=false,section='personal',status='draft',mini=false,file,uploadFile,prepareFile}={}){
- let cursor=0,tree;const state=[],effects=[];
- const profile=core.emptyProfile();profile.values.surname='客户原文';
+function customer({locale='km',review=false,section='personal',status='draft',mini=false,values={},file,uploadFile,prepareFile}={}){
+ let cursor=0,tree;const state=[],effects=[],focused=[];
+ const profile=core.emptyProfile();profile.values={...profile.values,surname:'客户原文',...values};
  if(file)profile.files[section]=file;
  const record={id:'synthetic-customer',revision:1,status,profile,phoneVerified:false,updatedAt:'2026-10-23T00:00:00Z'};
  const hooks={createContext:v=>({value:v}),useContext:c=>c.value,useState(initial){const i=cursor++;if(!(i in state))state[i]=typeof initial==='function'?initial():initial;return [state[i],v=>state[i]=typeof v==='function'?v(state[i]):v]},useRef:()=>({current:null}),useEffect(fn,deps){const i=cursor++;if(!state[i]){state[i]=deps||[];effects.push(fn)}}};
@@ -18,7 +18,7 @@ function customer({locale='km',review=false,section='personal',status='draft',mi
   '@/lib/image-compress':{prepareKycFile:prepareFile||((f)=>f),fileLimitBytes:()=>5242880,retryAfterMs:()=>0},'@/lib/kyc/upload':{uploadKycFile:uploadFile},'@/lib/api-client':{apiUrl:p=>p,async apiFetch(){return {data:record}}},
  };
  for(const [file,names] of Object.entries({'button':['Button'],'input':['Input'],'checkbox':['Checkbox'],'select':['Select','SelectTrigger','SelectValue','SelectContent','SelectItem']}))mocks['@/components/ui/'+file]=Object.fromEntries(names.map(n=>[n,n]));
- const context=vm.createContext({URLSearchParams,Date,Intl,File,Blob,setTimeout,window:{localStorage:{getItem:()=>locale},location:{search:review?'?id=synthetic-customer':''},open(){throw Error('Document previews must remain inline')},addEventListener(){},removeEventListener(){},setInterval(){},clearInterval(){}},document:{documentElement:{lang:locale},addEventListener(){},removeEventListener(){}}});
+ const context=vm.createContext({URLSearchParams,Date,Intl,File,Blob,setTimeout,window:{open(){throw Error('Document previews must remain inline')},setTimeout,localStorage:{getItem:()=>locale},location:{search:review?'?id=synthetic-customer':''},addEventListener(){},removeEventListener(){},setInterval(){},clearInterval(){}},document:{getElementById:id=>({focus(){focused.push(id)},scrollIntoView(){}}),documentElement:{lang:locale},addEventListener(){},removeEventListener(){}}});
  const load=file=>{const exports={},js=ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;vm.runInContext('(function(exports,require){'+js+'\n})',context)(exports,n=>{assert(n in mocks,n);return mocks[n]});return exports};
  mocks['@/lib/i18n']=load('lib/i18n.tsx');mocks['@/lib/i18n'].I18nContext.value=mocks['@/lib/i18n'].i18nValue(locale);
  mocks['@/lib/error-messages']=load('lib/error-messages.ts');mocks['../i18n']=mocks['@/lib/i18n'];mocks['../error-messages']=mocks['@/lib/error-messages'];mocks['@/lib/kyc/ui-copy']=load('lib/kyc/ui-copy.ts');
@@ -27,7 +27,7 @@ function customer({locale='km',review=false,section='personal',status='draft',mi
  const nodes=n=>Array.isArray(n)?n.flatMap(nodes):!n||typeof n!=='object'?[]:[n,...nodes(n.props?.children)];
  const text=n=>Array.isArray(n)?n.map(text).join(' '):typeof n==='string'||typeof n==='number'?String(n):n&&typeof n==='object'?text(n.props?.children):'';
  render();effects.splice(0).forEach(fn=>fn());
- return {async ready(){await new Promise(r=>setImmediate(r));render()},render,text:()=>text(tree),nodes:()=>nodes(tree),copy:mocks['@/lib/kyc/ui-copy']};
+ return {focused,async ready(){await new Promise(r=>setTimeout(r,10));render()},render,text:()=>text(tree),nodes:()=>nodes(tree),copy:mocks['@/lib/kyc/ui-copy']};
 }
 
 const steps=['personal','identityDetails','address','idFront','idBack','selfie','contact1','contact2','contact3','employment','income','assets','bank','consent'];
@@ -63,4 +63,26 @@ test('compression, actual byte progress and manual retry retain the selected fil
  h.nodes().find(n=>n.props?.type==='file').props.onChange({target:{files:[selected],value:'selected'}});h.render();assert.match(h.text(),/压缩中/);release();await h.ready();assert.match(h.text(),/上传中 37%/);
  for(let i=0;i<3;i++){finish();await new Promise(r=>setTimeout(r,10));await h.ready()}
  assert.equal(attempts,3);assert.match(h.text(),/上传失败，请重试/);const retry=h.nodes().find(n=>n.type==='Button'&&n.props.children==='重试');retry.props.onClick();h.render();assert.match(h.text(),/压缩中/);release();await h.ready();finish();await h.ready();assert.match(h.text(),/上传完成/);assert.equal(attempts,4);assert(sent.every(f=>f===selected));assert(h.nodes().some(n=>n.type==='img'&&n.props.src==='/api/kyc/files?id=success'));
+});
+test('blur exposes linked field error; Next focuses first invalid field without saving input away',async()=>{
+ const h=customer({locale:'en'});await h.ready();
+ const name=()=>h.nodes().find(n=>n.props?.id==='kyc-field-givenName');assert(name(),'field needs a stable id');
+ name().props.onBlur();h.render();assert.equal(name().props['aria-invalid'],true);
+ const id=name().props['aria-describedby'];assert(h.nodes().some(n=>n.props?.id===id));
+ await h.nodes().find(n=>n.props?.className==='kyc-next-button').props.onClick();await h.ready();
+ assert.equal(h.focused[0],'kyc-field-givenName');assert(h.nodes().some(n=>n.props?.value==='客户原文'));
+});
+test('phone errors use core rules and preserve a customer-entered international number',async()=>{
+ const h=customer({locale:'km',section:'contact1',values:{contact1Phone:'+855'}});await h.ready();
+ const phone=()=>h.nodes().find(n=>n.props?.id==='kyc-field-contact1Phone');assert(phone());
+ phone().props.onBlur();h.render();assert.equal(phone().props['aria-invalid'],true);assert(h.text().includes('+855'));
+ phone().props.onChange({target:{value:'+44 7700 900123'}});h.render();assert.equal(phone().props.value,'+44 7700 900123');assert.equal(phone().props['aria-invalid'],false);
+});
+test('Submit locates an invalid field on an earlier section and select blur has linked feedback',async()=>{
+ const h=customer({locale:'en',section:'consent'});await h.ready();
+ const submit=h.nodes().find(n=>n.props?.children===h.copy.kycText('提交人工审核','en')&&n.props?.onClick);assert(submit);submit.props.onClick();await h.ready();
+ assert.equal(h.focused[0],'kyc-field-givenName');assert(h.nodes().some(n=>n.props?.id==='kyc-error-givenName'));
+ const s=customer({locale:'en',section:'identityDetails'});await s.ready();
+ s.nodes().find(n=>n.props?.id==='kyc-field-gender').props.onBlur();s.render();
+ assert.equal(s.nodes().find(n=>n.props?.id==='kyc-field-gender').props['aria-describedby'],'kyc-error-gender');
 });

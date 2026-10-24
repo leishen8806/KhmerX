@@ -13,6 +13,13 @@ const copy:Record<string,[string,string]>={
  '上传完成':['Upload complete','ផ្ទុកឡើងបានបញ្ចប់'],
  '上传失败，请重试':['Upload failed. Please retry.','ផ្ទុកឡើងបរាជ័យ។ សូមព្យាយាមម្ដងទៀត។'],
  '上传进度':['Upload progress','វឌ្ឍនភាពផ្ទុកឡើង'],
+ '请检查：{field}':['Check {field}.','សូមពិនិត្យ {field}។'],
+ '资料 {id} · 版本 {revision}':['Profile {id} · Version {revision}','ព័ត៌មាន {id} · កំណែ {revision}'],
+ '资料 {id}':['Profile {id}','ព័ត៌មាន {id}'],
+ '{status} · 版本 {revision}':['{status} · Version {revision}','{status} · កំណែ {revision}'],
+ '{field}上传':['Upload {field}','ផ្ទុក {field}'],
+ '电话号码示例：+855 12 345 678；请保留国家区号。':['Example: +855 12 345 678. Keep the country code.','ឧទាហរណ៍៖ +855 12 345 678។ សូមរក្សាលេខកូដប្រទេស។'],
+ '证件号码示例：123456789':['ID number example: 123456789','ឧទាហរណ៍លេខអត្តសញ្ញាណប័ណ្ណ៖ 123456789'],
  '收款账户资料（审核必要项）':['Payout account (required)','គណនីទទួលប្រាក់ (ចាំបាច់)'],
  '资料授权确认（审核必要项）':['Data consent (required)','ការយល់ព្រមទិន្នន័យ (ចាំបាច់)'],
  '材料':['Document','ឯកសារ'],
@@ -30,7 +37,6 @@ const copy:Record<string,[string,string]>={
  '部门上司电话（含国家区号）':['Supervisor phone (country code)','លេខទូរស័ព្ទប្រធាន រួមទាំងលេខកូដប្រទេស'],
  '车辆类型':['Vehicle type','ប្រភេទយានជំនិះ'],'住房类型':['Housing type','ប្រភេទលំនៅដ្ឋាន'],
  '收入 / 工作证明':['Income / work evidence','ភស្តុតាងចំណូល / ការងារ'],
- '资料':['Profile','ព័ត៌មាន'],'· 版本':['· Version','· កំណែ'],
  'KYC 资料审核已通过，可以开始贷款申请。':['KYC approved. You can start a loan application.','KYC បានអនុម័ត។ អ្នកអាចចាប់ផ្តើមដាក់ពាក្យកម្ចី។'],
  '最近审核意见 ·':['Latest review ·','មតិពិនិត្យចុងក្រោយ ·'],
  '返回资料分类':['Back to sections','ត្រឡប់ទៅផ្នែកព័ត៌មាន'],
@@ -41,7 +47,6 @@ const copy:Record<string,[string,string]>={
  '车辆材料 *':['Vehicle document *','ឯកសារយានយន្ត *'],
  '车辆材料类型':['Vehicle document type','ប្រភេទឯកសារយានយន្ត'],
  '车辆材料上传':['Upload vehicle document','ផ្ទុកឯកសារយានយន្ត'],
- '上传':[' upload',' ផ្ទុកឡើង'],
  '图片压缩后单份不超过 5 MB；PDF 单份不超过 10 MB。图片支持 JPG/PNG，证明材料可使用 PDF。PDF 以下载方式查看。':['JPG/PNG: up to 5 MB after compression. PDF evidence: up to 10 MB, viewed by download.','JPG/PNG៖ មិនលើស ៥ MB ក្រោយបង្រួម។ ឯកសារភស្តុតាង PDF៖ មិនលើស ១០ MB មើលដោយទាញយក។'],
  '提交审核':['Submit for review','ដាក់ស្នើឱ្យពិនិត្យ'],
  '返回首页':['Back to home','ត្រឡប់ទៅទំព័រដើម'],
@@ -75,4 +80,5 @@ export function kycText(text:string,locale:Locale):string{
  return legacyText(text,locale);
 }
 export function kycDate(value:string,locale:Locale){return new Date(value).toLocaleString({zh:'zh-CN',en:'en-GB',km:'km-KH'}[locale],{timeZone:'Asia/Phnom_Penh'})}
+export function kycFormat(key:string,locale:Locale,values:Record<string,string|number>){return kycText(key,locale).replace(/\{(\w+)\}/g,(_,name)=>String(values[name]??''))}
 export function kycError(error:unknown,locale:Locale){const e=error as {code?:string;params?:Record<string,unknown>;message?:string};if(e.code)return messageForError(e,locale);const translated=kycText(e.message||'',locale);return translated!==e.message?translated:messageForError({code:'REQUEST_FAILED'},locale)}
