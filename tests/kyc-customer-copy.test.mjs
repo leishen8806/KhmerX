@@ -56,6 +56,16 @@ test('status zero retries only once, then offers manual retry with localized int
 test('field errors use descriptions without assertive alerts; summary is polite',async()=>{
  const h=customer({locale:'en'});await h.ready();h.nodes().find(n=>n.props?.id==='kyc-field-givenName').props.onBlur();h.render();assert.equal(h.nodes().find(n=>n.props?.id==='kyc-error-givenName').props.role,undefined);await h.nodes().find(n=>n.props?.className==='kyc-next-button').props.onClick();await h.ready();const summary=h.nodes().find(n=>n.props?.className==='kyc-validation-summary');assert.equal(summary.props['aria-live'],'polite');assert.notEqual(summary.props.role,'alert');
 });
+test('polite error region is mounted empty and keeps its React slot when validation fills it',async()=>{
+ const h=customer({locale:'en'});await h.ready();
+ const before=h.nodes().find(n=>n.props?.['aria-live']==='polite');assert(before,'live region must exist before an error');
+ assert.equal(before.props.children,'');assert.equal(before.props.id,'kyc-error-summary');
+ const path=(node,target,p=[])=>{if(node===target)return p;if(!node||typeof node!=='object')return null;const children=Array.isArray(node)?node:[node.props?.children];for(let i=0;i<children.length;i++){const result=path(children[i],target,[...p,i]);if(result)return result}return null};
+ const oldPath=path(h.render(),h.nodes().find(n=>n.props?.['aria-live']==='polite'));assert(Array.isArray(oldPath));
+ await h.nodes().find(n=>n.props?.className==='kyc-next-button').props.onClick();await h.ready();
+ const after=h.nodes().find(n=>n.props?.['aria-live']==='polite');assert.equal(after.type,before.type);assert.equal(after.props.id,before.props.id);
+ assert.deepEqual(path(h.render(),h.nodes().find(n=>n.props?.['aria-live']==='polite')),oldPath);assert.match(JSON.stringify(after.props.children),/Please complete/);
+});
 test('identity capture uses the correct camera and preserves a separate gallery picker',async()=>{
  for(const [section,capture] of [['idFront','environment'],['idBack','environment'],['selfie','user']]){const h=customer({section,locale:'zh'});await h.ready();const inputs=h.nodes().filter(n=>n.type==='input'&&n.props.type==='file');assert.equal(inputs.length,2);assert.equal(inputs[0].props.capture,capture);assert.equal(inputs[0].props.accept,'image/jpeg,image/png');assert.equal(inputs[1].props.capture,undefined)}
 });

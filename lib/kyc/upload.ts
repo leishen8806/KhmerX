@@ -15,6 +15,8 @@ export function uploadKycFile<T>(body:Blob,headers:Record<string,string>,onProgr
   xhr.setRequestHeader('X-Request-Id',clientRequestId());
   for(const [key,value] of Object.entries(headers))xhr.setRequestHeader(key,value);
   xhr.upload.onprogress=e=>{if(settled)return;armIdle();onProgress(e.lengthComputable&&e.total>0?Math.min(100,Math.floor(e.loaded/e.total*100)):undefined)};
+  // Once transmission finishes, storage/response time is bounded only by xhr.timeout.
+  xhr.upload.onload=()=>clearTimeout(idle);
   const failed=(status:number,failure:ApiFailure={})=>{
    if(settled)return;finish();
    const normalized={...failure,code:failure.code||'REQUEST_FAILED',requestId:failure.requestId||xhr.getResponseHeader('X-Request-Id')||undefined};

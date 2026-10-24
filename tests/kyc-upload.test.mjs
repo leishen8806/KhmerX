@@ -21,6 +21,12 @@ test('upload progress comes from bytes sent, unknown length stays indeterminate,
 test('progress resets the 30 second stall deadline; idle upload aborts and clears timers',async()=>{
  const h=uploader();let failed=false;const result=h.upload(new Blob(),{},()=>{}).catch(e=>{failed=true;return e});h.advance(29000);h.request().upload.onprogress({loaded:1,total:10,lengthComputable:true});h.advance(29000);await Promise.resolve();assert.equal(failed,false);h.advance(1000);const error=await result;assert.equal(error.status,0);assert.equal(error.code,'KYC_UPLOAD_INTERRUPTED');assert.equal(h.request().aborted,true);assert.equal(h.timers.size,0);
 });
+test('completed request body waits for a slow response without progress or an idle abort',async()=>{
+ const h=uploader();let settled=false;const pending=h.upload(new Blob(['small']),{},()=>{}).finally(()=>{settled=true});const r=h.request();
+ assert.equal(typeof r.upload.onload,'function');r.upload.onload();h.advance(60000);await Promise.resolve();
+ assert.equal(settled,false);assert.equal(r.aborted,undefined);assert.equal(h.timers.size,0);assert.equal(r.timeout,180000);
+ r.onload();assert.equal((await pending).id,'stored');
+});
 test('180 second native total timeout rejects even with continuing progress; network errors share explicit code',async()=>{
  for(const event of ['ontimeout','onerror']){const h=uploader();const result=h.upload(new Blob(),{},()=>{});const r=h.request();assert.equal(r.timeout,180000);for(let i=0;i<8;i++){h.advance(20000);r.upload.onprogress({loaded:i,total:10,lengthComputable:true})}r[event]();await assert.rejects(result,e=>e.status===0&&e.code==='KYC_UPLOAD_INTERRUPTED');assert.equal(h.timers.size,0)}
 });
