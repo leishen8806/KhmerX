@@ -10,7 +10,7 @@ function customer({locale='km',review=false,section='personal',status='draft',mi
  const profile=core.emptyProfile();profile.values={...profile.values,surname:'客户原文',...values};
  if(file)profile.files[section]=file;
  const record={id:'synthetic-customer',revision:1,status,profile,review:reviewData?{decision:'needs_info',at:'2026-10-24T00:00:00Z',...reviewData}:undefined,phoneVerified:false,updatedAt:'2026-10-23T00:00:00Z'};
- const hooks={createContext:v=>({value:v}),useContext:c=>c.value,useState(initial){const i=cursor++;if(!(i in state))state[i]=typeof initial==='function'?initial():initial;return [state[i],v=>state[i]=typeof v==='function'?v(state[i]):v]},useRef(initial){const i=cursor++;if(!(i in state))state[i]={current:initial};return state[i]},useEffect(fn,deps){const i=cursor++;if(!state[i]){state[i]=deps||[];effects.push(fn)}}};
+ const hooks={createContext:v=>({value:v}),useContext:c=>c.value,useState(initial){const i=cursor++;if(!(i in state))state[i]=typeof initial==='function'?initial():initial;return [state[i],v=>state[i]=typeof v==='function'?v(state[i]):v]},useRef(initial){const i=cursor++;if(!(i in state))state[i]={current:initial};return state[i]},useEffect(fn,deps){const i=cursor++;if(!state[i]||!deps||deps.some((v,j)=>!Object.is(v,state[i][j]))){state[i]=deps||[];effects.push(fn)}}};
  const jsx=(type,props)=>typeof type==='function'?type(props):({type,props});
  const mocks={react:hooks,'react/jsx-runtime':{jsx,jsxs:jsx},'next/link':{default:'a'},'next/navigation':{useRouter:()=>({push(){}})},'lucide-react':new Proxy({},{get:(_,k)=>k}),
   '@/lib/kyc/core':core,'@/lib/agreements/loan-terms':{LOAN_TERMS_VERSION:'test',LOAN_TERMS_URL:'/agreements/loan',loanTerms:{}},
@@ -26,7 +26,7 @@ function customer({locale='km',review=false,section='personal',status='draft',mi
  mocks['./kyc-material-viewer.css']={};mocks['@/components/kyc-material-viewer']=load('components/kyc-material-viewer.tsx');
  mocks['./kyc-review.css']={};mocks['@/components/kyc-review']=load('components/kyc-review.tsx');
  const component=load('app/kyc/client.tsx').default;
- const render=()=>{cursor=0;tree=component({review,mini,initialSection:section});return tree};
+ const render=()=>{cursor=0;tree=component({review,mini,initialSection:section});effects.splice(0).forEach(fn=>fn());return tree};
  const nodes=n=>Array.isArray(n)?n.flatMap(nodes):!n||typeof n!=='object'?[]:[n,...nodes(n.props?.children)];
  const text=n=>Array.isArray(n)?n.map(text).join(' '):typeof n==='string'||typeof n==='number'?String(n):n&&typeof n==='object'?text(n.props?.children):'';
  render();effects.splice(0).forEach(fn=>fn());
@@ -39,6 +39,12 @@ test('structured supplementation focuses exact target, tracks edits and preserve
 });
 test('legacy supplementary reason is never parsed; missing checklist uses first section',async()=>{
  const h=customer({locale:'zh',status:'needs_info',reviewData:{reason:'银行账号补件',checklist:{}}});await h.ready();assert(h.nodes().some(n=>n.props?.id==='kyc-field-givenName'));assert(!h.nodes().some(n=>n.props?.id==='kyc-field-bankAccount'));
+});
+test('field supplement appears inside the actual field and initial entry focuses it',async()=>{
+ const h=customer({locale:'zh',status:'needs_info',reviewData:{requests:[{target:'field:documentNumber',reasonCode:'data_mismatch',note:'FIELD NOTE'}]}});await h.ready();const label=h.nodes().find(n=>n.type==='label'&&JSON.stringify(n.props.children).includes('kyc-field-documentNumber'));assert(label);assert(JSON.stringify(label).includes('kyc-supplement-item'));assert(h.focused.includes('kyc-field-documentNumber'));
+});
+test('requested alternate vehicle upload is visible without discarding the existing material on entry',async()=>{
+ const h=customer({locale:'zh',status:'needs_info',section:'vehiclePhoto',values:{vehicle:'汽车'},file:{id:'old-photo',type:'image/png',size:1},reviewData:{requests:[{target:'slot:vehicleContract',reasonCode:'incomplete_document',note:'CONTRACT NOTE'}]}});await h.ready();assert(h.nodes().some(n=>n.props?.id==='kyc-field-vehicleContract'));assert(h.nodes().filter(n=>n.props?.['data-target']==='slot:vehicleContract').length>=2);
 });
 test('customer H5 and mini expose no internal test or scoring metadata, reviewer retains it',async()=>{
  for(const mini of [false,true])for(const section of steps){const h=customer({locale:'zh',section,mini});await h.ready();assert.doesNotMatch(h.text(),/KESS|模拟|测试合同|权重|单元格|KYC规范/)}
