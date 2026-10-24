@@ -3,6 +3,11 @@ import assert from 'node:assert/strict';
 import {fields,slots,sections,emptyProfile} from '../lib/kyc/core.ts';
 import {parseRequests,requestSection,requestReason,reasonCodes} from '../lib/kyc/requests.ts';
 const item={target:'slot:idFront',reasonCode:'blurred',note:'  Synthetic photo request  '};
+test('other reasons require a nonblank explanation while common reasons may omit notes',()=>{
+ for(const note of ['', '  \n '])assert.throws(()=>parseRequests([{...item,reasonCode:'other',note}]));
+ assert.equal(parseRequests([{...item,reasonCode:'other',note:'  Explain  '}])[0].note,'Explain');
+ assert.equal(parseRequests([{...item,note:''}])[0].note,'');
+});
 test('requests preserve absent legacy vs explicit empty; validate every core target and all reason labels',()=>{
  assert.equal(parseRequests(undefined),undefined);assert.deepEqual(parseRequests([]),[]);
  assert.deepEqual(parseRequests([item]),[{...item,note:item.note.trim()}]);

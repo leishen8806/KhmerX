@@ -28,6 +28,7 @@ export function parseRequests(raw:unknown,profile?:Profile):KycRequest[]|undefin
   if(!item||typeof item!=='object'||Array.isArray(item)||Object.keys(item).some(k=>!['target','reasonCode','note'].includes(k)))throw new KycError('补件项目格式无效');
   const {target,reasonCode,note}=item;
   if(typeof target!=='string'||!requestSection(target)||seen.has(target)||typeof reasonCode!=='string'||!Object.hasOwn(reasonCodes,reasonCode)||typeof note!=='string'||note.length>500)throw new KycError('补件目标、原因或说明无效');
+  if(reasonCode==='other'&&!note.trim())throw new KycError('其他补件原因必须填写说明');
   if(profile&&target.startsWith('slot:')&&!slotVisible(target.slice(5) as Slot,profile))throw new KycError('补件材料不适用于当前资料');
   seen.add(target);return {target,reasonCode,note:note.trim()};
  });
