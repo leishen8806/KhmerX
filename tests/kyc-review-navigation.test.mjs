@@ -4,8 +4,9 @@ import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 import ts from 'typescript';
 import * as core from '../lib/kyc/core.ts';
+import * as queueTime from '../lib/kyc/queue-time.ts';
 
-function reviewer(lang='km'){
+function reviewer(lang='km',queue=false){
  let cursor=0,tree;const state=[],effects=[],requests=[];
  const profile=core.emptyProfile();profile.consent=true;
  for(const f of core.fields)profile.values[f.id]=f.options?.[0]?.value||'SYNTHETIC QA';
@@ -14,13 +15,13 @@ function reviewer(lang='km'){
  const jsx=(type,props)=>typeof type==='function'?type(props):({type,props});
  const mocks={react:hooks,'react/jsx-runtime':{jsx,jsxs:jsx},'next/link':{default:'a'},'next/navigation':{useRouter:()=>({push(){}})},
   'lucide-react':new Proxy({},{get:(_,k)=>k}),
-  '@/lib/kyc/core':core,'@/lib/agreements/loan-terms':{LOAN_TERMS_VERSION:'test',LOAN_TERMS_URL:'/agreements/loan',loanTerms:{}},
+  '@/lib/kyc/queue-time':{...queueTime,useQueueClock:()=>Date.parse('2026-10-24T00:01:30Z')},'@/lib/kyc/core':core,'@/lib/agreements/loan-terms':{LOAN_TERMS_VERSION:'test',LOAN_TERMS_URL:'/agreements/loan',loanTerms:{}},
   '@/components/loan-bill':{LoanBill:'LoanBill'},'@/components/mini-shell':{MiniNavLink:'a',useMiniNavigation:()=>null},
   '@/lib/i18n':{useI18n:()=>({locale:'km'}),legacyText:s=>s},'@/lib/analytics':{trackEvent(){}},
-  '@/lib/image-compress':{},'@/lib/kyc/upload':{},'@/lib/api-client':{apiUrl:p=>p,async apiFetch(url,init={}){requests.push({url,...init});if(init.method==='POST')throw Error('Profile not found: missing id');return {data:record}}},
+  '@/lib/image-compress':{},'@/lib/kyc/upload':{},'@/lib/api-client':{apiUrl:p=>p,async apiFetch(url,init={}){requests.push({url,...init});if(init.method==='POST')throw Error('Profile not found: missing id');return {data:queue?{cases:[{id:'synthetic-review',status:'submitted',revision:1,updated_at:'2026-10-23T00:00:00Z'}]}:record}}},
  };
  for(const [file,names] of Object.entries({'button':['Button'],'input':['Input'],'checkbox':['Checkbox'],'select':['Select','SelectTrigger','SelectValue','SelectContent','SelectItem']}))mocks['@/components/ui/'+file]=Object.fromEntries(names.map(n=>[n,n]));
- const context=vm.createContext({URLSearchParams,window:{setTimeout,localStorage:{getItem:()=>null},location:{search:'?id=synthetic-review&lang='+lang},addEventListener(){},removeEventListener(){}},document:{getElementById:()=>null,documentElement:{lang:'en'},addEventListener(){},removeEventListener(){}},console});
+ const context=vm.createContext({URLSearchParams,window:{setTimeout,localStorage:{getItem:()=>null},location:{search:(queue?'?':'?id=synthetic-review&')+'lang='+lang},addEventListener(){},removeEventListener(){}},document:{getElementById:()=>null,documentElement:{lang:'en'},addEventListener(){},removeEventListener(){}},console});
  // Exercise the real locale helper introduced by K1B while preserving the
  // reviewer navigation test's narrow platform/network doubles.
  const copyJs=ts.transpileModule(readFileSync('lib/kyc/ui-copy.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText;
@@ -35,7 +36,7 @@ function reviewer(lang='km'){
  function render(){cursor=0;tree=exports.default({review:true});return tree}
  const nodes=n=>Array.isArray(n)?n.flatMap(nodes):!n||typeof n!=='object'?[]:[n,...nodes(n.props?.children)];
  render();effects.splice(0).forEach(fn=>fn());
- return {requests,render,async ready(){await new Promise(r=>setImmediate(r));render()},locale:()=>tree.props.lang,nav:()=>nodes(tree).filter(n=>n.type==='a'&&n.props?.href?.startsWith('#kyc-review-')),next:()=>nodes(tree).find(n=>n.props?.className==='kyc-next-button'),active:()=>nodes(tree).find(n=>n.props?.['aria-current']==='step')};
+ return {requests,render,nodes:()=>nodes(tree),async ready(){await new Promise(r=>setImmediate(r));render()},locale:()=>tree.props.lang,nav:()=>nodes(tree).filter(n=>n.type==='a'&&n.props?.href?.startsWith('#kyc-review-')),next:()=>nodes(tree).find(n=>n.props?.className==='kyc-next-button'),active:()=>nodes(tree).find(n=>n.props?.['aria-current']==='step')};
 }
 
 test('reviewer can access all seven anchors without any save request',async()=>{
@@ -47,3 +48,4 @@ test('single page review needs no Next action or customer-data save',async()=>{
  const h=reviewer();await h.ready();assert.equal(h.next(),undefined);assert.equal(h.nav().length,7);assert.equal(h.requests.filter(r=>r.method==='POST').length,0);
 });
 test('review query language overrides the default page context',async()=>{for(const lang of ['zh','km']){const h=reviewer(lang);await h.ready();assert.equal(h.locale(),lang)}});
+test('reachable no-id review queue uses the same localized updated timestamp and full Phnom Penh title',async()=>{for(const lang of ['zh','en','km']){const h=reviewer(lang,true);await h.ready();const times=h.nodes().filter(n=>n.type==='time');assert.equal(times.length,1);assert.match(times[0].props.title,/Asia\/Phnom_Penh/);assert.doesNotMatch(times[0].props.children,/NaN|Invalid Date/);if(lang==='en')assert.equal(times[0].props.children,'1 day ago');assert.equal(h.requests.filter(r=>r.method==='POST').length,0)}});
