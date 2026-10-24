@@ -17,7 +17,7 @@ function customer({locale='km',review=false,section='personal',status='draft',mi
  const mocks={react:hooks,'react/jsx-runtime':{jsx,jsxs:jsx},'next/link':{default:'a'},'next/navigation':{useRouter:()=>({push(){}})},'lucide-react':new Proxy({},{get:(_,k)=>k}),
   '@/lib/kyc/core':core,'@/lib/agreements/loan-terms':{LOAN_TERMS_VERSION:'test',LOAN_TERMS_URL:'/agreements/loan',loanTerms:{}},
   '@/components/loan-bill':{LoanBill:'LoanBill'},'@/components/mini-shell':{MiniNavLink:'a',useMiniNavigation:()=>null},'@/lib/analytics':{trackEvent(){}},
-  '@/lib/image-compress':{prepareKycFile:prepareFile||((f)=>f),fileLimitBytes:()=>5242880,retryAfterMs:()=>0},'@/lib/kyc/upload':{uploadKycFile:uploadFile},'@/lib/api-client':{apiUrl:p=>p,async apiFetch(url,init={}){requests.push({url,...init});return {data:record}}},
+  '@/lib/image-compress':{prepareKycFile:prepareFile||((f)=>f),fileLimitBytes:()=>5242880,retryAfterMs:()=>0},'@/lib/kyc/upload':{uploadKycFile:uploadFile},'@/lib/api-client':{apiUrl:p=>p,async apiFetch(url,init={}){requests.push({url,...init});return {data:url==='/api/kyc/geocode'?{lat:11.56,lon:104.92,formattedAddress:'SYNTHETIC NORMALIZED ADDRESS'}:record}}},
  };
  for(const [file,names] of Object.entries({'button':['Button'],'input':['Input'],'checkbox':['Checkbox'],'select':['Select','SelectTrigger','SelectValue','SelectContent','SelectItem']}))mocks['@/components/ui/'+file]=Object.fromEntries(names.map(n=>[n,n]));
  const context=vm.createContext({URLSearchParams,Date,Intl,File,Blob,setTimeout,window:{open(){throw Error('Document previews must remain inline')},setTimeout,localStorage:{getItem:()=>locale},location:{search:review?'?id=synthetic-customer':''},addEventListener(){},removeEventListener(){},setInterval(){},clearInterval(){}},document:{getElementById:id=>({focus(){focused.push(id)},scrollIntoView(){}}),documentElement:{lang:locale},addEventListener(){},removeEventListener(){}}});
@@ -28,6 +28,7 @@ function customer({locale='km',review=false,section='personal',status='draft',mi
  mocks['./kyc-material-viewer.css']={};mocks['@/components/kyc-material-viewer']=load('components/kyc-material-viewer.tsx');
  mocks['./kyc-review.css']={};mocks['@/components/kyc-review']=load('components/kyc-review.tsx');
  mocks['./kyc-customer-overview.css']={};mocks['@/components/kyc-customer-overview']=load('components/kyc-customer-overview.tsx');
+ mocks['./kyc-customer-checks.css']={};mocks['@/components/kyc-customer-checks']=load('components/kyc-customer-checks.tsx');
  const component=load('app/kyc/client.tsx').default;
  const render=()=>{cursor=0;tree=component({review,mini,initialSection:section});effects.splice(0).forEach(fn=>fn());return tree};
  const nodes=n=>Array.isArray(n)?n.flatMap(nodes):!n||typeof n!=='object'?[]:[n,...nodes(n.props?.children)];
@@ -40,7 +41,7 @@ test('customer progress counts six groups using existing required rules',async()
  const h=customer({locale:'zh',complete:true});await h.ready();const progress=h.nodes().find(n=>n.type==='progress');assert(progress,'customer needs progress');assert.equal(progress.props.max,6);assert.equal(progress.props.value,6);assert(JSON.stringify(h.nodes().find(n=>n.props?.className==='kyc-customer-progress')).includes('最高可获得 30 USD额度'));
 });
 test('submit opens grouped summary and only its explicit confirmation submits',async()=>{
- const h=customer({locale:'zh',mini:true,section:null,complete:true});await h.ready();const submit=h.nodes().find(n=>n.props?.className==='kyc-submit-button');assert(submit);submit.props.onClick();h.render();assert.equal(h.requests.filter(r=>r.method==='POST').length,0);assert.equal(h.nodes().filter(n=>n.props?.className==='kyc-summary-group').length,6);assert(h.text().includes('提交后资料将锁定'));const confirm=h.nodes().find(n=>n.props?.['data-action']==='confirm-submit');assert(confirm);await confirm.props.onClick();assert.equal(JSON.parse(h.requests.find(r=>r.method==='POST').body).action,'submit');
+ const h=customer({locale:'zh',mini:true,section:null,complete:true});await h.ready();h.nodes().find(n=>n.props?.className==='kyc-submit-button').props.onClick();h.render();const confirm=()=>h.nodes().find(n=>n.props?.['data-action']==='confirm-submit');assert(confirm());await confirm().props.onClick();h.render();assert.equal(h.requests.filter(r=>r.method==='POST').length,0);h.nodes().find(n=>n.props?.id==='kyc-field-bankAccountRepeat').props.onChange({target:{value:'SYNTHETIC'}});h.render();assert.equal(h.nodes().filter(n=>n.props?.className==='kyc-summary-group').length,6);assert(h.text().includes('提交后资料将锁定'));await confirm().props.onClick();assert.equal(JSON.parse(h.requests.find(r=>r.method==='POST').body).action,'submit');
 });
 test('submitted timeline does not invent review start, turnaround or notification',async()=>{
  const h=customer({locale:'zh',status:'submitted'});await h.ready();const timeline=h.nodes().find(n=>n.props?.className==='kyc-customer-timeline');assert(timeline);assert(h.text().includes('预计处理时间暂未提供'));assert(h.text().includes('尚未提供开始审核时间'));assert(!h.text().includes('Telegram 通知'));assert.equal(timeline.props.children[0].props.children[0].props['aria-current'],'step');assert.equal(timeline.props.children[0].props.children[2].props['aria-current'],undefined);
@@ -50,6 +51,15 @@ test('H5 consent submission reports missing materials without posting',async()=>
 });
 test('filled but invalid phone does not count its group complete',async()=>{
  const h=customer({locale:'zh',complete:true,values:{contact1Phone:'BAD PHONE'}});await h.ready();assert.equal(h.nodes().find(n=>n.type==='progress').props.value,5);
+});
+test('bank holder prefills only an empty untouched value and remains editable',async()=>{
+ const h=customer({locale:'zh',section:'bank',values:{surname:'DOE',givenName:'JANE'}});await h.ready();h.render();const holder=()=>h.nodes().find(n=>n.props?.id==='kyc-field-bankHolder');assert.equal(holder().props.value,'DOE JANE');holder().props.onChange({target:{value:''}});h.render();h.render();assert.equal(holder().props.value,'');const custom=customer({locale:'zh',section:'bank',values:{surname:'DOE',givenName:'JANE',bankHolder:'CUSTOM NAME'}});await custom.ready();assert.equal(custom.nodes().find(n=>n.props?.id==='kyc-field-bankHolder').props.value,'CUSTOM NAME');assert(custom.nodes().some(n=>n.props?.className==='kyc-bank-name-hint'));
+});
+test('account repeat is ephemeral, resets on account change and never blocks draft saving',async()=>{
+ const h=customer({locale:'zh',section:'bank',complete:true});await h.ready();const repeat=()=>h.nodes().find(n=>n.props?.id==='kyc-field-bankAccountRepeat');assert(repeat());repeat().props.onChange({target:{value:'SYNTHETIC'}});h.render();h.nodes().find(n=>n.props?.id==='kyc-field-bankAccount').props.onChange({target:{value:'NEW ACCOUNT'}});h.render();assert.equal(repeat().props.value,'');await h.nodes().find(n=>n.props?.className==='kyc-next-button').props.onClick();const body=JSON.parse(h.requests.find(r=>r.method==='POST').body);assert.equal(body.action,'save');assert(!('bankAccountRepeat' in body.profile.values));
+});
+test('geocoding stays inline and only confirmation applies the candidate to saved profile',async()=>{
+ for(const confirm of [false,true]){const h=customer({locale:'zh',section:'address',complete:true});await h.ready();await h.nodes().find(n=>n.props?.className==='kyc-map-button').props.onClick();h.render();assert(h.text().includes('SYNTHETIC NORMALIZED ADDRESS'));if(confirm){h.nodes().find(n=>n.props?.['data-action']==='confirm-address').props.onClick();h.render()}await h.nodes().find(n=>n.props?.className==='kyc-next-button').props.onClick();const body=JSON.parse(h.requests.find(r=>r.url==='/api/kyc'&&r.method==='POST').body);assert.equal(body.profile.location?.formattedAddress,confirm?'SYNTHETIC NORMALIZED ADDRESS':undefined)}
 });
 
 const steps=['personal','identityDetails','address','idFront','idBack','selfie','contact1','contact2','contact3','employment','income','assets','bank','consent'];
