@@ -20,3 +20,10 @@ test('approval needs every check; read-only users cannot decide or amend',()=>{
  const checked=Object.fromEntries(core.sections.map(s=>[s.id,true])),h=view({checks:checked});h.nodes.find(n=>n.props?.['data-action']==='decide').props.onClick();assert.deepEqual(h.changes,['decide']);
  const ro=view({record:{id:'synthetic',revision:1,status:'submitted',profile:core.emptyProfile(),canReview:false}});assert(!ro.nodes.some(n=>n.props?.['data-action']==='decide'||n.props?.['data-action']==='amend'));
 });
+test('audit summary explains redaction instead of claiming customer fields or files are missing',()=>{
+ const h=view({record:{id:'audit',revision:1,status:'submitted',profile:core.emptyProfile(),canReview:false,scope:'审计只读摘要；敏感资料由 KYC 审核岗位查看'}});
+ const text=n=>Array.isArray(n)?n.map(text).join(''):typeof n==='string'?n:n&&typeof n==='object'?text(n.props?.children):'';
+ const visible=h.nodes.filter(n=>['dd','p','span'].includes(n.type)).map(text).join(' ');
+ assert.match(visible,/审计只读/);assert.match(visible,/无权查看/);assert.doesNotMatch(visible,/未提供|尚未上传|暂无材料/);
+ assert(!h.nodes.some(n=>n.type==='img'||n.props?.['data-action']==='decide'||n.props?.['data-action']==='amend'));
+});

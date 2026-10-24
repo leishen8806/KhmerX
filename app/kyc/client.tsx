@@ -22,7 +22,7 @@ import {cleanProfile,isPersonName,normalizePersonName,KYC_CONSENT_VERSION,fields
 import {apiFetch,apiUrl} from '@/lib/api-client';
 import {uploadKycFile} from '@/lib/kyc/upload';
 import {fileLimitBytes,fileLimitLabel,prepareKycFile,retryAfterMs} from '@/lib/image-compress';
-export type RecordView={approvalOnly?:boolean;canReview?:boolean;loanOffer?:{billConfirmedAt?:string;billing?:Bill;id:string;amount:number;fee:number;termDays:number}|null;signedLoan?:{loanId:string;contractHash:string};id:string;revision:number;status:KycStatus;profile:Profile;phoneVerified:boolean;review?:{reason:string;decision:string;at:string;requests?:KycRequest[];checklist?:Record<string,boolean>};updatedAt:string;history?:{revision:number;action:string;created_at:string;actor:string;review?:{reason:string;decision:string}}[]};
+export type RecordView={scope?:string;approvalOnly?:boolean;canReview?:boolean;loanOffer?:{billConfirmedAt?:string;billing?:Bill;id:string;amount:number;fee:number;termDays:number}|null;signedLoan?:{loanId:string;contractHash:string};id:string;revision:number;status:KycStatus;profile:Profile;phoneVerified:boolean;review?:{reason:string;decision:string;at:string;requests?:KycRequest[];checklist?:Record<string,boolean>};updatedAt:string;history?:{revision:number;action:string;created_at:string;actor:string;review?:{reason:string;decision:string}}[]};
 export default function CustomerKyc({review=false,mini=false,initialSection}:{review?:boolean;mini?:boolean;initialSection?:string}){
  const router=useRouter(),navigate=useMiniNavigation(),Navigation=mini?MiniNavLink:'a';
  const context=useI18n(),[pageLocale,setPageLocale]=useState<Locale>(context.locale);

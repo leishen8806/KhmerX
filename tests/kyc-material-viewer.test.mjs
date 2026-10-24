@@ -24,14 +24,28 @@ test('authenticated thumbnails select materials and reset image transformations'
  const h=viewer({idFront:file('id&unsafe'),selfie:file('selfie')});
  let nodes=h.render();assert(nodes.filter(n=>n.type==='img').every(n=>n.props.src.startsWith('/authenticated/api/kyc/files?id=')));
  assert(nodes.some(n=>n.props.src==='/authenticated/api/kyc/files?id=id%26unsafe&review=1'));
- nodes=h.click('放大');assert(nodes.some(n=>n.props.style?.transform==='scale(1.25) rotate(0deg)'));
- nodes=h.click('旋转');assert(nodes.some(n=>n.props.style?.transform==='scale(1.25) rotate(90deg)'));
+ nodes=h.click('放大');assert(nodes.some(n=>n.props.style?.width==='125%'));
+ nodes=h.click('旋转');assert(nodes.some(n=>n.props.style?.transform==='rotate(90deg) translateY(-100%)'));
  nodes.find(n=>n.type==='button'&&n.props.children?.[1]?.props?.children==='个人自拍照').props.onClick();
- nodes=h.render();assert(nodes.some(n=>n.props.style?.transform==='scale(1) rotate(0deg)'));
+ nodes=h.render();assert(nodes.some(n=>n.props.style?.width==='100%'&&n.props.className==='kyc-material-stage'));
  nodes=h.click('证件正面与自拍并排对比');assert.equal(nodes.filter(n=>n.type==='figure').length,2);
  assert(nodes.some(n=>n.props.className==='kyc-material-previews kyc-material-compare'));
  for(let i=0;i<20;i++)nodes=h.click('放大');assert(nodes.find(n=>n.type==='button'&&n.props.children==='放大').props.disabled);
  assert(nodes.filter(n=>n.type==='a').every(n=>n.props.download===true&&!n.props.target));
+});
+test('viewer excludes signature and inapplicable property materials',()=>{
+ const h=viewer({idFront:file('visible'),signature:file('signature'),propertyCertificate:file('hidden')});
+ assert(h.render().filter(n=>n.type==='img').every(n=>n.props.src.includes('visible')));
+});
+test('zoom reserves a scrollable stage for every quarter rotation',()=>{
+ const h=viewer({idFront:file('id')});let nodes=h.render();
+ nodes.find(n=>n.type==='img'&&n.props.onLoad).props.onLoad({currentTarget:{naturalWidth:800,naturalHeight:400}});
+ for(let i=0;i<4;i++)nodes=h.click('放大');
+ for(const [ratio,transform] of [[2,'rotate(0deg)'],[.5,'rotate(90deg) translateY(-100%)'],[2,'rotate(180deg) translate(-100%, -100%)'],[.5,'rotate(270deg) translateX(-100%)']]){
+  const stage=nodes.find(n=>n.props.className==='kyc-material-stage');assert.equal(stage.props.style.width,'200%');assert.equal(stage.props.style.aspectRatio,ratio);
+  const image=nodes.find(n=>n.props.onLoad);assert.equal(image.props.style.transform,transform);assert(!image.props.style.transform.includes('scale'));
+  nodes=h.click('旋转');
+ }
 });
 test('PDF stays inline with an authenticated download fallback and no image controls',()=>{
  const h=viewer({incomeProof:file('pdf','application/pdf')});const nodes=h.render();
