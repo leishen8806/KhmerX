@@ -9,9 +9,11 @@ import {slots,slotVisible} from '@/lib/kyc/core';
 import {KycMaterialViewer} from '@/components/kyc-material-viewer';
 import type {RecordView} from '@/app/kyc/client';
 import './kyc-review.css';
+import {ReviewActions} from '@/components/kyc-review-actions';
+import type {NextReview} from '@/lib/kyc/review-next';
 
-type Props={requests?:KycRequest[];onRequest?:(target:string,request?:KycRequest)=>void;record:RecordView;locale?:Locale;checks:Record<string,boolean>;reason:string;decision:string;busy:boolean;error?:string;message?:string;onCheck:(id:string,value:boolean)=>void;onReason:(value:string)=>void;onDecision:(value:string)=>void;onDecide:()=>void;onAmend:()=>void};
-export function KycReview({requests=[],onRequest,record,locale:reviewLocale,checks,reason,decision,busy,error,message,onCheck,onReason,onDecision,onDecide,onAmend}:Props){
+type Props={next?:NextReview;autoNext?:boolean;onAutoNext?:(value:boolean)=>void;onNext?:()=>void;onRetryNext?:()=>void;requests?:KycRequest[];onRequest?:(target:string,request?:KycRequest)=>void;record:RecordView;locale?:Locale;checks:Record<string,boolean>;reason:string;decision:string;busy:boolean;error?:string;message?:string;onCheck:(id:string,value:boolean)=>void;onReason:(value:string)=>void;onDecision:(value:string)=>void;onDecide:()=>void;onAmend:()=>void};
+export function KycReview({next,autoNext=false,onAutoNext,onNext,onRetryNext,requests=[],onRequest,record,locale:reviewLocale,checks,reason,decision,busy,error,message,onCheck,onReason,onDecision,onDecide,onAmend}:Props){
  const context=useI18n(),locale=reviewLocale||context.locale,t=(s:string)=>kycText(s,locale),p=record.profile;
  const auditSummary=record.scope?.startsWith('审计只读摘要')===true;
  const mayReview=!auditSummary&&record.canReview!==false,mayDecide=mayReview&&record.status==='submitted';
@@ -35,8 +37,10 @@ export function KycReview({requests=[],onRequest,record,locale:reviewLocale,chec
    <label>{t('处理结果')}<select value={decision} disabled={busy} onChange={e=>onDecision(e.target.value)}>{!record.approvalOnly&&<option value="needs_info">{t('退回补件')}</option>}<option value="approved">{t('人工资料审核通过')}</option>{!record.approvalOnly&&<option value="rejected">{t('资料审核未通过')}</option>}</select></label>
    <label>{t('审核意见 / 补件原因')}<textarea value={reason} maxLength={1000} disabled={busy} onChange={e=>onReason(e.target.value)}/></label>
    {requestsIncomplete&&<p className="error" data-request-error role="status">{t('请补全：')}{t('补件原因')} / {t('补充说明')}</p>}
-   <button type="button" data-action="decide" disabled={busy||requestsIncomplete||!reason.trim()||(decision==='approved'&&sections.some(s=>!checks[s.id]))} onClick={onDecide}>{t(decision==='approved'?'确认审核通过':'确认记录审核结果')}</button>
+   <ReviewActions record={record} checks={checks} reason={reason} decision={decision} locale={locale} busy={busy} disabled={busy||requestsIncomplete||!reason.trim()||reason.length>1000||(decision==='approved'&&sections.some(s=>!checks[s.id]))} onReason={onReason} onDecide={onDecide}/>
   </>:<p>{t(statusLabels[record.status])}</p>}
+  {mayReview&&onAutoNext&&<label><input type="checkbox" checked={autoNext} disabled={busy} onChange={e=>onAutoNext(e.target.checked)}/>{t('审核后自动打开下一条')}</label>}
+  {next&&next.state!=='idle'&&<div role="status">{next.state==='ready'?<button type="button" disabled={busy} onClick={onNext}>{t('下一条待审核')}</button>:next.state==='failed'?<><p>{t('无法获取下一条，请重试。')}</p><button type="button" disabled={busy} onClick={onRetryNext}>{t('重试')}</button></>:<p>{t(next.state==='empty'?'没有其他待审核资料。':'正在获取下一条。')}</p>}</div>}
   {mayReview&&!record.approvalOnly&&['submitted','needs_info'].includes(record.status)&&<button type="button" data-action="amend" disabled={busy} onClick={onAmend}>{t('代客户修改资料')}</button>}
   </section><section className="kyc-review-panel"><h2>{t('资料完整度')}</h2><p>{t('基础资料')} {score.base}/120 · {t('附加材料')} {score.additional}/85</p><details><summary>{t('逐项权重与来源')}</summary>{score.rows.map(r=><p key={r.source+r.label}>{t(r.label)} {r.points}/{r.maximum} · {r.source}</p>)}</details></section>
   {record.history&&<section className="kyc-review-panel"><h2>{t('版本与操作记录')}</h2>{record.history.map(h=><p key={h.revision}>{t('版本')} {h.revision} · {h.action} · {kycDate(h.created_at,locale)}{h.review&&<span> · {h.review.reason} · {h.actor}</span>}</p>)}</section>}
