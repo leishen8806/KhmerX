@@ -26,6 +26,7 @@ function reviewer(lang='km'){
  const copyJs=ts.transpileModule(readFileSync('lib/kyc/ui-copy.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText;
  const copy={};vm.runInContext('(function(exports,require){'+copyJs+'\n})',context)(copy,n=>n==='../i18n'?mocks['@/lib/i18n']:{messageForError(){throw Error('review navigation must not format a customer error')}});
  mocks['@/lib/kyc/ui-copy']=copy;
+ const viewerExports={},viewerJs=ts.transpileModule(readFileSync('components/kyc-material-viewer.tsx','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;vm.runInContext('(function(exports,require){'+viewerJs+'\n})',context)(viewerExports,n=>n==='./kyc-material-viewer.css'?{}:mocks[n]);mocks['@/components/kyc-material-viewer']=viewerExports;
  const reviewExports={};const reviewJs=ts.transpileModule(readFileSync('components/kyc-review.tsx','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;vm.runInContext('(function(exports,require){'+reviewJs+'\n})',context)(reviewExports,n=>n==='./kyc-review.css'?{}:mocks[n]);mocks['@/components/kyc-review']=reviewExports;
  const js=ts.transpileModule(readFileSync('app/kyc/client.tsx','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
  const exports={};vm.runInContext('(function(exports,require){'+js+'\n})',context)(exports,n=>{assert(n in mocks,n);return mocks[n]});
