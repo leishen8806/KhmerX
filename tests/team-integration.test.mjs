@@ -638,3 +638,20 @@ test('Q7 actual state route pages 5000 customers and CSV export retains every pa
   const exported=await reports.exportCustomerSummary({report:'loan_cashflow',requestId:'q7-export-complete'});assert.equal(exported.count,5000);assert.match(exported.csv,/loan_id_masked/);
  }finally{delete env.CUSTOMER_ROWS;selected=A;user=owner}
 });
+test('K4 requests validate before mutation and persist encrypted review, actor and GET history; legacy stays optional',async()=>{
+ const actor=await member(A,'kyc','k4-protocol@example.test',dept);selected=A;user=actor;
+ const customer='synthetic-k4-protocol',m=sql.prepare('SELECT id FROM team_members WHERE tenant_id=? AND email=?').get(A,actor.email);
+ let row=await kyc.initialize(A,customer,false);
+ sql.prepare('UPDATE team_assignments SET department_id=?,reviewer_id=? WHERE tenant_id=? AND customer_id=?').run(dept,m.id,A,customer);
+ row=await kyc.transition(row,'submitted',await kyc.payload(row),'submit',customer);
+ const route=await mod('@/app/api/kyc/review/route'),base={id:row.id,revision:row.revision,decision:'needs_info',reason:'Synthetic clarification',checklist:{}},requests=[{target:'slot:idFront',reasonCode:'blurred',note:'Synthetic private note'}];
+ const snapshot=()=>JSON.stringify(['kyc_cases','kyc_history','team_audit','team_assignments','demo_workspaces'].map(table=>sql.prepare('SELECT * FROM '+table+' ORDER BY rowid').all()));
+ for(const invalid of [null,[{...requests[0],target:'field:unknown'}],[requests[0],requests[0]],[{...requests[0],reasonCode:'invalid'}]]){const before=snapshot(),response=await route.POST(req({...base,requests:invalid}));assert.equal(response.status,400);assert.equal(snapshot(),before)}
+ const response=await route.POST(req({...base,requests}));assert.equal(response.status,200);const result=await response.json();assert.deepEqual(result.review.requests,requests);assert.equal(result.review.actor,actor.userId);
+ row=await kyc.getCase(A,row.id);assert.deepEqual(JSON.parse(JSON.stringify((await kyc.payload(row)).review.requests)),requests);
+ const history=sql.prepare('SELECT snapshot,actor FROM kyc_history WHERE case_id=? AND revision=?').get(row.id,row.revision);assert.equal(history.actor,actor.userId);assert(!history.snapshot.includes(requests[0].note));
+ const read=await route.GET(new Request('http://localhost/api/kyc/review?id='+row.id)),view=await read.json();assert.equal(read.status,200);assert.deepEqual(view.review.requests,requests);assert.deepEqual(view.history.find(h=>h.action==='review:needs_info').review.requests,requests);
+ row=await kyc.transition(row,'submitted',await kyc.payload(row),'submit',customer);
+ const legacy=await kyc.decide(req({...base,revision:row.revision}));assert.equal(legacy.review.requests,undefined);
+ const audit=sql.prepare('SELECT detail FROM team_audit WHERE tenant_id=?').all(A);assert(audit.every(x=>!x.detail.includes(requests[0].note)));selected=A;user=owner;
+});
