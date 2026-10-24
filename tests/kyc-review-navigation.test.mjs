@@ -4,6 +4,7 @@ import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 import ts from 'typescript';
 import * as core from '../lib/kyc/core.ts';
+import {DraftSaver} from '../lib/kyc/draft-save.ts';
 
 function reviewer(lang='km',postSucceeds=false){
  let cursor=0,tree;const state=[],effects=[],requests=[];
@@ -14,7 +15,7 @@ function reviewer(lang='km',postSucceeds=false){
  const jsx=(type,props)=>typeof type==='function'?type(props):({type,props});
  const mocks={react:hooks,'react/jsx-runtime':{jsx,jsxs:jsx},'next/link':{default:'a'},'next/navigation':{useRouter:()=>({push(){}})},
   'lucide-react':new Proxy({},{get:(_,k)=>k}),
-  '@/lib/kyc/core':core,'@/lib/agreements/loan-terms':{LOAN_TERMS_VERSION:'test',LOAN_TERMS_URL:'/agreements/loan',loanTerms:{}},
+  '@/lib/kyc/draft-save':{DraftSaver},'@/lib/kyc/core':core,'@/lib/agreements/loan-terms':{LOAN_TERMS_VERSION:'test',LOAN_TERMS_URL:'/agreements/loan',loanTerms:{}},
   '@/components/loan-bill':{LoanBill:'LoanBill'},'@/components/mini-shell':{MiniNavLink:'a',useMiniNavigation:()=>null},
   '@/lib/i18n':{useI18n:()=>({locale:'km'}),legacyText:s=>s},'@/lib/analytics':{trackEvent(){}},
   '@/lib/image-compress':{},'@/lib/kyc/upload':{},'@/lib/api-client':{apiUrl:p=>p,async apiFetch(url,init={}){requests.push({url,...init});if(init.method==='POST'&&!postSucceeds)throw Error('Profile not found: missing id');return {data:record}}},

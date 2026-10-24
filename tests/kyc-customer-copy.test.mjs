@@ -4,22 +4,24 @@ import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 import ts from 'typescript';
 import * as core from '../lib/kyc/core.ts';
+import {DraftSaver} from '../lib/kyc/draft-save.ts';
 
-function customer({locale='km',review=false,section='personal',status='draft',mini=false,values={},file,fileSlot,uploadFile,prepareFile,reviewData}={}){
- let cursor=0,tree;const state=[],effectRecords=[],pendingEffects=[],focused=[],requests=[],navigations=[],clickHandlers=[];
+export function customer({locale='km',review=false,section='personal',status='draft',mini=false,values={},file,fileSlot,uploadFile,prepareFile,reviewData,transport,complete=false,fakeTime=false}={}){
+ let cursor=0,tree;const state=[],effectRecords=[],pendingEffects=[],focused=[],requests=[],navigations=[],clickHandlers=[],gets=[],listeners=new Map();
  const profile=core.emptyProfile();profile.values={...profile.values,surname:'客户原文',...values};
+ if(complete){for(const f of core.fields.filter(f=>f.required))profile.values[f.id]=f.options?.[0].value||(f.kind==='phone'?'+1202555010'+(f.id.includes('1')?'1':'2'):'SYNTHETIC');profile.values.contact2Relation='朋友';profile.values.district=core.regions[0].districts[0].value;profile.consent=true;for(const s of core.slots.filter(s=>s.required))profile.files[s.id]={id:'synthetic-'+s.id,slot:s.id,type:'image/png',size:1}}
  if(file)profile.files[fileSlot||section]=file;
  const record={id:'synthetic-customer',revision:1,status,profile,review:reviewData?{decision:'needs_info',at:'2026-10-24T00:00:00Z',...reviewData}:undefined,phoneVerified:false,updatedAt:'2026-10-23T00:00:00Z'};
  const hooks={createContext:v=>({value:v}),useContext:c=>c.value,useState(initial){const i=cursor++;if(!(i in state))state[i]=typeof initial==='function'?initial():initial;return [state[i],v=>state[i]=typeof v==='function'?v(state[i]):v]},useRef(initial){const i=cursor++;if(!(i in state))state[i]={current:initial};return state[i]},useEffect(fn,deps){const i=cursor++,previous=effectRecords[i];if(!previous||!deps||deps.some((value,index)=>value!==previous.deps[index]))pendingEffects.push({i,fn,deps:deps||[]})}};
  const jsx=(type,props)=>typeof type==='function'?type(props):({type,props});
  const mocks={react:hooks,'react/jsx-runtime':{jsx,jsxs:jsx},'next/link':{default:'a'},'next/navigation':{useRouter:()=>({push:path=>navigations.push(path)})},'lucide-react':new Proxy({},{get:(_,k)=>k}),
-  '@/lib/kyc/core':core,'@/lib/agreements/loan-terms':{LOAN_TERMS_VERSION:'test',LOAN_TERMS_URL:'/agreements/loan',loanTerms:{}},
+  '@/lib/kyc/draft-save':{DraftSaver},'@/lib/kyc/core':core,'@/lib/agreements/loan-terms':{LOAN_TERMS_VERSION:'test',LOAN_TERMS_URL:'/agreements/loan',loanTerms:{}},
   '@/components/loan-bill':{LoanBill:'LoanBill'},'@/components/mini-shell':{MiniNavLink:'a',useMiniNavigation:()=>path=>navigations.push(path)},'@/lib/analytics':{trackEvent(){}},
-  '@/lib/image-compress':{prepareKycFile:prepareFile||((f)=>f),fileLimitBytes:()=>5242880,retryAfterMs:()=>0},'@/lib/kyc/upload':{uploadKycFile:uploadFile},'@/lib/api-client':{apiUrl:p=>p,async apiFetch(url,options={}){if(options.method==='POST'){const request=JSON.parse(options.body);requests.push({url,request});const clean=core.cleanProfile(request.profile);Object.assign(record,{revision:record.revision+1,profile:clean,updatedAt:'2026-10-24T00:00:00Z'});return {data:record}}return {data:record}}},
+  '@/lib/image-compress':{prepareKycFile:prepareFile||((f)=>f),fileLimitBytes:()=>5242880,retryAfterMs:()=>0},'@/lib/kyc/upload':{uploadKycFile:uploadFile},'@/lib/api-client':{apiUrl:p=>p,async apiFetch(url,options={}){if(options.method==='POST'){const request=JSON.parse(options.body);requests.push({...request,url,request});if(transport)return {data:await transport(request)};const clean=core.cleanProfile(request.profile);Object.assign(record,{revision:record.revision+1,profile:clean,updatedAt:'2026-10-24T00:00:00Z'});return {data:record}}gets.push(url);return {data:record}}},
  };
  for(const [file,names] of Object.entries({'button':['Button'],'input':['Input'],'checkbox':['Checkbox'],'select':['Select','SelectTrigger','SelectValue','SelectContent','SelectItem']}))mocks['@/components/ui/'+file]=Object.fromEntries(names.map(n=>[n,n]));
  class TestAnchor{constructor(href){this.href=href;this.target=''}closest(){return this}}
- const context=vm.createContext({URL,URLSearchParams,Date,Intl,File,Blob,HTMLAnchorElement:TestAnchor,location:{origin:'https://khmerx.test'},setTimeout,window:{open(){throw Error('Document previews must remain inline')},setTimeout,localStorage:{getItem:()=>locale},location:{search:review?'?id=synthetic-customer':''},addEventListener(){},removeEventListener(){},setInterval(){},clearInterval(){}},document:{getElementById:id=>({focus(){focused.push(id)},scrollIntoView(){}}),documentElement:{lang:locale},addEventListener(type,handler){if(type==='click')clickHandlers.push(handler)},removeEventListener(type,handler){if(type==='click'){const i=clickHandlers.indexOf(handler);if(i>=0)clickHandlers.splice(i,1)}}}});
+ const context=vm.createContext({URL,URLSearchParams,Date,Intl,File,Blob,HTMLAnchorElement:TestAnchor,location:{origin:'https://khmerx.test'},setTimeout,window:{confirm(){throw Error('Native confirmation must not be used')},open(){throw Error('Document previews must remain inline')},setTimeout,localStorage:{getItem:()=>locale},location:{search:review?'?id=synthetic-customer':''},addEventListener(name,fn){listeners.set(name,fn)},removeEventListener(name){listeners.delete(name)},setInterval(){},clearInterval(){}},document:{getElementById:id=>({focus(){focused.push(id)},scrollIntoView(){}}),documentElement:{lang:locale},addEventListener(type,handler){if(type==='click')clickHandlers.push(handler)},removeEventListener(type,handler){if(type==='click'){const i=clickHandlers.indexOf(handler);if(i>=0)clickHandlers.splice(i,1)}}}});
  const load=file=>{const exports={},js=ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;vm.runInContext('(function(exports,require){'+js+'\n})',context)(exports,n=>{assert(n in mocks,n);return mocks[n]});return exports};
  mocks['@/lib/i18n']=load('lib/i18n.tsx');mocks['@/lib/i18n'].I18nContext.value=mocks['@/lib/i18n'].i18nValue(locale);
  mocks['@/lib/error-messages']=load('lib/error-messages.ts');mocks['../i18n']=mocks['@/lib/i18n'];mocks['../error-messages']=mocks['@/lib/error-messages'];mocks['@/lib/kyc/ui-copy']=load('lib/kyc/ui-copy.ts');
@@ -31,10 +33,43 @@ function customer({locale='km',review=false,section='personal',status='draft',mi
  const nodes=n=>Array.isArray(n)?n.flatMap(nodes):!n||typeof n!=='object'?[]:[n,...nodes(n.props?.children)];
  const text=n=>Array.isArray(n)?n.map(text).join(' '):typeof n==='string'||typeof n==='number'?String(n):n&&typeof n==='object'?text(n.props?.children):'';
  render();
- return {focused,requests,navigations,clickHandlers,TestAnchor,async ready(){await new Promise(r=>setTimeout(r,10));render()},render,text:()=>text(tree),nodes:()=>nodes(tree),copy:mocks['@/lib/kyc/ui-copy']};
+ return {focused,gets,listeners,dispose(){effectRecords.forEach(effect=>effect?.cleanup?.())},requests,navigations,clickHandlers,TestAnchor,async ready(){await new Promise(r=>fakeTime?setImmediate(r):setTimeout(r,10));render()},render,text:()=>text(tree),nodes:()=>nodes(tree),copy:mocks['@/lib/kyc/ui-copy']};
 }
 
 const steps=['personal','identityDetails','address','idFront','idBack','selfie','contact1','contact2','contact3','employment','income','assets','bank','consent'];
+test('409 inline cancellation uses Khmer UI copy, not Chinese fallback',async t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const h=customer({locale:'km',fakeTime:true,transport:async()=>{throw {status:409}}});t.after(()=>h.dispose());await h.ready();h.nodes().find(n=>n.props?.id==='kyc-field-givenName').props.onChange({target:{value:'LOCAL'}});h.render();t.mock.timers.tick(1500);await h.ready();h.nodes().find(n=>n.props?.children===h.copy.kycText('重新加载服务器资料','km')).props.onClick();h.render();assert(!/[\u3400-\u9fff]/.test(h.nodes().find(n=>n.props?.['data-reload-cancel']).props.children));
+});
+test('409 reload is confirmed inline; cancel preserves edits and only confirmation fetches the server',async()=>{
+ const h=customer({locale:'zh',transport:async()=>{throw {status:409}}});await h.ready();
+ h.nodes().find(n=>n.props?.id==='kyc-field-givenName').props.onChange({target:{value:'LOCAL EDIT'}});h.render();await new Promise(r=>setTimeout(r,1650));await h.ready();
+ const before=h.gets.length,open=()=>h.nodes().find(n=>n.props?.children==='重新加载服务器资料');assert(open());open().props.onClick();h.render();
+ assert.equal(h.gets.length,before);assert(h.text().includes('重新加载会放弃本页未保存修改'));
+ h.nodes().find(n=>n.props?.['data-reload-cancel']).props.onClick();h.render();assert.equal(h.gets.length,before);assert(h.nodes().some(n=>n.props?.value==='LOCAL EDIT'));
+ open().props.onClick();h.render();await h.nodes().find(n=>n.props?.['data-reload-confirm']).props.onClick();await h.ready();assert.equal(h.gets.length,before+1);h.dispose();
+});
+test('customers can open unfinished groups without validating other groups',async()=>{
+ const h=customer({locale:'zh',section:null});await h.ready();
+ const groups=h.nodes().filter(n=>n.props?.className==='kyc-group-button');assert.equal(groups.length,6);assert(groups.every(n=>!n.props.disabled));groups[4].props.onClick();h.render();assert(h.nodes().some(n=>n.props?.id==='kyc-field-bankAccount'));
+});
+test('Next validates only this step and navigates immediately without a server write',async()=>{
+ const h=customer({locale:'zh',values:{givenName:'QA',documentNumber:'KH-123'}});await h.ready();h.nodes().find(n=>n.props?.id==='kyc-field-givenName').props.onChange({target:{value:'EDIT'}});h.render();await h.nodes().find(n=>n.props?.className==='kyc-next-button').props.onClick();h.render();assert(h.nodes().some(n=>n.props?.id==='kyc-field-gender'));assert.equal(h.requests.length,0);h.dispose();
+});
+test('customer autosave status and local input survive delayed saves and Mini leave waits for latest revision',async()=>{
+ let resolve;const h=customer({locale:'zh',mini:true,transport:body=>new Promise(r=>resolve=()=>r({id:'synthetic-customer',revision:body.revision+1,status:'draft',profile:body.profile}))});await h.ready();const input=()=>h.nodes().find(n=>n.props?.id==='kyc-field-givenName');input().props.onChange({target:{value:'FIRST'}});h.render();await new Promise(r=>setTimeout(r,1550));h.render();assert(h.text().includes('保存中'));input().props.onChange({target:{value:'LATER'}});h.render();resolve();await h.ready();assert.equal(input().props.value,'LATER');let resumed=false;h.listeners.get('payease:before-navigate')({preventDefault(){},detail:{resume(){resumed=true}}});await h.ready();assert.equal(resumed,false);assert.equal(h.requests[1].revision,2);assert.equal(h.requests[1].profile.values.givenName,'LATER');resolve();await h.ready();assert(resumed);assert(h.text().includes('已保存'));h.dispose();
+});
+test('Mini leave during an existing autosave resumes when that same flight saves the latest input',async()=>{
+ let resolve;const h=customer({locale:'zh',mini:true,transport:body=>new Promise(r=>resolve=()=>r({id:'synthetic-customer',revision:body.revision+1,status:'draft',profile:body.profile}))});await h.ready();h.nodes().find(n=>n.props?.id==='kyc-field-givenName').props.onChange({target:{value:'LATEST'}});h.render();await new Promise(r=>setTimeout(r,1550));h.render();let resumed=false;h.listeners.get('payease:before-navigate')({preventDefault(){},detail:{resume(){resumed=true}}});await h.ready();assert.equal(h.requests.length,1);assert(!resumed);resolve();await h.ready();assert(resumed);assert.equal(h.requests.length,1);h.dispose();
+});
+test('customer 409 keeps local input, displays reconciliation and makes no further writes',async()=>{
+ const h=customer({locale:'en',transport:async()=>{throw {status:409}}});await h.ready();const input=()=>h.nodes().find(n=>n.props?.id==='kyc-field-givenName');input().props.onChange({target:{value:'LOCAL'}});h.render();await new Promise(r=>setTimeout(r,1550));h.render();assert(h.text().includes('Reload'));input().props.onChange({target:{value:'KEEP'}});h.render();h.nodes().find(n=>n.props?.children==='Reload server profile').props.onClick();await h.ready();await new Promise(r=>setTimeout(r,1550));assert.equal(h.requests.length,1);assert.equal(input().props.value,'KEEP');h.dispose();
+});
+test('failed customer saves retain input and retry explicitly with the latest draft',async()=>{
+ let fail=true;const h=customer({locale:'zh',mini:true,transport:async body=>{if(fail)throw {status:503};return {id:'synthetic-customer',revision:body.revision+1,status:'draft',profile:body.profile}}});await h.ready();const input=()=>h.nodes().find(n=>n.props?.id==='kyc-field-givenName');input().props.onChange({target:{value:'LOCAL'}});h.render();h.listeners.get('payease:before-navigate')({preventDefault(){},detail:{resume(){throw Error('must not leave on failure')}}});await h.ready();assert(h.text().includes('保存失败'));assert.equal(input().props.value,'LOCAL');fail=false;await h.nodes().find(n=>n.props?.children==='重试').props.onClick();await h.ready();assert.equal(h.requests.length,2);assert.equal(h.requests[1].profile.values.givenName,'LOCAL');assert(h.text().includes('已保存'));h.dispose();
+});
+test('a submit invalidated by unmount reports false and never displays success',async()=>{
+ let resolve;const h=customer({locale:'zh',section:'consent',complete:true,transport:body=>new Promise(r=>resolve=()=>r({id:'synthetic-customer',revision:2,status:'submitted',profile:body.profile}))});await h.ready();const result=h.nodes().find(n=>n.props?.children==='提交人工审核').props.onClick();assert.equal(h.requests[0].action,'submit');h.dispose();resolve();assert.equal(await result,false);h.render();assert(!h.text().includes('资料已提交，等待人工审核'));
+});
 test('structured supplementation focuses exact target, tracks edits and preserves original notes in all locales',async()=>{
  for(const locale of ['zh','en','km']){const h=customer({locale,status:'needs_info',reviewData:{at:'2026-10-24',reason:'审核员原文',requests:[{target:'field:bankAccount',reasonCode:'data_mismatch',note:'客户原文 NOTE'}]}});await h.ready();const input=()=>h.nodes().find(n=>n.props?.id==='kyc-field-bankAccount');assert(input(),'must enter bank without guessing reason');const badge=()=>h.nodes().find(n=>n.props?.className==='kyc-supplement-item');assert.equal(badge().props['data-state'],'pending');assert(h.text().includes('客户原文 NOTE'));input().props.onChange({target:{value:'12345'}});h.render();assert.equal(badge().props['data-state'],'changed');input().props.onChange({target:{value:''}});h.render();assert.equal(badge().props['data-state'],'pending');}
 });
@@ -104,10 +139,11 @@ test('blur exposes linked field error; Next focuses first invalid field without 
  await h.nodes().find(n=>n.props?.className==='kyc-next-button').props.onClick();await h.ready();
  assert.equal(h.focused[0],'kyc-field-givenName');assert(h.nodes().some(n=>n.props?.value==='客户原文'));
 });
-test('T1 saving a draft treats only the country prefix as empty and passes the real server validator',async()=>{
- const h=customer({locale:'km',section:'contact3'});await h.ready();
+test('T1 debounce saves the empty country placeholder once, never synchronously on Next',async t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const h=customer({locale:'km',section:'contact3',fakeTime:true});t.after(()=>h.dispose());await h.ready();
  const phone=()=>h.nodes().find(n=>n.props?.id==='kyc-field-contact3Phone');phone().props.onChange({target:{value:'+855'}});h.render();
  await h.nodes().find(n=>n.props?.className==='kyc-next-button').props.onClick();await h.ready();
+ assert.equal(h.requests.length,0);t.mock.timers.tick(1499);await h.ready();assert.equal(h.requests.length,0);t.mock.timers.tick(1);await h.ready();
  assert.equal(h.requests.length,1);assert.equal(h.requests[0].request.profile.values.contact3Phone,'');assert.equal(h.requests[0].request.action,'save');assert.equal(h.nodes().find(n=>n.props?.id==='kyc-error-summary').props.children,'');
 });
 test('T2 Mini App navigation saves the normalized draft before navigating',async()=>{
@@ -117,15 +153,15 @@ test('T2 Mini App navigation saves the normalized draft before navigating',async
  assert.equal(h.clickHandlers.length,1);h.clickHandlers[0](event);assert.equal(event.prevented,true);await h.ready();
  assert.equal(h.requests.length,1);assert.equal(h.requests[0].request.profile.values.contact3Phone,'');assert.deepEqual(h.navigations,['/h5/loans']);
 });
-test('T3 contact 3 treats only +855 as empty but keeps the name and phone pair guard',async()=>{
- const empty=customer({locale:'km',section:'contact3'});await empty.ready();empty.nodes().find(n=>n.props?.id==='kyc-field-contact3Phone').props.onChange({target:{value:'+855'}});empty.render();
- await empty.nodes().find(n=>n.props?.className==='kyc-next-button').props.onClick();await empty.ready();assert.equal(empty.requests.length,1);assert.equal(empty.requests[0].request.profile.values.contact3Phone,'');assert.equal(empty.nodes().find(n=>n.props?.id==='kyc-error-summary').props.children,'');
- const partial=customer({locale:'km',section:'contact3',values:{contact3Name:'Alex'}});await partial.ready();partial.nodes().find(n=>n.props?.id==='kyc-field-contact3Phone').props.onChange({target:{value:'+855'}});partial.render();
+test('T3 contact 3 treats only +855 as empty but keeps the name and phone pair guard',async t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const empty=customer({locale:'km',section:'contact3',fakeTime:true});t.after(()=>empty.dispose());await empty.ready();empty.nodes().find(n=>n.props?.id==='kyc-field-contact3Phone').props.onChange({target:{value:'+855'}});empty.render();
+ await empty.nodes().find(n=>n.props?.className==='kyc-next-button').props.onClick();await empty.ready();assert.equal(empty.requests.length,0);t.mock.timers.tick(1500);await empty.ready();assert.equal(empty.requests.length,1);assert.equal(empty.requests[0].request.profile.values.contact3Phone,'');assert.equal(empty.nodes().find(n=>n.props?.id==='kyc-error-summary').props.children,'');
+ const partial=customer({locale:'km',section:'contact3',values:{contact3Name:'Alex'},fakeTime:true});t.after(()=>partial.dispose());await partial.ready();partial.nodes().find(n=>n.props?.id==='kyc-field-contact3Phone').props.onChange({target:{value:'+855'}});partial.render();
  await partial.nodes().find(n=>n.props?.className==='kyc-next-button').props.onClick();await partial.ready();assert.equal(partial.requests.length,0);assert.match(JSON.stringify(partial.nodes().find(n=>n.props?.id==='kyc-error-summary').props.children),new RegExp(partial.copy.kycText('联系人 3 请完整填写或全部留空','km')));
  const income=core.fields.find(f=>f.id==='income').options[0].value,tenure=core.fields.find(f=>f.id==='tenure').options[0].value;
- const proof={id:'00000000-0000-4000-8000-000000000001',type:'application/pdf',size:12},supervisorEmpty=customer({locale:'km',section:'income',values:{income,tenure},file:proof,fileSlot:'incomeProof'});await supervisorEmpty.ready();supervisorEmpty.nodes().find(n=>n.props?.id==='kyc-field-supervisorPhone').props.onChange({target:{value:'+855'}});supervisorEmpty.render();
- await supervisorEmpty.nodes().find(n=>n.props?.className==='kyc-next-button').props.onClick();await supervisorEmpty.ready();assert.equal(supervisorEmpty.requests.length,1);assert.equal(supervisorEmpty.requests[0].request.profile.values.supervisorPhone,'');
- const supervisorPartial=customer({locale:'km',section:'income',values:{income,tenure,supervisorName:'Manager'},file:proof,fileSlot:'incomeProof'});await supervisorPartial.ready();supervisorPartial.nodes().find(n=>n.props?.id==='kyc-field-supervisorPhone').props.onChange({target:{value:'+855'}});supervisorPartial.render();
+ const proof={id:'00000000-0000-4000-8000-000000000001',type:'application/pdf',size:12},supervisorEmpty=customer({locale:'km',section:'income',values:{income,tenure},file:proof,fileSlot:'incomeProof',fakeTime:true});t.after(()=>supervisorEmpty.dispose());await supervisorEmpty.ready();supervisorEmpty.nodes().find(n=>n.props?.id==='kyc-field-supervisorPhone').props.onChange({target:{value:'+855'}});supervisorEmpty.render();
+ await supervisorEmpty.nodes().find(n=>n.props?.className==='kyc-next-button').props.onClick();await supervisorEmpty.ready();assert.equal(supervisorEmpty.requests.length,0);t.mock.timers.tick(1500);await supervisorEmpty.ready();assert.equal(supervisorEmpty.requests.length,1);assert.equal(supervisorEmpty.requests[0].request.profile.values.supervisorPhone,'');
+ const supervisorPartial=customer({locale:'km',section:'income',values:{income,tenure,supervisorName:'Manager'},file:proof,fileSlot:'incomeProof',fakeTime:true});t.after(()=>supervisorPartial.dispose());await supervisorPartial.ready();supervisorPartial.nodes().find(n=>n.props?.id==='kyc-field-supervisorPhone').props.onChange({target:{value:'+855'}});supervisorPartial.render();
  await supervisorPartial.nodes().find(n=>n.props?.className==='kyc-next-button').props.onClick();await supervisorPartial.ready();assert.equal(supervisorPartial.requests.length,0);assert.match(JSON.stringify(supervisorPartial.nodes().find(n=>n.props?.id==='kyc-error-summary').props.children),new RegExp(supervisorPartial.copy.kycText('上司姓名与电话需一并填写','km')));
 });
 test('T4 required contact phone remains missing and focuses its field',async()=>{
