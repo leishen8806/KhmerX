@@ -132,7 +132,7 @@ export async function decide(request:Request){
   if(u.team)await db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),u.team.tenant.id,u.actorId,'kyc_field_amend',JSON.stringify({caseId:row.id,fields:changed,groups,before,after,reason,requiresResubmission:true,revision:next.revision}),new Date().toISOString()).run();
   return view(next);
  }
- const checklist=Object.fromEntries(['identity','contacts','employment','income','assets','bank','consent'].map(k=>[k,p.checklist?.[k]===true]));validateReview(row.status,p.decision,checklist,reason,data.profile);const requests=parseRequests(p.requests);data.review={...(requests===undefined?{}:{requests}),decision:p.decision,reason,checklist,actor:u.actorId,at:new Date().toISOString(),revision:row.revision};return view(await transition(row,p.decision,data,'review:'+p.decision,u.actorId));
+ const checklist=Object.fromEntries(['identity','contacts','employment','income','assets','bank','consent'].map(k=>[k,p.checklist?.[k]===true]));validateReview(row.status,p.decision,checklist,reason,data.profile);const requests=parseRequests(p.requests,data.profile);data.review={...(requests===undefined?{}:{requests}),decision:p.decision,reason,checklist,actor:u.actorId,at:new Date().toISOString(),revision:row.revision};return view(await transition(row,p.decision,data,'review:'+p.decision,u.actorId));
 }
 export async function recordFile(owner:string,customerId:string,slot:Slot,bytes:Uint8Array,type:string,requestId?:string){
  const started=Date.now();let scanDurationMs=0;

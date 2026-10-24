@@ -1,4 +1,4 @@
-import {fields,slots,sections,KycError} from './core.ts';
+import {fields,slots,sections,slotVisible,KycError,type Profile,type Slot} from './core.ts';
 export type KycRequest={target:string;reasonCode:string;note:string};
 /** Tuple order: zh, en, km. Codes are the wire values, never translated. */
 export const reasonCodes={
@@ -12,7 +12,7 @@ export const reasonCodes={
 } as const;
 const targets=new Map<string,string>([
  ...fields.map(f=>['field:'+f.id,f.section] as [string,string]),
- ...slots.map(s=>['slot:'+s.id,s.section] as [string,string]),
+ ...slots.filter(s=>s.id!=='signature').map(s=>['slot:'+s.id,s.section] as [string,string]),
  ...sections.map(s=>['section:'+s.id,s.id] as [string,string]),
 ]);
 export function requestSection(target:string):string|undefined{return targets.get(target)}
@@ -20,7 +20,7 @@ export function requestReason(code:string,locale:'zh'|'en'|'km'):string{
  const text=Object.hasOwn(reasonCodes,code)?reasonCodes[code as keyof typeof reasonCodes]:reasonCodes.other;
  return text[locale==='zh'?0:locale==='en'?1:2];
 }
-export function parseRequests(raw:unknown):KycRequest[]|undefined{
+export function parseRequests(raw:unknown,profile?:Profile):KycRequest[]|undefined{
  if(raw===undefined)return undefined;
  if(!Array.isArray(raw)||raw.length>32)throw new KycError('补件项目格式无效');
  const seen=new Set<string>();
@@ -28,6 +28,7 @@ export function parseRequests(raw:unknown):KycRequest[]|undefined{
   if(!item||typeof item!=='object'||Array.isArray(item)||Object.keys(item).some(k=>!['target','reasonCode','note'].includes(k)))throw new KycError('补件项目格式无效');
   const {target,reasonCode,note}=item;
   if(typeof target!=='string'||!requestSection(target)||seen.has(target)||typeof reasonCode!=='string'||!Object.hasOwn(reasonCodes,reasonCode)||typeof note!=='string'||note.length>500)throw new KycError('补件目标、原因或说明无效');
+  if(profile&&target.startsWith('slot:')&&!slotVisible(target.slice(5) as Slot,profile))throw new KycError('补件材料不适用于当前资料');
   seen.add(target);return {target,reasonCode,note:note.trim()};
  });
 }

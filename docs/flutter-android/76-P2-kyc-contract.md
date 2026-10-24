@@ -75,7 +75,7 @@ Backend:   无需新增后端接口（沿用现有 /api/kyc*）
 ```
 
 - 每项固定为 `{target:string, reasonCode:string, note:string}`，不接受额外属性；`note` 必须是字符串，原始长度 ≤500，保存时去除首尾空白。数组最多32项，同一 `target` 不得重复。
-- `target` 精确匹配 `lib/kyc/core.ts` 当前字段、材料或分区：`field:<fieldId>`、`slot:<slotId>`、`section:<sectionId>`；不得发送显示标签或未知 ID。`requestSection` 将三类目标映射至该核心分区。
+- `target` 精确匹配 `lib/kyc/core.ts` 当前字段、材料或分区：`field:<fieldId>`、`slot:<slotId>`、`section:<sectionId>`；不得发送显示标签或未知 ID。`slot:signature` 属于后续贷款签约，明确排除。服务端还依据当前案件的 `slotVisible` 拒绝不适用的住房/车辆材料。`requestSection` 将三类有效目标映射至该核心分区；`parseRequests(raw, profile?)` 的可选 profile 保持无上下文调用兼容，审核决定必须传入当前 profile。
 - 原因码固定：`blurred` 照片模糊、`incomplete_document` 证件不完整、`selfie_mismatch` 自拍与证件不符、`data_mismatch` 信息与证件不一致、`contact_unreachable` 联系人无法接通、`income_unclear` 收入证明不清、`other` 其他。发送原始码；zh/en/km 标签见 `lib/kyc/requests.ts` 的 `reasonCodes` 元组（顺序 zh,en,km）及 `requestReason`。
 - 所有原有权限、状态、版本、checklist 和 reason 校验仍执行；新增内容校验失败返回400且案件、版本、历史不变。字段可随合法审核决定提交；客户端仅在 `status=needs_info` 时将其当作待补件要求展示。
 - 可选数据存入现有加密 `review.requests`，由原有版本快照保存，审计历史沿用既有 `actor`；不新增数据库表/迁移，不把补件说明写入明文审计表。
