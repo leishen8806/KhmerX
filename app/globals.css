@@ -297,6 +297,6 @@ body:has(.mini-app) .auth-locale{display:none}
 .mini-app .customer-kyc .kyc-group-arrow{order:3;margin-left:auto}
 .mini-app .customer-kyc .kyc-group-copy em{order:4;width:auto;flex:0 0 auto;white-space:nowrap}
 .customer-kyc .kyc-layout{grid-template-columns:minmax(0,1fr)}
-.mini-app[lang=km] .customer-kyc .kyc-group-copy{display:flex!important;flex-direction:column;align-items:flex-start}
+.mini-app[lang=km] .customer-kyc .kyc-group-copy{display:flex;flex-direction:column;align-items:flex-start}
 .mini-app[lang=km] .customer-kyc .kyc-group-copy small{flex:0 0 auto}
-.mini-app[lang=km] .customer-kyc .kyc-group-copy em{position:static!important;transform:none!important;width:100%;margin-left:0;white-space:normal}
+.mini-app[lang=km] .customer-kyc .kyc-group-copy em{position:static;transform:none;width:100%;margin-left:0;white-space:normal}
