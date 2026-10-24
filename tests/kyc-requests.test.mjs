@@ -27,5 +27,8 @@ test('KYC supplement requests exclude loan signature and reject currently hidden
 test('requests reject malformed objects, unknown targets/codes, duplicates and size limits',()=>{
  for(const raw of [null,{},'',1,[null],[[]],[{...item,extra:true}],[{...item,note:undefined}],[{...item,note:1}],[{...item,note:'x'.repeat(501)}],[{...item,target:'field:unknown'}],[{...item,target:'field:surname:extra'}],[{...item,reasonCode:'constructor'}],[{...item,reasonCode:'unknown'}],[item,{...item,reasonCode:'other'}],Array(33).fill(item)])assert.throws(()=>parseRequests(raw));
  assert.equal(parseRequests([{...item,note:'x'.repeat(500)}])[0].note.length,500);
- const max=fields.slice(0,32).map(f=>({...item,target:'field:'+f.id}));assert.equal(parseRequests(max).length,32);
+ const targets=[...fields.map(f=>'field:'+f.id),...slots.filter(s=>s.id!=='signature').map(s=>'slot:'+s.id),...sections.map(s=>'section:'+s.id)];
+ assert(targets.length>=33,'KYC needs at least 33 valid targets to exercise the request limit');
+ // Targets must be distinct or duplicate validation rejects them before the size limit runs.
+ const requests=targets.map(target=>({...item,target}));assert.throws(()=>parseRequests(requests.slice(0,33)));assert.equal(parseRequests(requests.slice(0,32)).length,32);
 });
