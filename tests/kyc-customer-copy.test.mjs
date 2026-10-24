@@ -4,21 +4,22 @@ import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 import ts from 'typescript';
 import * as core from '../lib/kyc/core.ts';
+import {DraftSaver} from '../lib/kyc/draft-save.ts';
 
-function customer({locale='km',review=false,section='personal',status='draft',mini=false,values={},file,uploadFile,prepareFile,reviewData}={}){
- let cursor=0,tree;const state=[],effects=[],focused=[];
+export function customer({locale='km',review=false,section='personal',status='draft',mini=false,values={},file,uploadFile,prepareFile,reviewData,transport}={}){
+ let cursor=0,tree;const state=[],effects=[],focused=[],requests=[],listeners=new Map(),cleanups=[];
  const profile=core.emptyProfile();profile.values={...profile.values,surname:'客户原文',...values};
  if(file)profile.files[section]=file;
  const record={id:'synthetic-customer',revision:1,status,profile,review:reviewData?{decision:'needs_info',at:'2026-10-24T00:00:00Z',...reviewData}:undefined,phoneVerified:false,updatedAt:'2026-10-23T00:00:00Z'};
- const hooks={createContext:v=>({value:v}),useContext:c=>c.value,useState(initial){const i=cursor++;if(!(i in state))state[i]=typeof initial==='function'?initial():initial;return [state[i],v=>state[i]=typeof v==='function'?v(state[i]):v]},useRef(initial){const i=cursor++;if(!(i in state))state[i]={current:initial};return state[i]},useEffect(fn,deps){const i=cursor++;if(!state[i]||!deps||deps.some((v,j)=>!Object.is(v,state[i][j]))){state[i]=deps||[];effects.push(fn)}}};
+ const hooks={createContext:v=>({value:v}),useContext:c=>c.value,useState(initial){const i=cursor++;if(!(i in state))state[i]=typeof initial==='function'?initial():initial;return [state[i],v=>state[i]=typeof v==='function'?v(state[i]):v]},useRef(initial){const i=cursor++;if(!(i in state))state[i]={current:initial};return state[i]},useEffect(fn,deps){const i=cursor++;if(!state[i]||!deps||deps.some((v,j)=>!Object.is(v,state[i][j]))){state[i]=deps||[];effects.push(()=>{cleanups[i]?.();cleanups[i]=fn()})}}};
  const jsx=(type,props)=>typeof type==='function'?type(props):({type,props});
  const mocks={react:hooks,'react/jsx-runtime':{jsx,jsxs:jsx},'next/link':{default:'a'},'next/navigation':{useRouter:()=>({push(){}})},'lucide-react':new Proxy({},{get:(_,k)=>k}),
-  '@/lib/kyc/core':core,'@/lib/agreements/loan-terms':{LOAN_TERMS_VERSION:'test',LOAN_TERMS_URL:'/agreements/loan',loanTerms:{}},
+  '@/lib/kyc/draft-save':{DraftSaver},'@/lib/kyc/core':core,'@/lib/agreements/loan-terms':{LOAN_TERMS_VERSION:'test',LOAN_TERMS_URL:'/agreements/loan',loanTerms:{}},
   '@/components/loan-bill':{LoanBill:'LoanBill'},'@/components/mini-shell':{MiniNavLink:'a',useMiniNavigation:()=>null},'@/lib/analytics':{trackEvent(){}},
-  '@/lib/image-compress':{prepareKycFile:prepareFile||((f)=>f),fileLimitBytes:()=>5242880,retryAfterMs:()=>0},'@/lib/kyc/upload':{uploadKycFile:uploadFile},'@/lib/api-client':{apiUrl:p=>p,async apiFetch(){return {data:record}}},
+  '@/lib/image-compress':{prepareKycFile:prepareFile||((f)=>f),fileLimitBytes:()=>5242880,retryAfterMs:()=>0},'@/lib/kyc/upload':{uploadKycFile:uploadFile},'@/lib/api-client':{apiUrl:p=>p,async apiFetch(url,init={}){if(init.method==='POST'){const body=JSON.parse(init.body);requests.push(body);return {data:transport?await transport(body):{...record,revision:body.revision+1,profile:body.profile}}}return {data:record}}},
  };
  for(const [file,names] of Object.entries({'button':['Button'],'input':['Input'],'checkbox':['Checkbox'],'select':['Select','SelectTrigger','SelectValue','SelectContent','SelectItem']}))mocks['@/components/ui/'+file]=Object.fromEntries(names.map(n=>[n,n]));
- const context=vm.createContext({URLSearchParams,Date,Intl,File,Blob,setTimeout,window:{open(){throw Error('Document previews must remain inline')},setTimeout,localStorage:{getItem:()=>locale},location:{search:review?'?id=synthetic-customer':''},addEventListener(){},removeEventListener(){},setInterval(){},clearInterval(){}},document:{getElementById:id=>({focus(){focused.push(id)},scrollIntoView(){}}),documentElement:{lang:locale},addEventListener(){},removeEventListener(){}}});
+ const context=vm.createContext({URLSearchParams,Date,Intl,File,Blob,setTimeout,window:{confirm:()=>false,open(){throw Error('Document previews must remain inline')},setTimeout,localStorage:{getItem:()=>locale},location:{search:review?'?id=synthetic-customer':''},addEventListener(name,fn){listeners.set(name,fn)},removeEventListener(name){listeners.delete(name)},setInterval(){},clearInterval(){}},document:{getElementById:id=>({focus(){focused.push(id)},scrollIntoView(){}}),documentElement:{lang:locale},addEventListener(){},removeEventListener(){}}});
  const load=file=>{const exports={},js=ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;vm.runInContext('(function(exports,require){'+js+'\n})',context)(exports,n=>{assert(n in mocks,n);return mocks[n]});return exports};
  mocks['@/lib/i18n']=load('lib/i18n.tsx');mocks['@/lib/i18n'].I18nContext.value=mocks['@/lib/i18n'].i18nValue(locale);
  mocks['@/lib/error-messages']=load('lib/error-messages.ts');mocks['../i18n']=mocks['@/lib/i18n'];mocks['../error-messages']=mocks['@/lib/error-messages'];mocks['@/lib/kyc/ui-copy']=load('lib/kyc/ui-copy.ts');
@@ -30,10 +31,26 @@ function customer({locale='km',review=false,section='personal',status='draft',mi
  const nodes=n=>Array.isArray(n)?n.flatMap(nodes):!n||typeof n!=='object'?[]:[n,...nodes(n.props?.children)];
  const text=n=>Array.isArray(n)?n.map(text).join(' '):typeof n==='string'||typeof n==='number'?String(n):n&&typeof n==='object'?text(n.props?.children):'';
  render();effects.splice(0).forEach(fn=>fn());
- return {focused,async ready(){await new Promise(r=>setTimeout(r,10));render()},render,text:()=>text(tree),nodes:()=>nodes(tree),copy:mocks['@/lib/kyc/ui-copy']};
+ return {focused,requests,listeners,dispose(){cleanups.forEach(fn=>fn?.())},async ready(){await new Promise(r=>setTimeout(r,10));render()},render,text:()=>text(tree),nodes:()=>nodes(tree),copy:mocks['@/lib/kyc/ui-copy']};
 }
 
 const steps=['personal','identityDetails','address','idFront','idBack','selfie','contact1','contact2','contact3','employment','income','assets','bank','consent'];
+test('customers can open unfinished groups without validating other groups',async()=>{
+ const h=customer({locale:'zh',section:null});await h.ready();
+ const groups=h.nodes().filter(n=>n.props?.className==='kyc-group-button');assert.equal(groups.length,6);assert(groups.every(n=>!n.props.disabled));groups[4].props.onClick();h.render();assert(h.nodes().some(n=>n.props?.id==='kyc-field-bankAccount'));
+});
+test('Next validates only this step and navigates immediately without a server write',async()=>{
+ const h=customer({locale:'zh',values:{givenName:'QA',documentNumber:'KH-123'}});await h.ready();h.nodes().find(n=>n.props?.id==='kyc-field-givenName').props.onChange({target:{value:'EDIT'}});h.render();await h.nodes().find(n=>n.props?.className==='kyc-next-button').props.onClick();h.render();assert(h.nodes().some(n=>n.props?.id==='kyc-field-gender'));assert.equal(h.requests.length,0);h.dispose();
+});
+test('customer autosave status and local input survive delayed saves and Mini leave waits for latest revision',async()=>{
+ let resolve;const h=customer({locale:'zh',mini:true,transport:body=>new Promise(r=>resolve=()=>r({id:'synthetic-customer',revision:body.revision+1,status:'draft',profile:body.profile}))});await h.ready();const input=()=>h.nodes().find(n=>n.props?.id==='kyc-field-givenName');input().props.onChange({target:{value:'FIRST'}});h.render();await new Promise(r=>setTimeout(r,1550));h.render();assert(h.text().includes('保存中'));input().props.onChange({target:{value:'LATER'}});h.render();resolve();await h.ready();assert.equal(input().props.value,'LATER');let resumed=false;h.listeners.get('payease:before-navigate')({preventDefault(){},detail:{resume(){resumed=true}}});await h.ready();assert.equal(resumed,false);assert.equal(h.requests[1].revision,2);assert.equal(h.requests[1].profile.values.givenName,'LATER');resolve();await h.ready();assert(resumed);assert(h.text().includes('已保存'));h.dispose();
+});
+test('customer 409 keeps local input, displays reconciliation and makes no further writes',async()=>{
+ const h=customer({locale:'en',transport:async()=>{throw {status:409}}});await h.ready();const input=()=>h.nodes().find(n=>n.props?.id==='kyc-field-givenName');input().props.onChange({target:{value:'LOCAL'}});h.render();await new Promise(r=>setTimeout(r,1550));h.render();assert(h.text().includes('Reload'));input().props.onChange({target:{value:'KEEP'}});h.render();h.nodes().find(n=>n.props?.children==='Reload server profile').props.onClick();await h.ready();await new Promise(r=>setTimeout(r,1550));assert.equal(h.requests.length,1);assert.equal(input().props.value,'KEEP');h.dispose();
+});
+test('failed customer saves retain input and retry explicitly with the latest draft',async()=>{
+ let fail=true;const h=customer({locale:'zh',mini:true,transport:async body=>{if(fail)throw {status:503};return {id:'synthetic-customer',revision:body.revision+1,status:'draft',profile:body.profile}}});await h.ready();const input=()=>h.nodes().find(n=>n.props?.id==='kyc-field-givenName');input().props.onChange({target:{value:'LOCAL'}});h.render();h.listeners.get('payease:before-navigate')({preventDefault(){},detail:{resume(){throw Error('must not leave on failure')}}});await h.ready();assert(h.text().includes('保存失败'));assert.equal(input().props.value,'LOCAL');fail=false;await h.nodes().find(n=>n.props?.children==='重试').props.onClick();await h.ready();assert.equal(h.requests.length,2);assert.equal(h.requests[1].profile.values.givenName,'LOCAL');assert(h.text().includes('已保存'));h.dispose();
+});
 test('structured supplementation focuses exact target, tracks edits and preserves original notes in all locales',async()=>{
  for(const locale of ['zh','en','km']){const h=customer({locale,status:'needs_info',reviewData:{at:'2026-10-24',reason:'审核员原文',requests:[{target:'field:bankAccount',reasonCode:'data_mismatch',note:'客户原文 NOTE'}]}});await h.ready();const input=()=>h.nodes().find(n=>n.props?.id==='kyc-field-bankAccount');assert(input(),'must enter bank without guessing reason');const badge=()=>h.nodes().find(n=>n.props?.className==='kyc-supplement-item');assert.equal(badge().props['data-state'],'pending');assert(h.text().includes('客户原文 NOTE'));input().props.onChange({target:{value:'12345'}});h.render();assert.equal(badge().props['data-state'],'changed');input().props.onChange({target:{value:''}});h.render();assert.equal(badge().props['data-state'],'pending');}
 });
