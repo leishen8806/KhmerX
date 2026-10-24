@@ -3,11 +3,11 @@
 import {useState} from 'react';
 import {slots, type Profile, type Slot} from '@/lib/kyc/core';
 import {apiUrl} from '@/lib/api-client';
-import {legacyText, useI18n} from '@/lib/i18n';
+import {legacyText, useI18n, type Locale} from '@/lib/i18n';
 import './kyc-material-viewer.css';
 
-export function KycMaterialViewer({profile}:{profile:Profile}){
- const {locale}=useI18n();
+export function KycMaterialViewer({profile,locale:requestedLocale}:{profile:Profile;locale?:Locale}){
+ const context=useI18n(),locale=requestedLocale||context.locale;
  const copy=locale==='km'?{title:'ឯកសារសម្រាប់ពិនិត្យ',empty:'មិនមានឯកសារ',zoomIn:'ពង្រីក',zoomOut:'បង្រួម',rotate:'បង្វិល',compare:'ប្រៀបធៀបអត្តសញ្ញាណប័ណ្ណ និងរូបថត',single:'មើលឯកសារតែមួយ',download:'ទាញយកឯកសារ',fallback:'បើមិនអាចបង្ហាញបាន សូមទាញយកឯកសារខាងក្រោម។'}:locale==='zh'?{title:'审核材料',empty:'暂无材料',zoomIn:'放大',zoomOut:'缩小',rotate:'旋转',compare:'证件正面与自拍并排对比',single:'查看单份材料',download:'下载材料',fallback:'如无法预览，请使用下方下载链接。'}:{title:'Review materials',empty:'No materials',zoomIn:'Zoom in',zoomOut:'Zoom out',rotate:'Rotate',compare:'Compare ID front and selfie',single:'View one material',download:'Download material',fallback:'If the preview is unavailable, use the download link below.'};
  const available=slots.filter(s=>profile.files[s.id]);
  const [selected,setSelected]=useState<Slot>('idFront');

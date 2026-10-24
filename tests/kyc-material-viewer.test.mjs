@@ -5,19 +5,20 @@ import {readFileSync} from 'node:fs';
 import ts from 'typescript';
 import * as core from '../lib/kyc/core.ts';
 
-function viewer(files={},locale='zh'){
+function viewer(files={},locale='zh',requestedLocale){
  let cursor=0,tree;const state=[];const profile={...core.emptyProfile(),files};
  const jsx=(type,props)=>({type,props});
  const mocks={react:{useState(initial){const i=cursor++;if(!(i in state))state[i]=initial;return [state[i],v=>state[i]=typeof v==='function'?v(state[i]):v]}},'react/jsx-runtime':{jsx,jsxs:jsx},'@/lib/kyc/core':core,'@/lib/api-client':{apiUrl:p=>'/authenticated'+p},'@/lib/i18n':{useI18n:()=>({locale}),legacyText:s=>s},'./kyc-material-viewer.css':{}};
  const js=ts.transpileModule(readFileSync('components/kyc-material-viewer.tsx','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
  const exports={};vm.runInNewContext('(function(exports,require){'+js+'\n})',{})(exports,n=>{assert(n in mocks,n);return mocks[n]});
  const nodes=n=>Array.isArray(n)?n.flatMap(nodes):!n||typeof n!=='object'?[]:[n,...nodes(n.props?.children)];
- function render(){cursor=0;tree=exports.KycMaterialViewer({profile});return nodes(tree)}
+ function render(){cursor=0;tree=exports.KycMaterialViewer({profile,locale:requestedLocale});return nodes(tree)}
  render();return {render,profile,click(label){const button=nodes(tree).find(n=>n.type==='button'&&n.props.children===label);assert(button,label);button.props.onClick();return render()}};
 }
 const file=(id,type='image/jpeg')=>({id,type,name:'<script>untrusted</script>'});
 test('empty profile and Khmer interface render without fetching or writing',()=>{
  const h=viewer({},'km');assert(h.render().some(n=>n.type==='p'&&n.props.children==='មិនមានឯកសារ'));
+ assert(viewer({},'en','zh').render().some(n=>n.type==='p'&&n.props.children==='暂无材料'));
 });
 test('authenticated thumbnails select materials and reset image transformations',()=>{
  const h=viewer({idFront:file('id&unsafe'),selfie:file('selfie')});
