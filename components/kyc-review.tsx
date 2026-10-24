@@ -1,4 +1,5 @@
 'use client';
+import {SensitiveValue} from '@/components/kyc-review-controls';
 import {useI18n} from '@/lib/i18n';
 import type {Locale} from '@/lib/i18n';
 import {kycText,kycDate} from '@/lib/kyc/ui-copy';
@@ -24,7 +25,7 @@ export function KycReview({requests=[],onRequest,record,locale:reviewLocale,chec
   <nav className="kyc-review-index" aria-label="KYC review sections">{sections.map(s=><a key={s.id} href={'#kyc-review-'+s.id}>{t(s.label)}</a>)}</nav>
   <div className="kyc-review-columns"><div className="kyc-review-cards">{sections.map(s=><details className="kyc-review-card" open id={'kyc-review-'+s.id} key={s.id}><summary>{t(s.label)}</summary>
    <label className="kyc-review-check"><input type="checkbox" checked={checks[s.id]===true} disabled={busy||!mayDecide} onChange={e=>onCheck(s.id,e.target.checked)}/>{t(decision==='needs_info'?'要求补充：':'已核对')} {t(s.label)}</label>
-   <dl>{fields.filter(f=>f.section===s.id).map(f=>{const value=p.values[f.id];return <div key={f.id}><dt>{t(f.label)}</dt><dd>{value?(f.options?.find(o=>o.value===value)?t(f.options.find(o=>o.value===value)!.label):value):t('未提供')}</dd>{editor('field:'+f.id)}</div>})}</dl>
+   <dl>{fields.filter(f=>f.section===s.id).map(f=>{const value=p.values[f.id];return <div key={f.id}><dt>{t(f.label)}</dt><dd>{['documentNumber','bankAccount'].includes(f.id)?<SensitiveValue key={record.id+':'+record.revision+':'+f.id} scope={record.id+':'+record.revision+':'+f.id} value={value||''} label={t(f.label)} locale={locale}/>:value?(f.options?.find(o=>o.value===value)?t(f.options.find(o=>o.value===value)!.label):value):t('未提供')}</dd>{editor('field:'+f.id)}</div>})}</dl>
    {editor('section:'+s.id)}{slots.filter(slot=>slot.section===s.id&&slot.id!=='signature'&&slotVisible(slot.id,p)).map(slot=><div key={slot.id}>{t(slot.label)}{editor('slot:'+slot.id)}</div>)}
    {s.id==='consent'&&<><p>{t('资料审核授权：')}{t(p.consent?'已确认':'未确认')} · {p.declarationVersion}</p><p>{t('定位：')}{p.location?`${p.location.lat}, ${p.location.lon} ±${p.location.accuracy}m`:t('未授权或未提供')}</p></>}
   </details>)}</div>
