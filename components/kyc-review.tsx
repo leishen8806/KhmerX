@@ -4,7 +4,7 @@ import type {Locale} from '@/lib/i18n';
 import {kycText,kycDate} from '@/lib/kyc/ui-copy';
 import {fields,sections,statusLabels,completeness} from '@/lib/kyc/core';
 import {RequestEditor} from '@/components/kyc-supplement';
-import type {KycRequest} from '@/lib/kyc/requests';
+import {reasonCodes,type KycRequest} from '@/lib/kyc/requests';
 import {slots,slotVisible} from '@/lib/kyc/core';
 import {KycMaterialViewer} from '@/components/kyc-material-viewer';
 import type {RecordView} from '@/app/kyc/client';
@@ -15,6 +15,7 @@ export function KycReview({requests=[],onRequest,record,locale:reviewLocale,chec
  const context=useI18n(),locale=reviewLocale||context.locale,t=(s:string)=>kycText(s,locale),p=record.profile;
  const auditSummary=record.scope?.startsWith('审计只读摘要')===true;
  const mayReview=!auditSummary&&record.canReview!==false,mayDecide=mayReview&&record.status==='submitted';
+ const requestsIncomplete=decision==='needs_info'&&requests.some(r=>!Object.hasOwn(reasonCodes,r.reasonCode)||(r.reasonCode==='other'&&!r.note.trim()));
  const score=completeness(p,record.phoneVerified);
  const editor=(target:string)=>mayDecide&&decision==='needs_info'&&onRequest?<RequestEditor target={target} request={requests.find(r=>r.target===target)} locale={locale} disabled={busy} onChange={request=>onRequest(target,request)}/>:null;
  return <main className="kyc-review-workspace" lang={locale}><header><a href="/team/kyc">{t('返回业务工作台')}</a><h1>{t('KYC 人工审核')}</h1><p>{t(statusLabels[record.status])} · {t('版本')} {record.revision} · {record.id}</p></header>
@@ -33,7 +34,8 @@ export function KycReview({requests=[],onRequest,record,locale:reviewLocale,chec
   <aside className="kyc-review-aside">{auditSummary?<p className="notice">无权查看</p>:<KycMaterialViewer profile={p} locale={locale}/>}<section className="kyc-review-panel kyc-review-decision"><h2>{t('人工审核决定')}</h2>{mayDecide?<><p>{t(decision==='needs_info'?'勾选需要客户补充的页面，客户重新进入时会直接定位到第一项。':'请逐项打开材料核对。勾选仅记录人工核对，不代表已完成外部实名、活体或银行验证。')}</p>
    <label>{t('处理结果')}<select value={decision} disabled={busy} onChange={e=>onDecision(e.target.value)}>{!record.approvalOnly&&<option value="needs_info">{t('退回补件')}</option>}<option value="approved">{t('人工资料审核通过')}</option>{!record.approvalOnly&&<option value="rejected">{t('资料审核未通过')}</option>}</select></label>
    <label>{t('审核意见 / 补件原因')}<textarea value={reason} maxLength={1000} disabled={busy} onChange={e=>onReason(e.target.value)}/></label>
-   <button type="button" data-action="decide" disabled={busy||!reason.trim()||(decision==='approved'&&sections.some(s=>!checks[s.id]))} onClick={onDecide}>{t(decision==='approved'?'确认审核通过':'确认记录审核结果')}</button>
+   {requestsIncomplete&&<p className="error" data-request-error role="status">{t('请补全：')}{t('补件原因')} / {t('补充说明')}</p>}
+   <button type="button" data-action="decide" disabled={busy||requestsIncomplete||!reason.trim()||(decision==='approved'&&sections.some(s=>!checks[s.id]))} onClick={onDecide}>{t(decision==='approved'?'确认审核通过':'确认记录审核结果')}</button>
   </>:<p>{t(statusLabels[record.status])}</p>}
   {mayReview&&!record.approvalOnly&&['submitted','needs_info'].includes(record.status)&&<button type="button" data-action="amend" disabled={busy} onClick={onAmend}>{t('代客户修改资料')}</button>}
   </section><section className="kyc-review-panel"><h2>{t('资料完整度')}</h2><p>{t('基础资料')} {score.base}/120 · {t('附加材料')} {score.additional}/85</p><details><summary>{t('逐项权重与来源')}</summary>{score.rows.map(r=><p key={r.source+r.label}>{t(r.label)} {r.points}/{r.maximum} · {r.source}</p>)}</details></section>
