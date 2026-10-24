@@ -5,9 +5,10 @@ import {readFileSync} from 'node:fs';
 import ts from 'typescript';
 import * as core from '../lib/kyc/core.ts';
 
-function customer({locale='km',review=false,section='personal',status='draft',mini=false,values={},file,uploadFile,prepareFile,reviewData}={}){
- let cursor=0,tree;const state=[],effects=[],focused=[];
+function customer({locale='km',review=false,section='personal',status='draft',mini=false,values={},file,uploadFile,prepareFile,reviewData,complete=false}={}){
+ let cursor=0,tree;const state=[],effects=[],focused=[],requests=[];
  const profile=core.emptyProfile();profile.values={...profile.values,surname:'客户原文',...values};
+ if(complete){for(const f of core.fields.filter(f=>f.required))profile.values[f.id]=f.options?.[0]?.value||(f.kind==='phone'?'+1202555010'+(f.id.includes('1')?'1':'2'):'SYNTHETIC');profile.values.district=core.regions[0].districts[0].value;profile.values.contact2Relation='朋友';for(const s of core.slots.filter(s=>s.required))profile.files[s.id]={id:s.id,type:'image/png',size:1};profile.consent=true}
  if(file)profile.files[section]=file;
  const record={id:'synthetic-customer',revision:1,status,profile,review:reviewData?{decision:'needs_info',at:'2026-10-24T00:00:00Z',...reviewData}:undefined,phoneVerified:false,updatedAt:'2026-10-23T00:00:00Z'};
  const hooks={createContext:v=>({value:v}),useContext:c=>c.value,useState(initial){const i=cursor++;if(!(i in state))state[i]=typeof initial==='function'?initial():initial;return [state[i],v=>state[i]=typeof v==='function'?v(state[i]):v]},useRef(initial){const i=cursor++;if(!(i in state))state[i]={current:initial};return state[i]},useEffect(fn,deps){const i=cursor++;if(!state[i]||!deps||deps.some((v,j)=>!Object.is(v,state[i][j]))){state[i]=deps||[];effects.push(fn)}}};
@@ -15,7 +16,7 @@ function customer({locale='km',review=false,section='personal',status='draft',mi
  const mocks={react:hooks,'react/jsx-runtime':{jsx,jsxs:jsx},'next/link':{default:'a'},'next/navigation':{useRouter:()=>({push(){}})},'lucide-react':new Proxy({},{get:(_,k)=>k}),
   '@/lib/kyc/core':core,'@/lib/agreements/loan-terms':{LOAN_TERMS_VERSION:'test',LOAN_TERMS_URL:'/agreements/loan',loanTerms:{}},
   '@/components/loan-bill':{LoanBill:'LoanBill'},'@/components/mini-shell':{MiniNavLink:'a',useMiniNavigation:()=>null},'@/lib/analytics':{trackEvent(){}},
-  '@/lib/image-compress':{prepareKycFile:prepareFile||((f)=>f),fileLimitBytes:()=>5242880,retryAfterMs:()=>0},'@/lib/kyc/upload':{uploadKycFile:uploadFile},'@/lib/api-client':{apiUrl:p=>p,async apiFetch(){return {data:record}}},
+  '@/lib/image-compress':{prepareKycFile:prepareFile||((f)=>f),fileLimitBytes:()=>5242880,retryAfterMs:()=>0},'@/lib/kyc/upload':{uploadKycFile:uploadFile},'@/lib/api-client':{apiUrl:p=>p,async apiFetch(url,init={}){requests.push({url,...init});return {data:record}}},
  };
  for(const [file,names] of Object.entries({'button':['Button'],'input':['Input'],'checkbox':['Checkbox'],'select':['Select','SelectTrigger','SelectValue','SelectContent','SelectItem']}))mocks['@/components/ui/'+file]=Object.fromEntries(names.map(n=>[n,n]));
  const context=vm.createContext({URLSearchParams,Date,Intl,File,Blob,setTimeout,window:{open(){throw Error('Document previews must remain inline')},setTimeout,localStorage:{getItem:()=>locale},location:{search:review?'?id=synthetic-customer':''},addEventListener(){},removeEventListener(){},setInterval(){},clearInterval(){}},document:{getElementById:id=>({focus(){focused.push(id)},scrollIntoView(){}}),documentElement:{lang:locale},addEventListener(){},removeEventListener(){}}});
@@ -25,13 +26,24 @@ function customer({locale='km',review=false,section='personal',status='draft',mi
  mocks['./core.ts']=core;mocks['@/lib/kyc/requests']=load('lib/kyc/requests.ts');mocks['./requests.ts']=mocks['@/lib/kyc/requests'];mocks['@/lib/kyc/supplement-ui']=load('lib/kyc/supplement-ui.ts');mocks['./kyc-supplement.css']={};mocks['@/components/kyc-supplement']=load('components/kyc-supplement.tsx');
  mocks['./kyc-material-viewer.css']={};mocks['@/components/kyc-material-viewer']=load('components/kyc-material-viewer.tsx');
  mocks['./kyc-review.css']={};mocks['@/components/kyc-review']=load('components/kyc-review.tsx');
+ mocks['./kyc-customer-overview.css']={};mocks['@/components/kyc-customer-overview']=load('components/kyc-customer-overview.tsx');
  const component=load('app/kyc/client.tsx').default;
  const render=()=>{cursor=0;tree=component({review,mini,initialSection:section});effects.splice(0).forEach(fn=>fn());return tree};
  const nodes=n=>Array.isArray(n)?n.flatMap(nodes):!n||typeof n!=='object'?[]:[n,...nodes(n.props?.children)];
  const text=n=>Array.isArray(n)?n.map(text).join(' '):typeof n==='string'||typeof n==='number'?String(n):n&&typeof n==='object'?text(n.props?.children):'';
  render();effects.splice(0).forEach(fn=>fn());
- return {focused,async ready(){await new Promise(r=>setTimeout(r,10));render()},render,text:()=>text(tree),nodes:()=>nodes(tree),copy:mocks['@/lib/kyc/ui-copy']};
+ return {focused,requests,async ready(){await new Promise(r=>setTimeout(r,10));render()},render,text:()=>text(tree),nodes:()=>nodes(tree),copy:mocks['@/lib/kyc/ui-copy']};
 }
+
+test('customer progress counts six groups using existing required rules',async()=>{
+ const h=customer({locale:'zh',complete:true});await h.ready();const progress=h.nodes().find(n=>n.type==='progress');assert(progress,'customer needs progress');assert.equal(progress.props.max,6);assert.equal(progress.props.value,6);assert(JSON.stringify(h.nodes().find(n=>n.props?.className==='kyc-customer-progress')).includes('最高可获得 30 USD额度'));
+});
+test('submit opens grouped summary and only its explicit confirmation submits',async()=>{
+ const h=customer({locale:'zh',mini:true,section:null,complete:true});await h.ready();const submit=h.nodes().find(n=>n.props?.className==='kyc-submit-button');assert(submit);submit.props.onClick();h.render();assert.equal(h.requests.filter(r=>r.method==='POST').length,0);assert.equal(h.nodes().filter(n=>n.props?.className==='kyc-summary-group').length,6);assert(h.text().includes('提交后资料将锁定'));const confirm=h.nodes().find(n=>n.props?.['data-action']==='confirm-submit');assert(confirm);await confirm.props.onClick();assert.equal(JSON.parse(h.requests.find(r=>r.method==='POST').body).action,'submit');
+});
+test('submitted timeline does not invent review start, turnaround or notification',async()=>{
+ const h=customer({locale:'zh',status:'submitted'});await h.ready();const timeline=h.nodes().find(n=>n.props?.className==='kyc-customer-timeline');assert(timeline);assert(h.text().includes('预计处理时间暂未提供'));assert(h.text().includes('尚未提供开始审核时间'));assert(!h.text().includes('Telegram 通知'));assert.equal(timeline.props.children[0].props.children[0].props['aria-current'],'step');assert.equal(timeline.props.children[0].props.children[2].props['aria-current'],undefined);
+});
 
 const steps=['personal','identityDetails','address','idFront','idBack','selfie','contact1','contact2','contact3','employment','income','assets','bank','consent'];
 test('structured supplementation focuses exact target, tracks edits and preserves original notes in all locales',async()=>{

@@ -16,6 +16,7 @@ import KycClient from '@/app/kyc/client';
 import LoanSign from '@/app/loan/sign/client';
 import Contract from '@/app/contract/view';
 import {kycText} from '@/lib/kyc/ui-copy';
+import {KycCustomerTimeline} from '@/components/kyc-customer-overview';
 const money=(n:number)=>'$'+(n/100).toFixed(2);
 const eventText:Record<string,string>={create:'借款申请已创建',confirm_bill:'结算费用已确认',apply:'签约完成，申请已提交审批',approve:'机构审批已通过',approval_check:'独立复核已通过',disburse:'放款已完成',admin_disburse:'放款已完成',withdraw:'提现已完成',repay:'还款已登记',admin_repay:'还款已登记'};
 const date=(s?:string)=>s?new Date(s).toLocaleDateString('zh-CN',{timeZone:'Asia/Phnom_Penh'}):'放款后确定';
@@ -43,7 +44,7 @@ export function MiniClient({screen,queryString='',phone,company,onLogout,onSecur
  const card=(l:Loan)=>{const net=l.billing?.net??Math.max(0,l.amount-l.fee),total=l.amount+l.fee;return <Link className="mini-order" key={l.id} href={href(loanDestination(l),l)}><span className="mini-order-main"><span className="mini-order-meta"><small>借款申请</small><small>{date(l.createdAt)} · {l.billing?.termDays||14} 天</small></span><strong className="mini-order-amount">{money(l.amount)} <small>USD</small></strong><small className="mini-order-id">申请编号 {l.id.slice(0,8).toUpperCase()}</small></span><span className="mini-order-side"><b className={'mini-order-status mini-order-status-'+l.status}>{statusNames[l.status]}</b><span className="mini-order-arrow"><ChevronRight size={18}/></span></span><span className="mini-order-facts"><span><small>实际到账</small><strong>{money(net)}</strong></span><span><small>到期应还</small><strong>{money(total)}</strong></span><span><small>费用</small><strong>{money(l.fee)}</strong></span></span></Link>};
  let content;
  if(securityOpen)content=<section className="mini-card mini-empty mini-security-panel"><LockKeyhole size={32}/><h1>账户安全</h1><p>当前账户已通过 Telegram 身份登录。</p><p className="mini-muted">如需修改密码或恢复方式，请从账号设置页面操作。</p><Button variant="outline" onClick={()=>setSecurityOpen(false)}>返回我的</Button></section>;
- else if(screen==='kyc'&&kycLocked)content=<section className="mini-card mini-empty"><ShieldCheck size={32}/><h1>{kycText('身份资料审核中',locale)}</h1><p>{kycText('预计 24 小时内完成审核。',locale)}</p><Button variant="outline" onClick={()=>navigate?.('/h5')}>{kycText('返回首页',locale)}</Button></section>;
+ else if(screen==='kyc'&&kycLocked)content=<section className="mini-card mini-empty"><ShieldCheck size={32}/><h1>{kycText('身份资料审核中',locale)}</h1><KycCustomerTimeline status="submitted" locale={locale}/><Button variant="outline" onClick={()=>navigate?.('/h5')}>{kycText('返回首页',locale)}</Button></section>;
  else if(screen==='kyc'){const group=query.get('group');const firstStep:Record<string,string>={identity:'personal',contacts:'contact1',employment:'employment',assets:'assets',bank:'bank',consent:'consent'};content=<KycClient mini initialSection={group?firstStep[group]:undefined}/>}
  else if(screen==='sign')content=<LoanSign mini queryString={query.toString()}/>;
  else if(screen==='contract')content=<Contract mini queryString={query.toString()}/>;
