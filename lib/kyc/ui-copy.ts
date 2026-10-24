@@ -3,12 +3,20 @@ import {messageForError} from '../error-messages';
 
 // UI copy only. Never pass customer field values, review notes or signed text here.
 const copy:Record<string,[string,string]>={
+ '取消':['Cancel','បោះបង់'],
+ '已保存':['Saved','បានរក្សាទុក'],
+ '保存中…':['Saving…','កំពុងរក្សាទុក…'],
+ '保存失败':['Save failed','ការរក្សាទុកបរាជ័យ'],
+ '资料版本已变化，请重新加载后核对':['This profile changed. Reload and check before saving.','ព័ត៌មាននេះបានផ្លាស់ប្តូរ។ សូមផ្ទុកឡើងវិញ និងពិនិត្យមុនរក្សាទុក។'],
+ '重新加载服务器资料':['Reload server profile','ផ្ទុកព័ត៌មានពីម៉ាស៊ីនមេឡើងវិញ'],
+ '重新加载会放弃本页未保存修改，是否继续？':['Reloading discards unsaved changes on this page. Continue?','ការផ្ទុកឡើងវិញនឹងបោះបង់ការកែប្រែមិនទាន់រក្សាទុក។ បន្តឬ?'],
  '需补充':['Update needed','ត្រូវបន្ថែម'],
  '已修改，待审核':['Updated · awaiting review','បានកែប្រែ · រង់ចាំពិនិត្យ'],
  '补件原因':['Reason for update','មូលហេតុនៃការបន្ថែម'],
  '补充说明':['Additional note','ចំណាំបន្ថែម'],
  '前往补充':['Update now','បន្ថែមឥឡូវ'],
  '本次修改状态仅供参考，提交后由审核员确认。':['Edits are provisional until reviewed.','ការកែប្រែត្រូវរង់ចាំការបញ្ជាក់ពីអ្នកពិនិត្យ។'],
+ '网络较慢，上传中断，请重试':['Slow network. Upload interrupted. Please retry.','បណ្ដាញយឺត។ ការផ្ទុកឡើងបានផ្អាក។ សូមព្យាយាមម្ដងទៀត។'],
  '拍照上传':['Take a photo','ថតរូបដើម្បីផ្ទុកឡើង'],
  '从相册选择':['Choose from gallery','ជ្រើសពីវិចិត្រសាល'],
  '放大查看材料':['Enlarge document','ពង្រីកមើលឯកសារ'],
@@ -87,4 +95,4 @@ export function kycText(text:string,locale:Locale):string{
 }
 export function kycDate(value:string,locale:Locale){return new Date(value).toLocaleString({zh:'zh-CN',en:'en-GB',km:'km-KH'}[locale],{timeZone:'Asia/Phnom_Penh'})}
 export function kycFormat(key:string,locale:Locale,values:Record<string,string|number>){return kycText(key,locale).replace(/\{(\w+)\}/g,(_,name)=>String(values[name]??''))}
-export function kycError(error:unknown,locale:Locale){const e=error as {code?:string;params?:Record<string,unknown>;message?:string};if(e.code)return messageForError(e,locale);const translated=kycText(e.message||'',locale);return translated!==e.message?translated:messageForError({code:'REQUEST_FAILED'},locale)}
+export function kycError(error:unknown,locale:Locale){const e=error as {code?:string;params?:Record<string,unknown>;message?:string};if(e.code==='KYC_UPLOAD_INTERRUPTED')return kycText('网络较慢，上传中断，请重试',locale);if(e.code)return messageForError(e,locale);const translated=kycText(e.message||'',locale);return translated!==e.message?translated:messageForError({code:'REQUEST_FAILED'},locale)}
