@@ -34,3 +34,33 @@ test('needs-info decision requires a chosen reason and an explanation for other'
  }
  for(const request of [{target:'slot:idFront',reasonCode:'blurred',note:''},{target:'slot:idFront',reasonCode:'other',note:'Details'}])assert.equal(view({decision:'needs_info',requests:[request]}).nodes.find(n=>n.props?.['data-action']==='decide').props.disabled,false);
 });
+test('decision controls appear only for submitted records',()=>{
+ const record=status=>({id:'synthetic',revision:1,status,profile:core.emptyProfile(),phoneVerified:true});
+ const submitted=view({record:record('submitted')}).nodes;
+ assert(submitted.some(n=>n.props?.['data-action']==='decide'));assert(submitted.some(n=>n.type==='select'));assert(submitted.some(n=>n.type==='textarea'));
+ for(const status of ['approved','rejected','needs_info','draft']){
+  const nodes=view({record:record(status)}).nodes;
+  assert(!nodes.some(n=>n.props?.['data-action']==='decide'));assert(!nodes.some(n=>n.type==='select'));assert(!nodes.some(n=>n.type==='textarea'));
+ }
+});
+test('reason is always required while checklist is required only for approval',()=>{
+ const checks=Object.fromEntries(core.sections.map(s=>[s.id,true]));
+ for(const reason of ['','   '])assert.equal(view({checks,reason}).nodes.find(n=>n.props?.['data-action']==='decide').props.disabled,true);
+ assert.equal(view({checks,reason:'x'}).nodes.find(n=>n.props?.['data-action']==='decide').props.disabled,false);
+ assert.equal(view({decision:'needs_info',checks:{},reason:'x'}).nodes.find(n=>n.props?.['data-action']==='decide').props.disabled,false);
+});
+test('approval-only records expose only approval and never amendment',()=>{
+ const record=(status,approvalOnly=false)=>({id:'synthetic',revision:1,status,profile:core.emptyProfile(),phoneVerified:true,approvalOnly});
+ const approval=view({record:record('submitted',true)}).nodes;
+ assert.deepEqual(approval.filter(n=>n.type==='option').map(n=>n.props.value),['approved']);assert(!approval.some(n=>n.props?.['data-action']==='amend'));
+ const standard=view({record:record('submitted')}).nodes;
+ assert.deepEqual(standard.filter(n=>n.type==='option').map(n=>n.props.value),['needs_info','approved','rejected']);assert(standard.some(n=>n.props?.['data-action']==='amend'));
+ for(const status of ['submitted','needs_info'])assert(view({record:record(status)}).nodes.some(n=>n.props?.['data-action']==='amend'));
+ for(const status of ['approved','rejected'])assert(!view({record:record(status)}).nodes.some(n=>n.props?.['data-action']==='amend'));
+});
+test('read-only and busy review controls are disabled',()=>{
+ const readOnly=view({record:{id:'synthetic',revision:1,status:'submitted',profile:core.emptyProfile(),phoneVerified:true,canReview:false}}).nodes.filter(n=>n.type==='input'&&n.props.type==='checkbox');
+ assert(readOnly.length>0);assert(readOnly.every(n=>n.props.disabled===true));
+ const busy=view({busy:true}).nodes.filter(n=>n.type==='input'&&n.props.type==='checkbox'||n.type==='select'||n.type==='textarea'||n.props?.['data-action']==='decide');
+ assert(busy.length>0);assert(busy.every(n=>n.props.disabled===true));
+});
