@@ -47,6 +47,21 @@ test('live response without submitted_at displays unavailable timing despite upd
  for(const file of ['app/team/client.tsx','components/crm-subpages.tsx'])assert.match(readFileSync(file,'utf8'),/memberId=\{member\??\.id\}/);
 });
 
+test('real submission time renders relative age with full timestamp title; only waiting over 24h turns red',()=>{
+ const q=queue(),now=Date.now();
+ const row=(id,age,status='submitted')=>({id,customer_id:id,status,submitted_at:new Date(now-age).toISOString()});
+ q.props.orders=[row('overdue',25*3600000),row('recent',2*3600000),row('approved',30*3600000,'approved'),{id:'unknown',customer_id:'unknown',status:'submitted',updated_at:new Date(now-50*3600000).toISOString()}];
+ const nodes=q.nodes(q.render()),times=nodes.filter(n=>n.type==='time');
+ assert.equal(times.length,3);
+ const overdue=times.find(n=>n.props.dateTime===q.props.orders[0].submitted_at);
+ assert.match(overdue.props.children.join(''),/1天前/);
+ assert.equal(overdue.props.title,new Date(q.props.orders[0].submitted_at).toLocaleString('zh'));
+ assert.equal(nodes.filter(n=>n.props?.style?.color==='#b91c1c').length,1);
+ assert.match(times.find(n=>n.props.dateTime===q.props.orders[1].submitted_at).props.children.join(''),/2小时前/);
+ assert.equal(q.relativeSubmission(now-60000,now,'en'),'1 minute ago');
+ assert.equal(q.relativeSubmission(now-3600000,now,'km'),new Intl.RelativeTimeFormat('km',{numeric:'always'}).format(-1,'hour'));
+});
+
 test('no-id review redirects to the canonical team route after auth; detail remains guarded',async()=>{
  const calls=[],jsx=(type,props)=>({type,props});
  const page=load('app/kyc/review/page.tsx',{'../../chatgpt-auth':{async requireChatGPTUser(path){calls.push(['auth',path])}},'../client':{default:'KycClient'},'next/navigation':{redirect(url){calls.push(['redirect',url]);throw Error('redirect')}},'react/jsx-runtime':{jsx,jsxs:jsx}}).default;
