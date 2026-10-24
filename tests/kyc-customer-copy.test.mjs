@@ -37,6 +37,9 @@ export function customer({locale='km',review=false,section='personal',status='dr
 }
 
 const steps=['personal','identityDetails','address','idFront','idBack','selfie','contact1','contact2','contact3','employment','income','assets','bank','consent'];
+test('409 inline cancellation uses Khmer UI copy, not Chinese fallback',async t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const h=customer({locale:'km',fakeTime:true,transport:async()=>{throw {status:409}}});t.after(()=>h.dispose());await h.ready();h.nodes().find(n=>n.props?.id==='kyc-field-givenName').props.onChange({target:{value:'LOCAL'}});h.render();t.mock.timers.tick(1500);await h.ready();h.nodes().find(n=>n.props?.children===h.copy.kycText('重新加载服务器资料','km')).props.onClick();h.render();assert(!/[\u3400-\u9fff]/.test(h.nodes().find(n=>n.props?.['data-reload-cancel']).props.children));
+});
 test('409 reload is confirmed inline; cancel preserves edits and only confirmation fetches the server',async()=>{
  const h=customer({locale:'zh',transport:async()=>{throw {status:409}}});await h.ready();
  h.nodes().find(n=>n.props?.id==='kyc-field-givenName').props.onChange({target:{value:'LOCAL EDIT'}});h.render();await new Promise(r=>setTimeout(r,1650));await h.ready();

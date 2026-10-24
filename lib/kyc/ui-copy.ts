@@ -3,6 +3,7 @@ import {messageForError} from '../error-messages';
 
 // UI copy only. Never pass customer field values, review notes or signed text here.
 const copy:Record<string,[string,string]>={
+ '取消':['Cancel','បោះបង់'],
  '已保存':['Saved','បានរក្សាទុក'],
  '保存中…':['Saving…','កំពុងរក្សាទុក…'],
  '保存失败':['Save failed','ការរក្សាទុកបរាជ័យ'],
