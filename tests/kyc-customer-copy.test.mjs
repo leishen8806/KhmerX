@@ -5,12 +5,12 @@ import {readFileSync} from 'node:fs';
 import ts from 'typescript';
 import * as core from '../lib/kyc/core.ts';
 
-function customer({locale='km',review=false,section='personal',status='draft',mini=false,values={},file,fileSlot,uploadFile,prepareFile}={}){
- let cursor=0,tree;const state=[],effectRecords=[],pendingEffects=[],focused=[],requests=[],navigations=[],clickHandlers=[];
+function customer({locale='km',review=false,section,status='draft',mini=false,values={},file,fileSlot,uploadFile,prepareFile}={}){
+ let cursor=0,tree,sectionStateIndex;const state=[],effectRecords=[],pendingEffects=[],focused=[],requests=[],navigations=[],clickHandlers=[];
  const profile=core.emptyProfile();profile.values={...profile.values,surname:'客户原文',...values};
- if(file)profile.files[fileSlot||section]=file;
+ if(file)profile.files[fileSlot||section||'personal']=file;
  const record={id:'synthetic-customer',revision:1,status,profile,phoneVerified:false,updatedAt:'2026-10-23T00:00:00Z'};
- const hooks={createContext:v=>({value:v}),useContext:c=>c.value,useState(initial){const i=cursor++;if(!(i in state))state[i]=typeof initial==='function'?initial():initial;return [state[i],v=>state[i]=typeof v==='function'?v(state[i]):v]},useRef(){const i=cursor++;if(!(i in state))state[i]={current:null};return state[i]},useEffect(fn,deps){const i=cursor++,previous=effectRecords[i];if(!previous||!deps||deps.some((value,index)=>value!==previous.deps[index]))pendingEffects.push({i,fn,deps:deps||[]})}};
+ const hooks={createContext:v=>({value:v}),useContext:c=>c.value,useState(initial){const i=cursor++;if(initial==='personal')sectionStateIndex=i;if(!(i in state))state[i]=typeof initial==='function'?initial():initial;return [state[i],v=>state[i]=typeof v==='function'?v(state[i]):v]},useRef(){const i=cursor++;if(!(i in state))state[i]={current:null};return state[i]},useEffect(fn,deps){const i=cursor++,previous=effectRecords[i];if(!previous||!deps||deps.some((value,index)=>value!==previous.deps[index]))pendingEffects.push({i,fn,deps:deps||[]})}};
  const jsx=(type,props)=>({type,props});
  const mocks={react:hooks,'react/jsx-runtime':{jsx,jsxs:jsx},'next/link':{default:'a'},'next/navigation':{useRouter:()=>({push:path=>navigations.push(path)})},'lucide-react':new Proxy({},{get:(_,k)=>k}),
   '@/lib/kyc/core':core,'@/lib/agreements/loan-terms':{LOAN_TERMS_VERSION:'test',LOAN_TERMS_URL:'/agreements/loan',loanTerms:{}},
@@ -28,7 +28,7 @@ function customer({locale='km',review=false,section='personal',status='draft',mi
  const nodes=n=>Array.isArray(n)?n.flatMap(nodes):!n||typeof n!=='object'?[]:[n,...nodes(n.props?.children)];
  const text=n=>Array.isArray(n)?n.map(text).join(' '):typeof n==='string'||typeof n==='number'?String(n):n&&typeof n==='object'?text(n.props?.children):'';
  render();
- return {focused,requests,navigations,clickHandlers,TestAnchor,async ready(){await new Promise(r=>setTimeout(r,10));render()},render,text:()=>text(tree),nodes:()=>nodes(tree),copy:mocks['@/lib/kyc/ui-copy']};
+ return {focused,requests,navigations,clickHandlers,TestAnchor,async ready(){await new Promise(r=>setTimeout(r,10));render()},render,setSection(value){assert.notEqual(sectionStateIndex,undefined);state[sectionStateIndex]=value;render()},text:()=>text(tree),nodes:()=>nodes(tree),copy:mocks['@/lib/kyc/ui-copy']};
 }
 
 const steps=['personal','identityDetails','address','idFront','idBack','selfie','contact1','contact2','contact3','employment','income','assets','bank','consent'];
@@ -131,4 +131,17 @@ test('Submit locates an invalid field on an earlier section and select blur has 
  const s=customer({locale:'en',section:'identityDetails'});await s.ready();
  s.nodes().find(n=>n.props?.id==='kyc-field-gender').props.onBlur();s.render();
  assert.equal(s.nodes().find(n=>n.props?.id==='kyc-field-gender').props['aria-describedby'],'kyc-error-gender');
+});
+test('approved customer groups are all complete, enabled and have no current group',async()=>{
+ for(const mini of [true,false]){const h=customer({status:'approved',mini,locale:'en'});await h.ready();const groups=h.nodes().filter(n=>n.props?.className==='kyc-group-button');assert.equal(groups.length,6);for(const group of groups){assert.equal(group.props.disabled,false);assert.equal(group.props['data-state'],'complete');assert.equal(group.props['aria-current'],undefined)}}
+});
+test('approved group clicks navigate in Mini App and open the first group step on H5',async()=>{
+ const mini=customer({status:'approved',mini:true,locale:'en'});await mini.ready();mini.nodes().filter(n=>n.props?.className==='kyc-group-button')[1].props.onClick();assert.deepEqual(mini.navigations,['/h5/kyc?group=contacts']);
+ const h5=customer({status:'approved',mini:false,locale:'en'});await h5.ready();h5.setSection('income');h5.nodes().filter(n=>n.props?.className==='kyc-group-button')[2].props.onClick();h5.render();const title=h5.nodes().find(n=>n.props?.className==='kyc-section-title');assert.match(JSON.stringify(title.props.children),new RegExp(h5.copy.kycText('工作收入资料 · 最高 100 USD','en')));
+});
+test('approved customer details remain read only without save or submit actions',async()=>{
+ const h=customer({status:'approved',mini:false,locale:'en'});await h.ready();assert(h.nodes().some(n=>n.props?.className==='kyc-value'));assert(!h.nodes().some(n=>['Input','SelectTrigger','Checkbox'].includes(n.type)));assert(!h.nodes().some(n=>['kyc-next-button','kyc-submit-button'].includes(n.props?.className)));assert.doesNotMatch(h.text(),/Save|Submit|Next/);
+});
+test('draft and submitted group locking stays unchanged',async()=>{
+ for(const status of ['draft','submitted']){const h=customer({status,mini:false,locale:'en'});await h.ready();const groups=h.nodes().filter(n=>n.props?.className==='kyc-group-button');assert.equal(groups[0].props['data-state'],'active');assert.equal(groups[0].props['aria-current'],'step');for(const group of groups.slice(1)){assert.equal(group.props.disabled,true);assert.equal(group.props['data-state'],'upcoming')}}
 });
