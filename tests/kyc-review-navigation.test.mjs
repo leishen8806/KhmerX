@@ -17,7 +17,7 @@ function reviewer(){
   '@/lib/kyc/core':core,'@/lib/agreements/loan-terms':{LOAN_TERMS_VERSION:'test',LOAN_TERMS_URL:'/agreements/loan',loanTerms:{}},
   '@/components/loan-bill':{LoanBill:'LoanBill'},'@/components/mini-shell':{MiniNavLink:'a',useMiniNavigation:()=>null},
   '@/lib/i18n':{useI18n:()=>({locale:'km'}),legacyText:s=>s},'@/lib/analytics':{trackEvent(){}},
-  '@/lib/image-compress':{},'@/lib/api-client':{async apiFetch(url,init={}){requests.push({url,...init});if(init.method==='POST')throw Error('Profile not found: missing id');return {data:record}}},
+  '@/lib/image-compress':{},'@/lib/kyc/upload':{},'@/lib/api-client':{async apiFetch(url,init={}){requests.push({url,...init});if(init.method==='POST')throw Error('Profile not found: missing id');return {data:record}}},
  };
  for(const [file,names] of Object.entries({'button':['Button'],'input':['Input'],'checkbox':['Checkbox'],'select':['Select','SelectTrigger','SelectValue','SelectContent','SelectItem']}))mocks['@/components/ui/'+file]=Object.fromEntries(names.map(n=>[n,n]));
  const context=vm.createContext({URLSearchParams,window:{location:{search:'?id=synthetic-review'},addEventListener(){},removeEventListener(){}},document:{addEventListener(){},removeEventListener(){}},console});

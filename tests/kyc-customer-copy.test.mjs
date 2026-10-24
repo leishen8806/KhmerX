@@ -5,19 +5,20 @@ import {readFileSync} from 'node:fs';
 import ts from 'typescript';
 import * as core from '../lib/kyc/core.ts';
 
-function customer({locale='km',review=false,section='personal',status='draft',mini=false}={}){
+function customer({locale='km',review=false,section='personal',status='draft',mini=false,file,uploadFile,prepareFile}={}){
  let cursor=0,tree;const state=[],effects=[];
  const profile=core.emptyProfile();profile.values.surname='客户原文';
+ if(file)profile.files[section]=file;
  const record={id:'synthetic-customer',revision:1,status,profile,phoneVerified:false,updatedAt:'2026-10-23T00:00:00Z'};
  const hooks={createContext:v=>({value:v}),useContext:c=>c.value,useState(initial){const i=cursor++;if(!(i in state))state[i]=typeof initial==='function'?initial():initial;return [state[i],v=>state[i]=typeof v==='function'?v(state[i]):v]},useRef:()=>({current:null}),useEffect(fn,deps){const i=cursor++;if(!state[i]){state[i]=deps||[];effects.push(fn)}}};
  const jsx=(type,props)=>({type,props});
  const mocks={react:hooks,'react/jsx-runtime':{jsx,jsxs:jsx},'next/link':{default:'a'},'next/navigation':{useRouter:()=>({push(){}})},'lucide-react':new Proxy({},{get:(_,k)=>k}),
   '@/lib/kyc/core':core,'@/lib/agreements/loan-terms':{LOAN_TERMS_VERSION:'test',LOAN_TERMS_URL:'/agreements/loan',loanTerms:{}},
   '@/components/loan-bill':{LoanBill:'LoanBill'},'@/components/mini-shell':{MiniNavLink:'a',useMiniNavigation:()=>null},'@/lib/analytics':{trackEvent(){}},
-  '@/lib/image-compress':{},'@/lib/api-client':{async apiFetch(){return {data:record}}},
+  '@/lib/image-compress':{prepareKycFile:prepareFile||((f)=>f),fileLimitBytes:()=>5242880,retryAfterMs:()=>0},'@/lib/kyc/upload':{uploadKycFile:uploadFile},'@/lib/api-client':{apiUrl:p=>p,async apiFetch(){return {data:record}}},
  };
  for(const [file,names] of Object.entries({'button':['Button'],'input':['Input'],'checkbox':['Checkbox'],'select':['Select','SelectTrigger','SelectValue','SelectContent','SelectItem']}))mocks['@/components/ui/'+file]=Object.fromEntries(names.map(n=>[n,n]));
- const context=vm.createContext({URLSearchParams,Date,Intl,window:{localStorage:{getItem:()=>locale},location:{search:review?'?id=synthetic-customer':''},addEventListener(){},removeEventListener(){},setInterval(){},clearInterval(){}},document:{documentElement:{lang:locale},addEventListener(){},removeEventListener(){}}});
+ const context=vm.createContext({URLSearchParams,Date,Intl,File,Blob,setTimeout,window:{localStorage:{getItem:()=>locale},location:{search:review?'?id=synthetic-customer':''},open(){throw Error('Document previews must remain inline')},addEventListener(){},removeEventListener(){},setInterval(){},clearInterval(){}},document:{documentElement:{lang:locale},addEventListener(){},removeEventListener(){}}});
  const load=file=>{const exports={},js=ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;vm.runInContext('(function(exports,require){'+js+'\n})',context)(exports,n=>{assert(n in mocks,n);return mocks[n]});return exports};
  mocks['@/lib/i18n']=load('lib/i18n.tsx');mocks['@/lib/i18n'].I18nContext.value=mocks['@/lib/i18n'].i18nValue(locale);
  mocks['@/lib/error-messages']=load('lib/error-messages.ts');mocks['../i18n']=mocks['@/lib/i18n'];mocks['../error-messages']=mocks['@/lib/error-messages'];mocks['@/lib/kyc/ui-copy']=load('lib/kyc/ui-copy.ts');
@@ -48,4 +49,18 @@ test('submitted KYC return action is localized in English and Khmer',()=>{
  const {copy}=customer();
  assert.equal(copy.kycText('返回首页','en'),'Back to home');
  assert.equal(copy.kycText('返回首页','km'),'ត្រឡប់ទៅទំព័រដើម');
+});
+test('identity capture uses the correct camera and preserves a separate gallery picker',async()=>{
+ for(const [section,capture] of [['idFront','environment'],['idBack','environment'],['selfie','user']]){const h=customer({section,locale:'zh'});await h.ready();const inputs=h.nodes().filter(n=>n.type==='input'&&n.props.type==='file');assert.equal(inputs.length,2);assert.equal(inputs[0].props.capture,capture);assert.equal(inputs[0].props.accept,'image/jpeg,image/png');assert.equal(inputs[1].props.capture,undefined)}
+});
+test('uploaded image opens an inline dialog and PDF retains the authenticated download link',async()=>{
+ const h=customer({section:'idFront',locale:'zh',file:{id:'private file',type:'image/png',size:100}});await h.ready();const image=h.nodes().find(n=>n.type==='img'&&n.props.src.includes('/api/kyc/files'));assert.equal(image.props.src,'/api/kyc/files?id=private%20file');const button=h.nodes().find(n=>n.type==='button'&&n.props.className==='kyc-thumbnail');button.props.onClick({currentTarget:{focus(){}}});h.render();assert(h.nodes().some(n=>n.type==='dialog'&&n.props.open));assert(!h.nodes().some(n=>n.type==='a'&&n.props.target==='_blank'&&n.props.href?.includes('/api/kyc/files')));h.nodes().find(n=>n.props?.['aria-label']==='关闭预览').props.onClick();h.render();assert(!h.nodes().some(n=>n.type==='dialog'));
+ const pdf=customer({section:'idFront',file:{id:'pdf',type:'application/pdf',size:200}});await pdf.ready();assert(pdf.nodes().some(n=>n.type==='a'&&n.props.href==='/api/kyc/files?id=pdf'&&n.props.download!==undefined));
+});
+test('compression, actual byte progress and manual retry retain the selected file; 429/503 retry three times',async()=>{
+ let release,finish,attempts=0;const selected=new File(['synthetic'],'photo.png',{type:'image/png'}),sent=[];
+ const h=customer({section:'idFront',locale:'zh',prepareFile:f=>new Promise(r=>{release=()=>r(f)}),uploadFile:(f,headers,progress)=>{sent.push(f);attempts++;progress(37);return new Promise((resolve,reject)=>{finish=()=>attempts<=3?reject({status:attempts===2?503:429,code:'SERVICE_UNAVAILABLE'}):resolve({id:'success',type:'image/png',size:9})})}});await h.ready();
+ h.nodes().find(n=>n.props?.type==='file').props.onChange({target:{files:[selected],value:'selected'}});h.render();assert.match(h.text(),/压缩中/);release();await h.ready();assert.match(h.text(),/上传中 37%/);
+ for(let i=0;i<3;i++){finish();await new Promise(r=>setTimeout(r,10));await h.ready()}
+ assert.equal(attempts,3);assert.match(h.text(),/上传失败，请重试/);const retry=h.nodes().find(n=>n.type==='Button'&&n.props.children==='重试');retry.props.onClick();h.render();assert.match(h.text(),/压缩中/);release();await h.ready();finish();await h.ready();assert.match(h.text(),/上传完成/);assert.equal(attempts,4);assert(sent.every(f=>f===selected));assert(h.nodes().some(n=>n.type==='img'&&n.props.src==='/api/kyc/files?id=success'));
 });
