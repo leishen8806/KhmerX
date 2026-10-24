@@ -3,6 +3,16 @@ import {messageForError} from '../error-messages';
 
 // UI copy only. Never pass customer field values, review notes or signed text here.
 const copy:Record<string,[string,string]>={
+ '拍照上传':['Take a photo','ថតរូបដើម្បីផ្ទុកឡើង'],
+ '从相册选择':['Choose from gallery','ជ្រើសពីវិចិត្រសាល'],
+ '放大查看材料':['Enlarge document','ពង្រីកមើលឯកសារ'],
+ '关闭预览':['Close preview','បិទការមើលជាមុន'],
+ '下载已上传材料':['Download uploaded document','ទាញយកឯកសារដែលបានផ្ទុកឡើង'],
+ '压缩中…':['Compressing…','កំពុងបង្រួម…'],
+ '上传中…':['Uploading…','កំពុងផ្ទុកឡើង…'],
+ '上传完成':['Upload complete','ផ្ទុកឡើងបានបញ្ចប់'],
+ '上传失败，请重试':['Upload failed. Please retry.','ផ្ទុកឡើងបរាជ័យ។ សូមព្យាយាមម្ដងទៀត។'],
+ '上传进度':['Upload progress','វឌ្ឍនភាពផ្ទុកឡើង'],
  '请检查：{field}':['Check {field}.','សូមពិនិត្យ {field}។'],
  '资料 {id} · 版本 {revision}':['Profile {id} · Version {revision}','ព័ត៌មាន {id} · កំណែ {revision}'],
  '资料 {id}':['Profile {id}','ព័ត៌មាន {id}'],
@@ -49,6 +59,8 @@ export function kycText(text:string,locale:Locale):string{
  if(text.includes(' / ')&&/[\u1780-\u17ff]/.test(text)){const [en,km]=text.split(' / ');return locale==='zh'?optionZh[en]||text:locale==='km'?km:en}
  if(locale==='zh')return text;
  if(copy[text])return copy[text][locale==='km'?1:0];
+ const progress=/^上传中 (\d+)%$/.exec(text);
+ if(progress)return locale==='km'?`កំពុងផ្ទុកឡើង ${progress[1]}%`:`Uploading ${progress[1]}%`;
  const missing=/^(请补全：|请先完成：)(.*)$/.exec(text);
  if(missing)return (locale==='km'?'សូមបំពេញ៖ ':'Please complete: ')+missing[2].split('、').map(label=>kycText(label,locale)).join(', ');
  const retry=/^正在重试（第 (\d+) 次）$/.exec(text);

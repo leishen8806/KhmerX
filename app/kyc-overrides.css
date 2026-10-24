@@ -91,3 +91,13 @@ button.kyc-group-button:not(:last-child)::after {
   white-space: nowrap;
   line-height: 1;
 }
+/* Private document previews remain inside the Mini App. */
+.kyc-thumbnail{display:grid;gap:8px;border:1px solid #dbe3ed;border-radius:12px;padding:10px;background:#fff;max-width:100%;cursor:zoom-in}
+.kyc-thumbnail img{width:100%;max-width:240px;height:150px;object-fit:contain}
+.kyc-pdf-card{display:block;padding:16px;border:1px solid #dbe3ed;border-radius:12px;overflow-wrap:anywhere}
+.kyc-upload-state{display:grid;gap:8px;margin:12px 0;overflow-wrap:anywhere}
+.kyc-upload-state progress{width:100%;accent-color:#1769e0}
+.kyc-preview{position:fixed;inset:0;margin:auto;width:min(92vw,900px);max-height:92dvh;padding:16px;border:0;border-radius:16px;background:#fff;overflow:auto}
+.kyc-preview::backdrop{background:rgb(0 0 0 / .7)}
+.kyc-preview button{display:block;margin:0 0 12px auto;padding:10px 16px;border-radius:8px;background:#e8eef6;cursor:pointer}
+.kyc-preview img{display:block;max-width:100%;max-height:75dvh;margin:auto;object-fit:contain}
