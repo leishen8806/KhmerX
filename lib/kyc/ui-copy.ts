@@ -3,6 +3,7 @@ import {messageForError} from '../error-messages';
 
 // UI copy only. Never pass customer field values, review notes or signed text here.
 const copy:Record<string,[string,string]>={
+ '网络较慢，上传中断，请重试':['Slow network. Upload interrupted. Please retry.','បណ្ដាញយឺត។ ការផ្ទុកឡើងបានផ្អាក។ សូមព្យាយាមម្ដងទៀត។'],
  '拍照上传':['Take a photo','ថតរូបដើម្បីផ្ទុកឡើង'],
  '从相册选择':['Choose from gallery','ជ្រើសពីវិចិត្រសាល'],
  '放大查看材料':['Enlarge document','ពង្រីកមើលឯកសារ'],
@@ -81,4 +82,4 @@ export function kycText(text:string,locale:Locale):string{
 }
 export function kycDate(value:string,locale:Locale){return new Date(value).toLocaleString({zh:'zh-CN',en:'en-GB',km:'km-KH'}[locale],{timeZone:'Asia/Phnom_Penh'})}
 export function kycFormat(key:string,locale:Locale,values:Record<string,string|number>){return kycText(key,locale).replace(/\{(\w+)\}/g,(_,name)=>String(values[name]??''))}
-export function kycError(error:unknown,locale:Locale){const e=error as {code?:string;params?:Record<string,unknown>;message?:string};if(e.code)return messageForError(e,locale);const translated=kycText(e.message||'',locale);return translated!==e.message?translated:messageForError({code:'REQUEST_FAILED'},locale)}
+export function kycError(error:unknown,locale:Locale){const e=error as {code?:string;params?:Record<string,unknown>;message?:string};if(e.code==='KYC_UPLOAD_INTERRUPTED')return kycText('网络较慢，上传中断，请重试',locale);if(e.code)return messageForError(e,locale);const translated=kycText(e.message||'',locale);return translated!==e.message?translated:messageForError({code:'REQUEST_FAILED'},locale)}
