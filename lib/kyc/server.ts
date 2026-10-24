@@ -14,8 +14,9 @@ import {requestIdOf,resolveRequestId} from '@/lib/http/request-id';
 import {isTestMode} from '@/lib/runtime-guards';
 import {ApiError} from '@/lib/http/api-error';
 import {KYC_CUSTOMER_MAX_BYTES,KYC_CUSTOMER_MAX_FILES,kycFileMaxBytes} from './limits';
+import {parseRequests,requestSection,type KycRequest} from './requests';
 export {json,KycError};
-export type CasePayload={profile:Profile;phoneVerified:boolean;ruleVersion:string;submittedAt?:string;signedLoan?:{billing?:Bill;borrowerName:string;profileHash:string;loanId:string;signatureId:string;signatureHash:string;termsVersion:string;termsHash:string;termsSnapshot:typeof loanTerms.blocks;principal:number;fee:number;currency:string;termDays:number;signedAt:string;contractHash:string};review?:{decision:string;reason:string;checklist:Record<string,boolean>;actor:string;at:string;revision:number}};
+export type CasePayload={profile:Profile;phoneVerified:boolean;ruleVersion:string;submittedAt?:string;signedLoan?:{billing?:Bill;borrowerName:string;profileHash:string;loanId:string;signatureId:string;signatureHash:string;termsVersion:string;termsHash:string;termsSnapshot:typeof loanTerms.blocks;principal:number;fee:number;currency:string;termDays:number;signedAt:string;contractHash:string};review?:{requests?:KycRequest[];decision:string;reason:string;checklist:Record<string,boolean>;actor:string;at:string;revision:number}};
 export type CaseRow={id:string;owner:string;customer_id:string;revision:number;status:KycStatus;payload:string;updated_at:string;public_ref?:string|null;source_channel?:string|null};
 export const settings=()=>env as unknown as Record<string,string>;
 export function db(){if(!env.DB)throw new KycError('KYC 数据库暂不可用',503);return env.DB}
@@ -131,7 +132,10 @@ export async function decide(request:Request){
   if(u.team)await db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),u.team.tenant.id,u.actorId,'kyc_field_amend',JSON.stringify({caseId:row.id,fields:changed,groups,before,after,reason,requiresResubmission:true,revision:next.revision}),new Date().toISOString()).run();
   return view(next);
  }
- const checklist=Object.fromEntries(['identity','contacts','employment','income','assets','bank','consent'].map(k=>[k,p.checklist?.[k]===true]));validateReview(row.status,p.decision,checklist,reason,data.profile);data.review={decision:p.decision,reason,checklist,actor:u.actorId,at:new Date().toISOString(),revision:row.revision};return view(await transition(row,p.decision,data,'review:'+p.decision,u.actorId));
+ const checklist=Object.fromEntries(['identity','contacts','employment','income','assets','bank','consent'].map(k=>[k,p.checklist?.[k]===true]));validateReview(row.status,p.decision,checklist,reason,data.profile);const requests=parseRequests(p.requests,data.profile);
+ if(p.decision!=='needs_info'&&requests?.length)throw new KycError('只有退回补件可以包含补件项目');
+ if(p.decision==='needs_info')for(const request of requests||[])checklist[requestSection(request.target)!]=true;
+ data.review={...(requests===undefined?{}:{requests}),decision:p.decision,reason,checklist,actor:u.actorId,at:new Date().toISOString(),revision:row.revision};return view(await transition(row,p.decision,data,'review:'+p.decision,u.actorId));
 }
 export async function recordFile(owner:string,customerId:string,slot:Slot,bytes:Uint8Array,type:string,requestId?:string){
  const started=Date.now();let scanDurationMs=0;
