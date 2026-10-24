@@ -43,12 +43,18 @@ test('upload retry, size limits, geographic labels and safe errors use the selec
  const {copy}=customer({mini:true});assert.equal(copy.kycText('Agriculture/Forestry/Fishery / កសិកម្ម/រុក្ខាប្រម៉ាញ់/នេសាទ','km'),'កសិកម្ម/រុក្ខាប្រម៉ាញ់/នេសាទ');assert.equal(copy.kycText('金边/Phnom Penh','en'),'Phnom Penh');
 });
 test('customer validation errors and timestamps follow locale',async()=>{
- for(const locale of ['en','km','zh']){const h=customer({locale});await h.ready();await h.nodes().find(n=>n.props?.className==='kyc-next-button').props.onClick();h.render();const alert=h.nodes().find(n=>n.props?.role==='alert');assert(alert);if(locale!=='zh')assert.doesNotMatch(JSON.stringify(alert.props.children),/[\u4e00-\u9fff]/);assert(h.text().includes(new Date('2026-10-23T00:00:00Z').toLocaleString({zh:'zh-CN',en:'en-GB',km:'km-KH'}[locale],{timeZone:'Asia/Phnom_Penh'})))}
+ for(const locale of ['en','km','zh']){const h=customer({locale});await h.ready();await h.nodes().find(n=>n.props?.className==='kyc-next-button').props.onClick();h.render();const alert=h.nodes().find(n=>n.props?.['aria-live']==='polite');assert(alert);if(locale!=='zh')assert.doesNotMatch(JSON.stringify(alert.props.children),/[\u4e00-\u9fff]/);assert(h.text().includes(new Date('2026-10-23T00:00:00Z').toLocaleString({zh:'zh-CN',en:'en-GB',km:'km-KH'}[locale],{timeZone:'Asia/Phnom_Penh'})))}
 });
 test('submitted KYC return action is localized in English and Khmer',()=>{
  const {copy}=customer();
  assert.equal(copy.kycText('返回首页','en'),'Back to home');
  assert.equal(copy.kycText('返回首页','km'),'ត្រឡប់ទៅទំព័រដើម');
+});
+test('status zero retries only once, then offers manual retry with localized interruption text',async()=>{
+ for(const [locale,message] of [['zh','网络较慢，上传中断，请重试'],['en','Slow network. Upload interrupted. Please retry.'],['km','បណ្ដាញយឺត។ ការផ្ទុកឡើងបានផ្អាក។ សូមព្យាយាមម្ដងទៀត។']]){let attempts=0;const h=customer({locale,section:'idFront',uploadFile:async()=>{attempts++;throw {status:0,code:'KYC_UPLOAD_INTERRUPTED'}}});await h.ready();h.nodes().find(n=>n.props?.type==='file').props.onChange({target:{files:[new File(['qa'],'qa.png',{type:'image/png'})],value:'qa'}});await new Promise(r=>setTimeout(r,30));await h.ready();assert.equal(attempts,2);assert(h.text().includes(message));assert(h.nodes().some(n=>n.props?.children===h.copy.kycText('重试',locale)));}
+});
+test('field errors use descriptions without assertive alerts; summary is polite',async()=>{
+ const h=customer({locale:'en'});await h.ready();h.nodes().find(n=>n.props?.id==='kyc-field-givenName').props.onBlur();h.render();assert.equal(h.nodes().find(n=>n.props?.id==='kyc-error-givenName').props.role,undefined);await h.nodes().find(n=>n.props?.className==='kyc-next-button').props.onClick();await h.ready();const summary=h.nodes().find(n=>n.props?.className==='kyc-validation-summary');assert.equal(summary.props['aria-live'],'polite');assert.notEqual(summary.props.role,'alert');
 });
 test('identity capture uses the correct camera and preserves a separate gallery picker',async()=>{
  for(const [section,capture] of [['idFront','environment'],['idBack','environment'],['selfie','user']]){const h=customer({section,locale:'zh'});await h.ready();const inputs=h.nodes().filter(n=>n.type==='input'&&n.props.type==='file');assert.equal(inputs.length,2);assert.equal(inputs[0].props.capture,capture);assert.equal(inputs[0].props.accept,'image/jpeg,image/png');assert.equal(inputs[1].props.capture,undefined)}
