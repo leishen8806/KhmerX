@@ -8,9 +8,11 @@ import * as requests from '../lib/kyc/requests.ts';
 function view(overrides={}){
  const changes=[],profile=core.emptyProfile();profile.values.surname='原文 CUSTOMER';
  const props={record:{id:'synthetic',revision:3,status:'submitted',profile,phoneVerified:true},checks:{},reason:'synthetic reason',decision:'approved',busy:false,onCheck:(id,value)=>changes.push([id,value]),onDecision(){},onReason(){},onDecide(){changes.push('decide')},onAmend(){changes.push('amend')},...overrides};
- const jsx=(type,props)=>({type,props}),exports={};
+ let ReviewActions;const jsx=(type,props)=>type===ReviewActions?type(props):({type,props}),exports={};
+ const actionsCode=ts.transpileModule(readFileSync('components/kyc-review-actions.tsx','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,actions={};
+ vm.runInNewContext('(function(exports,require){'+actionsCode+'\n})',{})(actions,n=>n==='react'?{useState:initial=>[initial,()=>{}],useRef:()=>({current:null}),useEffect(){}}:n==='react/jsx-runtime'?{jsx,jsxs:jsx}:n==='@/lib/kyc/core'?core:n==='@/lib/kyc/ui-copy'?{kycText:s=>s}:{});ReviewActions=actions.ReviewActions;
  const code=ts.transpileModule(readFileSync('components/kyc-review.tsx','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
- vm.runInNewContext('(function(exports,require){'+code+'\n})',{URLSearchParams,window:{location:{search:''}},Date})(exports,n=>n==='react/jsx-runtime'?{jsx,jsxs:jsx}:n==='@/lib/kyc/core'?core:n==='@/lib/kyc/requests'?requests:n==='@/lib/api-client'?{apiUrl:p=>p}:n==='@/lib/i18n'?{useI18n:()=>({locale:'zh'})}:n==='@/lib/kyc/ui-copy'?{kycText:s=>s,kycDate:s=>s}:{});
+ vm.runInNewContext('(function(exports,require){'+code+'\n})',{URLSearchParams,window:{location:{search:''}},Date})(exports,n=>n==='@/components/kyc-review-actions'?{ReviewActions}:n==='react/jsx-runtime'?{jsx,jsxs:jsx}:n==='@/lib/kyc/core'?core:n==='@/lib/kyc/requests'?requests:n==='@/lib/api-client'?{apiUrl:p=>p}:n==='@/lib/i18n'?{useI18n:()=>({locale:'zh'})}:n==='@/lib/kyc/ui-copy'?{kycText:s=>s,kycDate:s=>s}:{});
  const tree=exports.KycReview(props),nodes=n=>Array.isArray(n)?n.flatMap(nodes):n&&typeof n==='object'?[n,...nodes(n.props?.children)]:[];return {nodes:nodes(tree),changes};
 }
 test('review shows seven open cards and anchors with per-section checklist; never edits customer fields',()=>{
@@ -18,7 +20,7 @@ test('review shows seven open cards and anchors with per-section checklist; neve
 });
 test('approval needs every check; read-only users cannot decide or amend',()=>{
  assert.equal(view().nodes.find(n=>n.props?.['data-action']==='decide').props.disabled,true);
- const checked=Object.fromEntries(core.sections.map(s=>[s.id,true])),h=view({checks:checked});h.nodes.find(n=>n.props?.['data-action']==='decide').props.onClick();assert.deepEqual(h.changes,['decide']);
+ const checked=Object.fromEntries(core.sections.map(s=>[s.id,true])),h=view({checks:checked});h.nodes.find(n=>n.props?.['data-action']==='decide').props.onClick({currentTarget:{focus(){}}});assert.deepEqual(h.changes,[]);h.nodes.find(n=>n.props?.['data-confirm-review']).props.onClick();assert.deepEqual(h.changes,['decide']);
  const ro=view({record:{id:'synthetic',revision:1,status:'submitted',profile:core.emptyProfile(),canReview:false}});assert(!ro.nodes.some(n=>n.props?.['data-action']==='decide'||n.props?.['data-action']==='amend'));
 });
 test('audit summary explains redaction instead of claiming customer fields or files are missing',()=>{

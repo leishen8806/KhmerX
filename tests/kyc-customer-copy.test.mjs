@@ -5,7 +5,7 @@ import {readFileSync} from 'node:fs';
 import ts from 'typescript';
 import * as core from '../lib/kyc/core.ts';
 
-function customer({locale='km',review=false,section='personal',status='draft',mini=false,values={},file,fileSlot,uploadFile,prepareFile,reviewData}={}){
+function customer({locale='km',review=false,section='personal',status='draft',mini=false,values={},file,fileSlot,uploadFile,prepareFile,reviewData,network}={}){
  let cursor=0,tree;const state=[],effectRecords=[],pendingEffects=[],focused=[],requests=[],navigations=[],clickHandlers=[];
  const profile=core.emptyProfile();profile.values={...profile.values,surname:'客户原文',...values};
  if(file)profile.files[fileSlot||section]=file;
@@ -15,7 +15,7 @@ function customer({locale='km',review=false,section='personal',status='draft',mi
  const mocks={react:hooks,'react/jsx-runtime':{jsx,jsxs:jsx},'next/link':{default:'a'},'next/navigation':{useRouter:()=>({push:path=>navigations.push(path)})},'lucide-react':new Proxy({},{get:(_,k)=>k}),
   '@/lib/kyc/core':core,'@/lib/agreements/loan-terms':{LOAN_TERMS_VERSION:'test',LOAN_TERMS_URL:'/agreements/loan',loanTerms:{}},
   '@/components/loan-bill':{LoanBill:'LoanBill'},'@/components/mini-shell':{MiniNavLink:'a',useMiniNavigation:()=>path=>navigations.push(path)},'@/lib/analytics':{trackEvent(){}},
-  '@/lib/image-compress':{prepareKycFile:prepareFile||((f)=>f),fileLimitBytes:()=>5242880,retryAfterMs:()=>0},'@/lib/kyc/upload':{uploadKycFile:uploadFile},'@/lib/api-client':{apiUrl:p=>p,async apiFetch(url,options={}){if(options.method==='POST'){const request=JSON.parse(options.body);requests.push({url,request});const clean=core.cleanProfile(request.profile);Object.assign(record,{revision:record.revision+1,profile:clean,updatedAt:'2026-10-24T00:00:00Z'});return {data:record}}return {data:record}}},
+  '@/lib/image-compress':{prepareKycFile:prepareFile||((f)=>f),fileLimitBytes:()=>5242880,retryAfterMs:()=>0},'@/lib/kyc/upload':{uploadKycFile:uploadFile},'@/lib/api-client':{apiUrl:p=>p,async apiFetch(url,options={}){if(network)return network(url,options,record);if(options.method==='POST'){const request=JSON.parse(options.body);requests.push({url,request});const clean=core.cleanProfile(request.profile);Object.assign(record,{revision:record.revision+1,profile:clean,updatedAt:'2026-10-24T00:00:00Z'});return {data:record}}return {data:record}}},
  };
  for(const [file,names] of Object.entries({'button':['Button'],'input':['Input'],'checkbox':['Checkbox'],'select':['Select','SelectTrigger','SelectValue','SelectContent','SelectItem']}))mocks['@/components/ui/'+file]=Object.fromEntries(names.map(n=>[n,n]));
  class TestAnchor{constructor(href){this.href=href;this.target=''}closest(){return this}}
@@ -25,6 +25,7 @@ function customer({locale='km',review=false,section='personal',status='draft',mi
  mocks['@/lib/error-messages']=load('lib/error-messages.ts');mocks['../i18n']=mocks['@/lib/i18n'];mocks['../error-messages']=mocks['@/lib/error-messages'];mocks['@/lib/kyc/ui-copy']=load('lib/kyc/ui-copy.ts');
  mocks['./core.ts']=core;mocks['@/lib/kyc/requests']=load('lib/kyc/requests.ts');mocks['./requests.ts']=mocks['@/lib/kyc/requests'];mocks['@/lib/kyc/supplement-ui']=load('lib/kyc/supplement-ui.ts');mocks['./kyc-supplement.css']={};mocks['@/components/kyc-supplement']=load('components/kyc-supplement.tsx');
  mocks['./kyc-material-viewer.css']={};mocks['@/components/kyc-material-viewer']=load('components/kyc-material-viewer.tsx');
+ mocks['./kyc-review-actions.css']={};mocks['@/components/kyc-review-actions']=load('components/kyc-review-actions.tsx');mocks['@/lib/kyc/review-next']=load('lib/kyc/review-next.ts');
  mocks['./kyc-review.css']={};mocks['@/components/kyc-review']=load('components/kyc-review.tsx');
  const component=load('app/kyc/client.tsx').default;
  const render=()=>{cursor=0;tree=component({review,mini,initialSection:section});for(const effect of pendingEffects.splice(0)){effectRecords[effect.i]?.cleanup?.();const cleanup=effect.fn();effectRecords[effect.i]={deps:effect.deps,cleanup}}return tree};
@@ -35,6 +36,18 @@ function customer({locale='km',review=false,section='personal',status='draft',mi
 }
 
 const steps=['personal','identityDetails','address','idFront','idBack','selfie','contact1','contact2','contact3','employment','income','assets','bank','consent'];
+test('review success reads queue after POST; queue failure offers retry not empty; 409 retains inputs without GET',async()=>{
+ for(const mode of ['next','empty','offline','conflict']){
+  const events=[];const h=customer({locale:'zh',review:true,status:'submitted',network:async(url,init,record)=>{if(init.method==='POST'){events.push('POST');if(mode==='conflict')throw {status:409,message:'Conflict'};return {data:{...record,revision:2,status:'needs_info'}}}if(!url.includes('?id=')){events.push('QUEUE');if(mode==='offline')throw Error('offline');return {data:{cases:mode==='next'?[{id:'next',status:'submitted'}]:[]}}}events.push('CASE');return {data:record}}});await h.ready();
+  h.nodes().find(n=>n.type==='textarea').props.onChange({target:{value:'KEEP NOTE'}});h.render();h.nodes().find(n=>n.props?.['data-action']==='decide').props.onClick();await h.ready();
+  assert.deepEqual(events,mode==='conflict'?['CASE','POST']:['CASE','POST','QUEUE']);
+  assert(h.text().includes(mode==='next'?'下一条待审核':mode==='empty'?'没有其他待审核资料。':mode==='offline'?'无法获取下一条，请重试。':'KEEP NOTE'));
+  if(mode==='offline'||mode==='conflict')assert(!h.text().includes('没有其他待审核资料。'));
+ }
+});
+test('approval summary and phrases contain no Chinese UI in English and Khmer',async()=>{
+ for(const locale of ['en','km']){const h=customer({locale,review:true,status:'submitted'});await h.ready();const dialog=h.nodes().find(n=>n.type==='dialog');assert(dialog);assert(!/[\u3400-\u9fff]/.test(JSON.stringify(dialog.props.children)));assert(h.nodes().filter(n=>n.props?.['data-phrase']).every(n=>!/[\u3400-\u9fff]/.test(n.props.children)));}
+});
 test('structured supplementation focuses exact target, tracks edits and preserves original notes in all locales',async()=>{
  for(const locale of ['zh','en','km']){const h=customer({locale,status:'needs_info',reviewData:{at:'2026-10-24',reason:'审核员原文',requests:[{target:'field:bankAccount',reasonCode:'data_mismatch',note:'客户原文 NOTE'}]}});await h.ready();const input=()=>h.nodes().find(n=>n.props?.id==='kyc-field-bankAccount');assert(input(),'must enter bank without guessing reason');const badge=()=>h.nodes().find(n=>n.props?.className==='kyc-supplement-item');assert.equal(badge().props['data-state'],'pending');assert(h.text().includes('客户原文 NOTE'));input().props.onChange({target:{value:'12345'}});h.render();assert.equal(badge().props['data-state'],'changed');input().props.onChange({target:{value:''}});h.render();assert.equal(badge().props['data-state'],'pending');}
 });
