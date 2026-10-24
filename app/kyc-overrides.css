@@ -1,6 +1,6 @@
 /* Cache-busted KYC card layout overrides for embedded Telegram WebViews. */
 .kyc-validation-summary{padding:12px;margin:12px 0;border:1px solid #dc2626;border-radius:10px;background:#fef2f2;color:#991b1b;overflow-wrap:anywhere}
-.kyc-field small[role=alert],.kyc-document small[role=alert]{color:#b91c1c;font-size:12px}
+.kyc-field small[id^=kyc-error-],.kyc-document small[id^=kyc-error-]{color:#b91c1c;font-size:12px}
 .customer-kyc .kyc-group-button {
   display: flex !important;
   flex-direction: row !important;
