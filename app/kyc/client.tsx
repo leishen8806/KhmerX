@@ -145,8 +145,8 @@ export default function CustomerKyc({review=false,mini=false,initialSection}:{re
  const supplementRequests=!review&&record?.status==='needs_info'?record.review?.requests||[]:[];
  const notice=(target:string)=>{const request=supplementRequests.find(r=>r.target===target);return request?<RequestNotice request={request} changed={supplementChanged(target,profile,baseline.current||record!.profile)} locale={locale}/>:null};
  const fileUrl=(id:string)=>'/api/kyc/files?id='+encodeURIComponent(id)+(review?'&review=1':'');
- const customerGroups=clientStepGroups.map(g=>({...g,complete:groupProblems(g).length===0}));
- const inspectSubmission=()=>{if(revealErrors(true)||problems.length)return;setConfirming(true)};
+ const customerGroups=clientStepGroups.map(g=>({...g,complete:groupProblems(g).length===0&&!g.steps.some(id=>{const step=clientSteps.find(s=>s.id===id);return step&&'fieldIds' in step&&step.fieldIds.some(field=>fieldErrors[field])})}));
+ const inspectSubmission=()=>{if(revealErrors(true)||problems.length){setError('请补全：'+(problems.length?problems:fields.filter(f=>fieldErrors[f.id]).map(f=>f.label)).join('、'));return}setConfirming(true)};
  const editSummaryGroup=async(id:string)=>{const group=clientStepGroups.find(g=>g.id===id)!;if(mini&&navigate){if(!await save('save'))return;setConfirming(false);navigate('/h5/kyc?group='+id)}else{setConfirming(false);setSection(group.steps[0])}};
  if(!review&&record&&confirming)return <KycSubmissionSummary profile={profile} groups={customerGroups} locale={locale} busy={busy} error={error?localLabel(error):undefined} onEdit={editSummaryGroup} onConfirm={async()=>{if(await save('submit'))setConfirming(false)}}/>;
  if(review&&record&&!amending)return <KycReview requests={requests} onRequest={(target,request)=>setRequests(current=>[...current.filter(r=>r.target!==target),...(request?[request]:[])])} locale={locale} record={record} checks={checks} reason={reason} decision={decision} busy={busy} error={error} message={message} onCheck={(id,value)=>setChecks(c=>({...c,[id]:value}))} onReason={setReason} onDecision={setDecision} onDecide={()=>void decide()} onAmend={()=>setAmending(true)}/>;

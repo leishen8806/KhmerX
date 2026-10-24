@@ -5,10 +5,11 @@ import {readFileSync} from 'node:fs';
 import ts from 'typescript';
 import * as core from '../lib/kyc/core.ts';
 
-function customer({locale='km',review=false,section='personal',status='draft',mini=false,values={},file,uploadFile,prepareFile,reviewData,complete=false}={}){
+function customer({locale='km',review=false,section='personal',status='draft',mini=false,values={},file,uploadFile,prepareFile,reviewData,complete=false,missingMaterial=false}={}){
  let cursor=0,tree;const state=[],effects=[],focused=[],requests=[];
  const profile=core.emptyProfile();profile.values={...profile.values,surname:'客户原文',...values};
  if(complete){for(const f of core.fields.filter(f=>f.required))profile.values[f.id]=f.options?.[0]?.value||(f.kind==='phone'?'+1202555010'+(f.id.includes('1')?'1':'2'):'SYNTHETIC');profile.values.district=core.regions[0].districts[0].value;profile.values.contact2Relation='朋友';for(const s of core.slots.filter(s=>s.required))profile.files[s.id]={id:s.id,type:'image/png',size:1};profile.consent=true}
+ profile.values={...profile.values,...values};if(missingMaterial)delete profile.files.idFront;
  if(file)profile.files[section]=file;
  const record={id:'synthetic-customer',revision:1,status,profile,review:reviewData?{decision:'needs_info',at:'2026-10-24T00:00:00Z',...reviewData}:undefined,phoneVerified:false,updatedAt:'2026-10-23T00:00:00Z'};
  const hooks={createContext:v=>({value:v}),useContext:c=>c.value,useState(initial){const i=cursor++;if(!(i in state))state[i]=typeof initial==='function'?initial():initial;return [state[i],v=>state[i]=typeof v==='function'?v(state[i]):v]},useRef(initial){const i=cursor++;if(!(i in state))state[i]={current:initial};return state[i]},useEffect(fn,deps){const i=cursor++;if(!state[i]||!deps||deps.some((v,j)=>!Object.is(v,state[i][j]))){state[i]=deps||[];effects.push(fn)}}};
@@ -43,6 +44,12 @@ test('submit opens grouped summary and only its explicit confirmation submits',a
 });
 test('submitted timeline does not invent review start, turnaround or notification',async()=>{
  const h=customer({locale:'zh',status:'submitted'});await h.ready();const timeline=h.nodes().find(n=>n.props?.className==='kyc-customer-timeline');assert(timeline);assert(h.text().includes('预计处理时间暂未提供'));assert(h.text().includes('尚未提供开始审核时间'));assert(!h.text().includes('Telegram 通知'));assert.equal(timeline.props.children[0].props.children[0].props['aria-current'],'step');assert.equal(timeline.props.children[0].props.children[2].props['aria-current'],undefined);
+});
+test('H5 consent submission reports missing materials without posting',async()=>{
+ const h=customer({locale:'zh',section:'consent',complete:true,missingMaterial:true});await h.ready();const submit=h.nodes().find(n=>n.type==='Button'&&n.props.children==='提交人工审核');assert(submit);submit.props.onClick();h.render();assert(h.text().includes('请补全：'));assert(h.text().includes('身份证正面'));assert.equal(h.requests.filter(r=>r.method==='POST').length,0);
+});
+test('filled but invalid phone does not count its group complete',async()=>{
+ const h=customer({locale:'zh',complete:true,values:{contact1Phone:'BAD PHONE'}});await h.ready();assert.equal(h.nodes().find(n=>n.type==='progress').props.value,5);
 });
 
 const steps=['personal','identityDetails','address','idFront','idBack','selfie','contact1','contact2','contact3','employment','income','assets','bank','consent'];
