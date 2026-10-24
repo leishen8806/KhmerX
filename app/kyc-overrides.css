@@ -77,7 +77,7 @@ button.kyc-group-button:not(:last-child)::after {
   white-space: pre-line;
 }
 .mini-app .customer-kyc .kyc-group-arrow { order: 3; position: absolute !important; right: 14px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; height: 24px; margin: 0 !important; line-height: 1; }
-.mini-app .customer-kyc .kyc-group-copy em {
+.mini-app:not([lang=km]) .customer-kyc .kyc-group-copy em {
   order: 4;
   position: absolute !important;
   right: 25px;
