@@ -7,7 +7,7 @@ import * as core from '../lib/kyc/core.ts';
 import {DraftSaver} from '../lib/kyc/draft-save.ts';
 
 export function customer({locale='km',review=false,section='personal',status='draft',mini=false,values={},file,uploadFile,prepareFile,reviewData,transport,complete=false}={}){
- let cursor=0,tree;const state=[],effects=[],focused=[],requests=[],listeners=new Map(),cleanups=[];
+ let cursor=0,tree;const state=[],effects=[],focused=[],gets=[],requests=[],listeners=new Map(),cleanups=[];
  const profile=core.emptyProfile();profile.values={...profile.values,surname:'客户原文',...values};
  if(complete){for(const f of core.fields.filter(f=>f.required))profile.values[f.id]=f.options?.[0].value||(f.kind==='phone'?'+1202555010'+(f.id.includes('1')?'1':'2'):'SYNTHETIC');profile.values.contact2Relation='朋友';profile.values.district=core.regions[0].districts[0].value;profile.consent=true;for(const s of core.slots.filter(s=>s.required))profile.files[s.id]={id:'synthetic-'+s.id,slot:s.id,type:'image/png',size:1}}
  if(file)profile.files[section]=file;
@@ -17,10 +17,10 @@ export function customer({locale='km',review=false,section='personal',status='dr
  const mocks={react:hooks,'react/jsx-runtime':{jsx,jsxs:jsx},'next/link':{default:'a'},'next/navigation':{useRouter:()=>({push(){}})},'lucide-react':new Proxy({},{get:(_,k)=>k}),
   '@/lib/kyc/draft-save':{DraftSaver},'@/lib/kyc/core':core,'@/lib/agreements/loan-terms':{LOAN_TERMS_VERSION:'test',LOAN_TERMS_URL:'/agreements/loan',loanTerms:{}},
   '@/components/loan-bill':{LoanBill:'LoanBill'},'@/components/mini-shell':{MiniNavLink:'a',useMiniNavigation:()=>null},'@/lib/analytics':{trackEvent(){}},
-  '@/lib/image-compress':{prepareKycFile:prepareFile||((f)=>f),fileLimitBytes:()=>5242880,retryAfterMs:()=>0},'@/lib/kyc/upload':{uploadKycFile:uploadFile},'@/lib/api-client':{apiUrl:p=>p,async apiFetch(url,init={}){if(init.method==='POST'){const body=JSON.parse(init.body);requests.push(body);return {data:transport?await transport(body):{...record,revision:body.revision+1,profile:body.profile}}}return {data:record}}},
+  '@/lib/image-compress':{prepareKycFile:prepareFile||((f)=>f),fileLimitBytes:()=>5242880,retryAfterMs:()=>0},'@/lib/kyc/upload':{uploadKycFile:uploadFile},'@/lib/api-client':{apiUrl:p=>p,async apiFetch(url,init={}){if(init.method==='POST'){const body=JSON.parse(init.body);requests.push(body);return {data:transport?await transport(body):{...record,revision:body.revision+1,profile:body.profile}}}gets.push(url);return {data:record}}},
  };
  for(const [file,names] of Object.entries({'button':['Button'],'input':['Input'],'checkbox':['Checkbox'],'select':['Select','SelectTrigger','SelectValue','SelectContent','SelectItem']}))mocks['@/components/ui/'+file]=Object.fromEntries(names.map(n=>[n,n]));
- const context=vm.createContext({URLSearchParams,Date,Intl,File,Blob,setTimeout,window:{confirm:()=>false,open(){throw Error('Document previews must remain inline')},setTimeout,localStorage:{getItem:()=>locale},location:{search:review?'?id=synthetic-customer':''},addEventListener(name,fn){listeners.set(name,fn)},removeEventListener(name){listeners.delete(name)},setInterval(){},clearInterval(){}},document:{getElementById:id=>({focus(){focused.push(id)},scrollIntoView(){}}),documentElement:{lang:locale},addEventListener(){},removeEventListener(){}}});
+ const context=vm.createContext({URLSearchParams,Date,Intl,File,Blob,setTimeout,window:{confirm:()=>{throw Error('Native confirmation must not be used')},open(){throw Error('Document previews must remain inline')},setTimeout,localStorage:{getItem:()=>locale},location:{search:review?'?id=synthetic-customer':''},addEventListener(name,fn){listeners.set(name,fn)},removeEventListener(name){listeners.delete(name)},setInterval(){},clearInterval(){}},document:{getElementById:id=>({focus(){focused.push(id)},scrollIntoView(){}}),documentElement:{lang:locale},addEventListener(){},removeEventListener(){}}});
  const load=file=>{const exports={},js=ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;vm.runInContext('(function(exports,require){'+js+'\n})',context)(exports,n=>{assert(n in mocks,n);return mocks[n]});return exports};
  mocks['@/lib/i18n']=load('lib/i18n.tsx');mocks['@/lib/i18n'].I18nContext.value=mocks['@/lib/i18n'].i18nValue(locale);
  mocks['@/lib/error-messages']=load('lib/error-messages.ts');mocks['../i18n']=mocks['@/lib/i18n'];mocks['../error-messages']=mocks['@/lib/error-messages'];mocks['@/lib/kyc/ui-copy']=load('lib/kyc/ui-copy.ts');
@@ -32,10 +32,18 @@ export function customer({locale='km',review=false,section='personal',status='dr
  const nodes=n=>Array.isArray(n)?n.flatMap(nodes):!n||typeof n!=='object'?[]:[n,...nodes(n.props?.children)];
  const text=n=>Array.isArray(n)?n.map(text).join(' '):typeof n==='string'||typeof n==='number'?String(n):n&&typeof n==='object'?text(n.props?.children):'';
  render();effects.splice(0).forEach(fn=>fn());
- return {focused,requests,listeners,dispose(){cleanups.forEach(fn=>fn?.())},async ready(){await new Promise(r=>setTimeout(r,10));render()},render,text:()=>text(tree),nodes:()=>nodes(tree),copy:mocks['@/lib/kyc/ui-copy']};
+ return {focused,gets,requests,listeners,dispose(){cleanups.forEach(fn=>fn?.())},async ready(){await new Promise(r=>setTimeout(r,10));render()},render,text:()=>text(tree),nodes:()=>nodes(tree),copy:mocks['@/lib/kyc/ui-copy']};
 }
 
 const steps=['personal','identityDetails','address','idFront','idBack','selfie','contact1','contact2','contact3','employment','income','assets','bank','consent'];
+test('409 reload is confirmed inline; cancel preserves edits and only confirmation fetches the server',async()=>{
+ const h=customer({locale:'zh',transport:async()=>{throw {status:409}}});await h.ready();
+ h.nodes().find(n=>n.props?.id==='kyc-field-givenName').props.onChange({target:{value:'LOCAL EDIT'}});h.render();await new Promise(r=>setTimeout(r,1650));await h.ready();
+ const before=h.gets.length,open=()=>h.nodes().find(n=>n.props?.children==='重新加载服务器资料');assert(open());open().props.onClick();h.render();
+ assert.equal(h.gets.length,before);assert(h.text().includes('重新加载会放弃本页未保存修改'));
+ h.nodes().find(n=>n.props?.['data-reload-cancel']).props.onClick();h.render();assert.equal(h.gets.length,before);assert(h.nodes().some(n=>n.props?.value==='LOCAL EDIT'));
+ open().props.onClick();h.render();await h.nodes().find(n=>n.props?.['data-reload-confirm']).props.onClick();await h.ready();assert.equal(h.gets.length,before+1);h.dispose();
+});
 test('customers can open unfinished groups without validating other groups',async()=>{
  const h=customer({locale:'zh',section:null});await h.ready();
  const groups=h.nodes().filter(n=>n.props?.className==='kyc-group-button');assert.equal(groups.length,6);assert(groups.every(n=>!n.props.disabled));groups[4].props.onClick();h.render();assert(h.nodes().some(n=>n.props?.id==='kyc-field-bankAccount'));
