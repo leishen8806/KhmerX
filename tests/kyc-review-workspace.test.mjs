@@ -66,3 +66,8 @@ test('read-only and busy review controls are disabled',()=>{
  const busy=view({busy:true}).nodes.filter(n=>n.type==='input'&&n.props.type==='checkbox'||n.type==='select'||n.type==='textarea'||n.props?.['data-action']==='decide');
  assert(busy.length>0);assert(busy.every(n=>n.props.disabled===true));
 });
+test('busy alone disables an otherwise enabled approval decision',()=>{
+ const checks=Object.fromEntries(core.sections.map(s=>[s.id,true]));
+ assert.equal(view({checks,reason:'x',decision:'approved',busy:false}).nodes.find(n=>n.props?.['data-action']==='decide').props.disabled,false);
+ assert.equal(view({checks,reason:'x',decision:'approved',busy:true}).nodes.find(n=>n.props?.['data-action']==='decide').props.disabled,true);
+});
