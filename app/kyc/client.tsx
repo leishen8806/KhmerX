@@ -39,6 +39,7 @@ export default function CustomerKyc({review=false,mini=false,initialSection}:{re
  const stamp=(value:string)=>kycDate(value,review?'zh':locale);
  const [amending,setAmending]=useState(false);
  const [confirming,setConfirming]=useState(false);
+ useEffect(()=>{if(confirming)window.scrollTo({top:0})},[confirming]);
  const [focusTarget,setFocusTarget]=useState<string|null>(null);
  const [requests,setRequests]=useState<KycRequest[]>([]),baseline=useRef<Profile|null>(null),requestRound=useRef('');
  const [touched,setTouched]=useState<Record<string,boolean>>({});

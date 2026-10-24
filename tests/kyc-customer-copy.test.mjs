@@ -7,7 +7,7 @@ import * as core from '../lib/kyc/core.ts';
 import {DraftSaver} from '../lib/kyc/draft-save.ts';
 
 export function customer({locale='km',review=false,section='personal',status='draft',mini=false,values={},file,fileSlot,uploadFile,prepareFile,reviewData,transport,complete=false,fakeTime=false,missingMaterial=false}={}){
- let cursor=0,tree;const state=[],effectRecords=[],pendingEffects=[],focused=[],requests=[],navigations=[],clickHandlers=[],gets=[],listeners=new Map();
+ let cursor=0,tree;const state=[],effectRecords=[],pendingEffects=[],focused=[],scrollCalls=[],requests=[],navigations=[],clickHandlers=[],gets=[],listeners=new Map();
  const profile=core.emptyProfile();profile.values={...profile.values,surname:'客户原文',...values};
  if(complete){for(const f of core.fields.filter(f=>f.required))profile.values[f.id]=f.options?.[0].value||(f.kind==='phone'?'+1202555010'+(f.id.includes('1')?'1':'2'):'SYNTHETIC');profile.values.contact2Relation='朋友';profile.values.district=core.regions[0].districts[0].value;profile.consent=true;for(const s of core.slots.filter(s=>s.required))profile.files[s.id]={id:'synthetic-'+s.id,slot:s.id,type:'image/png',size:1}}
  profile.values={...profile.values,...values};if(missingMaterial)delete profile.files.idFront;
@@ -22,7 +22,7 @@ export function customer({locale='km',review=false,section='personal',status='dr
  };
  for(const [file,names] of Object.entries({'button':['Button'],'input':['Input'],'checkbox':['Checkbox'],'select':['Select','SelectTrigger','SelectValue','SelectContent','SelectItem']}))mocks['@/components/ui/'+file]=Object.fromEntries(names.map(n=>[n,n]));
  class TestAnchor{constructor(href){this.href=href;this.target=''}closest(){return this}}
- const context=vm.createContext({URL,URLSearchParams,Date,Intl,File,Blob,HTMLAnchorElement:TestAnchor,location:{origin:'https://khmerx.test'},setTimeout,window:{confirm(){throw Error('Native confirmation must not be used')},open(){throw Error('Document previews must remain inline')},setTimeout,localStorage:{getItem:()=>locale},location:{search:review?'?id=synthetic-customer':''},addEventListener(name,fn){listeners.set(name,fn)},removeEventListener(name){listeners.delete(name)},setInterval(){},clearInterval(){}},document:{getElementById:id=>({focus(){focused.push(id)},scrollIntoView(){}}),documentElement:{lang:locale},addEventListener(type,handler){if(type==='click')clickHandlers.push(handler)},removeEventListener(type,handler){if(type==='click'){const i=clickHandlers.indexOf(handler);if(i>=0)clickHandlers.splice(i,1)}}}});
+ const context=vm.createContext({URL,URLSearchParams,Date,Intl,File,Blob,HTMLAnchorElement:TestAnchor,location:{origin:'https://khmerx.test'},setTimeout,window:{scrollTo:options=>scrollCalls.push(options),confirm(){throw Error('Native confirmation must not be used')},open(){throw Error('Document previews must remain inline')},setTimeout,localStorage:{getItem:()=>locale},location:{search:review?'?id=synthetic-customer':''},addEventListener(name,fn){listeners.set(name,fn)},removeEventListener(name){listeners.delete(name)},setInterval(){},clearInterval(){}},document:{getElementById:id=>({focus(){focused.push(id)},scrollIntoView(){}}),documentElement:{lang:locale},addEventListener(type,handler){if(type==='click')clickHandlers.push(handler)},removeEventListener(type,handler){if(type==='click'){const i=clickHandlers.indexOf(handler);if(i>=0)clickHandlers.splice(i,1)}}}});
  const load=file=>{const exports={},js=ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;vm.runInContext('(function(exports,require){'+js+'\n})',context)(exports,n=>{assert(n in mocks,n);return mocks[n]});return exports};
  mocks['@/lib/i18n']=load('lib/i18n.tsx');mocks['@/lib/i18n'].I18nContext.value=mocks['@/lib/i18n'].i18nValue(locale);
  mocks['@/lib/error-messages']=load('lib/error-messages.ts');mocks['../i18n']=mocks['@/lib/i18n'];mocks['../error-messages']=mocks['@/lib/error-messages'];mocks['@/lib/kyc/ui-copy']=load('lib/kyc/ui-copy.ts');
@@ -35,7 +35,7 @@ export function customer({locale='km',review=false,section='personal',status='dr
  const nodes=n=>Array.isArray(n)?n.flatMap(nodes):!n||typeof n!=='object'?[]:[n,...nodes(n.props?.children)];
  const text=n=>Array.isArray(n)?n.map(text).join(' '):typeof n==='string'||typeof n==='number'?String(n):n&&typeof n==='object'?text(n.props?.children):'';
  render();
- return {focused,gets,listeners,dispose(){effectRecords.forEach(effect=>effect?.cleanup?.())},requests,navigations,clickHandlers,TestAnchor,async ready(){await new Promise(r=>fakeTime?setImmediate(r):setTimeout(r,10));render()},render,text:()=>text(tree),nodes:()=>nodes(tree),copy:mocks['@/lib/kyc/ui-copy']};
+ return {focused,scrollCalls,gets,listeners,dispose(){effectRecords.forEach(effect=>effect?.cleanup?.())},requests,navigations,clickHandlers,TestAnchor,async ready(){await new Promise(r=>fakeTime?setImmediate(r):setTimeout(r,10));render()},render,text:()=>text(tree),nodes:()=>nodes(tree),copy:mocks['@/lib/kyc/ui-copy']};
 }
 
 test('customer progress counts six groups using existing required rules',async()=>{
@@ -55,6 +55,9 @@ test('filled but invalid phone does not count its group complete',async()=>{
 });
 
 const steps=['personal','identityDetails','address','idFront','idBack','selfie','contact1','contact2','contact3','employment','income','assets','bank','consent'];
+test('entering the submission summary starts at the warning and heading, not the previous scroll position',async()=>{
+ const h=customer({locale:'zh',section:'consent',complete:true});await h.ready();h.nodes().find(n=>n.props?.children==='提交人工审核').props.onClick();h.render();assert(h.nodes().some(n=>n.props?.['data-action']==='confirm-submit'));assert.equal(h.scrollCalls.at(-1)?.top,0);h.dispose();
+});
 test('409 inline cancellation uses Khmer UI copy, not Chinese fallback',async t=>{
  t.mock.timers.enable({apis:['setTimeout']});const h=customer({locale:'km',fakeTime:true,transport:async()=>{throw {status:409}}});t.after(()=>h.dispose());await h.ready();h.nodes().find(n=>n.props?.id==='kyc-field-givenName').props.onChange({target:{value:'LOCAL'}});h.render();t.mock.timers.tick(1500);await h.ready();h.nodes().find(n=>n.props?.children===h.copy.kycText('重新加载服务器资料','km')).props.onClick();h.render();assert(!/[\u3400-\u9fff]/.test(h.nodes().find(n=>n.props?.['data-reload-cancel']).props.children));
 });
