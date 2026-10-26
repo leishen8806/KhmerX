@@ -1,3 +1,4 @@
+import {requireOrigin} from '@/lib/http/route';
 import {passwordLogin,completeMfaLogin,createMfaChallenge,createSsoSession,logoutStaff,STAFF_SESSION,STAFF_MODE,STAFF_COMPANY,STAFF_PORTAL,STAFF_MFA_SETUP,portal} from '@/lib/team/auth';
 import {getChatGPTUser} from '@/app/chatgpt-auth';
 import {input,json,failure,cookie} from '@/lib/h5-auth';
@@ -5,7 +6,7 @@ import {db} from '@/lib/team/server';
 import {AuthError,digest} from '@/lib/h5-auth-core';
 import {env} from 'cloudflare:workers';
 export const dynamic='force-dynamic';
-export async function POST(request:Request){try{
+export async function POST(request:Request){try{requireOrigin(request);
  const p=await input(request),outer=await getChatGPTUser();if(!outer)throw new AuthError('请先登录私有测试站点',401);
  const response=json({ok:true});const set=(name:string,v:string,age=28800)=>response.headers.append('Set-Cookie',cookie(request,name,v,age));
  if(p.action==='logout'){await logoutStaff(request.headers.get('cookie'));set(STAFF_SESSION,'',0);set(STAFF_MODE,'out',31536000);set(STAFF_COMPANY,'none');set(STAFF_PORTAL,'business');set(STAFF_MFA_SETUP,'',0);return response}
@@ -63,4 +64,4 @@ export async function POST(request:Request){try{
  }
  if(p.action!=='login')throw new AuthError('登录操作无效');
  const result=await passwordLogin(p,outer.userId);if(result.mfaRequired)return json({...result,portal:portal(p.portal)});if(!('token' in result)||!result.companyId)throw new AuthError('登录结果无效，请重试');const token=result.token as string;const loginPortal=result.portal||portal(p.portal);await logoutStaff(request.headers.get('cookie'));set(STAFF_SESSION,token);set(STAFF_MODE,'password',31536000);set(STAFF_COMPANY,result.companyId);set(STAFF_PORTAL,loginPortal);return response;
-}catch(e){return failure(e)}}
+}catch(e){return failure(e,request)}}
