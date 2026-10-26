@@ -34,6 +34,13 @@ test('English and Khmer queue static text has no Chinese and Khmer submission ag
  for(const locale of ['en','km']){const q=queue(locale);assert(!/[\u3400-\u9fff]/.test(text(q.render())));}
  const q=queue('km');assert.match(q.relativeSubmission(0,60000,'km'),/នាទី/);assert(!/-1|min|\bd\b/.test(q.relativeSubmission(0,60000,'km')));
 });
+test('queue labels are separated from adjacent values in all three languages',()=>{
+ const text=n=>Array.isArray(n)?n.map(text).join(''):n&&typeof n==='object'?text(n.props?.children):String(n??'');
+ for(const [locale,results,phone,customer,revision] of [['zh','当前结果','注册手机','客户','· 资料版本'],['en','Results','Registered phone','Customer','· Revision'],['km','លទ្ធផល','ទូរសព្ទដែលបានចុះឈ្មោះ','អតិថិជន','· កំណែទិន្នន័យ']]){
+  const q=queue(locale);q.props.orders=[{id:'CASE-001',customer_id:'USER-001',customer_ref:'CUSTOMER-001',phone_mask:'+855 MASKED',status:'submitted',revision:4}];
+  const content=text(q.render());for(const [label,value] of [[results,'1'],[phone,'+855 MASKED'],[customer,'CUSTOMER-001'],[revision,'4']])assert(content.includes(label+' '+value),locale+': '+label);
+ }
+});
 
 test('assigned to me uses member id with scope reviewer_id; reset restores authorized visible rows',()=>{
  const q=queue();let tree=q.render();

@@ -11,7 +11,7 @@ function mount(file,name,props,extra={}){
  let cursor=0,tree;const state=[],effects=[],out={};
  const react={useState(initial){const i=cursor++;if(!(i in state))state[i]=typeof initial==='function'?initial():initial;return [state[i],v=>state[i]=typeof v==='function'?v(state[i]):v]},useEffect(fn){effects.push(fn)}};
  const jsx=(type,props)=>({type,props});
- const mocks={'@/lib/kyc/queue-copy':queueCopy,'@/lib/admin-i18n':{useAdminLocale:()=>({locale:'zh'})},react,'react/jsx-runtime':{jsx,jsxs:jsx},'@/lib/kyc/core':core,'@/lib/kyc/ui-copy':{kycText:s=>s},...extra};
+ const mocks={'@/components/ui/button':{Button:'button'},'@/lib/kyc/queue-copy':queueCopy,'@/lib/admin-i18n':{useAdminLocale:()=>({locale:'zh'})},react,'react/jsx-runtime':{jsx,jsxs:jsx},'@/lib/kyc/core':core,'@/lib/kyc/ui-copy':{kycText:s=>s},...extra};
  const code=ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
  vm.runInNewContext('(function(exports,require){'+code+(name==='OrderFollowups'?'\nexports.OrderFollowups=OrderFollowups;':'')+'\n})',{})(out,n=>mocks[n]||{});
  const render=(next=props)=>{props=next;cursor=0;tree=out[name](props);return tree};render();
@@ -55,5 +55,15 @@ test('follow-up controls and statuses localize while customer note text remains 
  for(const locale of ['en','km']){
   const h=mount('components/kyc-orders.tsx','OrderFollowups',{id:'case 1'},{'@/lib/admin-i18n':{useAdminLocale:()=>({locale})},'@/lib/api-client':{apiFetch:async()=>({data:{order:{id:'case 1',customer_id:'customer',status:'submitted'},records:[{id:'note',status:'pending',created_at:'2026-10-24',actor:'staff',note:'客户原文不翻译'}],loans:[],canReview:true,canNote:true}})}});await h.ready();
   assert(h.text().includes('客户原文不翻译'));assert(!/[\u3400-\u9fff]/.test(h.text().replace('客户原文不翻译','')));assert(h.nodes().filter(n=>n.type==='option').every(n=>!/[\u3400-\u9fff]/.test(n.props.children)));
+ }
+});
+test('follow-up distinguishes load and save failures without exposing raw server errors in every locale',async()=>{
+ for(const [locale,loadError,saveError] of [['zh','无法加载，请重试','保存失败，请重试'],['en','Unable to load. Please retry.','Unable to save. Please retry.'],['km','មិនអាចផ្ទុកបានទេ។ សូមព្យាយាមម្តងទៀត។','មិនអាចរក្សាទុកបានទេ។ សូមព្យាយាមម្តងទៀត។']]){
+  let failGet=true;
+  const h=mount('components/kyc-orders.tsx','OrderFollowups',{id:'CASE-001'},{'@/lib/client-id':{clientRequestId:()=> 'synthetic'},'@/lib/admin-i18n':{useAdminLocale:()=>({locale})},'@/lib/api-client':{apiFetch:async(_url,options)=>{if(failGet||options?.method==='POST')throw Error('RAW SECRET');return {data:{order:{id:'CASE-001',customer_id:'USER-001',status:'submitted'},account:null,records:[],loans:[],canReview:true,canNote:true}}}}});
+  await h.ready();assert(h.text().includes(loadError));assert(!h.text().includes('RAW SECRET'));
+  failGet=false;await h.nodes().find(n=>n.type==='button').props.onClick();await new Promise(r=>setImmediate(r));h.render();
+  h.nodes().find(n=>n.type==='textarea').props.onChange({target:{value:'Synthetic note'}});h.render();
+  await h.nodes().find(n=>n.type==='button'&&!n.props.disabled).props.onClick();await new Promise(r=>setImmediate(r));h.render();assert(h.text().includes(saveError),locale);assert(!h.text().includes(loadError));assert(!h.text().includes('RAW SECRET'));
  }
 });

@@ -1,5 +1,6 @@
 /** New Khmer copy is listed for native review in docs/i18n/queue-copy-review-20261026.md. */
 export const queueCopy:Record<string,[string,string]>={
+ '保存失败，请重试':['Unable to save. Please retry.','មិនអាចរក្សាទុកបានទេ។ សូមព្យាយាមម្តងទៀត។'],
  '待跟进':['Pending follow-up','រង់ចាំតាមដាន'],'已联系':['Contacted','បានទាក់ទង'],'等待客户补充':['Waiting for customer','រង់ចាំអតិថិជនបំពេញបន្ថែម'],'跟进完成':['Follow-up resolved','បានបញ្ចប់ការតាមដាន'],
  '查询订单':['Search cases','ស្វែងរកករណី'],'订单编号、客户编号、脱敏手机号、部门或审核员':['Case, customer, masked phone, department or reviewer','លេខករណី អតិថិជន ទូរសព្ទដែលលាក់ខ្លះ ផ្នែក ឬអ្នកពិនិត្យ'],
  '审核状态':['Review status','ស្ថានភាពពិនិត្យ'],'全部状态':['All statuses','គ្រប់ស្ថានភាព'],'部门／机构':['Department / institution','ផ្នែក / ស្ថាប័ន'],'全部授权部门':['All authorized departments','គ្រប់ផ្នែកដែលបានអនុញ្ញាត'],
