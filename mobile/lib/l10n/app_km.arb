@@ -562,4 +562,13 @@
   },
   "kycUploadRetrying": "កំពុងព្យាយាមផ្ទុកឡើងម្ដងទៀត…",
   "kycUploadCancel": "បោះបង់ការផ្ទុកឡើង"
+,
+  "kycNeedsSupplement": "ត្រូវការបំពេញបន្ថែម",
+  "kycReasonBlurred": "រូបថតមិនច្បាស់",
+  "kycReasonIncomplete": "ឯកសារមិនពេញលេញ",
+  "kycReasonSelfie": "រូបថតខ្លួនឯងមិនត្រូវនឹងឯកសារ",
+  "kycReasonData": "ព័ត៌មានមិនត្រូវនឹងឯកសារ",
+  "kycReasonContact": "មិនអាចទាក់ទងអ្នកទំនាក់ទំនងបាន",
+  "kycReasonIncome": "ភស្តុតាងចំណូលមិនច្បាស់",
+  "kycReasonOther": "ផ្សេងទៀត"
 }

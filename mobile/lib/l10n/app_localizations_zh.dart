@@ -1554,4 +1554,28 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get kycUploadCancel => '取消上传';
+
+  @override
+  String get kycNeedsSupplement => '需补充';
+
+  @override
+  String get kycReasonBlurred => '照片模糊';
+
+  @override
+  String get kycReasonIncomplete => '证件不完整';
+
+  @override
+  String get kycReasonSelfie => '自拍与证件不符';
+
+  @override
+  String get kycReasonData => '信息与证件不一致';
+
+  @override
+  String get kycReasonContact => '联系人无法接通';
+
+  @override
+  String get kycReasonIncome => '收入证明不清';
+
+  @override
+  String get kycReasonOther => '其他';
 }
