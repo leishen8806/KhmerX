@@ -1,3 +1,4 @@
+import * as queueCopy from '../lib/kyc/queue-copy.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -10,7 +11,7 @@ function mount(file,name,props,extra={}){
  let cursor=0,tree;const state=[],effects=[],out={};
  const react={useState(initial){const i=cursor++;if(!(i in state))state[i]=typeof initial==='function'?initial():initial;return [state[i],v=>state[i]=typeof v==='function'?v(state[i]):v]},useEffect(fn){effects.push(fn)}};
  const jsx=(type,props)=>({type,props});
- const mocks={react,'react/jsx-runtime':{jsx,jsxs:jsx},'@/lib/kyc/core':core,'@/lib/kyc/ui-copy':{kycText:s=>s},...extra};
+ const mocks={'@/lib/kyc/queue-copy':queueCopy,'@/lib/admin-i18n':{useAdminLocale:()=>({locale:'zh'})},react,'react/jsx-runtime':{jsx,jsxs:jsx},'@/lib/kyc/core':core,'@/lib/kyc/ui-copy':{kycText:s=>s},...extra};
  const code=ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
  vm.runInNewContext('(function(exports,require){'+code+(name==='OrderFollowups'?'\nexports.OrderFollowups=OrderFollowups;':'')+'\n})',{})(out,n=>mocks[n]||{});
  const render=(next=props)=>{props=next;cursor=0;tree=out[name](props);return tree};render();
@@ -49,4 +50,10 @@ test('amendment shows differences and requires fresh confirmation after each cha
 test('followup links to neutral review detail without preselecting approval',async()=>{
  const h=mount('components/kyc-orders.tsx','OrderFollowups',{id:'case 1'},{'@/lib/api-client':{apiFetch:async()=>({data:{order:{id:'case 1',status:'submitted'},records:[{id:'note',status:'resolved',created_at:'2026-10-24',actor:'staff',note:'Done'}],loans:[],canReview:true,canNote:false}})}});
  await h.ready();const link=h.nodes().find(n=>n.type==='a');assert.equal(link.props.href,'/kyc/review?id=case%201');assert(!text(link).includes('确认审核通过'));
+});
+test('follow-up controls and statuses localize while customer note text remains unchanged',async()=>{
+ for(const locale of ['en','km']){
+  const h=mount('components/kyc-orders.tsx','OrderFollowups',{id:'case 1'},{'@/lib/admin-i18n':{useAdminLocale:()=>({locale})},'@/lib/api-client':{apiFetch:async()=>({data:{order:{id:'case 1',customer_id:'customer',status:'submitted'},records:[{id:'note',status:'pending',created_at:'2026-10-24',actor:'staff',note:'客户原文不翻译'}],loans:[],canReview:true,canNote:true}})}});await h.ready();
+  assert(h.text().includes('客户原文不翻译'));assert(!/[\u3400-\u9fff]/.test(h.text().replace('客户原文不翻译','')));assert(h.nodes().filter(n=>n.type==='option').every(n=>!/[\u3400-\u9fff]/.test(n.props.children)));
+ }
 });
