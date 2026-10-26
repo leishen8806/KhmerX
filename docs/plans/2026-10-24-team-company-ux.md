@@ -35,4 +35,3 @@ Files: app/team/client.tsx；必要小型纯前端 helper；tests/team-company-u
 
 ## 待复核
 writing-plans 要求先复核计划；本轮已完成静态核对，尚未运行页面，不把静态发现说成真实设备复现。“默认公司”不在最新主线 UI，计划只对确实存在的问题修改，请复核。
-
