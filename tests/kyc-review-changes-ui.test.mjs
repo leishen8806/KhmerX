@@ -2,6 +2,7 @@ import test from 'node:test';import assert from 'node:assert/strict';import {exi
 function load(file,mocks){const out={};vm.runInNewContext('(function(exports,require){'+ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText+'\n})',{})(out,n=>{assert(n in mocks,n);return mocks[n];});return out;}
 const api=existsSync('lib/kyc/review-changes-ui.ts')?load('lib/kyc/review-changes-ui.ts',{'@/lib/kyc/core':core,'@/lib/kyc/requests':requests}):{};
 const diff={caseId:'a',currentRevision:4,baselineRevision:2,fields:[{id:'surname',oldValue:'OLD',newValue:'NEW'},{id:'bankAccount',oldValue:'****45',newValue:'****65'}],materials:[{slot:'idFront',oldFileId:'old',newFileId:'new'}]};
+const i18n=load('lib/i18n.tsx',{react:{createContext:v=>({value:v})}}),errorCopy=load('lib/error-messages.ts',{}),uiCopy=load('lib/kyc/ui-copy.ts',{'../i18n':i18n,'../error-messages':errorCopy});
 test('real diff maps fields/materials to sections and supplement targets without inventing unavailable baselines',()=>{
  assert.equal(typeof api.changedSections,'function');assert.deepEqual(Array.from(api.changedSections(diff)),['identity','bank']);
  for(const [target,want]of [['field:surname','changed'],['slot:idFront','changed'],['section:identity','changed'],['field:givenName','pending'],['section:consent','unknown'],['field:unknown','unknown']])assert.equal(api.requestChangeState(target,diff),want);
@@ -13,10 +14,17 @@ test('defensive sensitive display does not reveal raw numeric/short values or re
 function mount({audit=false,transport=async()=>({data:diff})}={}){
  assert(existsSync('components/kyc-review-changes.tsx'),'changes component exists');let cursor=0,tree,props={caseId:'a',revision:4,locale:'zh',audit,requests:[{target:'field:surname',reasonCode:'other',note:''},{target:'field:givenName',reasonCode:'other',note:''}]};const state=[],records=[],effects=[];
  const react={useState(initial){const i=cursor++;if(!(i in state))state[i]=initial;return [state[i],v=>state[i]=typeof v==='function'?v(state[i]):v];},useEffect(fn,deps){const i=cursor++,old=records[i];if(!old||deps.some((v,j)=>v!==old.deps[j])){old?.cleanup?.();records[i]={deps};effects.push(()=>records[i].cleanup=fn());}}};
- const jsx=(type,props)=>({type,props}),componentModule=load('components/kyc-review-changes.tsx',{react,'react/jsx-runtime':{jsx,jsxs:jsx},'@/lib/api-client':{apiFetch:transport,apiUrl:p=>p},'@/lib/kyc/core':core,'@/lib/kyc/review-changes-ui':api,'@/lib/kyc/ui-copy':{kycText:s=>s},'./kyc-review-changes.css':{}});
+ const jsx=(type,props)=>({type,props}),componentModule=load('components/kyc-review-changes.tsx',{react,'react/jsx-runtime':{jsx,jsxs:jsx},'@/lib/api-client':{apiFetch:transport,apiUrl:p=>p},'@/lib/kyc/core':core,'@/lib/kyc/review-changes-ui':api,'@/lib/kyc/ui-copy':uiCopy,'./kyc-review-changes.css':{}});
  const render=(next=props)=>{props=next;cursor=0;tree=componentModule.ReviewChanges(props);effects.splice(0).forEach(fn=>fn());return tree;},nodes=n=>Array.isArray(n)?n.flatMap(nodes):n&&typeof n==='object'?[n,...nodes(n.props?.children)]:[],text=n=>Array.isArray(n)?n.map(text).join(''):n&&typeof n==='object'?text(n.props?.children):String(n??'');render();
  return {render,props,nodes:()=>nodes(tree),text:()=>text(tree),async ready(){await new Promise(r=>setImmediate(r));render();}};
 }
+test('diff section targets and known enum values use localized labels while arbitrary customer values stay original',async()=>{
+ const cases=[['zh','个人与身份资料','男','女'],['en','Personal and identity information','Male','Female'],['km','ព័ត៌មានផ្ទាល់ខ្លួន និងអត្តសញ្ញាណ','ប្រុស','ស្រី']];
+ for(const [locale,section,male,female] of cases){
+  const gender=core.fields.find(f=>f.id==='gender');const data={...diff,fields:[{id:'gender',oldValue:gender.options[0].value,newValue:gender.options[1].value},{id:'surname',oldValue:'客户旧原文',newValue:'客户新原文'}]};
+  const h=mount({transport:async()=>({data})});h.render({...h.props,locale,requests:[{target:'section:identity',reasonCode:'other',note:''}]});await h.ready();assert(!h.text().includes('section:identity'));assert(h.text().includes(section),locale);assert(h.text().includes(male),locale);assert(h.text().includes(female),locale);assert(h.text().includes('客户旧原文'));assert(h.text().includes('客户新原文'));
+ }
+});
 test('summary displays only returned changes, old/new controlled thumbnails, and baseline-derived supplement states',async()=>{
  const h=mount();await h.ready();assert(h.text().includes('OLD'));assert(h.text().includes('NEW'));assert(h.text().includes('****45'));assert(h.text().includes('已补充'));assert(h.text().includes('未处理'));const images=h.nodes().filter(n=>n.type==='img');assert.equal(images.length,2);assert(images.every(n=>n.props.src.startsWith('/api/kyc/files?review=1&id=')));
  const audit=mount({audit:true,transport:async()=>({data:{...diff,fields:[{id:'surname'}],materials:[{slot:'idFront'}]}})});await audit.ready();assert(!audit.text().includes('OLD'));assert(!audit.nodes().some(n=>n.type==='img'||n.type==='a'));
