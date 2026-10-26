@@ -26,7 +26,7 @@ import 'upload_retry_test.dart' as wire;
 
 class _FakeRepo implements KycRepository {
   _FakeRepo(this.kycCase);
-  final KycCase kycCase;
+  KycCase kycCase;
   bool retryUploads = false;
   int uploadCalls = 0;
   AppFailure? uploadFailure;
@@ -95,7 +95,7 @@ KycCase _case(KycCaseStatus status, {String? reason, Map<String, String>? values
       requests: requests,
     );
 
-Future<void> _pump(
+Future<ProviderContainer> _pump(
   WidgetTester tester, {
   required Widget page,
   required Locale locale,
@@ -132,6 +132,7 @@ Future<void> _pump(
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 100));
   await tester.pump(const Duration(milliseconds: 200));
+  return container;
 }
 
 final _internalKey = RegExp(r'kyc[A-Z][A-Za-z]+_|error\.[a-z_]+\.[a-z_]+');
@@ -144,6 +145,19 @@ List<String> _texts(WidgetTester tester) => find
     .toList();
 
 void main() {
+  testWidgets('K4 fresh submitted response never navigates using cached requests', (tester) async {
+    final cached = _case(KycCaseStatus.needsInfo, requests: const [KycRequest('slot:idFront', 'blurred', '')]);
+    final repo = _FakeRepo(cached);
+    final container = await _pump(tester, page: const KycSectionPage(sectionId: 'identity'), locale: const Locale('en'), kycCase: cached, repo: repo);
+    repo.kycCase = _case(KycCaseStatus.submitted);
+    await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const MaterialApp(
+      localizationsDelegates: [AppLocalizations.delegate,GlobalMaterialLocalizations.delegate,GlobalWidgetsLocalizations.delegate,GlobalCupertinoLocalizations.delegate],
+      supportedLocales: AppLocalizations.supportedLocales,home: KycOverviewPage(),
+    )));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(container.read(kycControllerProvider).status, KycCaseStatus.submitted);
+  });
   for (final lang in ['zh','en','km']) {
     testWidgets('K4 exact material entry and safe localized reasons $lang', (tester) async {
       await _pump(tester, page: const KycSectionPage(sectionId: 'identity'), locale: Locale(lang),
