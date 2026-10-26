@@ -13,6 +13,8 @@ import 'package:khmerx_app/core/session/company_id.dart';
 import 'package:khmerx_app/core/util/either.dart';
 import 'package:khmerx_app/features/kyc/data/kyc_repository.dart';
 import 'package:khmerx_app/features/kyc/domain/kyc_case.dart';
+import 'package:khmerx_app/features/kyc/domain/kyc_requests.dart';
+import 'package:khmerx_app/features/kyc/presentation/kyc_labels.dart';
 import 'package:khmerx_app/features/kyc/domain/kyc_options.dart';
 import 'package:khmerx_app/features/kyc/domain/kyc_schema.dart';
 import 'package:khmerx_app/features/kyc/presentation/kyc_controller.dart';
@@ -79,7 +81,7 @@ class _Images implements KycImageSource {
   }
 }
 
-KycCase _case(KycCaseStatus status, {String? reason, Map<String, String>? values}) => KycCase(
+KycCase _case(KycCaseStatus status, {String? reason, Map<String, String>? values, List<KycRequest>? requests}) => KycCase(
       id: 'c',
       revision: 1,
       status: status,
@@ -90,6 +92,7 @@ KycCase _case(KycCaseStatus status, {String? reason, Map<String, String>? values
       phoneVerified: true,
       ruleVersion: kKycRuleVersion,
       reviewReason: reason,
+      requests: requests,
     );
 
 Future<void> _pump(
@@ -141,6 +144,18 @@ List<String> _texts(WidgetTester tester) => find
     .toList();
 
 void main() {
+  for (final lang in ['zh','en','km']) {
+    testWidgets('K4 exact material entry and safe localized reasons $lang', (tester) async {
+      await _pump(tester, page: const KycSectionPage(sectionId: 'identity'), locale: Locale(lang),
+          kycCase: _case(KycCaseStatus.needsInfo, requests: const [KycRequest('slot:idFront', 'blurred', 'ORIGINAL NOTE')]));
+      final l = AppLocalizations.of(tester.element(find.byType(KycSectionPage)));
+      expect(find.textContaining(kycRequestReason(l, 'blurred')), findsOneWidget);
+      expect(find.textContaining('ORIGINAL NOTE'), findsOneWidget);
+      expect(find.textContaining('slot:idFront'), findsNothing);
+      expect(kycRequestReason(l, 'UNKNOWN_SECRET_KEY'), l.kycReasonOther);
+      expect(find.byType(TextFormField), findsNothing);
+    });
+  }
   testWidgets('C3R T1 / C3R T3: pick reservation, cancellation and disposal', (tester) async {
     final adapter = wire.UploadAdapter(503), repo = _FakeRepo(_case(KycCaseStatus.draft));
     repo.network = await wire.repository(adapter);

@@ -1658,4 +1658,28 @@ class AppLocalizationsKm extends AppLocalizations {
 
   @override
   String get kycUploadCancel => 'បោះបង់ការផ្ទុកឡើង';
+
+  @override
+  String get kycNeedsSupplement => 'ត្រូវការបំពេញបន្ថែម';
+
+  @override
+  String get kycReasonBlurred => 'រូបថតមិនច្បាស់';
+
+  @override
+  String get kycReasonIncomplete => 'ឯកសារមិនពេញលេញ';
+
+  @override
+  String get kycReasonSelfie => 'រូបថតខ្លួនឯងមិនត្រូវនឹងឯកសារ';
+
+  @override
+  String get kycReasonData => 'ព័ត៌មានមិនត្រូវនឹងឯកសារ';
+
+  @override
+  String get kycReasonContact => 'មិនអាចទាក់ទងអ្នកទំនាក់ទំនងបាន';
+
+  @override
+  String get kycReasonIncome => 'ភស្តុតាងចំណូលមិនច្បាស់';
+
+  @override
+  String get kycReasonOther => 'ផ្សេងទៀត';
 }
