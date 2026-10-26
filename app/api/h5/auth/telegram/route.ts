@@ -1,3 +1,4 @@
+import {requireOrigin} from '@/lib/http/route';
 import {BROWSER_COOKIE,SESSION_COOKIE,cookie,cookieValue,owner,runtime,browser,json,failure} from '@/lib/h5-auth';
 import {loginTelegram,SESSION_TTL,AuthError} from '@/lib/h5-auth-core';
 import {registrationPolicy} from '@/lib/registration-policy';
@@ -7,7 +8,7 @@ import {customerCompany} from '@/lib/team/server';
 export const dynamic='force-dynamic';
 
 export async function POST(request:Request){
- try{
+ try{requireOrigin(request);
   const initData=request.headers.get('x-telegram-init-data')||'';
   if(!initData||initData.length>10000)throw new AuthError('请从 Telegram Mini App 打开后再登录',401);
   const r=runtime(),b=await browser(request);
@@ -37,5 +38,5 @@ export async function POST(request:Request){
   const sessionCookie=cookie(request,SESSION_COOKIE,result.token,SESSION_TTL);
   const companyCookie=cookie(request,'payease_company',id,86400);
   return json({authenticated:true,session:result.session,mode:'telegram',policy:await registrationPolicy(r,id,result.session.customerId)},200,{'Set-Cookie':[sessionCookie,companyCookie]})
- }catch(e){return failure(e)}
+ }catch(e){return failure(e,request)}
 }
