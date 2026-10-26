@@ -1,6 +1,6 @@
 import type {Bill} from '@/lib/pricing';
-import {staff,guardKyc,ensureAssignment,assignments} from '@/lib/team/server';
-import {canSee,kycFieldGroupFor,kycFieldGroups,type KycFieldGroup} from '@/lib/team/policy';
+import {staff,guardKyc,ensureAssignment} from '@/lib/team/server';
+import {kycFieldGroupFor,kycFieldGroups,type KycFieldGroup} from '@/lib/team/policy';
 import {env} from 'cloudflare:workers';
 import {getChatGPTUser} from '@/app/chatgpt-auth';
 import {customer,json} from '@/lib/h5-auth';
