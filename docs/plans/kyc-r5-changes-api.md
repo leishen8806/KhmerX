@@ -54,3 +54,11 @@ Interface: GET with required id; successful payload follows Response above；失
 
 ## Self-review
 全部六项需求已对应 Task1/2。未解决的唯一实施前决定是无 team 工作区的访问审计落点/失败策略；其余不需要新增表。没有以旧 GET 的浏览器值遮罩冒充本接口层脱敏。
+
+## 2026-10-26 实施记录（复核通过后）
+- Claude 在 1005-02 明确批准无 team 的测试回退 fail closed；该决定已落实，不创建虚假公司，不关闭外键。
+- 已同步 main 33ac949。完成纯差异计算和真实 SQLite/handler 集成测试，先 RED 后 GREEN；未修改既有认证/分配逻辑。
+- staffView 的 audit 投影会先清空 values/files，无法计算变更名称；本接口改为先授权、解密，最后按同一 role 边界仅输出字段名和 slot，不调用会加载贷款数据的 staffView。不存在 profile/贷款/合同返回。
+- 基线固定三个决定 action，revision 不超过读取到的当前版本，同版本按 created_at、id 降序稳定选择。损坏基线或当前快照均失败；错误不包含密文或解析片段。
+- GET 在返回前 await team_audit 写入；只记录 caseId/currentRevision/baselineRevision/requestId，actor 为真实 reviewer.actorId。
+- 不恢复依赖 R5 合并的 K5b；高风险：接口与敏感数据，需技术负责人批准合并。无部署。
