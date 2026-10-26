@@ -77,7 +77,8 @@ Backend:   无需新增后端接口（沿用现有 /api/kyc*）
 - 每项固定为 `{target:string, reasonCode:string, note:string}`，不接受额外属性；`note` 必须是字符串，原始长度 ≤500，保存时去除首尾空白。数组最多32项，同一 `target` 不得重复。
 - `target` 精确匹配 `lib/kyc/core.ts` 当前字段、材料或分区：`field:<fieldId>`、`slot:<slotId>`、`section:<sectionId>`；不得发送显示标签或未知 ID。`slot:signature` 属于后续贷款签约，明确排除。服务端还依据当前案件的 `slotVisible` 拒绝不适用的住房/车辆材料。`requestSection` 将三类有效目标映射至该核心分区；`parseRequests(raw, profile?)` 的可选 profile 保持无上下文调用兼容，审核决定必须传入当前 profile。
 - 原因码固定：`blurred` 照片模糊、`incomplete_document` 证件不完整、`selfie_mismatch` 自拍与证件不符、`data_mismatch` 信息与证件不一致、`contact_unreachable` 联系人无法接通、`income_unclear` 收入证明不清、`other` 其他。发送原始码；zh/en/km 标签见 `lib/kyc/requests.ts` 的 `reasonCodes` 元组（顺序 zh,en,km）及 `requestReason`。
-- 所有原有权限、状态、版本、checklist 和 reason 校验仍执行；新增内容校验失败返回400且案件、版本、历史不变。字段可随合法审核决定提交；客户端仅在 `status=needs_info` 时将其当作待补件要求展示。
+- 所有原有权限、状态、版本、checklist 和 reason 校验仍执行；新增内容校验失败返回400且案件、版本、历史不变。仅 `decision=needs_info` 可携带非空 `requests`；approved/rejected 仅允许缺省或 `[]`。`reasonCode=other` 的 `note` 去除首尾空白后必须非空。
+- needs_info 保存时，每个合法 request 的 `requestSection` 对应分区并入 `review.checklist` 置为true，只增不减，供旧App回退定位；不改变approved的完整资料与全勾选校验。客户端仅在 `status=needs_info` 时将项目作为待补件要求展示。
 - 可选数据存入现有加密 `review.requests`，由原有版本快照保存，审计历史沿用既有 `actor`；不新增数据库表/迁移，不把补件说明写入明文审计表。
 - `GET /api/kyc`、审核详情 `GET /api/kyc/review?id=...` 的 `review.requests` 及后者 `history[].review.requests` 原样返回；客户保存/重交延用既有 review，直到下一次决定更新它。
 - **兼容**：未传/旧数据缺少 `requests` 时保持缺省，客户端按旧 `review.checklist` 回退；显式 `[]` 表示本次没有结构化项目，不得把缺省和空数组混同。旧 App 可继续只显示 `review.reason`，现有请求无需新增此字段。本次不修改 Flutter 代码。
