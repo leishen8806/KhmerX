@@ -5,7 +5,7 @@ import {clientRequestId} from '@/lib/client-id';
 import {useEffect,useState,useRef} from 'react';
 import {LoanSteps} from '@/components/customer-journey';
 import {Button} from '@/components/ui/button';
-import {Signature} from '@/app/kyc/client';
+import {Signature} from '@/components/loan-signature';
 import {LoanBill} from '@/components/loan-bill';
 import {Checkbox} from '@/components/ui/checkbox';
 import {LoaderCircle} from 'lucide-react';

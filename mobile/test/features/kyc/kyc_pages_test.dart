@@ -13,6 +13,8 @@ import 'package:khmerx_app/core/session/company_id.dart';
 import 'package:khmerx_app/core/util/either.dart';
 import 'package:khmerx_app/features/kyc/data/kyc_repository.dart';
 import 'package:khmerx_app/features/kyc/domain/kyc_case.dart';
+import 'package:khmerx_app/features/kyc/domain/kyc_requests.dart';
+import 'package:khmerx_app/features/kyc/presentation/kyc_labels.dart';
 import 'package:khmerx_app/features/kyc/domain/kyc_options.dart';
 import 'package:khmerx_app/features/kyc/domain/kyc_schema.dart';
 import 'package:khmerx_app/features/kyc/presentation/kyc_controller.dart';
@@ -24,7 +26,7 @@ import 'upload_retry_test.dart' as wire;
 
 class _FakeRepo implements KycRepository {
   _FakeRepo(this.kycCase);
-  final KycCase kycCase;
+  KycCase kycCase;
   bool retryUploads = false;
   int uploadCalls = 0;
   AppFailure? uploadFailure;
@@ -79,7 +81,7 @@ class _Images implements KycImageSource {
   }
 }
 
-KycCase _case(KycCaseStatus status, {String? reason, Map<String, String>? values}) => KycCase(
+KycCase _case(KycCaseStatus status, {String? reason, Map<String, String>? values, List<KycRequest>? requests}) => KycCase(
       id: 'c',
       revision: 1,
       status: status,
@@ -90,9 +92,10 @@ KycCase _case(KycCaseStatus status, {String? reason, Map<String, String>? values
       phoneVerified: true,
       ruleVersion: kKycRuleVersion,
       reviewReason: reason,
+      requests: requests,
     );
 
-Future<void> _pump(
+Future<ProviderContainer> _pump(
   WidgetTester tester, {
   required Widget page,
   required Locale locale,
@@ -129,6 +132,7 @@ Future<void> _pump(
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 100));
   await tester.pump(const Duration(milliseconds: 200));
+  return container;
 }
 
 final _internalKey = RegExp(r'kyc[A-Z][A-Za-z]+_|error\.[a-z_]+\.[a-z_]+');
@@ -141,6 +145,31 @@ List<String> _texts(WidgetTester tester) => find
     .toList();
 
 void main() {
+  testWidgets('K4 fresh submitted response never navigates using cached requests', (tester) async {
+    final cached = _case(KycCaseStatus.needsInfo, requests: const [KycRequest('slot:idFront', 'blurred', '')]);
+    final repo = _FakeRepo(cached);
+    final container = await _pump(tester, page: const KycSectionPage(sectionId: 'identity'), locale: const Locale('en'), kycCase: cached, repo: repo);
+    repo.kycCase = _case(KycCaseStatus.submitted);
+    await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const MaterialApp(
+      localizationsDelegates: [AppLocalizations.delegate,GlobalMaterialLocalizations.delegate,GlobalWidgetsLocalizations.delegate,GlobalCupertinoLocalizations.delegate],
+      supportedLocales: AppLocalizations.supportedLocales,home: KycOverviewPage(),
+    )));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(container.read(kycControllerProvider).status, KycCaseStatus.submitted);
+  });
+  for (final lang in ['zh','en','km']) {
+    testWidgets('K4 exact material entry and safe localized reasons $lang', (tester) async {
+      await _pump(tester, page: const KycSectionPage(sectionId: 'identity'), locale: Locale(lang),
+          kycCase: _case(KycCaseStatus.needsInfo, requests: const [KycRequest('slot:idFront', 'blurred', 'ORIGINAL NOTE')]));
+      final l = AppLocalizations.of(tester.element(find.byType(KycSectionPage)));
+      expect(find.textContaining(kycRequestReason(l, 'blurred')), findsOneWidget);
+      expect(find.textContaining('ORIGINAL NOTE'), findsOneWidget);
+      expect(find.textContaining('slot:idFront'), findsNothing);
+      expect(kycRequestReason(l, 'UNKNOWN_SECRET_KEY'), l.kycReasonOther);
+      expect(find.byType(TextFormField), findsNothing);
+    });
+  }
   testWidgets('C3R T1 / C3R T3: pick reservation, cancellation and disposal', (tester) async {
     final adapter = wire.UploadAdapter(503), repo = _FakeRepo(_case(KycCaseStatus.draft));
     repo.network = await wire.repository(adapter);

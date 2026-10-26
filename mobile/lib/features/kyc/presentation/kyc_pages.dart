@@ -10,6 +10,7 @@ import '../../../core/error/failure_text.dart';
 import '../../../shared/widgets/brand_loader.dart';
 import '../../../l10n/app_localizations.dart';
 import '../domain/kyc_case.dart';
+import '../domain/kyc_requests.dart';
 import '../domain/kyc_options.dart';
 import '../domain/kyc_schema.dart';
 import '../../../shared/widgets/keyboard_switch.dart';
@@ -105,10 +106,15 @@ final class KycOverviewPage extends ConsumerStatefulWidget {
 }
 
 class _KycOverviewState extends ConsumerState<KycOverviewPage> {
+  bool _supplementOpened = false;
+  bool _freshLoaded = false;
   @override
   void initState() {
     super.initState();
-    Future.microtask(() => ref.read(kycControllerProvider.notifier).load());
+    Future.microtask(() async {
+      await ref.read(kycControllerProvider.notifier).load();
+      if (mounted) setState(() => _freshLoaded = true);
+    });
   }
 
   @override
@@ -117,6 +123,17 @@ class _KycOverviewState extends ConsumerState<KycOverviewPage> {
     _listenNotices(ref, context);
     final s = ref.watch(kycControllerProvider);
     final ctl = ref.read(kycControllerProvider.notifier);
+
+    final requests = s.serverCase?.activeRequests ?? const <KycRequest>[];
+    if (_freshLoaded && s.phase == KycLoadPhase.ready && !_supplementOpened && s.serverCase != null) {
+      _supplementOpened = true;
+      final section = requests.isEmpty ? null : requests.first.section;
+      if (section != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) context.push('/kyc/${section.name}');
+        });
+      }
+    }
 
     Widget body;
     if (s.phase == KycLoadPhase.loading && s.serverCase == null) {
@@ -148,6 +165,7 @@ class _KycOverviewState extends ConsumerState<KycOverviewPage> {
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
           children: [
             _StatusCard(state: s),
+            for (final request in requests) _SupplementNotice(request: request),
             if (s.ruleMismatch) ...[
               const SizedBox(height: 12),
               _InfoCard(text: l.kycRuleMismatch, error: true),
@@ -182,7 +200,8 @@ class _KycOverviewState extends ConsumerState<KycOverviewPage> {
                     color: sectionDone(sec) ? Colors.green : null,
                   ),
                   title: Text(kycSectionLabel(l, sec.name)),
-                  subtitle: Text(sectionDone(sec) ? l.kycSectionDone : l.kycSectionTodo),
+                  subtitle: Text(requests.any((r) => r.section == sec)
+                      ? l.kycNeedsSupplement : sectionDone(sec) ? l.kycSectionDone : l.kycSectionTodo),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.push('/kyc/${sec.name}'),
                 ),
@@ -315,6 +334,8 @@ final class KycSectionPage extends ConsumerStatefulWidget {
 }
 
 class _KycSectionState extends ConsumerState<KycSectionPage> {
+  final _requestedKey = GlobalKey();
+  bool _freshLoaded = false;
   int _step = 0;
   bool _stepInit = false;
   bool _showErrors = false;
@@ -330,9 +351,9 @@ class _KycSectionState extends ConsumerState<KycSectionPage> {
   void initState() {
     super.initState();
     // Deep entry (e.g. from the home screen) must still have data.
-    Future.microtask(() {
-      final s = ref.read(kycControllerProvider);
-      if (s.serverCase == null) ref.read(kycControllerProvider.notifier).load();
+    Future.microtask(() async {
+      await ref.read(kycControllerProvider.notifier).load();
+      if (mounted) setState(() => _freshLoaded = true);
     });
   }
 
@@ -403,17 +424,27 @@ class _KycSectionState extends ConsumerState<KycSectionPage> {
     }
 
     final steps = kycStepsOf(section, s.values);
-    if (!_stepInit && s.serverCase != null) {
+    final requests = (s.serverCase?.activeRequests ?? const <KycRequest>[])
+        .where((r) => r.section == section).toList(growable: false);
+    if (_freshLoaded && s.phase == KycLoadPhase.ready && !_stepInit && s.serverCase != null) {
       // Resume at the first step that still needs something.
       _stepInit = true;
-      final i = steps.indexWhere((st) => _stepIncomplete(st, s));
+      final requested = requests.isEmpty ? -1 : steps.indexWhere(requests.first.matchesStep);
+      final i = requested >= 0 ? requested : steps.indexWhere((st) => _stepIncomplete(st, s));
       _step = i < 0 ? 0 : i;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final target = _requestedKey.currentContext;
+        if (mounted && target != null) Scrollable.ensureVisible(target, alignment: 0.2);
+      });
     }
     if (_step >= steps.length) _step = steps.length - 1;
     final step = steps[_step];
     final isLast = _step == steps.length - 1;
 
     final children = <Widget>[];
+    for (final request in requests.where((r) => r.target.startsWith('section:') || !r.matchesStep(step))) {
+      children.add(_SupplementNotice(request: request));
+    }
     if (s.serverCase == null) {
       children.add(const Padding(
         padding: EdgeInsets.all(32),
@@ -436,6 +467,9 @@ class _KycSectionState extends ConsumerState<KycSectionPage> {
           ));
         }
         for (final id in step.fieldIds) {
+          for (final request in requests.where((r) => r.target == 'field:$id')) {
+            children.add(_SupplementNotice(key: request == requests.first ? _requestedKey : null, request: request));
+          }
           children.add(Padding(
             padding: const EdgeInsets.only(bottom: 16),
             child: _FieldWidget(
@@ -507,6 +541,9 @@ class _KycSectionState extends ConsumerState<KycSectionPage> {
             children.add(const SizedBox(height: 8));
           }
           for (final id in step.slotIds) {
+            for (final request in requests.where((r) => r.target == 'slot:$id')) {
+              children.add(_SupplementNotice(key: request == requests.first ? _requestedKey : null, request: request));
+            }
             final slot = kKycSlots.firstWhere((x) => x.id == id);
             children.add(_SlotTile(slot: slot, state: s, controller: ctl));
           }
@@ -740,6 +777,19 @@ final class _FieldWidget extends StatelessWidget {
               enabled ? (v) => controller.setValue(field.id, v ?? '') : null,
         );
     }
+  }
+}
+
+final class _SupplementNotice extends StatelessWidget {
+  const _SupplementNotice({super.key, required this.request});
+  final KycRequest request;
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Text(
+      '${l.kycNeedsSupplement} · ${kycRequestReason(l, request.reasonCode)}${request.note.isEmpty ? '' : '\n${request.note}'}',
+      style: TextStyle(color: Theme.of(context).colorScheme.error),
+    ));
   }
 }
 

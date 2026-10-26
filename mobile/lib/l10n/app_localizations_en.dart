@@ -1655,4 +1655,28 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get kycUploadCancel => 'Cancel upload';
+
+  @override
+  String get kycNeedsSupplement => 'Needs supplement';
+
+  @override
+  String get kycReasonBlurred => 'Photo is blurry';
+
+  @override
+  String get kycReasonIncomplete => 'Document is incomplete';
+
+  @override
+  String get kycReasonSelfie => 'Selfie does not match document';
+
+  @override
+  String get kycReasonData => 'Information does not match document';
+
+  @override
+  String get kycReasonContact => 'Contact cannot be reached';
+
+  @override
+  String get kycReasonIncome => 'Income evidence is unclear';
+
+  @override
+  String get kycReasonOther => 'Other';
 }
