@@ -10,6 +10,7 @@ function viewer(files={},locale='zh',requestedLocale){
  const jsx=(type,props)=>({type,props});
  const mocks={react:{useState(initial){const i=cursor++;if(!(i in state))state[i]=initial;return [state[i],v=>state[i]=typeof v==='function'?v(state[i]):v]}},'react/jsx-runtime':{jsx,jsxs:jsx},'@/lib/kyc/core':core,'@/lib/api-client':{apiUrl:p=>'/authenticated'+p},'@/lib/i18n':{useI18n:()=>({locale}),legacyText:s=>s},'./kyc-material-viewer.css':{}};
  const js=ts.transpileModule(readFileSync('components/kyc-material-viewer.tsx','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
+ mocks['@/lib/kyc/ui-copy']={kycText:s=>s};
  const exports={};vm.runInNewContext('(function(exports,require){'+js+'\n})',{})(exports,n=>{assert(n in mocks,n);return mocks[n]});
  const nodes=n=>Array.isArray(n)?n.flatMap(nodes):!n||typeof n!=='object'?[]:[n,...nodes(n.props?.children)];
  function render(){cursor=0;tree=exports.KycMaterialViewer({profile,locale:requestedLocale});return nodes(tree)}
