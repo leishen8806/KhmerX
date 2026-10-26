@@ -107,10 +107,14 @@ final class KycOverviewPage extends ConsumerStatefulWidget {
 
 class _KycOverviewState extends ConsumerState<KycOverviewPage> {
   bool _supplementOpened = false;
+  bool _freshLoaded = false;
   @override
   void initState() {
     super.initState();
-    Future.microtask(() => ref.read(kycControllerProvider.notifier).load());
+    Future.microtask(() async {
+      await ref.read(kycControllerProvider.notifier).load();
+      if (mounted) setState(() => _freshLoaded = true);
+    });
   }
 
   @override
@@ -121,7 +125,7 @@ class _KycOverviewState extends ConsumerState<KycOverviewPage> {
     final ctl = ref.read(kycControllerProvider.notifier);
 
     final requests = s.serverCase?.activeRequests ?? const <KycRequest>[];
-    if (!_supplementOpened && s.serverCase != null) {
+    if (_freshLoaded && s.phase == KycLoadPhase.ready && !_supplementOpened && s.serverCase != null) {
       _supplementOpened = true;
       final section = requests.isEmpty ? null : requests.first.section;
       if (section != null) {
@@ -331,6 +335,7 @@ final class KycSectionPage extends ConsumerStatefulWidget {
 
 class _KycSectionState extends ConsumerState<KycSectionPage> {
   final _requestedKey = GlobalKey();
+  bool _freshLoaded = false;
   int _step = 0;
   bool _stepInit = false;
   bool _showErrors = false;
@@ -346,9 +351,9 @@ class _KycSectionState extends ConsumerState<KycSectionPage> {
   void initState() {
     super.initState();
     // Deep entry (e.g. from the home screen) must still have data.
-    Future.microtask(() {
-      final s = ref.read(kycControllerProvider);
-      if (s.serverCase == null) ref.read(kycControllerProvider.notifier).load();
+    Future.microtask(() async {
+      await ref.read(kycControllerProvider.notifier).load();
+      if (mounted) setState(() => _freshLoaded = true);
     });
   }
 
@@ -421,7 +426,7 @@ class _KycSectionState extends ConsumerState<KycSectionPage> {
     final steps = kycStepsOf(section, s.values);
     final requests = (s.serverCase?.activeRequests ?? const <KycRequest>[])
         .where((r) => r.section == section).toList(growable: false);
-    if (!_stepInit && s.serverCase != null) {
+    if (_freshLoaded && s.phase == KycLoadPhase.ready && !_stepInit && s.serverCase != null) {
       // Resume at the first step that still needs something.
       _stepInit = true;
       final requested = requests.isEmpty ? -1 : steps.indexWhere(requests.first.matchesStep);
