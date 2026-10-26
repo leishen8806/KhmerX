@@ -17,6 +17,6 @@ export function formatQueueTime(raw:unknown,now:number|null,locale:Locale):{text
  const [unit,size]:[Intl.RelativeTimeFormatUnit,number]=elapsed>=86400000?['day',86400000]:elapsed>=3600000?['hour',3600000]:elapsed>=60000?['minute',60000]:['second',1000];
  const value=Math.floor(elapsed/size),relative=new Intl.RelativeTimeFormat(locale,{numeric:'always'});
  // Some embedded Chromium builds omit Khmer ICU data and silently fall back to English.
- const text=locale==='km'&&!relative.resolvedOptions().locale.startsWith('km')?new Intl.NumberFormat('km').format(value)+' '+({second:'វិនាទី',minute:'នាទី',hour:'ម៉ោង',day:'ថ្ងៃ'} as Record<string,string>)[unit]+'មុន':relative.format(-value,unit);
+ const text=locale==='km'?new Intl.NumberFormat('km').format(value)+' '+({second:'វិនាទី',minute:'នាទី',hour:'ម៉ោង',day:'ថ្ងៃ'} as Record<string,string>)[unit]+'មុន':relative.format(-value,unit);
  return {text,iso,full};
 }
