@@ -1,5 +1,4 @@
 'use client';
-import 'next/link';
 import {SensitiveValue,AmendConfirmation} from '@/components/kyc-review-controls';
 import {DraftSaver,type DraftState} from '@/lib/kyc/draft-save';
 import {KycReview} from '@/components/kyc-review';
