@@ -5,7 +5,7 @@
 **Goal:** documentNumber/bankAccount 在员工端默认只有接口层脱敏值；只有 reveal 的访问审计成功后才下发明文。浏览器开发者工具、详情 GET、代修改响应均不能提前取得这两个字段的完整值。
 **Architecture:** 统一 staff KYC 投影（不改变客户 /api/kyc），POST /api/kyc/review/reveal 复用既有读取权限及 team_audit；代修改合并敏感字段时必须有服务器验证的 reveal 凭证，不能用遮罩覆盖原值。无迁移。
 **Tech Stack:** Next TypeScript、现有 route/readJsonBody、D1/SQLite、React、Node VM 实际 handler/UI 测试。
-**Spec:** claude-bridge/done/20261024-1346-02-kyc-r10-reveal-audit.md、20261024-1510-05-kyc-r10b-resume.md、20261026-0915-03-r10b-unblocked.md；设计及负责人开发授权已确认，不含合并/部署。
+**Spec:** claude-bridge/done/20261024-1346-02-kyc-r10-reveal-audit.md、20261024-1510-05-kyc-r10b-resume.md、20261026-0915-03-r10b-unblocked.md、20261026-1005-03-r10b-plan-revise.md；设计及负责人开发授权已确认，不含合并/部署。
 
 ## Global Constraints
 - 工作分支 feat/server/kyc-r10-reveal-audit 已同步 origin/main 33ac949；#88 已合并，旧依赖阻塞不再成立，不依赖 #87 未合并分支。
@@ -50,9 +50,12 @@
 ### Task 0: staff 接口级默认脱敏（先于 reveal UI）
 Files: lib/kyc/staff-projection.ts（可选纯模块）、lib/kyc/server.ts 的 staffView/decide 返回、app/api/kyc/review/route.ts；tests/kyc-staff-redaction.test.mjs。
 Contract: staff profile.values 中两个字段只为掩码字符串；顶层 `sensitiveFields:{documentNumber:{masked:true},bankAccount:{masked:true}}`。audit 仍无值/材料、不得因标记恢复末4位；原始 payload 保持数据库内部完整值。所有 staff 响应 no-store。
+- [ ] Define `projectStaffProfile(profile:Profile,role:string):{profile:Profile;sensitiveFields:Record<'documentNumber'|'bankAccount',{masked:true}>}`，只复制白名单目标字段；role=audit 保留当前清空策略。该返回结构由 Task 2 的 UI 消费。
 - [ ] RED：详情 GET（admin/kyc/dept_admin）及 amend/审核决定响应都不含两个完整 synthetic secret；短/数字/空值同样处理；audit 无值；customer /api/kyc 不变。
+- [ ] Run `TMPDIR=/private/tmp node --experimental-vm-modules --test tests/kyc-staff-redaction.test.mjs`；Expected: RED 原详情/POST 明文泄漏断言失败，再按下一步实现。
 - [ ] GREEN：staffView 仅复制对象并投影，不原地修改解密对象或保存掩码到库。decide 所有员工返回统一 staffView；客户 save/view/签约路径不改。
 - [ ] 查 history/CSV/报表/workflow/R5 集成边界，按上表做可执行回归；R5 未合并时显式跳过集成依赖而不是引入分支代码。禁止只做前端 DOM 遮罩。
+- [ ] Run 同一命令；Expected: 目标测试 0 fail。Commit 仅 staff 投影/出口测试，不单独发布（Task 1/2 一起评审）。
 
 ### Task 1: 授权、审计成功后返回与短窗口去重
 Files: Create lib/kyc/reveal.ts, app/api/kyc/review/reveal/route.ts; Create tests/kyc-reveal.test.mjs。
@@ -71,6 +74,7 @@ Files: Modify lib/kyc/server.ts amend、components/kyc-review-controls.tsx、app
 Interface: SensitiveValue 接收 caseId/revision/field/scope 和已掩码 value/标记，不接收原始 prop 明文；点击 POST `{id:caseId,revision,field}`，成功只使用同 field/string value。明文和 revealToken 仅存当前组件/当前代修改表单内存，不写 localStorage/sessionStorage/URL/日志。
 - [ ] RED：只代修改姓名/住址等其他字段，提交的两敏感字段是掩码/缺省/带标记时，数据库原值逐字保留；before/after 审计也不存这两个值或末4位。
 - [ ] RED：伪造 revealed/dirty 标记不生效；无 token 企图更新原值、伪造/过期/其他 actor/company/case/revision/field 的 token 失败；失败无案件/审计副作用。即使有 token，未改值也不计作 changed。
+- [ ] Run `TMPDIR=/private/tmp node --experimental-vm-modules --test tests/kyc-amend-sensitive.test.mjs tests/kyc-review-controls.test.mjs tests/kyc-customer-copy.test.mjs`；Expected: 新增防覆盖/揭示交互断言先 RED。
 - [ ] 最小实现：先原有 reviewer/getCase/guardKyc(write=true)/revision/岗位和字段组权限，再从数据库 data.profile 开始合并。对每个敏感字段：缺省、`masked:true` 或等于当前 canonical mask 时保留原值；真正新值必须是 reveal 后明确 dirty 的原始字符串并携带有效 field token，验证后才作为候选 changed。缺少/无效证明不静默修改，返回明确错误；服务器不采信客户端单独标记。
 - [ ] UI 未 reveal 的敏感输入保持只读遮罩；reveal 成功才可编辑，dirty 只由用户输入产生；请求带每字段 `{masked,dirty,revealToken}` 元数据。隐藏/取消/切换案件或 revision 清空明文、dirty 与 token，重新显示必须再次请求。提交响应统一脱敏，不把完整响应缓存回前端。
 - [ ] 对短值/空值/“恰好等于遮罩”的输入，优先保留原值，宁可不接受模糊替换，禁止把 `****1234` 存入数据库；需要这种格式的真实更正另行确认规则。
