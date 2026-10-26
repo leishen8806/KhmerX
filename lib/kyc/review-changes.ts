@@ -3,7 +3,7 @@ import {fields,slots,type Profile} from '@/lib/kyc/core';
 export type FieldChange={id:string;oldValue?:string;newValue?:string};
 export type MaterialChange={slot:string;oldFileId?:string|null;newFileId?:string|null};
 const text=(value:unknown)=>typeof value==='string'||typeof value==='number'?String(value):'';
-const masked=(value:string)=>value?'****'+value.slice(-4):'';
+const masked=(value:string)=>!value?'':value.length<=4?'****':'****'+value.slice(value.length<=8?-2:-4);
 
 /** Only schema fields and non-signature materials belong in the review diff. */
 export function reviewChanges(before:Profile|null,after:Profile,role:string):{fields:FieldChange[];materials:MaterialChange[]}{

@@ -62,3 +62,4 @@ Interface: GET with required id; successful payload follows Response above；失
 - 基线固定三个决定 action，revision 不超过读取到的当前版本，同版本按 created_at、id 降序稳定选择。损坏基线或当前快照均失败；错误不包含密文或解析片段。
 - GET 在返回前 await team_audit 写入；只记录 caseId/currentRevision/baselineRevision/requestId，actor 为真实 reviewer.actorId。
 - 不恢复依赖 R5 合并的 K5b；高风险：接口与敏感数据，需技术负责人批准合并。无部署。
+- 1100-00 复核修正掩码：空值为空，长度≤4 仅 `****`，5–8 位仅末2位，>8位仅末4位；证件/银行账号新旧两端及边界均回归。该更严格规则覆盖上文原“最多末4位”实现细节。
