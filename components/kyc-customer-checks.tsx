@@ -1,0 +1,11 @@
+'use client';
+import type {Locale} from '@/lib/i18n';
+import './kyc-customer-checks.css';
+const copy={repeat:['再次输入银行账号','Re-enter bank account number','បញ្ចូលលេខគណនីធនាគារម្តងទៀត'],mismatch:['账户姓名与证件姓名不同，请核对后继续。','The account name differs from the ID name. Check it before continuing.','ឈ្មោះគណនីខុសពីឈ្មោះអត្តសញ្ញាណប័ណ្ណ។ សូមពិនិត្យមុនបន្ត។'],accountError:['请再次输入一致的银行账号。','Re-enter the same bank account number.','សូមបញ្ចូលលេខគណនីធនាគារដូចគ្នាម្តងទៀត។'],address:['是否使用以下标准化地址？此结果不代表住址已核验。','Use this standardized address? This does not verify residence.','តើប្រើអាសយដ្ឋានស្តង់ដារខាងក្រោមឬទេ? វាមិនមែនជាការផ្ទៀងផ្ទាត់ទីលំនៅទេ។'],confirm:['确认地址','Confirm address','បញ្ជាក់អាសយដ្ឋាន'],cancel:['保留原地址','Keep original address','រក្សាអាសយដ្ឋានដើម'],device:['设备定位已获取；不等于住址真实性核验。','Device location received; residence has not been verified.','បានទទួលទីតាំងឧបករណ៍ មិនមែនជាការផ្ទៀងផ្ទាត់ទីលំនៅទេ។']} as const;
+export const customerCheckText=(key:keyof typeof copy,locale:Locale)=>copy[key][locale==='zh'?0:locale==='en'?1:2];
+export function KycBankCheck({locale,value,onChange,mismatch,error,disabled}:{locale:Locale;value:string;onChange:(value:string)=>void;mismatch:boolean;error:boolean;disabled:boolean}){
+ return <div className="kyc-customer-checks">{mismatch&&<p className="kyc-bank-name-hint" role="status">{customerCheckText('mismatch',locale)}</p>}<label htmlFor="kyc-field-bankAccountRepeat">{customerCheckText('repeat',locale)}</label><input id="kyc-field-bankAccountRepeat" value={value} onChange={e=>onChange(e.target.value)} disabled={disabled} autoComplete="off" maxLength={240} aria-invalid={error} aria-describedby={error?'kyc-bank-repeat-error':undefined}/>{error&&<p role="alert" id="kyc-bank-repeat-error">{customerCheckText('accountError',locale)}</p>}</div>;
+}
+export function KycAddressCandidate({address,locale,onConfirm,onCancel}:{address:string;locale:Locale;onConfirm:()=>void;onCancel:()=>void}){
+ return <section className="kyc-customer-checks" aria-label={customerCheckText('confirm',locale)}><p>{customerCheckText('address',locale)}</p><p>{address}</p><button type="button" data-action="confirm-address" onClick={onConfirm}>{customerCheckText('confirm',locale)}</button><button type="button" onClick={onCancel}>{customerCheckText('cancel',locale)}</button></section>;
+}
