@@ -3,6 +3,7 @@ import {messageForError} from '../error-messages';
 
 // UI copy only. Never pass customer field values, review notes or signed text here.
 const copy:Record<string,[string,string]>={
+ '返回业务工作台':['Back to workspace','ត្រឡប់ទៅផ្ទាំងការងារ'],
  '审计只读：敏感资料仅由 KYC 审核岗位查看':['Audit read-only: sensitive details are restricted to KYC reviewers','សវនកម្មអាចអានតែប៉ុណ្ណោះ៖ ព័ត៌មានរសើបសម្រាប់តែអ្នកពិនិត្យ KYC'],
  '无权查看':['Not authorized to view','គ្មានសិទ្ធិមើល'],
  '要求补充：':['Request updates:','ស្នើឱ្យបំពេញបន្ថែម៖'],
@@ -125,6 +126,19 @@ export function kycText(text:string,locale:Locale):string{
   if(locale==='km'&&native)return native;if(latin)return latin;
  }
  return legacyText(text,locale);
+}
+/** Known service actions only; future/custom actions retain their original value. */
+export function kycHistoryAction(action:string,locale:Locale){
+ const labels:Record<string,[string,string,string]>={
+  save:['保存草稿','Draft saved','បានរក្សាទុកសេចក្តីព្រាង'],
+  submit:['提交人工审核','Submitted for review','បានដាក់ស្នើឱ្យពិនិត្យ'],
+  approved:['审核通过','Review approved','ការពិនិត្យបានអនុម័ត'],
+  needs_info:['退回补件','More information requested','បានស្នើព័ត៌មានបន្ថែម'],
+  rejected:['审核拒绝','Review rejected','ការពិនិត្យត្រូវបានបដិសេធ'],
+  amend:['代客户修改','Amended for customer','បានកែប្រែជំនួសអតិថិជន'],
+ };
+ const key=/^review[:.](approved|needs_info|rejected|amend)$/.exec(action)?.[1]||(['save','submit','amend'].includes(action)?action:'');
+ return labels[key]?.[{zh:0,en:1,km:2}[locale]]??action;
 }
 export function kycDate(value:string,locale:Locale){return new Date(value).toLocaleString({zh:'zh-CN',en:'en-GB',km:'km-KH'}[locale],{timeZone:'Asia/Phnom_Penh'})}
 export function kycFormat(key:string,locale:Locale,values:Record<string,string|number>){return kycText(key,locale).replace(/\{(\w+)\}/g,(_,name)=>String(values[name]??''))}
