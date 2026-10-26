@@ -3,6 +3,19 @@ import {messageForError} from '../error-messages';
 
 // UI copy only. Never pass customer field values, review notes or signed text here.
 const copy:Record<string,[string,string]>={
+ '返回业务工作台':['Back to workspace','ត្រឡប់ទៅផ្ទាំងការងារ'],
+ '审计只读：敏感资料仅由 KYC 审核岗位查看':['Audit read-only: sensitive details are restricted to KYC reviewers','សវនកម្មអាចអានតែប៉ុណ្ណោះ៖ ព័ត៌មានរសើបសម្រាប់តែអ្នកពិនិត្យ KYC'],
+ '无权查看':['Not authorized to view','គ្មានសិទ្ធិមើល'],
+ '要求补充：':['Request updates:','ស្នើឱ្យបំពេញបន្ថែម៖'],
+ '资料审核授权：':['Consent for profile review:','ការយល់ព្រមឱ្យពិនិត្យព័ត៌មាន៖'],
+ '已确认':['Confirmed','បានបញ្ជាក់'],
+ '勾选需要客户补充的页面，客户重新进入时会直接定位到第一项。':['Select the sections requiring updates. The customer will return to the first requested section.','ជ្រើសផ្នែកដែលអតិថិជនត្រូវបំពេញបន្ថែម។ ពេលត្រឡប់មកវិញ នឹងបើកផ្នែកដែលបានស្នើដំបូង។'],
+ '审核意见 / 补件原因':['Review note / reason for updates','មតិពិនិត្យ / មូលហេតុស្នើព័ត៌មានបន្ថែម'],
+ '姓名':['Full name','ឈ្មោះពេញ'],'完整住址':['Full residential address','អាសយដ្ឋានលំនៅដ្ឋានពេញលេញ'],
+ '联系人 1 电话':['Contact 1 phone','ទូរសព្ទអ្នកទំនាក់ទំនង ១'],'联系人 2 电话':['Contact 2 phone','ទូរសព្ទអ្នកទំនាក់ទំនង ២'],'联系人 3 电话':['Contact 3 phone','ទូរសព្ទអ្នកទំនាក់ទំនង ៣'],
+ '购车发票':['Vehicle purchase invoice','វិក្កយបត្រទិញយានយន្ត'],'购车合同':['Vehicle purchase contract','កិច្ចសន្យាទិញយានយន្ត'],'车辆照片':['Vehicle photo','រូបថតយានយន្ត'],'租房合同':['Rental contract','កិច្ចសន្យាជួលផ្ទះ'],'房屋产权证':['Property title','ប័ណ្ណកម្មសិទ្ធិផ្ទះ'],
+ '协议 / 授权确认':['Agreement / consent','កិច្ចព្រមព្រៀង / ការយល់ព្រម'],'Telegram 手机号验证':['Telegram phone verification','ការផ្ទៀងផ្ទាត់ទូរសព្ទ Telegram'],'Telegram 账号验证（未接入）':['Telegram account verification (not integrated)','ការផ្ទៀងផ្ទាត់គណនី Telegram (មិនទាន់ភ្ជាប់)'],'自主授权定位（设备报告，非核验）':['Consented location (device-reported, not verified)','ទីតាំងដែលបានយល់ព្រម (រាយការណ៍ដោយឧបករណ៍ មិនបានផ្ទៀងផ្ទាត់)'],
+ 'B6:F6 / 附件一':['B6:F6 / Appendix 1','B6:F6 / ឧបសម្ព័ន្ធ ១'],'B20:F20 / 附件五':['B20:F20 / Appendix 5','B20:F20 / ឧបសម្ព័ន្ធ ៥'],'B22:F22 / 附件三':['B22:F22 / Appendix 3','B22:F22 / ឧបសម្ព័ន្ធ ៣'],'B23:F23 / 附件二':['B23:F23 / Appendix 2','B23:F23 / ឧបសម្ព័ន្ធ ២'],'B24:F24 / 附件六':['B24:F24 / Appendix 6','B24:F24 / ឧបសម្ព័ន្ធ ៦'],'B25:F25 / 附件四':['B25:F25 / Appendix 4','B25:F25 / ឧបសម្ព័ន្ធ ៤'],
  '版本':['Version','កំណែ'],
  '已核对':['Checked','បានពិនិត្យ'],
  '未确认':['Not confirmed','មិនទាន់បញ្ជាក់'],
@@ -113,6 +126,19 @@ export function kycText(text:string,locale:Locale):string{
   if(locale==='km'&&native)return native;if(latin)return latin;
  }
  return legacyText(text,locale);
+}
+/** Known service actions only; future/custom actions retain their original value. */
+export function kycHistoryAction(action:string,locale:Locale){
+ const labels:Record<string,[string,string,string]>={
+  save:['保存草稿','Draft saved','បានរក្សាទុកសេចក្តីព្រាង'],
+  submit:['提交人工审核','Submitted for review','បានដាក់ស្នើឱ្យពិនិត្យ'],
+  approved:['审核通过','Review approved','ការពិនិត្យបានអនុម័ត'],
+  needs_info:['退回补件','More information requested','បានស្នើព័ត៌មានបន្ថែម'],
+  rejected:['审核拒绝','Review rejected','ការពិនិត្យត្រូវបានបដិសេធ'],
+  amend:['代客户修改','Amended for customer','បានកែប្រែជំនួសអតិថិជន'],
+ };
+ const key=/^review[:.](approved|needs_info|rejected|amend)$/.exec(action)?.[1]||(['save','submit','amend'].includes(action)?action:'');
+ return labels[key]?.[{zh:0,en:1,km:2}[locale]]??action;
 }
 export function kycDate(value:string,locale:Locale){return new Date(value).toLocaleString({zh:'zh-CN',en:'en-GB',km:'km-KH'}[locale],{timeZone:'Asia/Phnom_Penh'})}
 export function kycFormat(key:string,locale:Locale,values:Record<string,string|number>){return kycText(key,locale).replace(/\{(\w+)\}/g,(_,name)=>String(values[name]??''))}

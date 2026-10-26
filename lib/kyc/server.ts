@@ -1,4 +1,7 @@
 import type {Bill} from '@/lib/pricing';
+import {projectStaffProfile} from './staff-projection';
+import {sensitiveFields} from './staff-projection';
+import {mergeSensitiveAmend} from './sensitive-amend';
 import {staff,guardKyc,ensureAssignment} from '@/lib/team/server';
 import {kycFieldGroupFor,kycFieldGroups,type KycFieldGroup} from '@/lib/team/policy';
 import {env} from 'cloudflare:workers';
@@ -103,7 +106,7 @@ export async function signedContract(row:CaseRow,profile:Profile,old:CasePayload
  const terms={...(loan.billing?{billing:loan.billing}:{}),borrowerName:[profile.values.surname,profile.values.givenName].filter(Boolean).join(' '),profileHash,loanId:loan.id,signatureId:profile.files.signature.id,signatureHash:profile.files.signature.sha256,termsVersion:profile.declarationVersion,termsHash:await digest(JSON.stringify(loanTerms.blocks)),termsSnapshot:loanTerms.blocks,principal:loan.amount,fee:loan.fee,currency:'USD',termDays:loan.billing?.termDays??14,signedAt:file.created_at};const contract={...terms,contractHash:await digest(JSON.stringify(terms))};await db().prepare('INSERT OR IGNORE INTO kyc_contracts (signature_id,owner,customer_id,payload,created_at) VALUES (?,?,?,?,?)').bind(terms.signatureId,row.owner,row.customer_id,await seal(contract,'contract:'+terms.signatureId),new Date().toISOString()).run();const stored=await db().prepare('SELECT payload FROM kyc_contracts WHERE signature_id=? AND owner=? AND customer_id=?').bind(terms.signatureId,row.owner,row.customer_id).first<{payload:string}>();if(!stored)throw new KycError('签名合同不可访问');const immutable=await unseal<typeof contract>(stored.payload,'contract:'+terms.signatureId);if(immutable.loanId!==loan.id||immutable.profileHash!==profileHash||immutable.principal!==loan.amount||immutable.fee!==loan.fee)throw new KycError('此签名已绑定其他资料或贷款条件，请重新手写签名');return immutable;
 }
 export async function view(row:CaseRow){const data=await payload(row),loan=await loanForSignature(row.owner,row.customer_id);return {loanOffer:loan?{billConfirmedAt:loan.billConfirmedAt,id:loan.id,amount:loan.amount,fee:loan.fee,termDays:loan.billing?.termDays??14,billing:loan.billing}:null,id:row.id,revision:row.revision,status:row.status,updatedAt:row.updated_at,...data,score:completeness(data.profile,data.phoneVerified),missing:missing(data.profile),external:{identity:'未接入身份证核验',liveness:'未接入活体检测',bank:'未接入 KESS；银行手机号未获取',telegram:'未接入 Telegram 账号会话'},scope:'人工资料审核；不代表外部实名、银行账户验证或贷款批准'}}
-export async function staffView(row:CaseRow,role:string){const result=await view(row);if(role!=='audit')return result;return {...result,profile:{...result.profile,values:{},files:{}},signedLoan:undefined,external:{identity:'仅显示审核状态',liveness:'仅显示审核状态',bank:'仅显示审核状态',telegram:'仅显示审核状态'},scope:'审计只读摘要；敏感资料由 KYC 审核岗位查看'}}
+export async function staffView(row:CaseRow,role:string){const result=await view(row),projected={...result,...projectStaffProfile(result.profile,role)};if(role!=='audit')return projected;return {...projected,signedLoan:undefined,external:{identity:'仅显示审核状态',liveness:'仅显示审核状态',bank:'仅显示审核状态',telegram:'仅显示审核状态'},scope:'审计只读摘要；敏感资料由 KYC 审核岗位查看'}}
 export async function save(request:Request){const c=await context(request),p=await body(request),row=await initialize(c.owner,c.customerId,c.verified);if(!['draft','needs_info'].includes(row.status))throw new KycError('当前资料已锁定，不能直接修改',409);if(p.revision!==row.revision)throw new KycError('资料版本已变化，请重新加载',409);if(!['save','submit'].includes(p.action))throw new KycError('操作无效');const profile=await resolveFiles(c.owner,c.customerId,cleanProfile(p.profile)),old=await payload(row);if(p.action==='submit'){const problems=missing(profile);if(problems.length)throw new KycError('请补全：'+problems.join('、'))}
  delete profile.files.signature;const signedLoan=undefined;const data:CasePayload={profile,signedLoan,phoneVerified:c.verified,ruleVersion:RULE_VERSION,review:old.review,...(p.action==='submit'?{submittedAt:new Date().toISOString()}:{})};return view(await transition(row,p.action==='submit'?'submitted':row.status,data,p.action,c.customerId));}
 export async function decide(request:Request){
@@ -116,7 +119,8 @@ export async function decide(request:Request){
   if(!['submitted','needs_info'].includes(row.status))throw new KycError('仅待审核或待补件资料可代修改');
   if(!reason||reason.length>1000)throw new KycError('请填写代修改原因');
   if(!p.values||typeof p.values!=='object'||Array.isArray(p.values))throw new KycError('代修改资料格式无效');
-  const normalized=cleanProfile({...data.profile,values:p.values,consent:false,files:{...data.profile.files,signature:undefined}}),changed=fields.map(f=>f.id).filter(id=>String(data.profile.values[id]??'')!==String(normalized.values[id]??''));
+  const values=await mergeSensitiveAmend(data.profile.values,p.values,p.sensitiveFields,{tenant:u.userId,actor:u.actorId,caseId:row.id,revision:row.revision});
+  const normalized=cleanProfile({...data.profile,values,consent:false,files:{...data.profile.files,signature:undefined}}),changed=fields.map(f=>f.id).filter(id=>String(data.profile.values[id]??'')!==String(normalized.values[id]??''));
   if(!changed.length)throw new KycError('没有检测到资料变化');
   const groups=[...new Set(changed.map(kycFieldGroupFor))] as KycFieldGroup[];
   if(u.team){
@@ -126,16 +130,17 @@ export async function decide(request:Request){
    if(denied.length)throw new KycError('未授予字段级修改权限：'+denied.map(group=>kycFieldGroups[group]).join('、'),403);
   }
   const mask=(value:unknown)=>{const text=String(value??'');return text.length>4?'***'+text.slice(-4):text};
-  const before=Object.fromEntries(changed.map(id=>[id,mask(data.profile.values[id])]));
-  const after=Object.fromEntries(changed.map(id=>[id,mask(normalized.values[id])]));
+  const auditFields=changed.filter(id=>!sensitiveFields.includes(id as typeof sensitiveFields[number]));
+  const before=Object.fromEntries(auditFields.map(id=>[id,mask(data.profile.values[id])]));
+  const after=Object.fromEntries(auditFields.map(id=>[id,mask(normalized.values[id])]));
   const next=await transition(row,'needs_info',{...data,profile:await resolveFiles(row.owner,row.customer_id,normalized),signedLoan:undefined,review:{decision:'needs_info',reason:'审核员代修改，待客户确认：'+reason,checklist:{},actor:u.actorId,at:new Date().toISOString(),revision:row.revision}},'review:amend',u.actorId);
   if(u.team)await db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),u.team.tenant.id,u.actorId,'kyc_field_amend',JSON.stringify({caseId:row.id,fields:changed,groups,before,after,reason,requiresResubmission:true,revision:next.revision}),new Date().toISOString()).run();
-  return view(next);
+  return staffView(next,u.team?.member.role||'audit');
  }
  const checklist=Object.fromEntries(['identity','contacts','employment','income','assets','bank','consent'].map(k=>[k,p.checklist?.[k]===true]));validateReview(row.status,p.decision,checklist,reason,data.profile);const requests=parseRequests(p.requests,data.profile);
  if(p.decision!=='needs_info'&&requests?.length)throw new KycError('只有退回补件可以包含补件项目');
  if(p.decision==='needs_info')for(const request of requests||[])checklist[requestSection(request.target)!]=true;
- data.review={...(requests===undefined?{}:{requests}),decision:p.decision,reason,checklist,actor:u.actorId,at:new Date().toISOString(),revision:row.revision};return view(await transition(row,p.decision,data,'review:'+p.decision,u.actorId));
+ data.review={...(requests===undefined?{}:{requests}),decision:p.decision,reason,checklist,actor:u.actorId,at:new Date().toISOString(),revision:row.revision};return staffView(await transition(row,p.decision,data,'review:'+p.decision,u.actorId),u.team?.member.role||'audit');
 }
 export async function recordFile(owner:string,customerId:string,slot:Slot,bytes:Uint8Array,type:string,requestId?:string){
  const started=Date.now();let scanDurationMs=0;
