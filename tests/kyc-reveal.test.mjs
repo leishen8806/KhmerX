@@ -33,3 +33,9 @@ test('reveal awaits metadata-only audit, deduplicates concurrent success and doe
  const failed=await f.post({field:'bankAccount'});assert.equal(failed.r.status,500);assert.equal(failed.body.value,undefined);assert.equal(failed.body.revealToken,undefined);
  f.DB.prepare=prepare;assert.equal((await f.post({field:'bankAccount'})).body.value,'BANK987654321');assert.equal(f.count(),2);
 });
+test('dedup expires at 30 seconds and is separated by actor and revision',async t=>{
+ const f=await revealFixture(t);assert.equal((await f.post()).r.status,200);const clock=Date.now;
+ try{Date.now=()=>clock()+30001;assert.equal((await f.post()).r.status,200);}finally{Date.now=clock;}assert.equal(f.count(),2);
+ f.sql.prepare("INSERT INTO team_members(id,tenant_id,user_id,email,role,active,version) VALUES('other-admin',?,'other-admin','other@example.test','admin',1,0)").run(f.A);f.setUser({userId:'other-admin',email:'other@example.test'});assert.equal((await f.post()).r.status,200);assert.equal(f.count(),3);
+ const next=await f.kyc.transition(f.row,'submitted',f.data,'save','customer');assert.equal((await f.post({revision:next.revision})).r.status,200);assert.equal(f.count(),4);
+});
