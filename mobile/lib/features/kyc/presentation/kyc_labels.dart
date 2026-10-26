@@ -1,6 +1,16 @@
 import '../../../l10n/app_localizations.dart';
 import '../domain/kyc_wire.dart';
 
+String kycRequestReason(AppLocalizations l, String code) => switch (code) {
+  'blurred' => l.kycReasonBlurred,
+  'incomplete_document' => l.kycReasonIncomplete,
+  'selfie_mismatch' => l.kycReasonSelfie,
+  'data_mismatch' => l.kycReasonData,
+  'contact_unreachable' => l.kycReasonContact,
+  'income_unclear' => l.kycReasonIncome,
+  _ => l.kycReasonOther,
+};
+
 // Generated lookup of localized KYC labels (see l10n_kyc.py).
 
 String kycSectionLabel(AppLocalizations l, String id) => switch (id) {

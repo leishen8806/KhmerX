@@ -562,4 +562,13 @@
   },
   "kycUploadRetrying": "正在重试上传…",
   "kycUploadCancel": "取消上传"
+,
+  "kycNeedsSupplement": "需补充",
+  "kycReasonBlurred": "照片模糊",
+  "kycReasonIncomplete": "证件不完整",
+  "kycReasonSelfie": "自拍与证件不符",
+  "kycReasonData": "信息与证件不一致",
+  "kycReasonContact": "联系人无法接通",
+  "kycReasonIncome": "收入证明不清",
+  "kycReasonOther": "其他"
 }
