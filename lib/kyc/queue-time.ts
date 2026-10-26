@@ -1,14 +1,8 @@
-import {useEffect,useState} from 'react';
 type Locale='zh'|'en'|'km';
-export function useQueueClock(enabled=true){
- const [now,setNow]=useState<number|null>(null);
- useEffect(()=>{if(!enabled)return;setNow(Date.now());const timer=window.setInterval(()=>setNow(Date.now()),30000);return()=>window.clearInterval(timer)},[enabled]);
- return now;
-}
 export const queueTimeLabels={
- zh:{updated:'更新于',unavailable:'更新时间不可用',future:'更新时间晚于当前时间',submissionUnavailable:'提交时间不可用，无法计算等待时长。'},
- en:{updated:'Updated',unavailable:'Update time unavailable',future:'Update time is in the future',submissionUnavailable:'Submission time unavailable; waiting time cannot be calculated.'},
- km:{updated:'បានធ្វើបច្ចុប្បន្នភាព',unavailable:'មិនមានពេលធ្វើបច្ចុប្បន្នភាព',future:'ពេលធ្វើបច្ចុប្បន្នភាពនៅក្រោយពេលបច្ចុប្បន្ន',submissionUnavailable:'មិនមានពេលដាក់ស្នើ; មិនអាចគណនាពេលរង់ចាំបាន។'},
+ zh:{updated:'更新于',unavailable:'更新时间不可用',future:'更新时间晚于当前时间'},
+ en:{updated:'Updated',unavailable:'Update time unavailable',future:'Update time is in the future'},
+ km:{updated:'បានធ្វើបច្ចុប្បន្នភាព',unavailable:'មិនមានពេលធ្វើបច្ចុប្បន្នភាព',future:'ពេលធ្វើបច្ចុប្បន្នភាពនៅក្រោយពេលបច្ចុប្បន្ន'},
 };
 /** Last-update display only: never substitute this value for submission time. */
 export function formatQueueTime(raw:unknown,now:number|null,locale:Locale):{text:string;iso?:string;full?:string}{
