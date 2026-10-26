@@ -646,4 +646,13 @@
   },
   "kycUploadRetrying": "Retrying upload...",
   "kycUploadCancel": "Cancel upload"
+,
+  "kycNeedsSupplement": "Needs supplement",
+  "kycReasonBlurred": "Photo is blurry",
+  "kycReasonIncomplete": "Document is incomplete",
+  "kycReasonSelfie": "Selfie does not match document",
+  "kycReasonData": "Information does not match document",
+  "kycReasonContact": "Contact cannot be reached",
+  "kycReasonIncome": "Income evidence is unclear",
+  "kycReasonOther": "Other"
 }

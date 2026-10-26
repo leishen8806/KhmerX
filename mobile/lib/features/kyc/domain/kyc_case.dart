@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'kyc_requests.dart';
 
 enum KycCaseStatus { draft, submitted, needsInfo, approved, rejected, unknown }
 
@@ -41,6 +42,8 @@ final class KycCase extends Equatable {
     required this.ruleVersion,
     this.reviewReason,
     this.updatedAt,
+    this.requests,
+    this.checklist = const {},
   });
 
   final String id;
@@ -56,6 +59,12 @@ final class KycCase extends Equatable {
   /// Reviewer's note (needs_info / rejected). Shown verbatim.
   final String? reviewReason;
   final String? updatedAt;
+  final List<KycRequest>? requests;
+  final Map<String, bool> checklist;
+  List<KycRequest> get activeRequests => status != KycCaseStatus.needsInfo
+      ? const []
+      : requests ?? List.unmodifiable(checklist.entries.where((e) => e.value)
+          .map((e) => KycRequest('section:${e.key}', 'other', reviewReason ?? '')));
 
   static KycCase? tryParse(Object? data) {
     if (data is! Map) return null;
@@ -98,6 +107,10 @@ final class KycCase extends Equatable {
       ruleVersion: m['ruleVersion']?.toString() ?? '',
       reviewReason: (reason != null && reason.isNotEmpty) ? reason : null,
       updatedAt: m['updatedAt']?.toString(),
+      requests: parseKycRequests(review),
+      checklist: Map.unmodifiable(review is Map && review['checklist'] is Map
+          ? {for (final e in (review['checklist'] as Map).entries) e.key.toString(): e.value == true}
+          : <String, bool>{}),
     );
   }
 
@@ -114,5 +127,7 @@ final class KycCase extends Equatable {
         ruleVersion,
         reviewReason,
         updatedAt,
+        requests,
+        checklist,
       ];
 }

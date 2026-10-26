@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
 import {createRequire} from 'node:module';
+import * as companyUi from '../lib/team/company-ui.ts';
 
 const blank=()=>({loans:[],bots:[],events:[],entries:[],notifications:[],requests:[]});
 const loan=id=>({id,name:'Synthetic',status:'kyc_pending',amount:5000,fee:0,paid:0,wallet:0,botId:'',note:'',demoDays:0,kyc:{contacts:[],income:0,document:''}});
@@ -19,7 +20,7 @@ function workspace(request,props={initialRole:'ops'},options={}){
  };
  const jsx=(type,props)=>({type,props});
  const mocks={react:hooks,'react/jsx-runtime':{jsx,jsxs:jsx},'@/lib/api-client':{ApiClientError:class extends Error{},apiFetch:async(url,init)=>({data:await request(url,init)})},'@/lib/client-id':{clientRequestId:()=> 'synthetic-request'},'@/lib/domain':{initialState:blank,statusNames:{kyc_pending:'Pending',needs_info:'Needs info',closed:'Closed'},summary:()=>({active:0,closed:0,disbursed:0,repaid:0})},'@/components/customer-journey':{kycPresentation:()=>({}),loanPhase:()=>0,loanSteps:[]}};
- Object.assign(mocks,options.mocks);const exports={};const code=ts.transpileModule(readFileSync(options.source||'app/workspace.tsx','utf8')+(options.inner?'\nexport {TeamClientInner};':''),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
+ Object.assign(mocks,{'@/lib/team/company-ui':companyUi},options.mocks);const exports={};const code=ts.transpileModule(readFileSync(options.source||'app/workspace.tsx','utf8')+(options.inner?'\nexport {TeamClientInner};':''),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
  vm.runInNewContext(code,{exports,require:name=>mocks[name]||new Proxy({},{get:(_o,key)=>key}),Error,URLSearchParams,AbortController,queueMicrotask,clearInterval(){},window:{addEventListener(){},removeEventListener(){},location:{origin:'http://localhost',search:'',replace(){}},localStorage:{getItem:()=>null,setItem(){}},setInterval:()=>1,setTimeout(){}},localStorage:{getItem:()=>null},document:{addEventListener(){},removeEventListener(){},documentElement:{classList:{toggle(){}}},querySelector:()=>null,getElementById:()=>null}});
  const render=()=>{let tree;for(let n=0;n<12;n++){changed=false;cursor=0;tree=exports[options.exportName||'default'](props);while(effects.length)effects.shift()();if(!changed)return tree}throw Error('Render loop')};
  return {render,async settle(){await new Promise(resolve=>setImmediate(resolve));return render()}};

@@ -3105,6 +3105,14 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Cancel upload'**
   String get kycUploadCancel;
+  String get kycNeedsSupplement;
+  String get kycReasonBlurred;
+  String get kycReasonIncomplete;
+  String get kycReasonSelfie;
+  String get kycReasonData;
+  String get kycReasonContact;
+  String get kycReasonIncome;
+  String get kycReasonOther;
 }
 
 class _AppLocalizationsDelegate
