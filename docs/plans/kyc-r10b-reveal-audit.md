@@ -87,3 +87,11 @@ Interface: SensitiveValue 接收 caseId/revision/field/scope 和已掩码 value/
 
 ## Self-review / Handoff
 本次修订解决了旧计划承认的 GET 明文缺陷，并把 staff POST 响应与 amend 防掩码覆盖纳入同一闭环。新增 revealToken 为无迁移、可验证“已 reveal”的设计提议，必须由 Claude 再复核，不据此直接实施。若发现既有密钥/响应契约无法支持而确需持久化或迁移，停下说明，不自行建表。当前仅修改计划文档，未新增接口、改动线上状态或写入审计。不合并、不部署。
+
+## 2026-10-26 1100 执行补记
+- 1100-01 已批准本修订计划，现已按 RED→GREEN 实施。服务端 a 为 #113，前端 b 堆叠其上；不单独部署或自动合并。
+- staff 掩码沿用更严格规则：≤4位仅遮罩，5–8位末2位，>8位末4位；客户 view/payload 不改。服务器先规范化掩码再做 amend 合并，防空白包裹的遮罩写入原值。
+- 独立终审发现并复现两个 Important：字段卸载时父表单保留明文/凭证，及空白包裹掩码覆盖原值。均补 RED→GREEN 回归；字段 cleanup 清父状态，并以实时案件 id/revision 防旧 cleanup 改写新案件。
+- R5 #112 已按负责人本对话许可合入 main 86f1b55；本分支以普通 merge 同步，不再把 R5 说成未合并；其 7 个实际差异回归随全量门禁执行。
+- 使用本地合成 SQLite 全迁移、原 reviewer/getCase/guardKyc/加密/审计与真实 HTTP handler，配合 Chromium 截审核桌面成功/失败状态。无生产请求、真实 Cookie 或个人资料。
+- 当前合并规则以负责人 2026-10-26 新委托为准：Claude 在 inbox 明确“Claude 批准合并 #编号”且 CI 通过可代理批准；仅本实施计划批准不等于产品 PR 合并批准。部署/迁移/资金逻辑等仍须负责人本人批准。
