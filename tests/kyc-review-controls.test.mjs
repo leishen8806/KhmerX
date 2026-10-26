@@ -64,6 +64,13 @@ test('unmount clears an already edited parent value and reveal proof',async()=>{
  let parent={value:'****6789',proof:''},resets=0;const h=mount('components/kyc-review-controls.tsx','SensitiveValue',{caseId:'a',revision:1,field:'bankAccount',value:'****6789',label:'Account',locale:'en',editable:true,onEdit:(value,proof)=>parent={value,proof},onReset:()=>{resets++;parent={value:'****6789',proof:''};}});
  await h.nodes().find(n=>n.type==='button').props.onClick();h.render();h.nodes().find(n=>n.type==='input').props.onChange({target:{value:'EDITED'}});assert.equal(parent.proof,'proof');h.unmount();assert.equal(resets,1);assert.deepEqual(parent,{value:'****6789',proof:''});
 });
+test('followup spacing separates the phone and registration, with no extra Chinese colon space',async()=>{
+ for(const [locale,label] of [['zh','注册手机：'],['en','Registered phone: '],['km','ទូរសព្ទចុះឈ្មោះ៖ ']]){
+  const h=mount('components/kyc-orders.tsx','OrderFollowups',{id:'SYNTHETIC'},{'@/lib/admin-i18n':{useAdminLocale:()=>({locale})},'@/lib/api-client':{apiFetch:async()=>({data:{order:{id:'SYNTHETIC',customer_id:'CUSTOMER',status:'submitted'},account:{phone_mask:'+855 ** *** 123',created_at:1792972800},records:[],loans:[],canReview:false,canNote:false}})}});await h.ready();
+  const line=h.nodes().find(n=>n.type==='p'&&text(n).includes('+855 ** *** 123'));assert(text(line).startsWith(label+'+855 ** *** 123 · '),locale+': '+text(line));
+  if(locale==='zh')assert(!h.text().includes('： '));
+ }
+});
 test('followup links to neutral review detail without preselecting approval',async()=>{
  const h=mount('components/kyc-orders.tsx','OrderFollowups',{id:'case 1'},{'@/lib/api-client':{apiFetch:async()=>({data:{order:{id:'case 1',status:'submitted'},records:[{id:'note',status:'resolved',created_at:'2026-10-24',actor:'staff',note:'Done'}],loans:[],canReview:true,canNote:false}})}});
  await h.ready();const link=h.nodes().find(n=>n.type==='a');assert.equal(link.props.href,'/kyc/review?id=case%201');assert(!text(link).includes('确认审核通过'));

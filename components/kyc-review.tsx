@@ -5,7 +5,7 @@ import {changedSections,type ReviewDiff} from '@/lib/kyc/review-changes-ui';
 import {SensitiveValue} from '@/components/kyc-review-controls';
 import {useI18n} from '@/lib/i18n';
 import type {Locale} from '@/lib/i18n';
-import {kycText,kycDate} from '@/lib/kyc/ui-copy';
+import {kycText,kycDate,kycHistoryAction} from '@/lib/kyc/ui-copy';
 import {fields,sections,statusLabels,completeness} from '@/lib/kyc/core';
 import {RequestEditor} from '@/components/kyc-supplement';
 import {reasonCodes,type KycRequest} from '@/lib/kyc/requests';
@@ -49,6 +49,6 @@ export function KycReview({next,autoNext=false,onAutoNext,onNext,onRetryNext,req
   {next&&next.state!=='idle'&&<div role="status">{next.state==='ready'?<button type="button" disabled={busy} onClick={onNext}>{t('下一条待审核')}</button>:next.state==='failed'?<><p>{t('无法获取下一条，请重试。')}</p><button type="button" disabled={busy} onClick={onRetryNext}>{t('重试')}</button></>:<p>{t(next.state==='empty'?'没有其他待审核资料。':'正在获取下一条。')}</p>}</div>}
   {mayReview&&!record.approvalOnly&&['submitted','needs_info'].includes(record.status)&&<button type="button" data-action="amend" disabled={busy} onClick={onAmend}>{t('代客户修改资料')}</button>}
   </section><section className="kyc-review-panel"><h2>{t('资料完整度')}</h2><p>{t('基础资料')} {score.base}/120 · {t('附加材料')} {score.additional}/85</p><details><summary>{t('逐项权重与来源')}</summary>{score.rows.map(r=><p key={r.source+r.label}>{t(r.label)} {r.points}/{r.maximum} · {t(r.source)}</p>)}</details></section>
-  {record.history&&<section className="kyc-review-panel"><h2>{t('版本与操作记录')}</h2>{record.history.map(h=><p key={h.revision}>{t('版本')} {h.revision} · {h.action} · {kycDate(h.created_at,locale)}{h.review&&<span> · {h.review.reason} · {h.actor}</span>}</p>)}</section>}
+  {record.history&&<section className="kyc-review-panel"><h2>{t('版本与操作记录')}</h2>{record.history.map(h=><p key={h.revision}>{t('版本')} {h.revision} · {kycHistoryAction(h.action,locale)} · {kycDate(h.created_at,locale)}{h.review&&<span> · {h.review.reason} · {h.actor}</span>}</p>)}</section>}
   </aside></div></main>;
 }
