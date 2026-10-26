@@ -8,7 +8,7 @@
 
 | # | 位置 | 精确替换(原 → 改) | 为什么存活 | 文件 |
 |---|---|---|---|---|
-| Q5 | `lib/kyc/requests.ts` | `raw.length>32` → `raw.length>320` | 现有"超出上限"用例用的是 `Array(33).fill(item)`:33 个**完全相同**的项目会先被"重复目标"拒绝,上限本身没被单独测到。核心定义里有 36 个字段,所以 33 个**不重复**的目标是可达的 | `tests/kyc-requests.test.mjs` |
+| Q5 | `lib/kyc/requests.ts` | `raw.length>32` → `raw.length>320` | 现有"超出上限"用例用的是 `Array(33).fill(item)`:33 个**完全相同**的项目会先被"重复目标"拒绝,上限本身没被单独测到。字段只有 32 个,所以不能只用字段凑 33 个;补件目标还包括材料(9 个,不含签名)和分区(7 个),全集共 48 个互不相同的目标,33 个不重复的目标是可达的 | `tests/kyc-requests.test.mjs` |
 | C1 | `app/kyc/client.tsx` 的 `decide()` | `...(decision==='needs_info'&&requests.length?{requests}:{})` → `...(requests.length?{requests}:{})` | 没有任何测试断言"只有退回补件才会发送 `requests`"。如果改成总是发送,审核员先勾了补件再把决定改成通过,服务端会返回 400 | `tests/kyc-review-navigation.test.mjs`(或 `kyc-review-workspace.test.mjs`) |
 | X6 | `components/kyc-review.tsx` | `disabled={busy\|\|requestsIncomplete\|\|` → `disabled={requestsIncomplete\|\|` | 现有"忙碌时禁用"用例用默认参数(决定为 `approved`、没有勾选),按钮本来就因"通过需全部勾选"而被禁用,所以断言与 `busy` 无关 | `tests/kyc-review-workspace.test.mjs` |
 
@@ -23,9 +23,12 @@
 ## 4. 测试要求(必须能区分有无缺陷)
 
 ### Q5 补件项目数量上限
-- 用 `fields.slice(0,33).map(f=>({...item,target:'field:'+f.id}))`(33 个**互不相同**的目标)断言 `parseRequests` 抛错;用同样方式取 32 个断言通过(现有用例已覆盖 32 个,可复用或保留)。
-- 目的是让"超出 32 项"这条规则单独成立,不依赖重复目标检查。写一行注释说明为什么要用不同目标。
-- 前提:`fields.length>=33`(评审时为 36)。若将来字段少于 33,测试要显式失败并提示原因,不要悄悄通过。
+- 目标全集 = `fields.map(f=>'field:'+f.id)` + `slots`(不含 `signature`)`.map(s=>'slot:'+s.id)` + `sections.map(s=>'section:'+s.id)`。评审时字段 32、材料 9、分区 7,共 48 个互不相同的目标。**不能只用 `fields`**:字段只有 32 个,凑不到 33 个。
+- 取全集的前 33 个(互不相同)断言 `parseRequests` 抛错;取前 32 个断言通过(现有用例已覆盖 32 个字段,可复用或保留)。
+- **不要传 `profile` 参数**,否则材料可见性规则可能先拦掉部分 `slot:` 目标,测不到数量上限。
+- 目的是让"超出 32 项"这条规则单独成立,不依赖重复目标检查。写一行注释说明为什么要用互不相同的目标。
+- 前提:全集长度 >= 33。若将来不足,测试要显式失败并提示原因,不要悄悄通过。
+- 修订记录(2026-10-24):原版本写的是 `fields.slice(0,33)`,前提 `fields.length>=33`(评审时为 36)。该前提错误:`fields.length` 实为 32,Codex 在前置检查处发现并停下。已核对:全集 48 个目标中,32 个不重复的目标通过,33 个不重复的目标抛"补件项目格式无效"。
 
 ### C1 补件项目只随"退回补件"发送
 夹具要让审核端提交决定时返回成功(`kyc-review-navigation.test.mjs` 的 `reviewer()` 夹具目前对 POST 一律抛错,需要在测试里扩展一个可返回记录的版本,只在测试文件内改)。断言发出的 POST 请求体:
