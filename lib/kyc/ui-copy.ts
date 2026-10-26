@@ -3,12 +3,41 @@ import {messageForError} from '../error-messages';
 
 // UI copy only. Never pass customer field values, review notes or signed text here.
 const copy:Record<string,[string,string]>={
+ '版本':['Version','កំណែ'],
+ '已核对':['Checked','បានពិនិត្យ'],
+ '未确认':['Not confirmed','មិនទាន់បញ្ជាក់'],
+ '取消':['Cancel','បោះបង់'],
+ '人工审核结果已记录。':['Review recorded.','បានកត់ត្រាលទ្ធផលពិនិត្យ។'],
+ '常用短语':['Quick notes','ឃ្លាខ្លីៗ'],
+ '确认本次人工审核':['Confirm review','បញ្ជាក់ការពិនិត្យ'],
+ '追加后超过1000字，请先缩短审核意见。':['Over 1,000 characters. Shorten the note first.','លើស 1,000 តួអក្សរ។ សូមកាត់បន្ថយចំណាំជាមុន។'],
+ '资料已逐项核对。':['Details checked.','បានពិនិត្យព័ត៌មានគ្រប់ចំណុច។'],
+ '材料与填写内容一致。':['Documents match the details.','ឯកសារត្រូវនឹងព័ត៌មានដែលបានបំពេញ។'],
+ '本次人工资料审核通过。':['Manual review passed.','បានឆ្លងកាត់ការពិនិត្យដោយបុគ្គលិក។'],
+ '请提供清晰、完整的材料。':['Provide clear, complete documents.','សូមផ្ដល់ឯកសារច្បាស់ និងពេញលេញ។'],
+ '请核对填写内容。':['Check the details entered.','សូមពិនិត្យព័ត៌មានដែលបានបំពេញ។'],
+ '请按补件要求重新提交。':['Resubmit the requested updates.','សូមដាក់ស្នើឡើងវិញតាមសំណើបន្ថែម។'],
+ '当前材料不符合审核要求。':['Documents do not meet requirements.','ឯកសារមិនបំពេញតាមលក្ខខណ្ឌពិនិត្យ។'],
+ '填写内容与材料不一致。':['Details do not match the documents.','ព័ត៌មានមិនត្រូវនឹងឯកសារ។'],
+ '请核对后联系业务人员。':['Check and contact your agent.','សូមពិនិត្យ រួចទាក់ទងបុគ្គលិក។'],
+ '下一条待审核':['Next pending case','សំណើបន្ទាប់រង់ចាំពិនិត្យ'],
+ '审核后自动打开下一条':['Open next after review','បើកសំណើបន្ទាប់ក្រោយពិនិត្យ'],
+ '没有其他待审核资料。':['No other pending cases.','គ្មានសំណើផ្សេងរង់ចាំពិនិត្យទេ។'],
+ '无法获取下一条，请重试。':['Cannot load next case. Retry.','មិនអាចផ្ទុកសំណើបន្ទាប់បានទេ។ សូមព្យាយាមម្ដងទៀត។'],
+ '正在获取下一条。':['Loading next case.','កំពុងផ្ទុកសំណើបន្ទាប់។'],
+ '已保存':['Saved','បានរក្សាទុក'],
+ '保存中…':['Saving…','កំពុងរក្សាទុក…'],
+ '保存失败':['Save failed','ការរក្សាទុកបរាជ័យ'],
+ '资料版本已变化，请重新加载后核对':['This profile changed. Reload and check before saving.','ព័ត៌មាននេះបានផ្លាស់ប្តូរ។ សូមផ្ទុកឡើងវិញ និងពិនិត្យមុនរក្សាទុក។'],
+ '重新加载服务器资料':['Reload server profile','ផ្ទុកព័ត៌មានពីម៉ាស៊ីនមេឡើងវិញ'],
+ '重新加载会放弃本页未保存修改，是否继续？':['Reloading discards unsaved changes on this page. Continue?','ការផ្ទុកឡើងវិញនឹងបោះបង់ការកែប្រែមិនទាន់រក្សាទុក។ បន្តឬ?'],
  '需补充':['Update needed','ត្រូវបន្ថែម'],
  '已修改，待审核':['Updated · awaiting review','បានកែប្រែ · រង់ចាំពិនិត្យ'],
  '补件原因':['Reason for update','មូលហេតុនៃការបន្ថែម'],
  '补充说明':['Additional note','ចំណាំបន្ថែម'],
  '前往补充':['Update now','បន្ថែមឥឡូវ'],
  '本次修改状态仅供参考，提交后由审核员确认。':['Edits are provisional until reviewed.','ការកែប្រែត្រូវរង់ចាំការបញ្ជាក់ពីអ្នកពិនិត្យ។'],
+ '网络较慢，上传中断，请重试':['Slow network. Upload interrupted. Please retry.','បណ្ដាញយឺត។ ការផ្ទុកឡើងបានផ្អាក។ សូមព្យាយាមម្ដងទៀត។'],
  '拍照上传':['Take a photo','ថតរូបដើម្បីផ្ទុកឡើង'],
  '从相册选择':['Choose from gallery','ជ្រើសពីវិចិត្រសាល'],
  '放大查看材料':['Enlarge document','ពង្រីកមើលឯកសារ'],
@@ -87,4 +116,4 @@ export function kycText(text:string,locale:Locale):string{
 }
 export function kycDate(value:string,locale:Locale){return new Date(value).toLocaleString({zh:'zh-CN',en:'en-GB',km:'km-KH'}[locale],{timeZone:'Asia/Phnom_Penh'})}
 export function kycFormat(key:string,locale:Locale,values:Record<string,string|number>){return kycText(key,locale).replace(/\{(\w+)\}/g,(_,name)=>String(values[name]??''))}
-export function kycError(error:unknown,locale:Locale){const e=error as {code?:string;params?:Record<string,unknown>;message?:string};if(e.code)return messageForError(e,locale);const translated=kycText(e.message||'',locale);return translated!==e.message?translated:messageForError({code:'REQUEST_FAILED'},locale)}
+export function kycError(error:unknown,locale:Locale){const e=error as {code?:string;params?:Record<string,unknown>;message?:string};if(e.code==='KYC_UPLOAD_INTERRUPTED')return kycText('网络较慢，上传中断，请重试',locale);if(e.code)return messageForError(e,locale);const translated=kycText(e.message||'',locale);return translated!==e.message?translated:messageForError({code:'REQUEST_FAILED'},locale)}
