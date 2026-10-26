@@ -18,7 +18,7 @@ export function SensitiveValue({value,label,locale,scope='',caseId,revision,fiel
  const identity=JSON.stringify([scope,caseId,revision,field]),generation=useRef(0),inFlight=useRef(false),active=useRef(identity);
  const [result,setResult]=useState<{identity:string;value:string;proof:string}|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(false);
  const shown=result?.identity===identity;
- useEffect(()=>{active.current=identity;generation.current++;inFlight.current=false;setResult(null);setBusy(false);setError(false);return ()=>{generation.current++;inFlight.current=false;active.current='';};},[identity]);
+ useEffect(()=>{active.current=identity;generation.current++;inFlight.current=false;setResult(null);setBusy(false);setError(false);return ()=>{generation.current++;inFlight.current=false;active.current='';onReset?.();};},[identity]);
  function hide(){generation.current++;inFlight.current=false;setResult(null);setBusy(false);setError(false);onReset?.();}
  async function toggle(){
   if(shown||busy){hide();return;}

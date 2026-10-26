@@ -59,6 +59,10 @@ test('amendment shows differences and requires fresh confirmation after each cha
  h.render({...props,values:{...values,surname:'NEWER'}});assert(save().props.disabled);
  h.render({...props,values:original});assert(save().props.disabled);
 });
+test('unmount clears an already edited parent value and reveal proof',async()=>{
+ let parent={value:'****6789',proof:''},resets=0;const h=mount('components/kyc-review-controls.tsx','SensitiveValue',{caseId:'a',revision:1,field:'bankAccount',value:'****6789',label:'Account',locale:'en',editable:true,onEdit:(value,proof)=>parent={value,proof},onReset:()=>{resets++;parent={value:'****6789',proof:''};}});
+ await h.nodes().find(n=>n.type==='button').props.onClick();h.render();h.nodes().find(n=>n.type==='input').props.onChange({target:{value:'EDITED'}});assert.equal(parent.proof,'proof');h.unmount();assert.equal(resets,1);assert.deepEqual(parent,{value:'****6789',proof:''});
+});
 test('followup links to neutral review detail without preselecting approval',async()=>{
  const h=mount('components/kyc-orders.tsx','OrderFollowups',{id:'case 1'},{'@/lib/api-client':{apiFetch:async()=>({data:{order:{id:'case 1',status:'submitted'},records:[{id:'note',status:'resolved',created_at:'2026-10-24',actor:'staff',note:'Done'}],loans:[],canReview:true,canNote:false}})}});
  await h.ready();const link=h.nodes().find(n=>n.type==='a');assert.equal(link.props.href,'/kyc/review?id=case%201');assert(!text(link).includes('确认审核通过'));
