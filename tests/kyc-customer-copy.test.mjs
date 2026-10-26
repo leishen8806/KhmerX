@@ -34,6 +34,7 @@ export function customer({locale='km',review=false,section='personal',status='dr
  mocks['./kyc-review.css']={};mocks['@/components/kyc-review']=load('components/kyc-review.tsx');
  mocks['./kyc-customer-overview.css']={};mocks['@/components/kyc-customer-overview']=load('components/kyc-customer-overview.tsx');
  mocks['./kyc-customer-checks.css']={};mocks['@/components/kyc-customer-checks']=load('components/kyc-customer-checks.tsx');
+ mocks['@/lib/kyc/contact-ui']=load('lib/kyc/contact-ui.ts');mocks['./kyc-capture-examples.css']={};mocks['@/components/kyc-capture-examples']=load('components/kyc-capture-examples.tsx');
  const component=load('app/kyc/client.tsx').default;
  const render=()=>{cursor=0;tree=component({review,mini,initialSection:section});for(const effect of pendingEffects.splice(0)){effectRecords[effect.i]?.cleanup?.();const cleanup=effect.fn();effectRecords[effect.i]={deps:effect.deps,cleanup}}return tree};
  const nodes=n=>Array.isArray(n)?n.flatMap(nodes):!n||typeof n!=='object'?[]:[n,...nodes(n.props?.children)];
@@ -71,6 +72,12 @@ test('review amendment shows address candidate; cancel is unchanged and confirm 
 });
 
 const steps=['personal','identityDetails','address','idFront','idBack','selfie','contact1','contact2','contact3','employment','income','assets','bank','consent'];
+test('contact relationship clears beside the field and names the occupying contact in every locale',async()=>{
+ for(const locale of ['zh','en','km']){const h=customer({locale,section:'contact2',values:{contact1Relation:'父母',contact2Relation:'朋友'}});await h.ready();const option=h.nodes().find(n=>n.type==='SelectItem'&&n.props.value==='父母');assert(option.props.disabled);assert(JSON.stringify(option.props.children).includes(locale==='zh'?'联系人 1':locale==='en'?'contact 1':'ទី 1'));assert(!h.nodes().some(n=>n.type==='SelectItem'&&n.props.value==='__clear_relation__'));const clear=h.nodes().find(n=>n.props?.className==='kyc-contact-clear');assert(clear);clear.props.onClick();h.render();assert.equal(h.nodes().find(n=>n.type==='Select').props.value,'');}
+});
+test('H5 and Mini show the same original correct and incorrect SVG capture examples',async()=>{
+ for(const mini of [false,true])for(const section of ['idFront','selfie']){const h=customer({locale:'km',mini,section});await h.ready();const guides=h.nodes().filter(n=>n.type==='svg'&&n.props['data-capture-example']);assert.equal(guides.length,2);assert.deepEqual(guides.map(n=>n.props['data-capture-example']),['correct','incorrect']);assert(guides.every(n=>n.props.role==='img'));assert(!h.nodes().some(n=>n.type==='canvas'));}
+});
 test('review amendment exit discards its address candidate before another amendment',async()=>{
  const h=customer({locale:'zh',review:true,status:'submitted',complete:true});await h.ready();
  h.nodes().find(n=>n.props?.['data-action']==='amend').props.onClick();h.render();
