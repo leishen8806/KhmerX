@@ -20,11 +20,11 @@ void main() {
     for (final section in ['identity', 'contacts', 'bank', 'consent']) {
       expect(KycRequest('section:$section', 'other', '').section?.name, section);
     }
-    final request = KycRequest('slot:idFront', 'blurred', '');
+    const request = KycRequest('slot:idFront', 'blurred', '');
     final steps = kycStepsOf(KycSection.identity, {});
     expect(steps.where(request.matchesStep).single.slotIds, contains('idFront'));
-    expect(KycRequest('field:givenName', 'other', '').section, KycSection.identity);
-    expect(KycRequest('field:unknown-private-key', 'other', '').section, isNull);
-    expect(KycRequest('slot:signature', 'other', '').section, isNull);
+    expect(const KycRequest('field:givenName', 'other', '').section, KycSection.identity);
+    expect(const KycRequest('field:unknown-private-key', 'other', '').section, isNull);
+    expect(const KycRequest('slot:signature', 'other', '').section, isNull);
   });
 }
