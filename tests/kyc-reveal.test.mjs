@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {existsSync} from 'node:fs';
 import {changesFixture} from './helpers/kyc-sensitive-fixture.mjs';
+const syntheticAuthSecret='synthetic-changes-auth-'.repeat(5);
 export async function revealFixture(t){
  assert(existsSync('app/api/kyc/review/reveal/route.ts'),'reveal route exists');const f=await changesFixture();t.after(()=>f.close());
  let row=await f.kyc.initialize(f.A,'reveal',false),data=await f.kyc.payload(row);data.profile.values={documentNumber:'DOC123456789',bankAccount:'BANK987654321',surname:'OLD'};row=await f.kyc.transition(row,'submitted',data,'submit','customer');
@@ -38,4 +39,17 @@ test('dedup expires at 30 seconds and is separated by actor and revision',async 
  try{Date.now=()=>clock()+30001;assert.equal((await f.post()).r.status,200);}finally{Date.now=clock;}assert.equal(f.count(),2);
  f.sql.prepare("INSERT INTO team_members(id,tenant_id,user_id,email,role,active,version) VALUES('other-admin',?,'other-admin','other@example.test','admin',1,0)").run(f.A);f.setUser({userId:'other-admin',email:'other@example.test'});assert.equal((await f.post()).r.status,200);assert.equal(f.count(),3);
  const next=await f.kyc.transition(f.row,'submitted',f.data,'save','customer');assert.equal((await f.post({revision:next.revision})).r.status,200);assert.equal(f.count(),4);
+});
+test('reveal tokens reject forged MACs while accepting a minted token',async t=>{
+ const f=await changesFixture();t.after(()=>f.close());const api=await f.mod('@/lib/kyc/reveal-token'),scope={tenant:f.A,actor:'reviewer',caseId:'synthetic-case',revision:7,field:'documentNumber'};
+ const valid=await api.mintRevealToken(scope),[body,mac]=valid.split('.'),otherMac=(await api.mintRevealToken({...scope,field:'bankAccount'})).split('.')[1];
+ await assert.doesNotReject(()=>api.verifyRevealToken(valid,scope));
+ const upper=mac.toUpperCase();assert.notEqual(upper,mac);
+ for(const token of [body+'.'+'0'.repeat(64),body+'.'+otherMac,body+'.'+mac.slice(1),body+'.'+mac+'0',body+'.'+upper,body+'.'])await assert.rejects(()=>api.verifyRevealToken(token,scope),error=>error.status===403&&error.message==='请重新显示敏感字段后再修改');
+});
+test('reveal token lifetime accepts five minutes and rejects invalid timestamps',async t=>{
+ const f=await changesFixture();t.after(()=>f.close());const api=await f.mod('@/lib/kyc/reveal-token'),auth=await f.mod('@/lib/h5-auth-core'),scope={tenant:f.A,actor:'reviewer',caseId:'synthetic-case',revision:7,field:'documentNumber'},now=Date.now(),issuedAt=now-1000;
+ const token=async timestamps=>{const body=Buffer.from(JSON.stringify({...scope,...timestamps})).toString('base64url'),mac=await auth.keyed(syntheticAuthSecret,'kyc-reveal-amend-v1:'+body);return body+'.'+mac;};
+ const valid=await token({issuedAt,expiresAt:issuedAt+300000});await assert.doesNotReject(()=>api.verifyRevealToken(valid,scope));
+ for(const timestamps of [{issuedAt,expiresAt:issuedAt+300001},{issuedAt,expiresAt:issuedAt},{issuedAt:now+60000,expiresAt:now+360000},{issuedAt:issuedAt+.5,expiresAt:now+1000.5},{issuedAt,expiresAt:String(now+1000)}]){const invalid=await token(timestamps);await assert.rejects(()=>api.verifyRevealToken(invalid,scope),error=>error.status===403&&error.message==='请重新显示敏感字段后再修改');}
 });

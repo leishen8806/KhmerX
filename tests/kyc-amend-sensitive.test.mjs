@@ -30,6 +30,18 @@ test('sensitive edits require valid revealed proof bound to actor/tenant/case/re
  const token=await tokenApi.mintRevealToken(scope),result=await f.amend(values,meta(token));assert.equal(result.r.status,200);assert.equal((await f.kyc.payload(await f.kyc.getCase(f.A,f.row.id))).profile.values.documentNumber,'NEW123456789');
  const event=f.sql.prepare("SELECT detail FROM team_audit WHERE action='kyc_field_amend'").get();assert(!event.detail.includes('6789'));assert(!event.detail.includes(token));assert(!event.detail.includes('NEW123456789'));assert(!f.logs.join(' ').includes(token));
 });
+test('sensitive edits require revealed-and-dirty metadata even with valid proof',async t=>{
+ const rejected=[['dirty false','NEW123456789',{masked:false,dirty:false}],['dirty missing','NEW123456789',{masked:false}],['masked missing','NEW123456789',{dirty:true}],['numeric value',123,{masked:false,dirty:true}],['object value',{x:1},{masked:false,dirty:true}]];
+ for(const [name,value,mark] of rejected)await t.test(name,async t=>{
+  const f=await setup(t),api=await f.mod('@/lib/kyc/reveal-token'),token=await api.mintRevealToken({tenant:f.A,actor:'reviewer',caseId:f.row.id,revision:f.row.revision,field:'documentNumber'}),before=f.sql.prepare('SELECT count(*) AS n FROM kyc_history').get().n;
+  const result=await f.amend({...f.data.profile.values,documentNumber:value},{documentNumber:{...mark,revealToken:token}});assert.equal(result.r.status,403);
+  assert.equal(f.sql.prepare('SELECT count(*) AS n FROM kyc_history').get().n,before);assert.equal((await f.kyc.payload(await f.kyc.getCase(f.A,f.row.id))).profile.values.documentNumber,'DOC123456789');
+ });
+ await t.test('revealed dirty string is accepted',async t=>{
+  const f=await setup(t),api=await f.mod('@/lib/kyc/reveal-token'),token=await api.mintRevealToken({tenant:f.A,actor:'reviewer',caseId:f.row.id,revision:f.row.revision,field:'documentNumber'});
+  assert.equal((await f.amend({...f.data.profile.values,documentNumber:'NEW123456789'},{documentNumber:{masked:false,dirty:true,revealToken:token}})).r.status,200);assert.equal((await f.kyc.payload(await f.kyc.getCase(f.A,f.row.id))).profile.values.documentNumber,'NEW123456789');
+ });
+});
 test('whitespace wrapped canonical and generic masks never overwrite originals even with valid proof',async t=>{
  for(const mask of [' ****6789 ','  ****  ',' \t••••1234\n'])await t.test(mask,async t=>{
   const f=await setup(t),api=await f.mod('@/lib/kyc/reveal-token'),token=await api.mintRevealToken({tenant:f.A,actor:'reviewer',caseId:f.row.id,revision:f.row.revision,field:'documentNumber'});
