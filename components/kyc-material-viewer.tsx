@@ -3,7 +3,8 @@
 import {useState} from 'react';
 import {slots,slotVisible, type Profile, type Slot} from '@/lib/kyc/core';
 import {apiUrl} from '@/lib/api-client';
-import {legacyText, useI18n, type Locale} from '@/lib/i18n';
+import {useI18n, type Locale} from '@/lib/i18n';
+import {kycText} from '@/lib/kyc/ui-copy';
 import './kyc-material-viewer.css';
 
 export function KycMaterialViewer({profile,locale:requestedLocale}:{profile:Profile;locale?:Locale}){
@@ -24,7 +25,7 @@ export function KycMaterialViewer({profile,locale:requestedLocale}:{profile:Prof
   <h2>{copy.title}</h2>
   {!active?<p>{copy.empty}</p>:<>
    <div className="kyc-material-thumbnails" role="group" aria-label={copy.title}>
-    {available.map(slot=>{const file=profile.files[slot.id]!;const label=legacyText(slot.label,locale);return <button type="button" key={slot.id} aria-pressed={!compare&&active.id===slot.id} onClick={()=>{setSelected(slot.id);setCompare(false);reset()}}>
+    {available.map(slot=>{const file=profile.files[slot.id]!;const label=kycText(slot.label,locale);return <button type="button" key={slot.id} aria-pressed={!compare&&active.id===slot.id} onClick={()=>{setSelected(slot.id);setCompare(false);reset()}}>
      {file.type.startsWith('image/')?<img src={url(file.id)} alt=""/>:<span aria-hidden="true">PDF</span>}<span>{label}</span>
     </button>})}
    </div>
@@ -35,7 +36,7 @@ export function KycMaterialViewer({profile,locale:requestedLocale}:{profile:Prof
     {canCompare&&<button type="button" aria-pressed={compare} onClick={()=>{setCompare(v=>!v);reset()}}>{compare?copy.single:copy.compare}</button>}
    </div>
    <div className={'kyc-material-previews'+(compare&&canCompare?' kyc-material-compare':'')}>
-    {shown.map(slot=>{const file=profile.files[slot.id]!;const label=legacyText(slot.label,locale);return <figure key={slot.id}>
+    {shown.map(slot=>{const file=profile.files[slot.id]!;const label=kycText(slot.label,locale);return <figure key={slot.id}>
      <figcaption>{label}</figcaption>
      {file.type==='application/pdf'?<object data={url(file.id)} type="application/pdf" aria-label={label}><p>{copy.fallback}</p></object>:<div className="kyc-material-image"><div className="kyc-material-stage" style={{width:`${zoom*100}%`,aspectRatio:rotation%180?1/(ratios[file.id]||1):(ratios[file.id]||1)}}><img src={url(file.id)} alt={label} onLoad={e=>{const image=e.currentTarget;if(image.naturalWidth&&image.naturalHeight)setRatios(v=>({...v,[file.id]:image.naturalWidth/image.naturalHeight}))}} style={{width:rotation%180?`${(ratios[file.id]||1)*100}%`:'100%',transform:`rotate(${rotation}deg)`+({90:' translateY(-100%)',180:' translate(-100%, -100%)',270:' translateX(-100%)'}[rotation]||'')}}/></div></div>}
      <a href={url(file.id)} download>{copy.download} · {label}</a>
