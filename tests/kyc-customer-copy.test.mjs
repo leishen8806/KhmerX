@@ -71,6 +71,15 @@ test('review amendment shows address candidate; cancel is unchanged and confirm 
 });
 
 const steps=['personal','identityDetails','address','idFront','idBack','selfie','contact1','contact2','contact3','employment','income','assets','bank','consent'];
+test('review amendment exit discards its address candidate before another amendment',async()=>{
+ const h=customer({locale:'zh',review:true,status:'submitted',complete:true});await h.ready();
+ h.nodes().find(n=>n.props?.['data-action']==='amend').props.onClick();h.render();
+ await h.nodes().find(n=>n.props?.className==='kyc-map-button').props.onClick();h.render();
+ assert(h.nodes().some(n=>n.props?.['data-action']==='confirm-address'));
+ h.nodes().find(n=>n.props?.children==='退出代修改').props.onClick();h.render();
+ h.nodes().find(n=>n.props?.['data-action']==='amend').props.onClick();h.render();
+ assert(!h.nodes().some(n=>n.props?.['data-action']==='confirm-address'));h.dispose();
+});
 test('entering the submission summary starts at the warning and heading, not the previous scroll position',async()=>{
  const h=customer({locale:'zh',section:'consent',complete:true});await h.ready();h.nodes().find(n=>n.props?.children==='提交人工审核').props.onClick();h.render();assert(h.nodes().some(n=>n.props?.['data-action']==='confirm-submit'));assert.equal(h.scrollCalls.at(-1)?.top,0);h.dispose();
 });
