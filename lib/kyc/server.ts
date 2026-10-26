@@ -1,5 +1,7 @@
 import type {Bill} from '@/lib/pricing';
 import {projectStaffProfile} from './staff-projection';
+import {sensitiveFields} from './staff-projection';
+import {mergeSensitiveAmend} from './sensitive-amend';
 import {staff,guardKyc,ensureAssignment} from '@/lib/team/server';
 import {kycFieldGroupFor,kycFieldGroups,type KycFieldGroup} from '@/lib/team/policy';
 import {env} from 'cloudflare:workers';
@@ -117,7 +119,8 @@ export async function decide(request:Request){
   if(!['submitted','needs_info'].includes(row.status))throw new KycError('仅待审核或待补件资料可代修改');
   if(!reason||reason.length>1000)throw new KycError('请填写代修改原因');
   if(!p.values||typeof p.values!=='object'||Array.isArray(p.values))throw new KycError('代修改资料格式无效');
-  const normalized=cleanProfile({...data.profile,values:p.values,consent:false,files:{...data.profile.files,signature:undefined}}),changed=fields.map(f=>f.id).filter(id=>String(data.profile.values[id]??'')!==String(normalized.values[id]??''));
+  const values=await mergeSensitiveAmend(data.profile.values,p.values,p.sensitiveFields,{tenant:u.userId,actor:u.actorId,caseId:row.id,revision:row.revision});
+  const normalized=cleanProfile({...data.profile,values,consent:false,files:{...data.profile.files,signature:undefined}}),changed=fields.map(f=>f.id).filter(id=>String(data.profile.values[id]??'')!==String(normalized.values[id]??''));
   if(!changed.length)throw new KycError('没有检测到资料变化');
   const groups=[...new Set(changed.map(kycFieldGroupFor))] as KycFieldGroup[];
   if(u.team){
@@ -127,8 +130,9 @@ export async function decide(request:Request){
    if(denied.length)throw new KycError('未授予字段级修改权限：'+denied.map(group=>kycFieldGroups[group]).join('、'),403);
   }
   const mask=(value:unknown)=>{const text=String(value??'');return text.length>4?'***'+text.slice(-4):text};
-  const before=Object.fromEntries(changed.map(id=>[id,mask(data.profile.values[id])]));
-  const after=Object.fromEntries(changed.map(id=>[id,mask(normalized.values[id])]));
+  const auditFields=changed.filter(id=>!sensitiveFields.includes(id as typeof sensitiveFields[number]));
+  const before=Object.fromEntries(auditFields.map(id=>[id,mask(data.profile.values[id])]));
+  const after=Object.fromEntries(auditFields.map(id=>[id,mask(normalized.values[id])]));
   const next=await transition(row,'needs_info',{...data,profile:await resolveFiles(row.owner,row.customer_id,normalized),signedLoan:undefined,review:{decision:'needs_info',reason:'审核员代修改，待客户确认：'+reason,checklist:{},actor:u.actorId,at:new Date().toISOString(),revision:row.revision}},'review:amend',u.actorId);
   if(u.team)await db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),u.team.tenant.id,u.actorId,'kyc_field_amend',JSON.stringify({caseId:row.id,fields:changed,groups,before,after,reason,requiresResubmission:true,revision:next.revision}),new Date().toISOString()).run();
   return staffView(next,u.team?.member.role||'audit');
