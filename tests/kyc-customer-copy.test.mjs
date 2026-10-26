@@ -15,7 +15,15 @@ export function customer({locale='km',review=false,section='personal',status='dr
  if(file)profile.files[fileSlot||section]=file;
  const record={id:'synthetic-customer',revision:1,status,profile,review:reviewData?{decision:'needs_info',at:'2026-10-24T00:00:00Z',...reviewData}:undefined,phoneVerified:false,updatedAt:'2026-10-23T00:00:00Z'};
  const hooks={createContext:v=>({value:v}),useContext:c=>c.value,useState(initial){const i=cursor++;if(!(i in state))state[i]=typeof initial==='function'?initial():initial;return [state[i],v=>state[i]=typeof v==='function'?v(state[i]):v]},useRef(initial){const i=cursor++;if(!(i in state))state[i]={current:initial};return state[i]},useEffect(fn,deps){const i=cursor++,previous=effectRecords[i];if(!previous||!deps||deps.some((value,index)=>value!==previous.deps[index]))pendingEffects.push({i,fn,deps:deps||[]})}};
- const jsx=(type,props)=>typeof type==='function'?type(props):({type,props});
+ const sensitiveInstances=new Map(),seenSensitive=new Set();let nextSensitiveBase=500;
+ const jsx=(type,props)=>{
+  if(type?.name==='SensitiveValue'){
+   const key=JSON.stringify([props.caseId,props.revision,props.field,props.scope,props.editable]);
+   seenSensitive.add(key);if(!sensitiveInstances.has(key)){sensitiveInstances.set(key,nextSensitiveBase);nextSensitiveBase+=20;}
+   const parentCursor=cursor;cursor=sensitiveInstances.get(key);try{return type(props);}finally{cursor=parentCursor;}
+  }
+  return typeof type==='function'?type(props):({type,props});
+ };
  const mocks={react:hooks,'react/jsx-runtime':{jsx,jsxs:jsx},'next/link':{default:'a'},'next/navigation':{useRouter:()=>({push:path=>navigations.push(path)})},'lucide-react':new Proxy({},{get:(_,k)=>k}),
   '@/lib/kyc/draft-save':{DraftSaver},'@/lib/kyc/core':core,'@/lib/agreements/loan-terms':{LOAN_TERMS_VERSION:'test',LOAN_TERMS_URL:'/agreements/loan',loanTerms:{}},
   '@/components/loan-bill':{LoanBill:'LoanBill'},'@/components/mini-shell':{MiniNavLink:'a',useMiniNavigation:()=>path=>navigations.push(path)},'@/lib/analytics':{trackEvent(){}},
@@ -37,12 +45,28 @@ export function customer({locale='km',review=false,section='personal',status='dr
  mocks['./kyc-customer-checks.css']={};mocks['@/components/kyc-customer-checks']=load('components/kyc-customer-checks.tsx');
  mocks['@/lib/kyc/contact-ui']=load('lib/kyc/contact-ui.ts');mocks['./kyc-capture-examples.css']={};mocks['@/components/kyc-capture-examples']=load('components/kyc-capture-examples.tsx');
  const component=load('app/kyc/client.tsx').default;
- const render=()=>{cursor=0;tree=component({review,mini,initialSection:section});for(const effect of pendingEffects.splice(0)){effectRecords[effect.i]?.cleanup?.();const cleanup=effect.fn();effectRecords[effect.i]={deps:effect.deps,cleanup}}return tree};
+ const render=()=>{cursor=0;seenSensitive.clear();tree=component({review,mini,initialSection:section});for(const effect of pendingEffects.splice(0)){effectRecords[effect.i]?.cleanup?.();const cleanup=effect.fn();effectRecords[effect.i]={deps:effect.deps,cleanup}}for(const [key,base]of sensitiveInstances)if(!seenSensitive.has(key)){for(let i=base;i<base+20;i++){effectRecords[i]?.cleanup?.();delete effectRecords[i];delete state[i];}sensitiveInstances.delete(key);}return tree};
  const nodes=n=>Array.isArray(n)?n.flatMap(nodes):!n||typeof n!=='object'?[]:[n,...nodes(n.props?.children)];
  const text=n=>Array.isArray(n)?n.map(text).join(' '):typeof n==='string'||typeof n==='number'?String(n):n&&typeof n==='object'?text(n.props?.children):'';
  render();
  return {focused,scrollCalls,gets,listeners,dispose(){effectRecords.forEach(effect=>effect?.cleanup?.())},requests,navigations,clickHandlers,TestAnchor,async ready(){await new Promise(r=>fakeTime?setImmediate(r):setTimeout(r,10));render()},render,text:()=>text(tree),nodes:()=>nodes(tree),copy:mocks['@/lib/kyc/ui-copy']};
 }
+
+test('review amendment keeps sensitive input masked until reveal and clears parent proof on section switch before submission',async()=>{
+ const sent=[],h=customer({locale:'zh',review:true,status:'submitted',section:null,complete:true,values:{documentNumber:'****6789',bankAccount:'****4321'},network:async(url,options,record)=>{
+  if(url==='/api/kyc/review/reveal'){sent.push(JSON.parse(options.body));return {data:{field:'documentNumber',value:'DOC123456789',revealToken:'synthetic-proof'}};}
+  if(options.method==='POST')sent.push(JSON.parse(options.body));
+  return {data:record};
+ }});await h.ready();h.nodes().find(n=>n.props?.['data-action']==='amend').props.onClick();h.render();
+ assert(!h.nodes().some(n=>n.props?.id==='kyc-field-documentNumber'),'no direct un-revealed input');
+ await h.nodes().find(n=>n.type==='button'&&n.props?.['aria-label']==='显示 证件号码').props.onClick();h.render();
+ const input=h.nodes().find(n=>n.type==='input'&&n.props?.['aria-label']==='证件号码');assert(input);assert.equal(input.props.value,'DOC123456789');assert.deepEqual(sent,[{id:'synthetic-customer',revision:1,field:'documentNumber'}]);
+ input.props.onChange({target:{value:'EDIT123456789'}});h.render();assert(h.text().includes('EDIT123456789'));
+ h.nodes().find(n=>n.props?.id==='kyc-field-surname').props.onChange({target:{value:'CHANGED'}});h.render();
+ h.nodes().filter(n=>n.props?.className==='kyc-step-button')[1].props.onClick();h.render();h.render();assert(!h.text().includes('EDIT123456789'));
+ h.nodes().find(n=>n.type==='Input'&&!n.props.id).props.onChange({target:{value:'Synthetic reason'}});h.render();h.nodes().find(n=>n.type==='input'&&n.props.type==='checkbox').props.onChange({target:{checked:true}});h.render();h.nodes().find(n=>n.props?.['data-action']==='save-amend').props.onClick();await h.ready();
+ const post=sent.find(p=>p.action==='amend');assert(post);assert.equal(post.values.documentNumber,'****6789');assert.deepEqual(post.sensitiveFields,{});assert.equal(post.values.surname,'CHANGED');h.dispose();
+});
 
 test('customer progress counts six groups using existing required rules',async()=>{
  const h=customer({locale:'zh',complete:true});await h.ready();const progress=h.nodes().find(n=>n.type==='progress');assert(progress,'customer needs progress');assert.equal(progress.props.max,6);assert.equal(progress.props.value,6);assert(JSON.stringify(h.nodes().find(n=>n.props?.className==='kyc-customer-progress')).includes('最高可获得 30 USD额度'));
@@ -69,7 +93,7 @@ test('geocoding stays inline and only confirmation applies the candidate to save
  for(const confirm of [false,true]){const h=customer({locale:'zh',section:'address',complete:true});await h.ready();await h.nodes().find(n=>n.props?.className==='kyc-map-button').props.onClick();h.render();assert(h.text().includes('SYNTHETIC NORMALIZED ADDRESS'));if(confirm){h.nodes().find(n=>n.props?.['data-action']==='confirm-address').props.onClick();h.render()}await h.nodes().find(n=>n.props?.className==='kyc-next-button').props.onClick();await new Promise(resolve=>setTimeout(resolve,1600));await h.ready();if(confirm){const body=JSON.parse(h.requests.find(r=>r.url==='/api/kyc'&&r.method==='POST').body);assert.equal(body.profile.location?.formattedAddress,'SYNTHETIC NORMALIZED ADDRESS')}else assert.equal(h.requests.filter(r=>r.url==='/api/kyc'&&r.method==='POST').length,0)}
 });
 test('review amendment shows address candidate; cancel is unchanged and confirm submits only allowed values',async()=>{
- for(const confirm of [false,true]){const h=customer({locale:'zh',review:true,status:'submitted',complete:true});await h.ready();h.nodes().find(n=>n.props?.['data-action']==='amend').props.onClick();h.render();const address=()=>h.nodes().find(n=>n.props?.id==='kyc-field-address');const original=address().props.value;await h.nodes().find(n=>n.props?.className==='kyc-map-button').props.onClick();h.render();const apply=h.nodes().find(n=>n.props?.['data-action']==='confirm-address');assert(apply,'review identity amendment needs a visible candidate');if(!confirm){h.nodes().find(n=>n.type==='button'&&n.props.children==='保留原地址').props.onClick();h.render();assert.equal(address().props.value,original);assert.equal(h.requests.filter(r=>r.url==='/api/kyc/review'&&r.method==='POST').length,0);continue}apply.props.onClick();h.render();assert.equal(address().props.value,'SYNTHETIC NORMALIZED ADDRESS');h.nodes().find(n=>n.type==='Input'&&!n.props.id).props.onChange({target:{value:'SYNTHETIC amendment reason'}});h.render();h.nodes().find(n=>n.type==='input'&&n.props.type==='checkbox').props.onChange({target:{checked:true}});h.render();h.nodes().find(n=>n.props?.['data-action']==='save-amend').props.onClick();await new Promise(resolve=>setTimeout(resolve,1600));await h.ready();const body=JSON.parse(h.requests.find(r=>r.url==='/api/kyc/review'&&r.method==='POST').body);assert.equal(body.action,'amend');assert.equal(body.values.address,'SYNTHETIC NORMALIZED ADDRESS');assert.equal(body.values.surname,'SYNTHETIC');assert.deepEqual(Object.keys(body).sort(),['action','id','reason','revision','values']);assert(!('location' in body.values));}
+ for(const confirm of [false,true]){const h=customer({locale:'zh',review:true,status:'submitted',complete:true});await h.ready();h.nodes().find(n=>n.props?.['data-action']==='amend').props.onClick();h.render();const address=()=>h.nodes().find(n=>n.props?.id==='kyc-field-address');const original=address().props.value;await h.nodes().find(n=>n.props?.className==='kyc-map-button').props.onClick();h.render();const apply=h.nodes().find(n=>n.props?.['data-action']==='confirm-address');assert(apply,'review identity amendment needs a visible candidate');if(!confirm){h.nodes().find(n=>n.type==='button'&&n.props.children==='保留原地址').props.onClick();h.render();assert.equal(address().props.value,original);assert.equal(h.requests.filter(r=>r.url==='/api/kyc/review'&&r.method==='POST').length,0);continue}apply.props.onClick();h.render();assert.equal(address().props.value,'SYNTHETIC NORMALIZED ADDRESS');h.nodes().find(n=>n.type==='Input'&&!n.props.id).props.onChange({target:{value:'SYNTHETIC amendment reason'}});h.render();h.nodes().find(n=>n.type==='input'&&n.props.type==='checkbox').props.onChange({target:{checked:true}});h.render();h.nodes().find(n=>n.props?.['data-action']==='save-amend').props.onClick();await new Promise(resolve=>setTimeout(resolve,1600));await h.ready();const body=JSON.parse(h.requests.find(r=>r.url==='/api/kyc/review'&&r.method==='POST').body);assert.equal(body.action,'amend');assert.equal(body.values.address,'SYNTHETIC NORMALIZED ADDRESS');assert.equal(body.values.surname,'SYNTHETIC');assert.deepEqual(Object.keys(body).sort(),['action','id','reason','revision','sensitiveFields','values']);assert(!('location' in body.values));}
 });
 
 const steps=['personal','identityDetails','address','idFront','idBack','selfie','contact1','contact2','contact3','employment','income','assets','bank','consent'];

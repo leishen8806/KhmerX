@@ -8,34 +8,47 @@ import * as core from '../lib/kyc/core.ts';
 const nodes=n=>Array.isArray(n)?n.flatMap(nodes):n&&typeof n==='object'?[n,...nodes(n.props?.children)]:[];
 const text=n=>Array.isArray(n)?n.map(text).join(''):n&&typeof n==='object'?text(n.props?.children):String(n??'');
 function mount(file,name,props,extra={}){
- let cursor=0,tree;const state=[],effects=[],out={};
- const react={useState(initial){const i=cursor++;if(!(i in state))state[i]=typeof initial==='function'?initial():initial;return [state[i],v=>state[i]=typeof v==='function'?v(state[i]):v]},useEffect(fn){effects.push(fn)}};
+ let cursor=0,tree;const state=[],effects=[],records=[],out={};
+ const react={useState(initial){const i=cursor++;if(!(i in state))state[i]=typeof initial==='function'?initial():initial;return [state[i],v=>state[i]=typeof v==='function'?v(state[i]):v]},useRef(initial){const i=cursor++;return state[i]||=( {current:initial})},useEffect(fn,deps){const i=cursor++,old=records[i];if(!old||deps.some((v,j)=>v!==old.deps[j])){old?.cleanup?.();records[i]={deps};effects.push(()=>records[i].cleanup=fn());}}};
  const jsx=(type,props)=>({type,props});
- const mocks={'@/components/ui/button':{Button:'button'},'@/lib/kyc/queue-copy':queueCopy,'@/lib/admin-i18n':{useAdminLocale:()=>({locale:'zh'})},react,'react/jsx-runtime':{jsx,jsxs:jsx},'@/lib/kyc/core':core,'@/lib/kyc/ui-copy':{kycText:s=>s},...extra};
+ const mocks={'@/components/ui/button':{Button:'button'},'@/lib/kyc/queue-copy':queueCopy,'@/lib/admin-i18n':{useAdminLocale:()=>({locale:'zh'})},react,'react/jsx-runtime':{jsx,jsxs:jsx},'@/lib/kyc/core':core,'@/lib/kyc/ui-copy':{kycText:s=>s},'@/lib/api-client':{apiFetch:async()=>({data:{field:'bankAccount',value:'FROM-API',revealToken:'proof'}})},...extra};
  const code=ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
  vm.runInNewContext('(function(exports,require){'+code+(name==='OrderFollowups'?'\nexports.OrderFollowups=OrderFollowups;':'')+'\n})',{})(out,n=>mocks[n]||{});
- const render=(next=props)=>{props=next;cursor=0;tree=out[name](props);return tree};render();
- return {render,nodes:()=>nodes(tree),text:()=>text(tree),async ready(){effects.splice(0).forEach(fn=>fn());await new Promise(r=>setImmediate(r));render()}};
+ const render=(next=props)=>{props=next;cursor=0;tree=out[name](props);effects.splice(0).forEach(fn=>fn());return tree};render();
+ return {render,nodes:()=>nodes(tree),text:()=>text(tree),unmount(){records.forEach(r=>r?.cleanup?.());},async ready(){await new Promise(r=>setImmediate(r));render()}};
 }
-test('sensitive values require explicit reveal and can be hidden again',()=>{
- const h=mount('components/kyc-review-controls.tsx','SensitiveValue',{value:'0123456789',label:'银行账号',locale:'zh'});
+test('sensitive values require a successful request, never display prop plaintext, and hide again',async()=>{
+ const h=mount('components/kyc-review-controls.tsx','SensitiveValue',{caseId:'case-a',revision:1,field:'bankAccount',value:'0123456789',label:'银行账号',locale:'zh'});
  assert(!h.text().includes('0123456789'));assert(h.text().includes('6789'));
- h.nodes().find(n=>n.type==='button').props.onClick();h.render();assert(h.text().includes('0123456789'));
- h.nodes().find(n=>n.type==='button').props.onClick();h.render();assert(!h.text().includes('0123456789'));
+ await h.nodes().find(n=>n.type==='button').props.onClick();h.render();assert(h.text().includes('FROM-API'));assert(!h.text().includes('0123456789'));
+ h.nodes().find(n=>n.type==='button').props.onClick();h.render();assert(!h.text().includes('FROM-API'));
 });
-test('show and hide controls are localized in English and Khmer',()=>{
+test('show and hide controls are localized in English and Khmer',async()=>{
  for(const [locale,show,hide] of [['en','Show','Hide'],['km','បង្ហាញ','លាក់']]){
-  const h=mount('components/kyc-review-controls.tsx','SensitiveValue',{value:'0123456789',label:'Account',locale});
-  assert(h.text().includes(show));h.nodes().find(n=>n.type==='button').props.onClick();h.render();assert(h.text().includes(hide));
+  const h=mount('components/kyc-review-controls.tsx','SensitiveValue',{caseId:'a',revision:1,field:'bankAccount',value:'****6789',label:'Account',locale});
+  assert(h.text().includes(show));await h.nodes().find(n=>n.type==='button').props.onClick();h.render();assert(h.text().includes(hide));
  }
 });
-test('revealed values hide when the reviewed case or revision changes',()=>{
- const props={value:'0123456789',label:'Account',locale:'en',scope:'case-a:1'};
+test('revealed values hide when the reviewed case or revision changes',async()=>{
+ const props={caseId:'case-a',revision:1,field:'bankAccount',value:'****6789',label:'Account',locale:'en',scope:'case-a:1'};
  const h=mount('components/kyc-review-controls.tsx','SensitiveValue',props);
- h.nodes().find(n=>n.type==='button').props.onClick();h.render();assert(h.text().includes(props.value));
- h.render({...props,scope:'case-b:1'});assert(!h.text().includes(props.value));
- h.nodes().find(n=>n.type==='button').props.onClick();h.render({...props,scope:'case-b:1'});assert(h.text().includes(props.value));
- h.render({...props,scope:'case-b:2'});assert(!h.text().includes(props.value));
+ await h.nodes().find(n=>n.type==='button').props.onClick();h.render();assert(h.text().includes('FROM-API'));
+ h.render({...props,caseId:'case-b',scope:'case-b:1'});assert(!h.text().includes('FROM-API'));
+ await h.nodes().find(n=>n.type==='button').props.onClick();h.render({...props,caseId:'case-b',scope:'case-b:1'});assert(h.text().includes('FROM-API'));
+ h.render({...props,caseId:'case-b',revision:2,scope:'case-b:2'});assert(!h.text().includes('FROM-API'));
+});
+test('failures stay masked with generic localized copy, and stale responses after hide/switch/unmount are discarded',async()=>{
+ for(const [locale,error] of [['zh','无法显示，请重试'],['en','Unable to show. Please retry.'],['km','មិនអាចបង្ហាញបានទេ។ សូមព្យាយាមម្តងទៀត។']]){
+  const h=mount('components/kyc-review-controls.tsx','SensitiveValue',{caseId:'a',revision:1,field:'bankAccount',value:'****6789',label:'Account',locale},{'@/lib/api-client':{apiFetch:async()=>{throw Error('RAW-SECRET');}}});
+  await h.nodes().find(n=>n.type==='button').props.onClick();h.render();assert(h.text().includes(error));assert(!h.text().includes('RAW-SECRET'));
+ }
+ for(const action of ['hide','switch','unmount']){
+  let resolve,calls=0;const pending=new Promise(r=>resolve=r),props={caseId:'a',revision:1,field:'bankAccount',value:'****6789',label:'Account',locale:'en'};
+  const h=mount('components/kyc-review-controls.tsx','SensitiveValue',props,{'@/lib/api-client':{apiFetch:()=>{calls++;return pending;}}});
+  const click=h.nodes().find(n=>n.type==='button').props.onClick,request=click();click();assert.equal(calls,1);h.render();
+  if(action==='hide')h.nodes().find(n=>n.type==='button').props.onClick();else if(action==='switch')h.render({...props,revision:2});else h.unmount();
+  resolve({data:{field:'bankAccount',value:'LATE-SECRET',revealToken:'proof'}});await request;h.render();assert(!h.text().includes('LATE-SECRET'));
+ }
 });
 test('amendment shows differences and requires fresh confirmation after each change',()=>{
  let saves=0;const original={surname:'OLD',bankAccount:'12345678'},values={...original,surname:'NEW'};
@@ -46,6 +59,10 @@ test('amendment shows differences and requires fresh confirmation after each cha
  h.nodes().find(n=>n.type==='input').props.onChange({target:{checked:true}});h.render();assert(!save().props.disabled);save().props.onClick();assert.equal(saves,1);
  h.render({...props,values:{...values,surname:'NEWER'}});assert(save().props.disabled);
  h.render({...props,values:original});assert(save().props.disabled);
+});
+test('unmount clears an already edited parent value and reveal proof',async()=>{
+ let parent={value:'****6789',proof:''},resets=0;const h=mount('components/kyc-review-controls.tsx','SensitiveValue',{caseId:'a',revision:1,field:'bankAccount',value:'****6789',label:'Account',locale:'en',editable:true,onEdit:(value,proof)=>parent={value,proof},onReset:()=>{resets++;parent={value:'****6789',proof:''};}});
+ await h.nodes().find(n=>n.type==='button').props.onClick();h.render();h.nodes().find(n=>n.type==='input').props.onChange({target:{value:'EDITED'}});assert.equal(parent.proof,'proof');h.unmount();assert.equal(resets,1);assert.deepEqual(parent,{value:'****6789',proof:''});
 });
 test('followup links to neutral review detail without preselecting approval',async()=>{
  const h=mount('components/kyc-orders.tsx','OrderFollowups',{id:'case 1'},{'@/lib/api-client':{apiFetch:async()=>({data:{order:{id:'case 1',status:'submitted'},records:[{id:'note',status:'resolved',created_at:'2026-10-24',actor:'staff',note:'Done'}],loans:[],canReview:true,canNote:false}})}});
