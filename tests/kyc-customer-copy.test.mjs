@@ -6,8 +6,9 @@ import ts from 'typescript';
 import * as core from '../lib/kyc/core.ts';
 import {DraftSaver} from '../lib/kyc/draft-save.ts';
 
-export function customer({locale='km',review=false,section='personal',status='draft',mini=false,values={},file,fileSlot,uploadFile,prepareFile,reviewData,transport,complete=false,fakeTime=false,missingMaterial=false}={}){
+export function customer({locale='km',review=false,section='personal',status='draft',mini=false,values={},file,fileSlot,uploadFile,prepareFile,reviewData,transport,complete=false,fakeTime=false,missingMaterial=false,network}={}){
  let cursor=0,tree;const state=[],effectRecords=[],pendingEffects=[],focused=[],scrollCalls=[],requests=[],navigations=[],clickHandlers=[],gets=[],listeners=new Map();
+
  const profile=core.emptyProfile();profile.values={...profile.values,surname:'客户原文',...values};
  if(complete){for(const f of core.fields.filter(f=>f.required))profile.values[f.id]=f.options?.[0].value||(f.kind==='phone'?'+1202555010'+(f.id.includes('1')?'1':'2'):'SYNTHETIC');profile.values.contact2Relation='朋友';profile.values.district=core.regions[0].districts[0].value;profile.consent=true;for(const s of core.slots.filter(s=>s.required))profile.files[s.id]={id:'synthetic-'+s.id,slot:s.id,type:'image/png',size:1}}
  profile.values={...profile.values,...values};if(missingMaterial)delete profile.files.idFront;
@@ -18,7 +19,8 @@ export function customer({locale='km',review=false,section='personal',status='dr
  const mocks={react:hooks,'react/jsx-runtime':{jsx,jsxs:jsx},'next/link':{default:'a'},'next/navigation':{useRouter:()=>({push:path=>navigations.push(path)})},'lucide-react':new Proxy({},{get:(_,k)=>k}),
   '@/lib/kyc/draft-save':{DraftSaver},'@/lib/kyc/core':core,'@/lib/agreements/loan-terms':{LOAN_TERMS_VERSION:'test',LOAN_TERMS_URL:'/agreements/loan',loanTerms:{}},
   '@/components/loan-bill':{LoanBill:'LoanBill'},'@/components/mini-shell':{MiniNavLink:'a',useMiniNavigation:()=>path=>navigations.push(path)},'@/lib/analytics':{trackEvent(){}},
-  '@/lib/image-compress':{prepareKycFile:prepareFile||((f)=>f),fileLimitBytes:()=>5242880,retryAfterMs:()=>0},'@/lib/kyc/upload':{uploadKycFile:uploadFile},'@/lib/api-client':{apiUrl:p=>p,async apiFetch(url,options={}){if(options.method==='POST'){const request=JSON.parse(options.body);requests.push({...request,url,request,method:options.method,body:options.body});if(transport)return {data:await transport(request)};const clean=core.cleanProfile(request.profile);Object.assign(record,{revision:record.revision+1,profile:clean,updatedAt:'2026-10-24T00:00:00Z'});return {data:record}}gets.push(url);return {data:record}}},
+  '@/lib/image-compress':{prepareKycFile:prepareFile||((f)=>f),fileLimitBytes:()=>5242880,retryAfterMs:()=>0},'@/lib/kyc/upload':{uploadKycFile:uploadFile},'@/lib/api-client':{apiUrl:p=>p,async apiFetch(url,options={}){if(network)return network(url,options,record);if(options.method==='POST'){const request=JSON.parse(options.body);requests.push({...request,url,request,method:options.method,body:options.body});if(transport)return {data:await transport(request)};const clean=core.cleanProfile(request.profile);Object.assign(record,{revision:record.revision+1,profile:clean,updatedAt:'2026-10-24T00:00:00Z'});return {data:record}}gets.push(url);return {data:record}}},
+
  };
  for(const [file,names] of Object.entries({'button':['Button'],'input':['Input'],'checkbox':['Checkbox'],'select':['Select','SelectTrigger','SelectValue','SelectContent','SelectItem']}))mocks['@/components/ui/'+file]=Object.fromEntries(names.map(n=>[n,n]));
  class TestAnchor{constructor(href){this.href=href;this.target=''}closest(){return this}}
@@ -28,6 +30,8 @@ export function customer({locale='km',review=false,section='personal',status='dr
  mocks['@/lib/error-messages']=load('lib/error-messages.ts');mocks['../i18n']=mocks['@/lib/i18n'];mocks['../error-messages']=mocks['@/lib/error-messages'];mocks['@/lib/kyc/ui-copy']=load('lib/kyc/ui-copy.ts');
  mocks['./core.ts']=core;mocks['@/lib/kyc/requests']=load('lib/kyc/requests.ts');mocks['./requests.ts']=mocks['@/lib/kyc/requests'];mocks['@/lib/kyc/supplement-ui']=load('lib/kyc/supplement-ui.ts');mocks['./kyc-supplement.css']={};mocks['@/components/kyc-supplement']=load('components/kyc-supplement.tsx');
  mocks['./kyc-material-viewer.css']={};mocks['@/components/kyc-material-viewer']=load('components/kyc-material-viewer.tsx');
+ mocks['@/components/kyc-review-controls']=load('components/kyc-review-controls.tsx');
+ mocks['./kyc-review-actions.css']={};mocks['@/components/kyc-review-actions']=load('components/kyc-review-actions.tsx');mocks['@/lib/kyc/review-next']=load('lib/kyc/review-next.ts');
  mocks['./kyc-review.css']={};mocks['@/components/kyc-review']=load('components/kyc-review.tsx');
  mocks['./kyc-customer-overview.css']={};mocks['@/components/kyc-customer-overview']=load('components/kyc-customer-overview.tsx');
  const component=load('app/kyc/client.tsx').default;
@@ -57,6 +61,19 @@ test('filled but invalid phone does not count its group complete',async()=>{
 const steps=['personal','identityDetails','address','idFront','idBack','selfie','contact1','contact2','contact3','employment','income','assets','bank','consent'];
 test('entering the submission summary starts at the warning and heading, not the previous scroll position',async()=>{
  const h=customer({locale:'zh',section:'consent',complete:true});await h.ready();h.nodes().find(n=>n.props?.children==='提交人工审核').props.onClick();h.render();assert(h.nodes().some(n=>n.props?.['data-action']==='confirm-submit'));assert.equal(h.scrollCalls.at(-1)?.top,0);h.dispose();
+});
+test('review success reads queue after POST; queue failure offers retry not empty; 409 retains inputs without GET',async()=>{
+ for(const mode of ['next','empty','offline','conflict']){
+  const events=[];const h=customer({locale:'zh',review:true,status:'submitted',network:async(url,init,record)=>{if(init.method==='POST'){events.push('POST');if(mode==='conflict')throw {status:409,message:'Conflict'};return {data:{...record,revision:2,status:'needs_info'}}}if(!url.includes('?id=')){events.push('QUEUE');if(mode==='offline')throw Error('offline');return {data:{cases:mode==='next'?[{id:'next',status:'submitted'}]:[]}}}events.push('CASE');return {data:record}}});await h.ready();
+  h.nodes().find(n=>n.type==='textarea').props.onChange({target:{value:'KEEP NOTE'}});h.render();h.nodes().find(n=>n.props?.['data-action']==='decide').props.onClick();await h.ready();
+  assert.deepEqual(events,mode==='conflict'?['CASE','POST']:['CASE','POST','QUEUE']);
+  assert(h.text().includes(mode==='next'?'下一条待审核':mode==='empty'?'没有其他待审核资料。':mode==='offline'?'无法获取下一条，请重试。':'KEEP NOTE'));
+  if(mode==='offline'||mode==='conflict')assert(!h.text().includes('没有其他待审核资料。'));
+ }
+});
+test('approval summary and phrases contain no Chinese UI in English and Khmer',async()=>{
+ for(const locale of ['en','km']){const h=customer({locale,review:true,status:'submitted'});await h.ready();const dialog=h.nodes().find(n=>n.type==='dialog');assert(dialog);assert(!/[\u3400-\u9fff]/.test(JSON.stringify(dialog.props.children)));assert(h.nodes().filter(n=>n.props?.['data-phrase']).every(n=>!/[\u3400-\u9fff]/.test(n.props.children)));}
+
 });
 test('409 inline cancellation uses Khmer UI copy, not Chinese fallback',async t=>{
  t.mock.timers.enable({apis:['setTimeout']});const h=customer({locale:'km',fakeTime:true,transport:async()=>{throw {status:409}}});t.after(()=>h.dispose());await h.ready();h.nodes().find(n=>n.props?.id==='kyc-field-givenName').props.onChange({target:{value:'LOCAL'}});h.render();t.mock.timers.tick(1500);await h.ready();h.nodes().find(n=>n.props?.children===h.copy.kycText('重新加载服务器资料','km')).props.onClick();h.render();assert(!/[\u3400-\u9fff]/.test(h.nodes().find(n=>n.props?.['data-reload-cancel']).props.children));
