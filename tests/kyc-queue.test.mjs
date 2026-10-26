@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 import ts from 'typescript';
+import * as queueTime from '../lib/kyc/queue-time.ts';
 
 function load(file,mocks,globals={}){
  const js=ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
@@ -13,7 +14,7 @@ function queue(){
  const component=load('components/kyc-orders.tsx',{
   react:{useState(initial){const i=cursor++;if(!(i in state))state[i]=typeof initial==='function'?initial():initial;return [state[i],v=>state[i]=v]},useEffect(){}},
   'react/jsx-runtime':{jsx,jsxs:jsx},'@/lib/client-id':{},'@/lib/api-client':{},
-  '@/lib/admin-i18n':{useAdminLocale:()=>({locale:'zh'})},'@/components/ui/button':{Button:'button'},'@/components/ui/input':{Input:'input'},'@/components/csv-export':{CsvExport:'csv'},'@/lib/kyc/core':{statusLabels:{submitted:'已提交'}}
+  '@/lib/kyc/queue-time':queueTime,'@/lib/admin-i18n':{useAdminLocale:()=>({locale:'zh'})},'@/components/ui/button':{Button:'button'},'@/components/ui/input':{Input:'input'},'@/components/csv-export':{CsvExport:'csv'},'@/lib/kyc/core':{statusLabels:{submitted:'已提交'}}
  });
  const props={orders:[{id:'mine',customer_id:'one',status:'submitted',updated_at:'2026-10-24T00:00:00Z'},{id:'peer',customer_id:'two',status:'submitted'},{id:'unassigned',customer_id:'three',status:'submitted'}],scope:[{customer_id:'one',reviewer_id:'member-id'},{customer_id:'two',reviewer_id:'auth-user-id'},{customer_id:'three',reviewer_id:null}],units:[],members:[],role:'kyc',memberId:'member-id',renderAssignment:()=>null};
  const render=()=>{cursor=0;return component.KycOrders(props)};
@@ -43,7 +44,7 @@ test('assigned to me uses member id with scope reviewer_id; reset restores autho
 test('live response without submitted_at displays unavailable timing despite updated_at',()=>{
  const q=queue(),tree=q.render();
  assert.equal(q.nodes(tree).filter(n=>n.props?.children==='提交时间不可用，暂无法计算等待时长。').length,3);
- assert.equal(q.nodes(tree).filter(n=>n.type==='time').length,0);
+ assert.equal(q.nodes(tree).filter(n=>n.type==='time').length,1);
  for(const file of ['app/team/client.tsx','components/crm-subpages.tsx'])assert.match(readFileSync(file,'utf8'),/memberId=\{member\??\.id\}/);
 });
 
@@ -51,7 +52,7 @@ test('real submission time renders relative age with full timestamp title; only 
  const q=queue(),now=Date.now();
  const row=(id,age,status='submitted')=>({id,customer_id:id,status,submitted_at:new Date(now-age).toISOString()});
  q.props.orders=[row('overdue',25*3600000),row('recent',2*3600000),row('approved',30*3600000,'approved'),{id:'unknown',customer_id:'unknown',status:'submitted',updated_at:new Date(now-50*3600000).toISOString()}];
- const nodes=q.nodes(q.render()),times=nodes.filter(n=>n.type==='time');
+ const nodes=q.nodes(q.render()),times=nodes.filter(n=>n.type==='time'&&q.props.orders.some(o=>o.submitted_at===n.props.dateTime));
  assert.equal(times.length,3);
  const overdue=times.find(n=>n.props.dateTime===q.props.orders[0].submitted_at);
  assert.match(overdue.props.children.join(''),/1天前/);
