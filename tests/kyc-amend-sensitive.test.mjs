@@ -30,3 +30,9 @@ test('sensitive edits require valid revealed proof bound to actor/tenant/case/re
  const token=await tokenApi.mintRevealToken(scope),result=await f.amend(values,meta(token));assert.equal(result.r.status,200);assert.equal((await f.kyc.payload(await f.kyc.getCase(f.A,f.row.id))).profile.values.documentNumber,'NEW123456789');
  const event=f.sql.prepare("SELECT detail FROM team_audit WHERE action='kyc_field_amend'").get();assert(!event.detail.includes('6789'));assert(!event.detail.includes(token));assert(!event.detail.includes('NEW123456789'));assert(!f.logs.join(' ').includes(token));
 });
+test('whitespace wrapped canonical and generic masks never overwrite originals even with valid proof',async t=>{
+ for(const mask of [' ****6789 ','  ****  ',' \t••••1234\n'])await t.test(mask,async t=>{
+  const f=await setup(t),api=await f.mod('@/lib/kyc/reveal-token'),token=await api.mintRevealToken({tenant:f.A,actor:'reviewer',caseId:f.row.id,revision:f.row.revision,field:'documentNumber'});
+  const result=await f.amend({...f.data.profile.values,surname:'NEW',documentNumber:mask},{documentNumber:{masked:false,dirty:true,revealToken:token}});assert.equal(result.r.status,200);assert.equal((await f.kyc.payload(await f.kyc.getCase(f.A,f.row.id))).profile.values.documentNumber,'DOC123456789');
+ });
+});
