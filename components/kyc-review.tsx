@@ -1,4 +1,7 @@
 'use client';
+import {useState} from 'react';
+import {ReviewChanges,changesText} from '@/components/kyc-review-changes';
+import {changedSections,type ReviewDiff} from '@/lib/kyc/review-changes-ui';
 import {SensitiveValue} from '@/components/kyc-review-controls';
 import {useI18n} from '@/lib/i18n';
 import type {Locale} from '@/lib/i18n';
@@ -17,6 +20,7 @@ type Props={next?:NextReview;autoNext?:boolean;onAutoNext?:(value:boolean)=>void
 export function KycReview({next,autoNext=false,onAutoNext,onNext,onRetryNext,requests=[],onRequest,record,locale:reviewLocale,checks,reason,decision,busy,error,message,onCheck,onReason,onDecision,onDecide,onAmend}:Props){
  const context=useI18n(),locale=reviewLocale||context.locale,t=(s:string)=>kycText(s,locale),p=record.profile;
  const auditSummary=record.scope?.startsWith('审计只读摘要')===true;
+ const [changes,setChanges]=useState<ReviewDiff|null>(null),currentChanges=changes?.caseId===record.id&&changes.currentRevision===record.revision?changes:null,known=currentChanges?.baselineRevision!=null,changed=changedSections(currentChanges);
  const mayReview=!auditSummary&&record.canReview!==false,mayDecide=mayReview&&record.status==='submitted';
  const requestsIncomplete=decision==='needs_info'&&requests.some(r=>!Object.hasOwn(reasonCodes,r.reasonCode)||(r.reasonCode==='other'&&!r.note.trim()));
  const score=completeness(p,record.phoneVerified);
@@ -27,8 +31,9 @@ export function KycReview({next,autoNext=false,onAutoNext,onNext,onRetryNext,req
   {!record.phoneVerified&&<p className="notice">{t('模拟会话，未完成真实手机号验证')}</p>}
   {error&&<p role="alert" className="error">{error}</p>}{message&&<p role="status">{message}</p>}
   {record.review&&<div className="sample"><strong>{t('最近审核意见 ·')}{t(statusLabels[record.review.decision as keyof typeof statusLabels]||record.review.decision)}</strong><p>{record.review.reason}</p><small>{kycDate(record.review.at,locale)}</small></div>}
+  <ReviewChanges key={record.id+':'+record.revision} caseId={record.id} revision={record.revision} requests={record.review?.requests} locale={locale} audit={auditSummary} onLoaded={setChanges}/>
   <nav className="kyc-review-index" aria-label="KYC review sections">{sections.map(s=><a key={s.id} href={'#kyc-review-'+s.id}>{t(s.label)}</a>)}</nav>
-  <div className="kyc-review-columns"><div className="kyc-review-cards">{sections.map(s=><details className="kyc-review-card" open id={'kyc-review-'+s.id} key={s.id}><summary>{t(s.label)}</summary>
+  <div className="kyc-review-columns"><div className="kyc-review-cards">{sections.map(s=><details className="kyc-review-card" open={!known||s.id==='consent'||changed.includes(s.id)} id={'kyc-review-'+s.id} key={s.id}><summary>{t(s.label)}{known&&<span className="kyc-change-badge">{changesText(changed.includes(s.id)?'hasChanges':s.id==='consent'?'unknown':'none',locale)}</span>}</summary>
    <label className="kyc-review-check"><input type="checkbox" checked={checks[s.id]===true} disabled={busy||!mayDecide} onChange={e=>onCheck(s.id,e.target.checked)}/>{t(decision==='needs_info'?'要求补充：':'已核对')} {t(s.label)}</label>
    <dl>{fields.filter(f=>f.section===s.id).map(f=>{const value=p.values[f.id];return <div key={f.id}><dt>{t(f.label)}</dt><dd>{auditSummary?'无权查看':['documentNumber','bankAccount'].includes(f.id)?<SensitiveValue key={record.id+':'+record.revision+':'+f.id} scope={record.id+':'+record.revision+':'+f.id} caseId={record.id} revision={record.revision} field={f.id as 'documentNumber'|'bankAccount'} value={value||''} label={t(f.label)} locale={locale}/>:value?(f.options?.find(o=>o.value===value)?t(f.options.find(o=>o.value===value)!.label):value):t('未提供')}</dd>{editor('field:'+f.id)}</div>})}</dl>
    {editor('section:'+s.id)}{slots.filter(slot=>slot.section===s.id&&slot.id!=='signature'&&slotVisible(slot.id,p)).map(slot=><div key={slot.id}>{t(slot.label)}{editor('slot:'+slot.id)}</div>)}
