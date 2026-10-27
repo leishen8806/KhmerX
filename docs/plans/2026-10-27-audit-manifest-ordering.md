@@ -32,7 +32,9 @@ The shared `lib/team/server.ts:audit()` helper is the main abstraction; route-le
 
 ### A. Monotonic sequence boundary (rowid/seq)
 
-Add a strictly increasing database-assigned sequence to `team_audit`; manifests store the last sequence and verify by sequence prefix. Correct for late commits and same-millisecond writes; O(1) boundary and preserves append-only semantics. Existing v2 manifests lack the sequence and need a compatibility path (continue old verification or backfill/recreate). Requires schema migration/index and changes to every writer/read path; migration and production rollout require technical-lead approval.
+`team_audit` has a TEXT primary key but is not `WITHOUT ROWID`, so SQLite already exposes an implicit rowid. It is not a safe durable boundary: without `INTEGER PRIMARY KEY`, VACUUM or export/import may renumber it, and D1 backup/restore preservation must be verified rather than assumed. Therefore prefer an explicit `seq INTEGER` with a unique index (or a separately transactional counter table), assigned by SQLite at insert/commit. Manifests store the last explicit sequence and verify by sequence prefix. Correct for late commits and same-millisecond writes; O(1) boundary and preserves append-only semantics. Existing v2 manifests lack the sequence and need a compatibility path (continue old verification or backfill/recreate). Requires schema migration/index and changes to every writer/read path; migration and production rollout require technical-lead approval.
+
+On D1/SQLite's single-writer transaction, a database-assigned sequence allocated in the write transaction tracks commit serialization; a `db.batch()` containing multiple audit statements receives consecutive sequence values in that transaction order. `created_at` remains display metadata only and no longer participates in the manifest boundary. The exact D1 behavior must be confirmed in a staging/backup restore test before rollout.
 
 ### B. Manifest included-id set digest
 
@@ -46,13 +48,27 @@ Generate timestamps at the write boundary and have manifests snapshot only rows 
 
 Derive an ordering value in the database transaction itself (sequence or commit marker) while retaining `created_at` for display. This has A's correctness with clearer commit semantics but still requires schema and writer changes; treat as migration/high-risk work.
 
+### E. No-migration temporary mitigation
+
+If v2 verification sees a row-count increase plus a suspicious bounded-prefix mismatch, classify it as `needs_manual_review` / `suspected_late_write` instead of immediately `tampered`. This avoids false tamper alarms but is unsafe as a correctness result: a delete+insert attack can also increase count while changing the prefix, so it could mask real deletion/replacement. **Not adopted** except as an explicitly non-authoritative alert state; never convert it to a successful integrity result.
+
 ## Recommendation and compatibility
 
 Do not change `lib/team/audit-integrity.ts` in Task1a. Prefer A or D for a new manifest version after a migration review; use C only as a documented interim mitigation if freshness trade-offs are accepted. Keep v2 verification unchanged for existing manifests and expose a versioned verifier for any new format. No backfill should silently relabel old manifests. Any schema/index/migration or production rollout needs the technical lead's direct approval.
 
+### Historical row backfill and v2 invariance
+
+If an explicit `seq` column is approved, assign historical rows deterministically by `(created_at ASC, id ASC)` only as a new-version bootstrap. Never rewrite v2 digest, `row_count`, `last_created_at`, or `last_id`; v2 verification must run before and after backfill against a frozen fixture and produce identical `match`, `tampered`, `prefixMatches`, `currentRows`, and `appendedRows`. A separate test must include same-time ids on both sides of `last_id`, a late earlier timestamp, and an `audit_manifest_created` row to prove the backfill cannot change any v2 result.
+
+## Decisions required from technical lead
+
+1. Select A (explicit `seq`) or D (transaction commit marker), or reject both.
+2. Approve or reject any schema migration/index/counter-table change.
+3. Decide whether a read-only query against a gray/staging database may check existing manifests for suspected false positives; this is not executed by this plan.
+
 ## RED test design (future implementation PR)
 
-Use real SQLite with two independent fixtures per scenario: (1) create manifest at T, append later timestamp and assert match/`appendedRows=1`; (2) create manifest with last row at T, then same-time helper writes until an id `< last_id` is found and assert current legacy verifier reports tampered; (3) create manifest then write at T−1ms and assert legacy verifier reports tampered. Include concurrent transaction ordering and `audit_manifest_created` modeling. Add a future design-specific test showing the selected sequence/lag verifier accepts legitimate late commits and still detects content edits/deletes. Tests must log measured canonical bytes, row_count, latency and heap deltas without threshold assertions.
+Use real SQLite with two independent fixtures per scenario: (1) create manifest at T, append later timestamp and assert match/`appendedRows=1`; (2) create manifest with last row at T, then same-time helper writes until an id `< last_id` is found and assert current legacy verifier reports tampered; (3) create manifest then write at T−1ms and assert legacy verifier reports tampered; (4) model `createManifest`'s own `audit_manifest_created` insert immediately before the snapshot, including same-millisecond id ordering, and verify the documented boundary. Include concurrent transaction ordering and `audit_manifest_created` modeling. Add a future design-specific test showing the selected sequence/lag verifier accepts legitimate late commits and still detects content edits/deletes. Tests must log measured canonical bytes, row_count, latency and heap deltas without threshold assertions.
 
 ## PR split (each <=400 lines)
 
