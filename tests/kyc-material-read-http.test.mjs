@@ -21,6 +21,6 @@ test('GET contract keeps customer reads unchanged while reviewer reads require a
 
 test('GET contract validates case/revision context and never exposes object errors',async()=>{
  const source=await readFile(new URL('../app/api/kyc/files/route.ts',import.meta.url),'utf8');
- assert.match(source,/caseId=url\.searchParams\.get\('caseId'\)/);assert.match(source,/revisionParam=url\.searchParams\.get\('revision'\)/);
+ assert.match(source,/function readParams\(request:Request\)/);assert.match(source,/getAll\(key\)\.length>1/);assert.match(source,/revision 无效/);
  assert.match(source,/KycError\('材料暂不可用',404\)/);assert.match(source,/Content-Disposition/);assert.match(source,/Cache-Control/);
 });
