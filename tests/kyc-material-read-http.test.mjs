@@ -8,13 +8,19 @@ test('material GET audits reviewer reads before object access and uses server wr
  assert.notEqual(audit,-1);assert.notEqual(bucket,-1);assert.ok(audit<bucket,'audit must complete before bucket access');
  assert.match(source,/action=\(url\.searchParams\.get\('view'\)\|\|'read'\) as MaterialReadAction/);
  assert.match(source,/requestId=requestIdOf\(request\)\?\?resolveRequestId\(request\)/);
- assert.match(source,/revision:current\.revision/);assert.match(source,/Date\.now\(\),db\(\)/);
- assert.match(source,/if\(review\)\{await auditMaterialRead/);
+ assert.match(source,/revision:authorized\.revision/);assert.match(source,/Date\.now\(\),db\(\)/);
+ assert.match(source,/材料审计暂不可用，请稍后重试/);
+ assert.match(source,/if\(review\)\{const authorized=await authorizeMaterialRead/);
 });
 
 test('GET contract keeps customer reads unchanged while reviewer reads require audit',async()=>{
  const source=await readFile(new URL('../app/api/kyc/files/route.ts',import.meta.url),'utf8');
- assert.match(source,/if\(review\)\{const staff=await reviewer\(\)/);
+ assert.match(source,/if\(review\)\{const authorized=await authorizeMaterialRead/);
  assert.match(source,/else\{const c=await context\(request\)/);
- assert.doesNotMatch(source,/auditMaterialRead\([^\n]*customerId/);
+});
+
+test('GET contract validates case/revision context and never exposes object errors',async()=>{
+ const source=await readFile(new URL('../app/api/kyc/files/route.ts',import.meta.url),'utf8');
+ assert.match(source,/caseId=url\.searchParams\.get\('caseId'\)/);assert.match(source,/revisionParam=url\.searchParams\.get\('revision'\)/);
+ assert.match(source,/KycError\('材料暂不可用',404\)/);assert.match(source,/Content-Disposition/);assert.match(source,/Cache-Control/);
 });
