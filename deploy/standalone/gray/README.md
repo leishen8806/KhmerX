@@ -265,3 +265,83 @@ node --test tests/gray-config.test.mjs
 The example intentionally fails deployment preflight until placeholders and the
 synthetic tenant ID are replaced. Actual gray rollout and L2/Q12 remain HOLD;
 manual DNS/TLS/scanner readiness and separately authorized deployment are pending.
+
+## Reviewed gray artifacts (C2)
+
+Build on the operator's Linux build machine, never on the gray source server.
+Use a clean checkout of the approved full commit SHA, already fetched from
+`origin/main`, with no credentials or checkout-local runtime profile. Run in
+`node:22.22.1-bookworm-slim`; provide Git from existing offline build tooling
+(the slim image does not include Git). Do not install tools during a gray window.
+Mount inputs read-only and copy the checkout into a disposable writable build
+directory; outputs are written there, not into the mounted source checkout.
+
+```bash
+bash /review/scripts/build-gray-artifact.sh <full-approved-git-sha>
+bash /review/deploy/standalone/gray/verify-artifact.sh <full-approved-git-sha>
+```
+
+The default dependency step is locked `npm ci`. For a network-disabled build
+using an existing dependency tree from the same lockfile, explicitly set
+`GRAY_ARTIFACT_REUSE_DEPS=1`; mount those dependencies read-only. The installed
+`node_modules/.package-lock.json` is mandatory: every installed version and
+shared resolved/integrity value must match the source lock. Non-optional packages
+and current-platform bindings must be installed. Bookworm uses glibc; musl and
+other-platform optional bindings may be absent. Record the dependency source in
+the PR; an inventory check does not authenticate or hash every installed file.
+Both modes produce checksummed `BUILD_DEPS.json` with mode, both lock digests,
+installed package count and checked package count (all installed entries).
+
+The build refuses any existing `dist`, including a dangling symlink, before
+install/build. Start each build in a fresh disposable copy; it never deletes a
+user directory. This makes pre-existing payload files impossible. A second build
+of the same commit also requires a separate clean build directory.
+All other build/verification steps are network-disabled.
+Do not run `npm install`, `npm ci`, or an application build on the gray source.
+
+Output is `dist/`, including `BUILD_INFO.json`, `BUILD_DEPS.json` and
+`dist.sha256`. The manifest
+is inside `dist` so it travels with the artifact and remains Git-ignored.
+It covers every regular payload file, including `server/BUILD_ID`, excluding
+only `BUILD_INFO.json` and `dist.sha256`; `BUILD_DEPS.json` is covered.
+`fileCount` counts manifest entries. Symlinks
+and special files are rejected. Metadata contains only the approved SHA,
+timestamp, Node version, lockfile digest, framework build ID and file count.
+
+Package on the build machine: `tar -czf gray-dist.tgz dist` and
+`sha256sum gray-dist.tgz`. Transfer the archive through the approved private
+channel; compare its SHA256 on the source before extraction. Retain the
+previous complete `dist` (including its metadata) and manifest for rollback.
+Place the verified new `dist` at `/opt/payease/app/dist`, then, from that root:
+
+```bash
+# Source verification uses existing Docker tooling, without installing host Node.
+docker run --rm --network none -v "$PWD:/app:ro" -w /app \
+  node:22.22.1-bookworm-slim bash deploy/standalone/gray/verify-artifact.sh <full-approved-git-sha>
+# Only after separate deployment authorization and successful verification:
+docker compose -f deploy/standalone/gray/compose.gray.yaml up -d --build
+# Linux host networking is required to read the host gateway's loopback port.
+docker run --rm --network host -v "$PWD:/app:ro" -w /app \
+  node:22.22.1-bookworm-slim bash deploy/standalone/gray/verify-artifact.sh <full-approved-git-sha> --running
+```
+
+`--running` reads only `http://127.0.0.1:4300/version`; it compares the framework
+build ID, not a Git SHA. Rollback restores the retained complete artifact,
+verifies its original approved SHA, and rebuilds the image under authorization.
+Compare two real builds of the same commit and record their build IDs and
+manifests; synthetic unit builds are not that evidence. Do not assume builds
+are reproducible: identify each release by its own `BUILD_INFO` and manifest.
+Missing Linux dependencies or an unperformed real build keeps acceptance
+pending. L2/Q12 and gray/VPS execution remain HOLD.
+
+The manifest checks file inventory/content integrity, not signatures or provenance
+of its sender. File permissions, empty directories and modification times are
+outside its scope. The `--network host` verification container can reach the
+host network: use only this reviewed script with read-only inputs under a
+separately authorized window; its sole request is the fixed loopback version URL.
+
+Synthetic script tests require Linux Docker, exact Node 22.22.1, offline Git,
+and executable `/tmp` (`--tmpfs /tmp:exec`). Missing prerequisites cause skips;
+skips never count as passes. Run `node --test tests/gray-artifact.test.mjs` in
+that container; the synthetic npm stub does not constitute a real build.
+`*.sh text eol=lf` affects future Git checkouts, not historical commits.
