@@ -84,11 +84,13 @@ Interfaces：在现有reviewer岗位结果上增加audit拒绝，后续读取/�
 - [ ] 最小实现→GREEN→全量门禁、当前head CI→独立评审/明确合并批准；禁止借本计划批准部署。未执行。
 
 ### Task 1a: 元数据写入helper与单测（独立PR，≤约400行）
-Files：Create `lib/kyc/material-read-audit.ts`、`tests/kyc-material-read-audit.test.mjs`；不接route、不改岗位许可、不动manifest。依赖修订计划再次获Claude复核。
-Interfaces：`auditMaterialRead(context:{tenantId:string;actorId:string;caseId:string;revision:number;slot:Slot;fileId:string;action:MaterialReadAction;requestId:string}, nowMs:number): Promise<void>`；`MaterialReadAction='thumbnail'|'preview'|'download'|'read'`。role可在上层可信team上下文判断，但detail仍严格六键，不新增role。
+Files：Create `lib/kyc/material-read-audit.ts`、`tests/kyc-material-read-audit.test.mjs`、`tests/kyc-audit-manifest-eval.test.mjs`；不接route、不改岗位许可、不动manifest。依赖修订计划再次获Claude复核。
+Interfaces：`auditMaterialRead(context:{tenantId:string;actorId:string;caseId:string;revision:number;slot:Slot;fileId:string;action:MaterialReadAction;requestId:string}, nowMs:number, db:AuditDb): Promise<{id:string;createdAt:string;bucket:number;inserted:boolean}>`；`MaterialReadAction='thumbnail'|'preview'|'download'|'read'`。`inserted:false`（同桶/同主键去重）仍是成功审计；只有抛错才阻断读取。Task1b必须以写入时的`Date.now()`传入`nowMs`，不得用桶起点。role可在上层可信team上下文判断，但detail仍严格六键，不新增role。
 - [ ] RED：真实SQLite中首个context插入六键detail、同桶20请求一行、两个module实例共享主键仍一行；跨桶/actor/revision/file/action分别新行；只吞id冲突，FK/DB异常失败且无成功缓存；写失败后重试重新写。created_at不取桶起点。
 - [ ] 跑 `node --experimental-vm-modules --test tests/kyc-material-read-audit.test.mjs` 观察预期FAIL→最小helper实现→GREEN；不实现audit岗位拒绝或其它权限变更。
 - [ ] 加manifest副作用的只读/本地合成数据评估用例，确认新增事件进入摘要、后续追加不改旧行，不改清单算法；记录量级指标。全量tests/types/lint/build leaks0后开Draft PR等待评审/批准，预算若超400先再拆，不挤入route。
+
+评估附录（Task1a只读证据）：真实SQLite+helper重放manifest边界，A=追加较晚记录仍match；B=与manifest末记录同`created_at`但SHA-256 id小于`last_id`会使当前有界前缀变化并报告tampered；C=manifest末时间之后补写一个实际更早时间的记录同样报告tampered。该风险只记录并交Claude决定，不在Task1a改manifest算法、排序或校验逻辑。量级用例记录1k/10k create/verify耗时、heapUsed增量、canonical bytes和row_count，数值仅证据不作断言。
 
 ### Task 1b: 文件GET接入与HTTP集成（独立PR，≤约400行）
 Files：Modify `app/api/kyc/files/route.ts`（仅GET），Create `tests/kyc-material-read-http.test.mjs`，必要只读context helper放 `lib/kyc/material-read-context.ts`；复用Task1a已审helper，POST上传不改。
