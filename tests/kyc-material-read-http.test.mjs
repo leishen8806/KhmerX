@@ -1,26 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFile} from 'node:fs/promises';
-
-test('material GET audits reviewer reads before object access and uses server write time',async()=>{
- const source=await readFile(new URL('../app/api/kyc/files/route.ts',import.meta.url),'utf8');
- const audit=source.indexOf('await auditMaterialRead('),bucket=source.indexOf('const ref=await metadata(row),object=await bucket().get');
- assert.notEqual(audit,-1);assert.notEqual(bucket,-1);assert.ok(audit<bucket,'audit must complete before bucket access');
- assert.match(source,/action=\(url\.searchParams\.get\('view'\)\|\|'read'\) as MaterialReadAction/);
- assert.match(source,/requestId=requestIdOf\(request\)\?\?resolveRequestId\(request\)/);
- assert.match(source,/revision:authorized\.revision/);assert.match(source,/Date\.now\(\),db\(\)/);
- assert.match(source,/材料审计暂不可用，请稍后重试/);
- assert.match(source,/if\(review\)\{const authorized=await authorizeMaterialRead/);
-});
-
-test('GET contract keeps customer reads unchanged while reviewer reads require audit',async()=>{
- const source=await readFile(new URL('../app/api/kyc/files/route.ts',import.meta.url),'utf8');
- assert.match(source,/if\(review\)\{const authorized=await authorizeMaterialRead/);
- assert.match(source,/else\{const c=await context\(request\)/);
-});
-
-test('GET contract validates case/revision context and never exposes object errors',async()=>{
- const source=await readFile(new URL('../app/api/kyc/files/route.ts',import.meta.url),'utf8');
- assert.match(source,/function readParams\(request:Request\)/);assert.match(source,/getAll\(key\)\.length>1/);assert.match(source,/revision 无效/);
- assert.match(source,/KycError\('材料暂不可用',404\)/);assert.match(source,/Content-Disposition/);assert.match(source,/Cache-Control/);
-});
+import {changesFixture} from './helpers/kyc-sensitive-fixture.mjs';
+function bucketFixture(){const blobs=new Map(),gets=[];return {gets,put(k,v){blobs.set(k,new Uint8Array(v))},async get(k){gets.push(k);const value=blobs.get(k);return value?new Response(value):null},async delete(k){blobs.delete(k)}}}
+async function setup(t){const bucket=bucketFixture(),f=await changesFixture({bucket});t.after(()=>f.close());await f.team.manage({action:'create_member',role:'kyc',email:'reviewer@example.test',unitId:f.sql.prepare('SELECT default_department FROM team_companies WHERE id=?').get(f.A).default_department});f.setUser({userId:'reviewer@example.test',email:'reviewer@example.test'});await f.kyc.initialize(f.A,'customer-1',true);const member=f.sql.prepare("SELECT id FROM team_members WHERE tenant_id=? AND role='kyc'").get(f.A);f.sql.prepare('UPDATE team_assignments SET reviewer_id=? WHERE tenant_id=? AND customer_id=?').run(member.id,f.A,'customer-1');const uploaded=await f.kyc.recordFile(f.A,'customer-1','idFront',new Uint8Array(Buffer.from('synthetic-file-bytes')),'image/jpeg','upload-request');const route=await f.mod('@/app/api/kyc/files/route');const request=(query='',headers={})=>route.GET(new Request('http://localhost/api/kyc/files?review=1&id='+encodeURIComponent(uploaded.id)+query,{headers:{cookie:'payease_company='+f.A,...headers}}));const count=()=>f.sql.prepare("SELECT count(*) n FROM team_audit WHERE action='kyc_material_read'").get().n;return {...f,bucket,uploaded,route,request,count}}
+test('reviewer GET audits before bucket and returns original bytes',async t=>{const f=await setup(t);const response=await f.request('',{'x-request-id':'12345678-1234-4123-8123-123456789abc'});assert.equal(response.status,200);assert.deepEqual(new Uint8Array(await response.arrayBuffer()),new Uint8Array(Buffer.from('synthetic-file-bytes')));assert.equal(f.count(),1);assert.equal(f.bucket.gets.length,1);const event=f.sql.prepare("SELECT detail FROM team_audit WHERE action='kyc_material_read'").get();assert.deepEqual(Object.keys(JSON.parse(event.detail)),['caseId','revision','slot','fileId','action','requestId']);assert.equal(JSON.parse(event.detail).requestId,'12345678-1234-4123-8123-123456789abc')});
+test('deduplicates same 30-second reviewer read and maps view actions',async t=>{const f=await setup(t);for(const view of ['thumbnail','preview','download','read',undefined]){const response=await f.request(view?`&view=${view}`:'');assert.equal(response.status,200)}assert.equal(f.count(),4);assert.equal(f.bucket.gets.length,5)});
+test('invalid and duplicate context parameters fail before audit or bucket',async t=>{const f=await setup(t);for(const query of ['&revision=abc','&revision=1.5','&revision=0','&revision=','&id=x&id=y','&view=read&view=preview','&caseId=x&caseId=y','&revision=1&revision=2']){const response=await f.request(query);assert.equal(response.status,400)}assert.equal(f.count(),0);assert.equal(f.bucket.gets.length,0)});
+test('stale or foreign case context is rejected without access',async t=>{const f=await setup(t);const current=await f.kyc.findCase(f.A,'customer-1');let response=await f.request('&caseId=foreign-case');assert.equal(response.status,404);response=await f.request(`&caseId=${current.id}&revision=${current.revision+1}`);assert.equal(response.status,409);assert.equal(f.count(),0);assert.equal(f.bucket.gets.length,0)});
+test('audit write failure returns 503 and no file bytes or bucket access',async t=>{const f=await setup(t),prepare=f.DB.prepare;f.DB.prepare=q=>{const s=prepare(q);if(q.startsWith('INSERT INTO team_audit'))return {bind(){return {async run(){throw new Error('synthetic audit failure')}}}};return s};const response=await f.request();assert.equal(response.status,503);const body=await response.text();assert.doesNotMatch(body,/synthetic-file-bytes|filename/);assert.equal(f.bucket.gets.length,0);f.DB.prepare=prepare});
+test('customer self-read remains unaudited',async t=>{const bucket=bucketFixture(),f=await changesFixture({bucket});t.after(()=>f.close());const uploaded=await f.kyc.recordFile(f.A,'customer-1','idFront',new Uint8Array(Buffer.from('customer-bytes')),'image/jpeg','upload');const route=await f.mod('@/app/api/kyc/files/route');const response=await route.GET(new Request(`http://localhost/api/kyc/files?id=${uploaded.id}`));assert.equal(response.status,401);assert.equal(f.sql.prepare("SELECT count(*) n FROM team_audit WHERE action='kyc_material_read'").get().n,0)});

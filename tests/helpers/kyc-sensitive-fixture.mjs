@@ -4,11 +4,11 @@ import vm from 'node:vm';
 import fs from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
-export async function changesFixture(){
+export async function changesFixture(options={}){
  const sql=new DatabaseSync(':memory:');sql.exec('PRAGMA foreign_keys=ON');
  for(const file of fs.readdirSync('drizzle').filter(f=>f.endsWith('.sql')).sort())sql.exec(fs.readFileSync('drizzle/'+file,'utf8'));
  const DB={prepare(query){return {bind(...args){const statement=sql.prepare(query);return {async first(){return statement.get(...args)||null},async all(){return {results:statement.all(...args)}},async run(){return {meta:{changes:Number(statement.run(...args).changes)}}}}}}},async batch(statements){sql.exec('BEGIN');try{const out=[];for(const statement of statements)out.push(await statement.run());sql.exec('COMMIT');return out}catch(error){sql.exec('ROLLBACK');throw error}}};
- const env={DB,KYC_DATA_SECRET:'synthetic-changes-only-'.repeat(5),KYC_REVIEWER_EMAILS:'owner@example.test',PAYEASE_AUTH_SECRET:'synthetic-changes-auth-'.repeat(5),PAYEASE_AUTH_MODE:'demo',KHMERX_TEST_MODE:'true'};
+ const bucket=options.bucket;const env={DB,BUCKET:bucket,KYC_DATA_SECRET:'synthetic-changes-only-'.repeat(5),KYC_REVIEWER_EMAILS:'owner@example.test',PAYEASE_AUTH_SECRET:'synthetic-changes-auth-'.repeat(5),PAYEASE_AUTH_MODE:'demo',KHMERX_TEST_MODE:'true'};
  let user={userId:'owner',email:'owner@example.test'},selected='';const logs=[],root=path.resolve('.'),cache=new Map();
  const context=vm.createContext({console:{...console,error:(...args)=>logs.push(args.join(' '))},crypto,TextEncoder,TextDecoder,Headers,Request,Response,URL,URLSearchParams,AbortSignal,Uint8Array,ArrayBuffer,Buffer,Date,structuredClone,atob,btoa,setTimeout,clearTimeout});
  function synth(id,values){const m=new vm.SyntheticModule(Object.keys(values),function(){for(const [key,value] of Object.entries(values))this.setExport(key,value)},{context,identifier:id});cache.set(id,m);return m;}
