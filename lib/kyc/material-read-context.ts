@@ -8,6 +8,7 @@ export type MaterialReadAuthorization={file:Awaited<ReturnType<typeof fileRow>>;
 /** Re-checks server-side identity, ownership and reviewer assignment before auditing a material read. */
 export async function authorizeMaterialRead(request:Request,options:{id:string;action:MaterialReadAction;requestId:string;caseId?:string;revision?:number}) : Promise<MaterialReadAuthorization>{
  const staff=await reviewer(),tenantId=staff.userId,actorId=staff.actorId;
+ if(!staff.team)throw new KycError('当前账号未获 KYC 审核授权',403);
  const file=await fileRow(tenantId,options.id);
  await guardKyc(tenantId,file.customer_id);
  const caseRow=await findCase(tenantId,file.customer_id);

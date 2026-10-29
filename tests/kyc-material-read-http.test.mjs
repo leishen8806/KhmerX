@@ -9,3 +9,34 @@ test('invalid and duplicate context parameters fail before audit or bucket',asyn
 test('stale or foreign case context is rejected without access',async t=>{const f=await setup(t);const current=await f.kyc.findCase(f.A,'customer-1');let response=await f.request('&caseId=foreign-case');assert.equal(response.status,404);response=await f.request(`&caseId=${current.id}&revision=${current.revision+1}`);assert.equal(response.status,409);assert.equal(f.count(),0);assert.equal(f.bucket.gets.length,0)});
 test('audit write failure returns 503 and no file bytes or bucket access',async t=>{const f=await setup(t),prepare=f.DB.prepare;f.DB.prepare=q=>{const s=prepare(q);if(q.startsWith('INSERT INTO team_audit'))return {bind(){return {async run(){throw new Error('synthetic audit failure')}}}};return s};const response=await f.request();assert.equal(response.status,503);const body=await response.text();assert.doesNotMatch(body,/synthetic-file-bytes|filename/);assert.equal(f.bucket.gets.length,0);f.DB.prepare=prepare});
 test('customer self-read remains unaudited',async t=>{const bucket=bucketFixture(),f=await changesFixture({bucket});t.after(()=>f.close());const uploaded=await f.kyc.recordFile(f.A,'customer-1','idFront',new Uint8Array(Buffer.from('customer-bytes')),'image/jpeg','upload');const route=await f.mod('@/app/api/kyc/files/route');const response=await route.GET(new Request(`http://localhost/api/kyc/files?id=${uploaded.id}`));assert.equal(response.status,401);assert.equal(f.sql.prepare("SELECT count(*) n FROM team_audit WHERE action='kyc_material_read'").get().n,0)});
+
+test('authorization denials never audit or fetch the blob',async t=>{
+ const f=await setup(t),cases=[];
+ cases.push({name:'logged out',user:null,cookie:'payease_company='+f.A});
+ cases.push({name:'non-kyc role',user:{userId:'staff@example.test',email:'staff@example.test'},cookie:'payease_company='+f.A});
+ for(const denial of cases){if(denial.prepare)await denial.prepare();f.setUser(denial.user);const response=await f.route.GET(new Request(`http://localhost/api/kyc/files?review=1&id=${f.uploaded.id}`,{headers:{cookie:denial.cookie}}));assert.equal(response.status,denial.name==='logged out'?401:403,denial.name);assert.equal(f.count(),0,denial.name);assert.equal(f.bucket.gets.length,0,denial.name)}
+});
+
+test('same tenant unassigned customer, foreign tenant material and no-team allowlist reviewer are denied',async t=>{
+ const f=await setup(t);
+ await f.kyc.initialize(f.A,'customer-2',true);await f.kyc.initialize(f.B,'customer-b',true);
+ f.select(f.B);
+ const foreign=await f.kyc.recordFile(f.B,'customer-b','idFront',new Uint8Array(Buffer.from('foreign-bytes')),'image/jpeg','upload');
+ f.select(f.A);
+ const own2=await f.kyc.recordFile(f.A,'customer-2','idFront',new Uint8Array(Buffer.from('other-customer')),'image/jpeg','upload');
+ const req=id=>f.route.GET(new Request(`http://localhost/api/kyc/files?review=1&id=${id}`,{headers:{cookie:'payease_company='+f.A}}));
+ f.sql.prepare('UPDATE team_assignments SET reviewer_id=? WHERE tenant_id=? AND customer_id=?').run(null,f.A,'customer-2');for(const [id,status] of [[own2.id,403],[foreign.id,404]]){const response=await req(id);assert.equal(response.status,status);assert.equal(f.count(),0);assert.equal(f.bucket.gets.length,0)}
+ f.setUser({userId:'owner@example.test',email:'owner@example.test'});const response=await req(f.uploaded.id);assert.equal(response.status,403);assert.equal(f.count(),0);assert.equal(f.bucket.gets.length,0);
+});
+
+test('customer self-read establishes a real session and returns bytes without reviewer audit',async t=>{
+ const bucket=bucketFixture(),f=await changesFixture({bucket});t.after(()=>f.close());f.setUser({userId:'owner',email:'owner@example.test'});
+ const customerId='customer-self',token='a'.repeat(64),now=Math.floor(Date.now()/1000);await f.DB.prepare('INSERT INTO h5_accounts (customer_id,owner,phone_key,phone_mask,mode,browser_hash,phone_verified,verification_completed,password_hash,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)').bind(customerId,f.A,'self','SELF','demo',null,0,1,'test-password-hash',new Date().toISOString()).run();const {digest}=await import('../lib/h5-auth-core.ts');await f.DB.prepare('INSERT INTO h5_sessions (token_hash,owner,customer_id,phone_mask,mode,expires_at,credential_version) VALUES (?,?,?,?,?,?,0)').bind(await digest(token),f.A,customerId,'SELF','demo',now+3600).run();const uploaded=await f.kyc.recordFile(f.A,customerId,'idFront',new Uint8Array(Buffer.from('customer-bytes')),'image/jpeg','upload');
+ const route=await f.mod('@/app/api/kyc/files/route');const response=await route.GET(new Request(`http://localhost/api/kyc/files?id=${uploaded.id}`,{headers:{cookie:`payease_h5_session=${token}; payease_company=${f.A}`}}));assert.equal(response.status,200,await response.clone().text());assert.deepEqual(new Uint8Array(await response.arrayBuffer()),new Uint8Array(Buffer.from('customer-bytes')));assert.equal(f.sql.prepare("SELECT count(*) n FROM team_audit WHERE action='kyc_material_read'").get().n,0);
+});
+
+test('request id header is regenerated when invalid and query requestId is ignored',async t=>{const f=await setup(t);const response=await f.request('&requestId=query-controlled',{'x-request-id':'not-a-uuid'});assert.equal(response.status,200);const detail=JSON.parse(f.sql.prepare("SELECT detail FROM team_audit WHERE action='kyc_material_read'").get().detail);assert.notEqual(detail.requestId,'not-a-uuid');assert.notEqual(detail.requestId,'query-controlled');assert.match(detail.requestId,/^[0-9a-f-]{36}$/i)});
+
+test('missing object, tampered blob and HEAD behavior are explicit',async t=>{const f=await setup(t);f.bucket.get=async key=>{f.bucket.gets.push(key);return null};let response=await f.request();assert.equal(response.status,404);f.bucket.get=async key=>{f.bucket.gets.push(key);return new Response(new Uint8Array([1,2,3]))};response=await f.request();assert.ok([400,500].includes(response.status));assert.doesNotMatch(await response.text(),/synthetic-file-bytes|filename/);const head=await f.route.HEAD?.(new Request(`http://localhost/api/kyc/files?id=${f.uploaded.id}&review=1`,{method:'HEAD',headers:{cookie:'payease_company='+f.A}}));if(head)assert.equal(head.status,405)});
+
+test('range requests still audit exactly once',async t=>{const f=await setup(t);const response=await f.request('',{'range':'bytes=0-2'});assert.equal(response.status,200);assert.equal(f.count(),1);assert.equal(f.bucket.gets.length,1)});
