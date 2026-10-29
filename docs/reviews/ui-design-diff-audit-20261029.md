@@ -42,3 +42,33 @@
 ## 交付限制
 
 本轮未提交截图：本机缺少可用 Flutter SDK，且未启动带合成数据的浏览器环境；因此动态布局、主题、多语言、axe 均明确标为未覆盖。整改卡仅在本报告附录，不改产品代码。
+
+## 第一轮返工证据（H5 / 官网）
+
+本地 `vinext dev` 在 `http://localhost:5173` 启动，使用 Chromium headless 生成了以下截图（全部 PNG 小于 300KB）：
+
+- H5 登录、首页、KYC、合同：各 375/768/1440px 浅色；375px 另有 `h5-375-zh.png`、`h5-375-km.png`；登录/首页/KYC/合同另有 375px 深色截图。
+- 截图目录：`docs/reviews/ui-design-diff-20261029/`。
+- 官网静态页未能由本地应用路由直接挂载；其源码已纳入 token/术语静态审计，动态截图列入未覆盖清单。
+- 官网静态 `khmerx-website/index.html` 已通过 `file://` 本地只读方式生成 375/768/1440px 浅色截图，文件名为 `website-375-light.png`、`website-768-light.png`、`website-1440-light.png`。
+
+具体观察：375px KYC 页面仍保留固定头部与底部导航间距，未见横向滚动；1440px 页面内容区保持居中并留出宽边距。H5 登录页在源码中明确暴露“测试模式/模拟验证码”文案（`app/h5/login.tsx:61-66`），该文案不应出现在生产环境。
+
+## 令牌与术语证据
+
+`scripts/audit/extract-css-tokens.mjs` 现在输出颜色（hex/rgb/hsl）、font-size、line-height、border-radius、margin/padding/gap、box-shadow 的取值、出现次数和最多 20 个文件:行位置；本轮输出保存在 `docs/reviews/ui-design-diff-20261029/css-token-inventory.json`。术语 grep 证据保存在 `docs/reviews/ui-design-terms-20261029.txt`，包含 KYC/身份资料/资料审核、贷款/借款及测试/模拟措辞的具体行号。
+
+## axe 无障碍检查
+
+已尝试使用 `npx @axe-core/cli http://localhost:5173/h5`。工具实际失败，原文为：`This version of ChromeDriver only supports Chrome version 152. Current browser version is 156.0.8078.48`。因此 axe 结果仍标记未覆盖，未伪造通过结论；后续应使用匹配 ChromeDriver 在 CI/SDK 机补跑。
+
+## 样式库对比
+
+样式库地址在 `curl`/Chromium 环境中实际不可用：curl 返回 HTTP 000，Chromium 原文为 `Page load failed: net::ERR_NAME_NOT_RESOLVED`。因此无法取得样式库组件截图；按钮、输入框、卡片、底部导航、步骤条的并排差异已明确列入未覆盖清单，不将不可达页面臆造为视觉规范。
+
+## 全量门禁（`TMPDIR=/private/tmp`）
+
+- `npm test`：496 tests，479 passed，0 failed（其余为 skip/todo）。
+- `npm run typecheck`：通过。
+- `npm run build:separated`：通过，`dist-separated` 生成且 `leaks: 0`。
+- `npx eslint . --format compact`：执行完成；输出仅为现有运行时日志，无 lint error 汇总。
