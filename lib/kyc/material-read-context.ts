@@ -12,7 +12,7 @@ export async function authorizeMaterialRead(request:Request,options:{id:string;a
  const file=await fileRow(tenantId,options.id);
  await guardKyc(tenantId,file.customer_id);
  const caseRow=await findCase(tenantId,file.customer_id);
- if(!caseRow)throw new KycError('资料不存在或不可访问',404);
+ if(!caseRow)throw new KycError('资料不存在或不可访问',404);if(caseRow.revision<1||caseRow.status==='draft')throw new KycError('资料尚未提交',409);
  if(options.caseId&&options.caseId!==caseRow.id){const requested=await db().prepare('SELECT id FROM kyc_cases WHERE id=? AND owner=? AND customer_id=?').bind(options.caseId,tenantId,file.customer_id).first();if(!requested)throw new KycError('资料不存在或不可访问',404);throw new KycError('资料版本已变化，请刷新后查看',409)}
  if(options.revision!==undefined&&options.revision!==caseRow.revision)throw new KycError('资料版本已变化，请刷新后查看',409);
  return {file,caseRow,tenantId,actorId,caseId:caseRow.id,revision:caseRow.revision,slot:file.slot,action:options.action,requestId:options.requestId};
