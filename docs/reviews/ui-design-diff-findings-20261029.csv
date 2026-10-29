@@ -1,0 +1,8 @@
+编号,端,页面/组件,维度,规范要求（附出处）,实际表现,证据（截图路径或文件:行）,严重度,影响范围,建议修复,预计改动行数
+UI-001,H5,全局主题,设计令牌,品牌色 #1677FF（README 样式库改版）,存在硬编码颜色与变量并存,app/globals.css:1-220,P1,全局,收敛到令牌,30
+UI-002,H5,KYC,布局与响应式,375px 不溢出且底部导航不遮挡,需用真实浏览器截图确认,未覆盖（本轮无可用启动数据）,P1,多页,补充 Playwright 合成数据回归,40
+UI-003,/team,队列,交互模式,Operator Grid 每页6条,分页实现需逐页核对,app/team/client.tsx:1-260,P1,多页,固定 pageSize 并测试,20
+UI-004,/team,KYC查看器,无障碍,焦点和错误关联符合 WCAG AA,本轮未运行 axe,未覆盖,P1,单页,加入本地 axe 抽查,25
+UI-005,App,主题,主题,深浅主题与减少动态效果,Flutter SDK 不在本机，源码对照, mobile/lib/app/theme/khmerx_theme.dart,P1,全局,在 CI/SDK 机补截图,15
+UI-006,官网,首页,多语言,zh/en/km 无截断,未建立三语言截图,未覆盖,P2,多页,补三语言视觉回归,30
+UI-007,旧三端,/mini /ops /lender,文案语气,遗留端需单独标注,代码仍可访问,app/mini/page.tsx; app/ops/page.tsx; app/lender/page.tsx,P2,多页,隔离遗留样式并标记,20
