@@ -16,7 +16,7 @@
 
 ## 设计依据冲突
 
-样式库 URL 在同一网络上下文重试仍为 `ERR_NAME_NOT_RESOLVED`（原始日志见 `style-library-error-20261029.txt`），因此本轮不声称取得外部样式库对照。README 中的 #1677FF/#172033/#667085、48px、16px 圆角作为待核对基线，偏离值见 `css-token-deviations-20261029.csv`。
+样式库 URL `https://payease-style.khmerx.org/?release=6b87e79958fd` 在同一网络上下文重试仍为 `ERR_NAME_NOT_RESOLVED`（原始日志见 `style-library-error-20261030.txt`），因此本轮不声称取得外部样式库对照。README 中的 #1677FF/#172033/#667085、48px、16px 圆角作为待核对基线，偏离值见 `css-token-deviations-20261029.csv`。
 
 ## 前十问题（本轮可证实/可复核）
 
@@ -45,7 +45,7 @@
 
 ## 第二轮真实页面截图
 
-使用 `scripts/audit/ui-audit-round2.mjs`，对每个页面执行 `goto(..., waitUntil: 'networkidle')` 后再等待 1 秒，并写入 `round2-capture-results.json`。本轮新增/覆盖 15 张截图（H5 登录、首页、KYC、合同与官网，375/768/1440）。H5 各路由稳定显示“Your session has expired”，因此这是已加载完成的未登录态，不冒充已登录业务流程；官网三宽度均加载完成并记录了英文/高棉语主体文字。深色模式经源码和实际页面核对没有可验证样式支持，报告为产品不支持，不保留伪深色截图。375px zh/km 历史文件保留但未证明 locale 参数已真正切换完整业务主体文字，仍列入 UI-010 未覆盖。
+使用 `scripts/audit/ui-audit-round2.mjs`，对每个页面执行 `goto(..., waitUntil: 'networkidle')` 后再等待 1 秒，并写入 `round2-capture-results.json`。本轮新增/覆盖 15 张截图（H5 登录、首页、KYC、合同与官网，375/768/1440）。Round3 另运行 `scripts/audit/ui-audit-round3.mjs`，新增登录态/语言控件截图及 `round3-demo-flow-results.json`：本地页面稳定显示“Your session has expired”，0 个输入框，无法进入 demo 登录；因此不能冒充已登录 KYC/贷款/合同业务流程。深色模式经源码和实际页面核对没有可验证样式支持，报告为产品不支持，不保留伪深色截图。当前未登录态也未发现可点击的语言控件，因此 375px zh/km 完整业务切换仍未覆盖，继续列入 UI-010。
 
 ## 第一轮返工证据（H5 / 官网）
 
@@ -64,15 +64,15 @@
 
 ## axe 无障碍检查
 
-已尝试使用 `TMPDIR=/private/tmp npx @axe-core/cli http://127.0.0.1:5173/h5`，在 axe 执行前因 ChromeDriver 152/Chrome 156 不匹配失败；原始错误保存在 `docs/reviews/ui-design-diff-20261029/axe-error-20261029.txt`。因此本轮没有 axe PASS、对比度或触控目标实测数值，必须在匹配浏览器环境补跑。
+本轮已按要求把 axe-core 安装到 `/private/tmp/axe`，通过 Playwright `page.addScriptTag({path:'/private/tmp/axe/node_modules/axe-core/axe.min.js'})` 注入并运行 `axe.run()`；三种宽度结果见 `docs/reviews/ui-design-diff-20261029/axe-round3-20261030.json`。每个宽度均发现 `label-content-name-mismatch`（serious，2 nodes）、`page-has-heading-one`（moderate，1 node）和 `region`（moderate，1 node），对比度违规为 0。触控目标实测一致：重新加载按钮 88×40px，English 77.7×33.2px，Khmer 73.7×33.2px；后两者低于 44×44px，不能记为无障碍通过。
 
 ## 样式库对比
 
-样式库地址 `https://ant.design/components/overview/` 在同一网络上下文重试：curl HTTP 000，Chromium 原文 `Page load failed: net::ERR_NAME_NOT_RESOLVED`。原始命令、时间和错误见 `style-library-error-20261029.txt`。按钮、输入框、卡片、底部导航、步骤条的并排差异列入 UI-013 未覆盖清单，不将不可达页面臆造为视觉规范。
+样式库地址 `https://payease-style.khmerx.org/?release=6b87e79958fd` 在同一网络上下文重试：curl HTTP 000，Chromium 原文 `Page load failed: net::ERR_NAME_NOT_RESOLVED`。原始命令、时间和错误见 `style-library-error-20261030.txt`。按钮、输入框、卡片、底部导航、步骤条的并排差异列入 UI-013 未覆盖清单，不将不可达页面臆造为视觉规范。
 
 ## 全量门禁（`TMPDIR=/private/tmp`）
 
 - `npm test`：496 tests，479 passed，0 failed（其余为 skip/todo）。
 - `npm run typecheck`：通过。
 - `npm run build:separated`：通过，`dist-separated` 生成且 `leaks: 0`。
-- `npx eslint . --format compact`：当前 ESLint 未内置 compact formatter（命令返回 2）；改用 JSON formatter 完整扫描，结果为 780 files、42 errors、33425 warnings（既有基线与本轮文档脚本均未宣称 lint PASS）。
+- `TMPDIR=/private/tmp npm run lint`：仓库脚本启动 ESLint 9 stylish formatter 后因 `RangeError: Invalid string length` 退出码 2，不能记为通过；原始输出保存在 `/private/tmp/ui-round3-lint.log`。为保留可审计的错误摘要，`TMPDIR=/private/tmp npx eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern node_modules --format json` 扫描 579 files，返回 21 errors、17009 warnings（退出码 1）。

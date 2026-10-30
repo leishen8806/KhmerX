@@ -1,0 +1,20 @@
+{
+  "base": "http://127.0.0.1:5173",
+  "results": [
+    {
+      "step": "demo-login",
+      "status": "demo-login-unavailable",
+      "url": "http://127.0.0.1:5173/h5/login",
+      "inputCount": 0,
+      "bodyPreview": "Your session has expired. Sign in again.\n\n重新加载\n🇬🇧 English\n🇰🇭 Khmer"
+    },
+    {
+      "step": "locale-english",
+      "status": "control-not-found"
+    },
+    {
+      "step": "locale-khmer",
+      "status": "control-not-found"
+    }
+  ]
+}

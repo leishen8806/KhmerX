@@ -2,13 +2,13 @@
 UI-001,H5,全局主题,设计令牌,品牌色 #1677FF（README 样式库改版）,硬编码颜色与变量并存；偏离值见 token deviations,app/globals.css:18; app/globals.css:22; docs/reviews/ui-design-diff-20261029/css-token-deviations-20261029.csv,P1,全局,收敛到令牌,30
 UI-002,H5,KYC,布局与响应式,375px 不溢出且底部导航不遮挡,历史 PNG 为加载/截断状态，不能确认流程态遮挡,docs/reviews/ui-design-diff-20261029/kyc-375-light.png; docs/reviews/ui-design-diff-audit-20261029.md:交付限制,P1,多页,补充 Playwright 合成数据回归,40
 UI-003,/team,队列,交互模式,Operator Grid 每页6条,静态实现存在 pageSize 相关逻辑，未运行动态队列验证,app/team/client.tsx:87; app/team/client.tsx:143,P1,多页,固定 pageSize 并测试,20
-UI-004,/team,KYC查看器,无障碍,焦点和错误关联符合 WCAG AA,本轮未运行 axe,未覆盖,P1,单页,加入本地 axe 抽查,25
+UI-004,/team,KYC查看器,无障碍,焦点和错误关联符合 WCAG AA,axe 注入成功但发现 label-content-name-mismatch（serious）及缺少 h1/region（moderate），未进入已登录查看器,docs/reviews/ui-design-diff-20261029/axe-round3-20261030.json,P1,单页,修复 axe 违规并在已登录 KYC 查看器复测,25
 UI-005,App,主题,主题,深浅主题与减少动态效果,Flutter SDK 不在本机，源码对照, mobile/lib/app/theme/khmerx_theme.dart,P1,全局,在 CI/SDK 机补截图,15
 UI-006,官网,首页,多语言,zh/en/km 无截断,未建立三语言截图,未覆盖,P2,多页,补三语言视觉回归,30
 UI-007,旧三端,/mini /ops /lender,文案语气,遗留端需单独标注,代码仍可访问,app/mini/page.tsx; app/ops/page.tsx; app/lender/page.tsx,P2,多页,隔离遗留样式并标记,20
 UI-008,H5,登录页,文案语气,生产客户不应看到测试措辞,暴露“当前为测试模式”“模拟验证码”文案,app/h5/login.tsx:61-66,P1,单页,仅在 demo 环境显示并加环境门禁,12
 UI-009,H5,KYC,布局与响应式,375px 截图应无横向滚动,历史 PNG 是加载/截断状态，无法确认流程态,docs/reviews/ui-design-diff-20261029/kyc-375-light.png,P2,单页,加入截图回归,10
 UI-010,H5,多语言,多语言,zh/km 375px 应可读,文件存在但未证明真实 locale 切换或完整主体文字,docs/reviews/ui-design-diff-20261029/h5-375-zh.png; docs/reviews/ui-design-diff-20261029/h5-375-km.png,P2,多页,补真实 locale 参数截图与人工溢出核验,8
-UI-011,H5,无障碍,WCAG AA,axe 结果应可重复,ChromeDriver 版本不匹配导致 axe 未运行,docs/reviews/ui-design-diff-20261029/axe-error-20261029.txt,P1,全局,固定浏览器驱动版本,8
+UI-011,H5,无障碍,WCAG AA,axe 结果应可重复,Playwright 注入 axe 成功；3 个违规规则，English/Khmer 触控目标分别 77.7×33.2 与 73.7×33.2px（低于 44×44）,docs/reviews/ui-design-diff-20261029/axe-round3-20261030.json,P1,全局,修复违规和触控目标后复测,8
 UI-012,官网,首页,布局与响应式,375/768/1440 均应无溢出,本地静态页面已生成三种宽度截图,docs/reviews/ui-design-diff-20261029/website-375-light.png; website-768-light.png; website-1440-light.png,P2,单页,加入静态截图回归,12
-UI-013,样式库,组件对比,组件一致性,样式库 v1 应可作为优先依据,同一网络上下文重试仍 DNS 失败，未取得对照截图,docs/reviews/ui-design-diff-20261029/style-library-error-20261029.txt,P1,全局,恢复样式库可达性后补并排对比,0
+UI-013,样式库,组件对比,组件一致性,样式库 v1 应可作为优先依据,https://payease-style.khmerx.org/?release=6b87e79958fd 同一网络上下文重试仍 DNS 失败，未取得对照截图,docs/reviews/ui-design-diff-20261029/style-library-error-20261030.txt,P1,全局,恢复样式库可达性后补并排对比,0

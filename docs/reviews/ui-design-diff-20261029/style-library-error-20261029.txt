@@ -1,5 +1,0 @@
-2026-10-30 Asia/Phnom_Penh
-URL: https://ant.design/components/overview/
-Commands: curl -I --max-time 20 https://ant.design/components/overview/ ; Chromium navigation from the local audit environment.
-Result: curl HTTP 000; Chromium Page load failed: net::ERR_NAME_NOT_RESOLVED.
-The page was retried from the same network context and remained unreachable. No external style-library evidence is claimed; the limitation remains in UI-013.
