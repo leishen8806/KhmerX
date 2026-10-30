@@ -1,0 +1,12 @@
+Local command (environment variables were not committed):
+PAYEASE_AUTH_MODE=demo KHMERX_TEST_MODE=true node scripts/run-framework.mjs dev --host 127.0.0.1 --port 5174
+
+Playwright same-context navigation:
+GET /signin-with-chatgpt?return_to=/h5 -> HTTP 302, Location: /h5
+GET /api/h5/auth -> HTTP 500
+GET /h5 -> HTTP 200
+
+The page rendered an error state with a request ID and no input controls. The local dev log identified:
+D1_ERROR: no such table: h5_browser_tokens (SQLITE_ERROR)
+
+No cookie values or secrets are recorded. See round5-signin-results.json and round5-auth-response evidence.

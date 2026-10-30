@@ -1,0 +1,21 @@
+{
+  "logs": [
+    {
+      "status": 302,
+      "url": "http://localhost:5174/signin-with-chatgpt?return_to=/h5",
+      "location": "/h5"
+    },
+    {
+      "status": 500,
+      "url": "http://localhost:5174/api/h5/auth",
+      "location": null
+    },
+    {
+      "status": 500,
+      "url": "http://localhost:5174/api/h5/auth",
+      "location": null
+    }
+  ],
+  "finalUrl": "http://localhost:5174/h5",
+  "h5Inputs": 0
+}
