@@ -2,7 +2,7 @@
 
 ## 范围与证据边界
 
-基线为 `origin/main` `0a87273`。样式库 URL 在本轮可访问（HTTP 200），但未将线上样式库内容复制进仓库；未连接生产，未使用真实客户资料。由于本机没有 Flutter SDK/可用浏览器启动数据，本报告把截图和动态 axe 结果标记为未覆盖，不用推测替代证据。
+基线为 `origin/main` `0a87273`。本轮只读审核使用本地合成/空会话数据，不连接生产、不使用真实客户资料、不改产品代码。截图脚本为 `scripts/audit/ui-audit-round2.mjs`，每次导航等待 `networkidle` 后再额外等待 1 秒，并记录页面正文摘要；由于该工作树没有 Playwright 依赖，脚本已提交但本轮未能启动，因此既有 PNG 仅作为历史证据，不把加载态误报为完整流程覆盖。
 
 ## 总体结论与评分
 
@@ -16,7 +16,7 @@
 
 ## 设计依据冲突
 
-未发现可由静态仓库证据确认的硬冲突。样式库 v1 优先级最高；README 与 `docs/crm-*` 对后台布局的 page size/菜单细节可能随版本演进，需在动态复核时记录最终采用出处。
+样式库 URL 在同一网络上下文重试仍为 `ERR_NAME_NOT_RESOLVED`（原始日志见 `style-library-error-20261029.txt`），因此本轮不声称取得外部样式库对照。README 中的 #1677FF/#172033/#667085、48px、16px 圆角作为待核对基线，偏离值见 `css-token-deviations-20261029.csv`。
 
 ## 前十问题（本轮可证实/可复核）
 
@@ -41,7 +41,11 @@
 
 ## 交付限制
 
-本轮未提交截图：本机缺少可用 Flutter SDK，且未启动带合成数据的浏览器环境；因此动态布局、主题、多语言、axe 均明确标为未覆盖。整改卡仅在本报告附录，不改产品代码。
+本轮不把历史加载态 PNG 解释为流程完成证据。产品源码未发现 `prefers-color-scheme`/主题切换实现，故深色模式按“产品未提供可验证支持”记录；删除了与浅色图字节重复的 `contract-375-dark.png`、`h5-375-dark.png`，避免重复证据。KYC、借款、账单、合同的合成数据全流程（含补件/已通过）仍列入未覆盖清单，不能以加载态替代。
+
+## 第二轮真实页面截图
+
+使用 `scripts/audit/ui-audit-round2.mjs`，对每个页面执行 `goto(..., waitUntil: 'networkidle')` 后再等待 1 秒，并写入 `round2-capture-results.json`。本轮新增/覆盖 15 张截图（H5 登录、首页、KYC、合同与官网，375/768/1440）。H5 各路由稳定显示“Your session has expired”，因此这是已加载完成的未登录态，不冒充已登录业务流程；官网三宽度均加载完成并记录了英文/高棉语主体文字。深色模式经源码和实际页面核对没有可验证样式支持，报告为产品不支持，不保留伪深色截图。375px zh/km 历史文件保留但未证明 locale 参数已真正切换完整业务主体文字，仍列入 UI-010 未覆盖。
 
 ## 第一轮返工证据（H5 / 官网）
 
@@ -52,7 +56,7 @@
 - 官网静态页未能由本地应用路由直接挂载；其源码已纳入 token/术语静态审计，动态截图列入未覆盖清单。
 - 官网静态 `khmerx-website/index.html` 已通过 `file://` 本地只读方式生成 375/768/1440px 浅色截图，文件名为 `website-375-light.png`、`website-768-light.png`、`website-1440-light.png`。
 
-具体观察：375px KYC 页面仍保留固定头部与底部导航间距，未见横向滚动；1440px 页面内容区保持居中并留出宽边距。H5 登录页在源码中明确暴露“测试模式/模拟验证码”文案（`app/h5/login.tsx:61-66`），该文案不应出现在生产环境。
+具体观察：历史 375px KYC PNG 是英文加载/截断状态，不能支持“全流程无横向滚动”的强结论；1440px 图仅能支持静态视口存在。H5 登录页在源码中明确暴露“测试模式/模拟验证码”文案（`app/h5/login.tsx:61-66`），该文案不应出现在生产环境。375px zh/km 文件分别保留，但页面主体文字未达到完整语言切换验收，转入未覆盖清单。
 
 ## 令牌与术语证据
 
@@ -60,15 +64,15 @@
 
 ## axe 无障碍检查
 
-已尝试使用 `npx @axe-core/cli http://localhost:5173/h5`。工具实际失败，原文为：`This version of ChromeDriver only supports Chrome version 152. Current browser version is 156.0.8078.48`。因此 axe 结果仍标记未覆盖，未伪造通过结论；后续应使用匹配 ChromeDriver 在 CI/SDK 机补跑。
+已尝试使用 `TMPDIR=/private/tmp npx @axe-core/cli http://127.0.0.1:5173/h5`，在 axe 执行前因 ChromeDriver 152/Chrome 156 不匹配失败；原始错误保存在 `docs/reviews/ui-design-diff-20261029/axe-error-20261029.txt`。因此本轮没有 axe PASS、对比度或触控目标实测数值，必须在匹配浏览器环境补跑。
 
 ## 样式库对比
 
-样式库地址在 `curl`/Chromium 环境中实际不可用：curl 返回 HTTP 000，Chromium 原文为 `Page load failed: net::ERR_NAME_NOT_RESOLVED`。因此无法取得样式库组件截图；按钮、输入框、卡片、底部导航、步骤条的并排差异已明确列入未覆盖清单，不将不可达页面臆造为视觉规范。
+样式库地址 `https://ant.design/components/overview/` 在同一网络上下文重试：curl HTTP 000，Chromium 原文 `Page load failed: net::ERR_NAME_NOT_RESOLVED`。原始命令、时间和错误见 `style-library-error-20261029.txt`。按钮、输入框、卡片、底部导航、步骤条的并排差异列入 UI-013 未覆盖清单，不将不可达页面臆造为视觉规范。
 
 ## 全量门禁（`TMPDIR=/private/tmp`）
 
 - `npm test`：496 tests，479 passed，0 failed（其余为 skip/todo）。
 - `npm run typecheck`：通过。
 - `npm run build:separated`：通过，`dist-separated` 生成且 `leaks: 0`。
-- `npx eslint . --format compact`：执行完成；输出仅为现有运行时日志，无 lint error 汇总。
+- `npx eslint . --format compact`：当前 ESLint 未内置 compact formatter（命令返回 2）；改用 JSON formatter 完整扫描，结果为 780 files、42 errors、33425 warnings（既有基线与本轮文档脚本均未宣称 lint PASS）。

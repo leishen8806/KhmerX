@@ -1,0 +1,12 @@
+类别,规范基线,实际值,位置,偏离说明
+color,#1677FF,#0d6efd,app/globals.css:18,品牌主色未与规范统一
+color,#1677FF,#172033,app/globals.css:19,文本色与品牌色混用
+color,#172033,#344054,app/globals.css:22,正文色偏离规范
+color,#667085,#98A2B3,app/globals.css:23,辅助文本色偏离规范
+font-size,16px,14px,app/globals.css:74,正文最小字号偏小
+font-size,16px,12px,app/globals.css:81,辅助文字偏小
+border-radius,16px,8px,app/globals.css:101,卡片圆角偏小
+border-radius,16px,4px,app/globals.css:116,输入控件圆角偏小
+spacing,16px,12px,app/globals.css:132,组件间距偏小
+spacing,16px,24px,app/globals.css:145,区块间距不一致
+box-shadow,none,0 2px 8px rgba(0,0,0,.08),app/globals.css:158,存在未在规范中确认的阴影

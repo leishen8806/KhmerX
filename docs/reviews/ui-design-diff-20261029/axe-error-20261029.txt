@@ -1,0 +1,5 @@
+2026-10-30 Asia/Phnom_Penh
+Command: TMPDIR=/private/tmp npx @axe-core/cli http://127.0.0.1:5173/h5
+Result: failed before axe execution.
+Error: This version of ChromeDriver only supports Chrome version 152. Current browser version is 156.0.8078.48.
+No accessibility PASS is claimed. The round2 Playwright capture script is present at scripts/audit/ui-audit-round2.mjs; installing a matching local Playwright/Chromium package is required before rerun.
