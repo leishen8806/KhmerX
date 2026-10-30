@@ -1,0 +1,31 @@
+{
+  "base": "http://localhost:5174",
+  "config": {
+    "PAYEASE_AUTH_MODE": "demo",
+    "KHMERX_TEST_MODE": "true",
+    "entry": "/h5",
+    "port": 5174
+  },
+  "status": "blocked",
+  "steps": [
+    {
+      "step": "open-h5",
+      "status": "loaded",
+      "url": "http://localhost:5174/h5",
+      "body": "Your session has expired. Sign in again."
+    },
+    {
+      "step": "demo-login",
+      "status": "blocked",
+      "inputCount": 0,
+      "reason": "No login inputs rendered despite local demo environment variables"
+    },
+    {
+      "step": "api-h5-auth",
+      "status": 401,
+      "bodyFile": "round4-auth-response.txt"
+    }
+  ],
+  "screenshots": ["round4-login.png"],
+  "startupLogEvidence": "vinext dev on localhost:5174; GET /api/h5/auth returned 401"
+}

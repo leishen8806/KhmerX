@@ -1,0 +1,17 @@
+HTTP/1.1 401 Unauthorized
+vary: RSC, Next-Router-State-Tree, Next-Router-Prefetch, Next-Router-Segment-Prefetch, Next-Url, X-Vinext-Interception-Context, X-Vinext-Mounted-Slots, X-Vinext-Rsc-Render-Mode
+cache-control: no-store
+content-security-policy: default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' https://telegram.org 'unsafe-inline' 'unsafe-eval'; connect-src 'self' https://*.khmerx.org https://api.telegram.org https://gatewayapi.telegram.org
+content-type: application/json
+permissions-policy: camera=(self), geolocation=(self), microphone=(self), payment=()
+pragma: no-cache
+referrer-policy: strict-origin-when-cross-origin
+strict-transport-security: max-age=31536000; includeSubDomains
+transfer-encoding: chunked
+x-content-type-options: nosniff
+x-frame-options: DENY
+x-request-id: d20bb3b4-5663-436c-ba97-6e5644e93f10
+Date: Fri, 30 Oct 2026 04:06:24 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
