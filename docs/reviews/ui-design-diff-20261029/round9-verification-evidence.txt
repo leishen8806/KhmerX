@@ -1,0 +1,9 @@
+Local demo flow in one dev run with fresh ignored .env/.dev.vars (deleted after run):
+- /signin-with-chatgpt?return_to=/h5 -> HTTP 302, Location /h5.
+- /api/h5/auth -> HTTP 200 after local workspace sign-in.
+- +12025550133 -> account setup; /api/h5/auth/send -> HTTP 200; UI showed simulated code 123456.
+- POST /api/h5/auth/verify -> HTTP 200; response code field absent, session authenticated=true, mode=demo, verificationCompleted=true.
+- After verification, password setup completed with local-only test password; /h5 reached Home and showed maximum amount $500 and Complete KYC prompt.
+
+Screenshots captured after full page load: round9-phone.png, round9-code.png, round9-after-verify.png, round9-password.png.
+The browser run ended after reaching Home; no claim is made for KYC/review/loan/bill/contract screenshots because those steps were not completed in the same captured run. No cookies or secrets are recorded.
