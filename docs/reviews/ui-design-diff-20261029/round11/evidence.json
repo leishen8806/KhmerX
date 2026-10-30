@@ -1,0 +1,33 @@
+[
+  {
+    "name": "01-home",
+    "url": "http://localhost:5174/h5",
+    "body": "Home\n\nHello, +120 •••• 0141\n\nSimple finance for everyday life.\nMaximum available amount\n$500\n\nChoose 14 or 28 days · full costs shown before signing\n\nComplete identity information\nComplete KYC to start borrowing\nPrepare your ID, work and payout-account information. Complete it in steps and save at a"
+  },
+  {
+    "step": "home",
+    "status": 200
+  },
+  {
+    "name": "02-kyc",
+    "url": "http://localhost:5174/h5/kyc",
+    "body": "KYC verification\nThe service is temporarily unavailable. (Request ID: d4787140-f9f0-410a-b184-da0ed749d340)\nRetry\nSign in with phone\nHome\nLoan records\nMy account"
+  },
+  {
+    "step": "kyc",
+    "status": 200,
+    "inputs": 0,
+    "buttons": [
+      "",
+      "",
+      "",
+      "KhmerXPAYEASE",
+      "Back to my loans",
+      "Retry",
+      "Sign in with phone",
+      "Home",
+      "Loan records",
+      "My account"
+    ]
+  }
+]
