@@ -1,0 +1,156 @@
+{
+  "base": "http://localhost:5174",
+  "from": "login",
+  "steps": [
+    {
+      "name": "01-signin",
+      "status": "loaded",
+      "url": "http://localhost:5174/h5",
+      "body": "PayEase\n注册 / 登录\n\n输入手机号继续，新用户自动创建账号。仅需完成当前渠道开启的账号设置。\n\n手机号（含国家区号）\n继续\n其他登录方式与账号找回\n\n客户账号 · 测试资金\n\n🇬🇧 English\n🇰🇭 Khmer",
+      "httpStatus": 200
+    },
+    {
+      "name": "02-verify",
+      "status": "flow-error",
+      "url": "http://localhost:5174/h5",
+      "body": "PayEase\n验证手机号\n\nToo many attempts. Please try again later. Try again in 60 seconds.\n\n当前为测试模式，支持任意格式正确的手机号（含国家区号），验证码统一为 123456，不会发送 Telegram 消息，也不验证手机号归属。\n\n手机号（含国家区号）\n同意接收本次验证码\n获取验证码\n使用密码登录\n返回注册 / 登录\n\n客户账号 · 测试资金\n\n🇬🇧 English\n🇰🇭 Khmer",
+      "error": "Error: locator.fill: Error: strict mode violation: locator('input') resolved to 2 elements:\n    1) <input type=\"tel\" required=\"\" maxlength=\"32\" data-slot=\"input\" autocomplete=\"tel\" placeholder=\"+855…\" value=\"+12025550140\" class=\"h-9 w-full "
+    },
+    {
+      "name": "03-home",
+      "status": "duplicate-skipped",
+      "url": "http://localhost:5174/h5",
+      "duplicateOf": "01-signin.jpg",
+      "httpStatus": 200
+    },
+    {
+      "name": "04-kyc",
+      "status": "loaded",
+      "url": "http://localhost:5174/kyc",
+      "body": "KhmerX\nBack to my loans\n\nPAYEASE / KYC\n\nComplete identity and work information\n\nComplete step by step and save a draft. After submission, the record is locked; returned cases can be edited.\n\nYour session has expired. Sign in again.\nRetry\nSign in with phone",
+      "httpStatus": 200
+    },
+    {
+      "name": "05-team",
+      "status": "loaded",
+      "url": "http://localhost:5174/team",
+      "body": "今日概览\n🇨🇳\n⌄\nAD\n切换公司\n返回公司选择\n员工登录\n\n请由公司 Admin 创建员工并设置权限。若需更换员工身份，请先退出登录，再使用员工邮箱和密码登录。\n\n客户公司入口\n公司入口代码\n进入公司客户登录",
+      "httpStatus": 200
+    },
+    {
+      "name": "06-review",
+      "status": "loaded",
+      "url": "http://localhost:5174/team/kyc?view=KYC%20%E5%AE%A1%E6%A0%B8%E9%98%9F%E5%88%97",
+      "body": "今日概览\n今日概览\n🇨🇳\n⌄\nAD\n切换公司\n返回公司选择\n员工登录\n\n请由公司 Admin 创建员工并设置权限。若需更换员工身份，请先退出登录，再使用员工邮箱和密码登录。\n\n客户公司入口\n公司入口代码\n进入公司客户登录",
+      "httpStatus": 200
+    },
+    {
+      "name": "07-loan",
+      "status": "loaded",
+      "url": "http://localhost:5174/agreements/loan",
+      "body": "KhmerX\n返回资料填写\n\nPAYEASE / 借款协议\n\n借款协议\n\n一般条款及条件\n\n测试环境 · 协议阅读\n\n以下为《借款条款-中文版》原文。原文所述“特别典当票据”未包含在本页面内。当前为测试资金流程，阅读与勾选仅用于流程验收，不产生真实借贷合同。\n\n条款目录\n1. 借款协议的订立\n2. 定义\n3. 贷款金额及利率\n4. 贷款期限\n5. 担保权的设立\n6. 逾期还款罚金\n7. 付款\n8. 陈述与保证\n9. 违约事件\n10. 通知\n11. 信息披露\n12. 转让\n13. 电子签名的使用\n14. 其他条款\n1. 借款协议的订立\n\nKhmarX 的本一般条款及条件（以下简称“一般条款及条件",
+      "httpStatus": 200
+    },
+    {
+      "name": "08-contract",
+      "status": "loaded",
+      "url": "http://localhost:5174/contract",
+      "body": "返回 KYC\n我的贷款\n借款测试合同\n\n测试资金流程，不产生真实借贷债务。合同由客户保存手写签名时生成；审批通过后进入待放款。\n\n申请不存在",
+      "httpStatus": 200
+    },
+    {
+      "name": "09-h5-zh",
+      "status": "locale-switched",
+      "url": "http://localhost:5174/h5?lang=zh",
+      "body": "PayEase\n注册 / 登录\n\n输入手机号继续，新用户自动创建账号。仅需完成当前渠道开启的账号设置。\n\n手机号（含国家区号）\n继续\n其他登录方式与账号找回\n\n客户账号 · 测试资金\n\n🇨🇳 中文\n🇰🇭 Khmer"
+    },
+    {
+      "name": "10-h5-km",
+      "status": "locale-switched",
+      "url": "http://localhost:5174/h5?lang=zh",
+      "body": "PayEase\nចូល / ចុះឈ្មោះ\n\n输入手机号继续，新用户自动创建账号。仅需完成当前渠道开启的账号设置。\n\nលេខទូរស័ព្ទ (មានលេខប្រទេស)\n继续\nជម្រើសចូល និងស្តារគណនីផ្សេងទៀត\n\nគណនីអតិថិជន · 测试资金\n\n🇬🇧 English\n🇰🇭 ភាសាខ្មែរ"
+    },
+    {
+      "name": "11-home-1440",
+      "status": "loaded",
+      "url": "http://localhost:5174/h5",
+      "body": "PayEase\n注册 / 登录\n\n输入手机号继续，新用户自动创建账号。仅需完成当前渠道开启的账号设置。\n\n手机号（含国家区号）\n继续\n其他登录方式与账号找回\n\n客户账号 · 测试资金\n\n🇬🇧 English\n🇰🇭 ភាសាខ្មែរ",
+      "httpStatus": 200
+    },
+    {
+      "name": "12-team-1440",
+      "status": "loaded",
+      "url": "http://localhost:5174/team",
+      "body": "今日概览\n🇨🇳\n中文\n⌄\nAD\n⌄\n切换公司\n返回公司选择\n员工登录\n\n请由公司 Admin 创建员工并设置权限。若需更换员工身份，请先退出登录，再使用员工邮箱和密码登录。\n\n客户公司入口\n公司入口代码\n进入公司客户登录",
+      "httpStatus": 200
+    }
+  ],
+  "screenshots": [
+    {
+      "name": "01-signin.jpg",
+      "status": "loaded",
+      "url": "http://localhost:5174/h5",
+      "md5": "1202d5594dcc3017644814db2e5d8ba2"
+    },
+    {
+      "name": "02-verify.jpg",
+      "status": "flow-error",
+      "url": "http://localhost:5174/h5",
+      "md5": "a8ce5f05eee929eba59962473e9cb3db"
+    },
+    {
+      "name": "04-kyc.jpg",
+      "status": "loaded",
+      "url": "http://localhost:5174/kyc",
+      "md5": "a225e03939f54934e245c07b649a5544"
+    },
+    {
+      "name": "05-team.jpg",
+      "status": "loaded",
+      "url": "http://localhost:5174/team",
+      "md5": "90cd7e842aead49d527f0aab22da7e28"
+    },
+    {
+      "name": "06-review.jpg",
+      "status": "loaded",
+      "url": "http://localhost:5174/team/kyc?view=KYC%20%E5%AE%A1%E6%A0%B8%E9%98%9F%E5%88%97",
+      "md5": "ea1a3cec9256749b74471858eb3d088e"
+    },
+    {
+      "name": "07-loan.jpg",
+      "status": "loaded",
+      "url": "http://localhost:5174/agreements/loan",
+      "md5": "d53b566352b80536d0fe325562b6ceac"
+    },
+    {
+      "name": "08-contract.jpg",
+      "status": "loaded",
+      "url": "http://localhost:5174/contract",
+      "md5": "20de3e1d8ac9355a26ab40dcc3e199c9"
+    },
+    {
+      "name": "09-h5-zh.jpg",
+      "status": "locale-switched",
+      "url": "http://localhost:5174/h5?lang=zh",
+      "md5": "ec7faf0c85e93c1451bb0d92bc438686"
+    },
+    {
+      "name": "10-h5-km.jpg",
+      "status": "locale-switched",
+      "url": "http://localhost:5174/h5?lang=zh",
+      "md5": "23ea925204e062f054b963682f2cfc43"
+    },
+    {
+      "name": "11-home-1440.jpg",
+      "status": "loaded",
+      "url": "http://localhost:5174/h5",
+      "md5": "b592b656cd63a64c097b7dc9ada36d68"
+    },
+    {
+      "name": "12-team-1440.jpg",
+      "status": "loaded",
+      "url": "http://localhost:5174/team",
+      "md5": "bf281d2f40499779b9eccc7c4afc37f9"
+    }
+  ]
+}
