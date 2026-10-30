@@ -1,0 +1,9 @@
+Local-only .env and .dev.vars were created with PAYEASE_AUTH_MODE=demo, KHMERX_TEST_MODE=true, and a newly generated random PAYEASE_AUTH_SECRET; both were deleted after the run and were not committed.
+
+Flow evidence at 375px:
+- /signin-with-chatgpt?return_to=/h5 -> 302 Location /h5; /api/h5/auth -> 200.
+- /h5 rendered phone input; +12025550128 account setup reached.
+- Phone verification screen rendered test-mode instructions; after checking consent, /api/h5/auth/send -> 200 and the UI displayed simulated code 123456.
+- Screenshots: round8-login.png, round8-phone.png, round8-new-phone.png, round8-code.png.
+
+The verification submit interaction did not complete within the local browser run, so no KYC/review/loan/bill/contract state is claimed. No production or remote database access was used.
