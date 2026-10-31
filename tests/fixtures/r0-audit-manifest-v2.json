@@ -1,0 +1,39 @@
+{
+  "secret": "synthetic-audit-integrity-secret-0123456789",
+  "scenarios": [
+    {
+      "name": "same-millisecond",
+      "rows": [
+        ["a-001", "reviewer-a", "kyc_material_read", "{\"slot\":\"idFront\"}", "2026-10-27T01:00:00.010Z"],
+        ["a-002", "reviewer-a", "kyc_material_read", "{\"slot\":\"idBack\"}", "2026-10-27T01:00:00.010Z"]
+      ],
+      "expected": {"match": true, "tampered": false, "appendedRows": 0}
+    },
+    {
+      "name": "earlier-timestamp-write",
+      "manifestCount": 2,
+      "rows": [
+        ["b-001", "reviewer-a", "kyc_material_read", "{\"slot\":\"idFront\"}", "2026-10-27T01:00:00.010Z"],
+        ["b-002", "reviewer-a", "kyc_material_read", "{\"slot\":\"idBack\"}", "2026-10-27T01:00:00.011Z"],
+        ["b-000", "reviewer-a", "kyc_material_read", "{\"slot\":\"selfie\"}", "2026-10-27T01:00:00.009Z"]
+      ],
+      "expected": {"match": false, "tampered": true, "appendedRows": 1}
+    },
+    {
+      "name": "edit",
+      "rows": [["c-001", "reviewer-a", "kyc_material_read", "{\"slot\":\"idFront\"}", "2026-10-27T01:00:00.010Z"]],
+      "editedDetail": "{\"slot\":\"idBack\"}",
+      "expected": {"match": false, "tampered": true, "appendedRows": 0}
+    },
+    {
+      "name": "delete",
+      "manifestCount": 2,
+      "rows": [
+        ["d-001", "reviewer-a", "kyc_material_read", "{\"slot\":\"idFront\"}", "2026-10-27T01:00:00.010Z"],
+        ["d-002", "reviewer-a", "kyc_material_read", "{\"slot\":\"idBack\"}", "2026-10-27T01:00:00.011Z"]
+      ],
+      "deleteIndex": 1,
+      "expected": {"match": false, "tampered": true, "appendedRows": -1}
+    }
+  ]
+}
