@@ -20,7 +20,7 @@ node /private/tmp/pw-run/pr152shots.mjs
 |---|---|
 | `kyc-status-375-en-approved.png` | `029e4c56e437078a5389884d81daf17add23076c7f6476c714abd0aa48b3d9fa` |
 | `kyc-status-375-km-approved.png` | `f4244b436422d676d8f9fa3a5c25627f0912d537f0041a3052fc020cc8b91462` |
-| `kyc-status-375-zh-needs-info.png` | `d8a381638ac3ab372e71e863c5d648a5b92ed91898fcf4f0d89172365500d668f9` |
+| `kyc-status-375-zh-needs-info.png` | `d8a381638ac3ab372e71e863c5d648a5b92ed91898fcf4f0d89172365500d668f9f3` |
 
 ## 第三轮门禁证据
 
