@@ -39,7 +39,7 @@ export default function CustomerKyc({review=false,mini=false,initialSection}:{re
  function closePreview(){previewDialog.current?.close();setPreview(null);previewTrigger.current?.focus()}
  useEffect(()=>{if(!preview)return;const dialog=previewDialog.current;if(dialog){dialog.removeAttribute('open');dialog.showModal()}},[preview]);
  const localLabel=(text:string)=>review?text:kycText(text,locale);
- const reviewDecisionLabel=(decision:string)=>decision==='approved'?(locale==='zh'?'人工资料审核通过':locale==='km'?'KYC បានអនុម័ត':'Manual review passed'):decision==='needs_info'?(locale==='zh'?'待补件':locale==='km'?'ត្រូវបន្ថែមព័ត៌មាន':'More information needed'):decision==='rejected'?(locale==='zh'?'资料审核未通过':locale==='km'?'资料审核មិនបានអនុម័ត':'Review not approved'):'';
+ const reviewDecisionLabel=(decision:string)=>decision==='approved'?kycText('人工资料审核通过',locale):decision==='needs_info'?kycText('待补件',locale):decision==='rejected'?kycText('资料审核未通过',locale):'';
  const stamp=(value:string)=>kycDate(value,review?'zh':locale);
  const [amending,setAmending]=useState(false);
  const sensitiveEdits=useRef<Record<string,{masked:boolean;dirty:boolean;revealToken:string}>>({});
