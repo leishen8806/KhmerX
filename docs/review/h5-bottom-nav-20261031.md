@@ -14,3 +14,7 @@ The authenticated home screenshots show the bottom navigation flush with the vie
 | [error-km.png](assets/h5-bottom-nav-20261031/error-km.png) | `05d0bc14e69cc1cbf93e710e9b2c1ac915af74392c0c8cec7e0f8e02806155da` |
 
 All captures are `390x844` PNGs. Verified error copy: zh `网络连接失败，请检查网络后重试` / `重新加载`; en `Network connection failed. Check your connection and try again` / `Reload`; km `ការតភ្ជាប់បណ្តាញបានបរាជ័យ សូមពិនិត្យបណ្តាញ ហើយព្យាយាមម្តងទៀត` / `ផ្ទុកឡើងវិញ`.
+
+## 后续
+
+登录页右上角的语言切换命名仍需统一：英文状态显示 `English / Khmer`，高棉语状态显示 `English / ភាសាខ្មែរ`，历史截图还出现过 `中文 / Khmer`。后续 UI 修复应统一列出三种语言名称：`中文 / English / ភាសាខ្មែរ`，并高亮当前语言。
