@@ -304,3 +304,8 @@ body:has(.mini-app) .auth-locale{display:none}
 .mini-app[lang=km] .customer-kyc .kyc-group-copy small{flex:0 0 auto}
 .mini-app[lang=km] .customer-kyc .kyc-group-copy em{position:static;transform:none;width:100%;margin-left:0;white-space:normal}
 .mini-app .customer-primary-link{background:#1677ff;color:#fff;white-space:normal;overflow-wrap:anywhere;text-align:center;line-height:1.35}
+
+/* Keep the H5 tab bar anchored to the viewport and reserve its full safe-area height. */
+.mini-app{padding-bottom:calc(88px + env(safe-area-inset-bottom))}
+.mini-app .mini-content{padding-bottom:calc(28px + env(safe-area-inset-bottom))}
+.mini-app .mini-bottom{position:fixed;left:0;right:0;bottom:0;width:100%;max-width:480px;margin:0 auto;transform:none;box-sizing:border-box;min-height:68px;padding:10px 12px max(10px,env(safe-area-inset-bottom));z-index:30}

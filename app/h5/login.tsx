@@ -9,6 +9,7 @@ import {MiniClient} from '@/components/mini-client';
 import {MiniNavigationProvider} from '@/components/mini-shell';
 import {MiniRouteLoading} from '@/components/mini-route-loading';
 import {apiFetch,ApiClientError} from '@/lib/api-client';
+import type {Locale} from '@/lib/i18n';
 type Session={phoneMasked:string;mode:'demo'|'telegram';expiresAt:number;phoneVerified?:boolean;verificationCompleted?:boolean;hasPassword?:boolean};
 type Challenge={challengeId:string;expiresAt:number;retryAt:number;demoCode?:string;phoneMasked:string};
 export default function H5Login(){
@@ -17,7 +18,10 @@ export default function H5Login(){
  const [policy,setPolicy]=useState({phoneVerification:true,passwordSetup:true});
  const [ready,setReady]=useState(false),[company,setCompany]=useState(''),[mode,setMode]=useState('demo'),[session,setSession]=useState<Session|null>(null),[view,setView]=useState('register'),[phone,setPhone]=useState('+855'),[password,setPassword]=useState(''),[confirm,setConfirm]=useState(''),[currentPassword,setCurrentPassword]=useState(''),[code,setCode]=useState(''),[challenge,setChallenge]=useState<Challenge|null>(null),[consent,setConsent]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [miniScreen,setMiniScreen]=useState(screen),[miniQuery,setMiniQuery]=useState(()=>typeof window==='undefined'?'':window.location.search);
+ const [authLocale,setAuthLocale]=useState<Locale>(()=>{if(typeof window==='undefined')return 'en';const saved=(window as any).localStorage?.getItem?.('payease-auth-language');return saved==='zh'||saved==='km'||saved==='en'?saved:'en'});
+ const reloadLabel=authLocale==='zh'?'重新加载':authLocale==='km'?'ផ្ទុកឡើងវិញ':'Reload';
  useEffect(()=>{setMiniScreen(screen);setMiniQuery(window.location.search)},[screen]);
+ useEffect(()=>{const apply=(next:unknown)=>{if(next==='zh'||next==='km'||next==='en')setAuthLocale(next)};const onStorage=(event:StorageEvent)=>{if(event.key==='payease-auth-language')apply(event.newValue)};const onLanguage=(event:Event)=>apply((event as CustomEvent).detail);window.addEventListener('storage',onStorage);window.addEventListener('payease-auth-language-change',onLanguage);return()=>{window.removeEventListener('storage',onStorage);window.removeEventListener('payease-auth-language-change',onLanguage)}},[]);
  const navigateMini=(href:string)=>{const target=new URL(href,window.location.origin);const parts=target.pathname.split('/').filter(Boolean);const nextScreen=parts[0]==='h5'?(parts[1]||'home'):'home';setMiniScreen(nextScreen);setMiniQuery(target.search)};
  const complete=(s:Session|null,p:{phoneVerification:boolean;passwordSetup:boolean})=>!!s&&(!p.phoneVerification||!!s.verificationCompleted)&&(!p.passwordSetup||!!s.hasPassword);
  const telegramInitData=()=>{
@@ -52,7 +56,7 @@ export default function H5Login(){
  const send=()=>run(async()=>{const d=await post('send',{phone,consent});setChallenge(d);setCode('')});
  const verify=()=>run(async()=>{const d=await post('verify',{challengeId:challenge?.challengeId,code});setSession(d.session);const latest=await load();navigate(complete(latest.session,latest.policy)?'workspace':'security');setNotice(d.session.phoneVerified?'手机号验证成功':'模拟验证完成，手机号仍标记为未真实验证')});
  const savePassword=()=>run(async()=>{if(password!==confirm)throw Error('两次输入的密码不一致');await post('account',{action:'set_password',password,currentPassword});const latest=await load();navigate(complete(latest.session,latest.policy)?'workspace':'security');setNotice('密码已保存')});
- if(!ready)return error?<main className="h5-login mini-login"><section className="h5-login-card"><p className="error" role="alert">{error}</p><Button onClick={()=>window.location.reload()}>重新加载</Button></section></main>:<MiniRouteLoading/>;
+ if(!ready)return error?<main className="h5-login mini-login"><section className="h5-login-card"><p className="error" role="alert">{error}</p><Button onClick={()=>window.location.reload()}>{reloadLabel}</Button></section></main>:<MiniRouteLoading/>;
  if(session&&view==='workspace'&&complete(session,policy))return <MiniNavigationProvider navigate={navigateMini}><MiniClient screen={miniScreen==='login'?'home':miniScreen} queryString={miniQuery} phone={session.phoneMasked} company={company} busy={busy} onLogout={()=>void logout()} onSecurity={()=>navigate('security')}/></MiniNavigationProvider>;
 
  return <main className="h5-login mini-login"><header className="h5-header"><Link className="brand" href="/h5"><img className="brand-logo" src="/brand/khmerx-icon-v2.png" alt="KhmerX" width={72} height={72}/><span>PayEase</span></Link></header><div className="h5-login-grid"><section className="h5-login-card"><h1>{({register:'注册 / 登录',password:'密码登录',verify:'验证手机号',recovery:'找回密码',security:'完成账号设置',telegram:'Telegram 登录'} as any)[view]||'客户账号'}</h1>{error&&<p className="error" role="alert">{error}</p>}{notice&&<p className="success" role="status">{notice}</p>}
