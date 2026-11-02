@@ -6,16 +6,17 @@ type OperatorRowProps={
   title:ReactNode;
   secondary?:ReactNode;
   status?:ReactNode;
+  plainStatus?:boolean;
   meta?:ReactNode;
   actions?:ReactNode;
   children?:ReactNode;
   className?:string;
 };
 
-export function OperatorRow({title,secondary,status,meta,actions,children,className=''}:OperatorRowProps){
+export function OperatorRow({title,secondary,status,plainStatus=false,meta,actions,children,className=''}:OperatorRowProps){
   return <article className={`operator-row ${className}`.trim()}>
     <div className="operator-row-main">
-      <div className="operator-row-heading"><h3>{title}</h3>{status&&<span className="operator-row-status">{status}</span>}</div>
+      <div className="operator-row-heading"><h3>{title}</h3>{status&&<span className={plainStatus?'operator-row-status operator-row-status-plain':'operator-row-status'}>{status}</span>}</div>
       {secondary&&<p className="operator-row-secondary">{secondary}</p>}
       {meta&&<div className="operator-row-meta">{meta}</div>}
     </div>
