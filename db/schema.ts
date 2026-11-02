@@ -1,4 +1,5 @@
-import {primaryKey,uniqueIndex,index,integer,sqliteTable,text,sql} from 'drizzle-orm/sqlite-core';
+import {sql} from 'drizzle-orm';
+import {primaryKey,uniqueIndex,index,integer,sqliteTable,text} from 'drizzle-orm/sqlite-core';
 export const workspaces=sqliteTable('demo_workspaces',{owner:text('owner').primaryKey(),revision:integer('revision').notNull().default(0),payload:text('payload').notNull()});
 export const h5Challenges=sqliteTable('h5_challenges',{
  purpose:text('purpose').notNull().default('login'),id:text('id').primaryKey(),owner:text('owner').notNull(),phoneKey:text('phone_key').notNull(),phoneMask:text('phone_mask').notNull(),mode:text('mode').notNull(),codeHash:text('code_hash'),providerRequest:text('provider_request'),browserHash:text('browser_hash').notNull(),createdAt:integer('created_at').notNull(),expiresAt:integer('expires_at').notNull(),attempts:integer('attempts').notNull().default(0),consumed:integer('consumed').notNull().default(0),status:text('status').notNull(),lockedUntil:integer('locked_until').notNull().default(0)
