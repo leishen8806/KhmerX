@@ -17,6 +17,7 @@ function client(fetch,initData=''){
  };
  const jsx=(type,props,key)=>({type,props,key});
  const mocks={react:hooks,'react/jsx-runtime':{jsx,jsxs:jsx},'next/link':{default:'Link'},'next/navigation':{usePathname:()=>path,useSearchParams:()=>new URLSearchParams(),useRouter:()=>({push:p=>routes.push(p),replace:p=>routes.push(p)})},'@/components/ui/button':{Button:'Button'},'@/components/ui/input':{Input:'Input'},'@/components/password-recovery':{PasswordRecovery:'Recovery'},'@/components/mini-client':{MiniClient:'MiniClient'},'@/components/mini-shell':{MiniNavigationProvider:'MiniNavigationProvider'},'@/components/mini-route-loading':{MiniRouteLoading:'Loading'},'@/lib/api-client':{apiFetch:async(url,init)=>{const result=await fetch(url,init);const data=await result.json();if(!result.ok)throw Object.assign(Error(data.error||'request failed'),{status:result.status,code:data.code});return {data,response:result,requestId:data.requestId}}}};
+ mocks['@/components/auth-locale']={AuthLocaleBridge:()=>null};
  const exports={};
  const source=readFileSync(new URL('../app/h5/login.tsx',import.meta.url),'utf8');
  const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
