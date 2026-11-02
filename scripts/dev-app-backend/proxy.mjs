@@ -27,9 +27,10 @@ http
     headers.cookie = cookie;
 
     // Test-mode synthetic identity (mirrors deploy/standalone/server.mjs).
-    const id = randomUUID();
-    headers['oai-authenticated-user-id'] = 'visitor:' + id;
-    headers['oai-authenticated-user-email'] = id + '@visitor.invalid';
+    const localDemoIdentity = process.env.KHMERX_TEST_MODE === 'true' && process.env.DEV_TEAM_LOCALHOST === 'true';
+    const id = localDemoIdentity && process.env.DEV_TEAM_USER_ID ? process.env.DEV_TEAM_USER_ID : ('visitor:' + randomUUID());
+    headers['oai-authenticated-user-id'] = id;
+    headers['oai-authenticated-user-email'] = localDemoIdentity && process.env.DEV_TEAM_USER_EMAIL ? process.env.DEV_TEAM_USER_EMAIL : (id + '@visitor.invalid');
 
     // sameOrigin() checks Origin === new URL(request.url).origin, and the worker
     // derives request.url from the connection host. Rewrite both so they match the
