@@ -15,3 +15,9 @@ test('all team_audit writers include seq', () => {
   }
   assert.deepEqual(offenders, [], offenders.join('\n'));
 });
+
+test('audit writer guards are enum values, never interpolated SQL', () => {
+  const source = readFileSync('lib/team/audit-writer.ts', 'utf8');
+  assert.match(source, /type AuditWhere = 'always'\|'changed'\|'changed-positive'\|'tenant-exists'/);
+  assert.doesNotMatch(source, /WHERE \$\{where\}/);
+});

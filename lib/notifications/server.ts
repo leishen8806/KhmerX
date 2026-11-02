@@ -78,7 +78,7 @@ export async function retryNotificationDelivery(id:string){
  const now=new Date().toISOString();
  const result=await db().batch([
   db().prepare("UPDATE telegram_outbox SET status='retry',attempts=0,next_at=0,reason='管理员确认人工重试',updated_at=? WHERE id=? AND owner=? AND status IN ('failed','unknown')").bind(now,id,s.tenant.id),
-  auditInsertSql(db(),s.tenant.id,s.user.userId,'notification_delivery_manual_retry',{outboxId:id,loanId:delivery.loan_id,previousStatus:delivery.status,previousAttempts:delivery.attempts,at:now},undefined,'changes()=1',now)
+  auditInsertSql(db(),s.tenant.id,s.user.userId,'notification_delivery_manual_retry',{outboxId:id,loanId:delivery.loan_id,previousStatus:delivery.status,previousAttempts:delivery.attempts,at:now},undefined,'changed',now)
  ]);
  if(result[0].meta.changes!==1)throw new AuthError('通知状态已变化，请刷新后重试',409);
  return {ok:true,id,status:'retry'};

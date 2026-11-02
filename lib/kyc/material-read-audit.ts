@@ -16,6 +16,6 @@ async function sha256(value:string){const digest=await crypto.subtle.digest('SHA
 export async function auditMaterialRead(context:MaterialReadAuditContext,nowMs:number,db:AuditDb){
  validate(context,nowMs);const bucket=Math.floor(nowMs/30_000)*30_000,json=detailJson(context),createdAt=new Date(nowMs).toISOString();
  const id=await sha256(keyJson(context,bucket));
- const result=await auditInsertSql(db,context.tenantId,context.actorId,'kyc_material_read',JSON.parse(json),id,'1=1',createdAt).run();
+ const result=await auditInsertSql(db,context.tenantId,context.actorId,'kyc_material_read',JSON.parse(json),id,'always',createdAt).run();
  return {id,createdAt,bucket,inserted:Number(result.meta?.changes||0)===1};
 }

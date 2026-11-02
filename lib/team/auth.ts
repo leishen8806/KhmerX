@@ -76,7 +76,7 @@ export async function passwordLogin(p:any,siteUserId:string){
  const token=randomToken(),hash=await digest(token);
  const result=await db().batch([
   db().prepare(`INSERT INTO team_staff_sessions (token_hash,member_id,site_user_id,member_version,credential_version,expires_at) SELECT ?,id,?,?,?,? FROM team_members WHERE id=? AND version=? AND active=1 AND EXISTS(SELECT 1 FROM team_staff_credentials WHERE member_id=? AND version=?) AND EXISTS(SELECT 1 FROM team_companies WHERE id=? AND active=1)`).bind(hash,siteUserId,m.version,m.credential_version,now+8*3600000,m.id,m.version,m.id,m.credential_version,m.tenant_id),
-  auditInsertSql(db(),m.tenant_id,m.email,'staff_login',{member:m.id},undefined,'changes()=1')
+  auditInsertSql(db(),m.tenant_id,m.email,'staff_login',{member:m.id},undefined,'changed')
  ]);
  if(!result[0].meta.changes)throw new AuthError('账号权限已变化，请重试',409);
  return {token,companyId:m.tenant_id,portal:effective};
@@ -94,5 +94,5 @@ export async function completeMfaLogin(challenge:string,code:string,siteUserId:s
 export async function logoutStaff(raw:string|null){
  const token=value(raw,STAFF_SESSION);if(!token||!/^[a-f0-9]{64}$/.test(token))return;
  const hash=await digest(token);const row=await db().prepare('SELECT m.tenant_id,m.email,m.id FROM team_staff_sessions s JOIN team_members m ON m.id=s.member_id WHERE s.token_hash=?').bind(hash).first<any>();
- await db().batch([db().prepare('DELETE FROM team_staff_sessions WHERE token_hash=?').bind(hash),...(row?[auditInsertSql(db(),row.tenant_id,row.email,'staff_logout',{member:row.id},undefined,'changes()=1')]:[])]);
+ await db().batch([db().prepare('DELETE FROM team_staff_sessions WHERE token_hash=?').bind(hash),...(row?[auditInsertSql(db(),row.tenant_id,row.email,'staff_logout',{member:row.id},undefined,'changed')]:[])]);
 }

@@ -53,7 +53,7 @@ export async function configureBot(p:any){
  SELECT ?,?,?,?,?,?,?,1,? WHERE EXISTS (SELECT 1 FROM team_members WHERE id=? AND tenant_id=? AND active=1 AND role='admin' AND version=?)
  AND COALESCE((SELECT version FROM telegram_bot_credentials WHERE owner=? AND bot_id=?),0)=?
  ON CONFLICT(id) DO UPDATE SET label=excluded.label,username=excluded.username,token_encrypted=excluded.token_encrypted,version=telegram_bot_credentials.version+1,updated_at=excluded.updated_at`).bind(context(owner,botId),owner,botId,telegramId,label,username,encrypted,at,s.member.id,owner,s.member.version,owner,botId,old?.version||0),
- auditInsertSql(db(),owner,s.user.userId,'bot_token_configure',{botId,telegramId,label,username},undefined,'changes()=1',at)
+ auditInsertSql(db(),owner,s.user.userId,'bot_token_configure',{botId,telegramId,label,username},undefined,'changed',at)
  ]);if(!results[0].meta.changes)throw new AuthError('配置或管理权限已变化，请刷新后重试',409);
  return {ok:true,botId,label,username,configured:true};
 }

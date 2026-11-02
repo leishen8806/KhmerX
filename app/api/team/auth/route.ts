@@ -34,7 +34,7 @@ export async function POST(request:Request){try{requireOrigin(request);
      const now=new Date().toISOString();
      const claims=(stale.results||[]).flatMap((m:any)=>[
       db().prepare("UPDATE team_members SET user_id=?,version=version+1 WHERE id=? AND user_id=? AND active=1 AND role='admin'").bind(outer.userId,m.id,m.user_id),
-      auditInsertSql(m.tenant_id,email,'platform_admin_identity_rebind',{memberId:m.id,reason:'verified platform email re-authentication'},undefined,'1=1',now)
+      auditInsertSql(m.tenant_id,email,'platform_admin_identity_rebind',{memberId:m.id,reason:'verified platform email re-authentication'},undefined,'always',now)
      ]);
      await db().batch(claims);
      eligible=(stale.results||[]).map((m:any)=>({...m,user_id:outer.userId}));
@@ -53,7 +53,7 @@ export async function POST(request:Request){try{requireOrigin(request);
    const now=new Date().toISOString();
    const claimed=await db().batch([
     db().prepare("UPDATE team_members SET user_id=?,version=version+1 WHERE id=? AND user_id=? AND active=1").bind(outer.userId,match.id,match.user_id),
-    auditInsertSql(match.tenant_id,email,'platform_admin_bootstrap_bound',{memberId:match.id,siteUserId:outer.userId},undefined,'1=1',now)
+    auditInsertSql(match.tenant_id,email,'platform_admin_bootstrap_bound',{memberId:match.id,siteUserId:outer.userId},undefined,'always',now)
    ]);
    if(claimed[0].meta.changes!==1)throw new AuthError('管理员引导已被使用或已过期',409,'PLATFORM_BOOTSTRAP_EXPIRED');
   }
