@@ -8,6 +8,7 @@
 // 4. starts the gateway stand-in on :80 so the Android emulator reaches it at
 //    http://10.0.2.2  (the app's dev base URL)
 // Test funds only. No Telegram message is ever sent (demo mode returns the code).
+process.env.KHMERX_TEST_MODE = 'true';
 import { spawn } from 'node:child_process';
 import http from 'node:http';
 import { ROOT, MF_PORT, MF_ORIGIN } from './common.mjs';

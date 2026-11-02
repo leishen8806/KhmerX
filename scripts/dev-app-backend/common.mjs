@@ -16,14 +16,17 @@ export const PROXY_PORT = Number(process.env.APP_BACKEND_PORT || 80);
 export function openDevDb() {
   const dir = join(ROOT, '.wrangler', 'state', 'v3', 'd1', 'miniflare-D1DatabaseObject');
   if (!existsSync(dir)) throw new Error('No local D1 state yet. Start the harness once (scripts/dev-app-backend/start.mjs) so migrations run.');
+  let fallback;
   for (const f of readdirSync(dir)) {
     if (!f.endsWith('.sqlite') || f === 'metadata.sqlite') continue;
     const db = new DatabaseSync(join(dir, f));
     const has = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='team_companies'").get();
     if (has) return db;
-    db.close();
+    fallback = fallback || db;
+    if (fallback !== db) db.close();
   }
-  throw new Error('Local D1 has no team_companies table: the dev server has not applied migrations yet.');
+  if (fallback) return fallback;
+  throw new Error('Local D1 has no sqlite database: start the local worker once so migrations can be applied.');
 }
 
 export function readEnvLocal() {
