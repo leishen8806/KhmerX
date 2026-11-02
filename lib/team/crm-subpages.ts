@@ -28,5 +28,6 @@ const hiddenCrmViews=new Set(['客户 360° 详情','待补件']);
 descriptions['客户列表']='搜索客户，并在同一页面查看资料、KYC、贷款和业务时间线。';
 export const crmSubpages:CrmSubpage[]=Object.entries(groups).flatMap(([,group])=>group.items.filter(label=>!hiddenCrmViews.has(label)).map(label=>({label,queue:group.queue,view:label,description:descriptions[label]||'当前页面仅展示授权范围内的数据，并保留操作审计。'})));
 export const crmSubpageByView=Object.fromEntries(crmSubpages.map(page=>[page.view,page]));
+export const crmQueueDefaultViews:Record<string,string>={customers:'客户列表',reports:'客户漏斗',notifications:'通知发送记录',tickets:'客服工单',kyc:'KYC 审核队列',loans:'贷款申请',funding:'风控事件',repayment:'账单与还款',postloan:'贷后任务'};
 export function canonicalCrmView(view:string){return view==='客户 360° 详情'?'客户列表':view==='待补件'?'KYC 审核队列':view}
 export function crmSubpageHref(href:string,label:string){const target=href.startsWith('#')?'/team':href;if(label==='今日概览')return '/team';return `${target}${target.includes('?')?'&':'?'}view=${encodeURIComponent(label)}`}

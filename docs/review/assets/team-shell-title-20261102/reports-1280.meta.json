@@ -1,0 +1,13 @@
+{
+  "commit": "d612010",
+  "base": "http://127.0.0.1:5184",
+  "path": "/team/reports?view=%E5%AE%A2%E6%88%B7%E6%BC%8F%E6%96%97",
+  "viewport": {
+    "width": 1280,
+    "height": 844
+  },
+  "title": "客户漏斗",
+  "parent": "报表中心",
+  "documentTitle": "客户漏斗 · KhmerX 后台",
+  "overflow": false
+}
