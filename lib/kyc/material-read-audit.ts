@@ -1,5 +1,5 @@
 import {slots,type Slot} from './core.ts';
-import {auditInsertSql} from '@/lib/team/audit-writer';
+import {auditInsertSql} from '../team/audit-writer.ts';
 export type MaterialReadAction='thumbnail'|'preview'|'download'|'read';
 export type MaterialReadAuditContext={tenantId:string;actorId:string;caseId:string;revision:number;slot:Slot;fileId:string;action:MaterialReadAction;requestId:string};
 type AuditDb={prepare:(sql:string)=>{bind:(...args:unknown[])=>{run:()=>Promise<{meta?:{changes?:number}}>}}};
@@ -16,6 +16,6 @@ async function sha256(value:string){const digest=await crypto.subtle.digest('SHA
 export async function auditMaterialRead(context:MaterialReadAuditContext,nowMs:number,db:AuditDb){
  validate(context,nowMs);const bucket=Math.floor(nowMs/30_000)*30_000,json=detailJson(context),createdAt=new Date(nowMs).toISOString();
  const id=await sha256(keyJson(context,bucket));
- const result=await auditInsertSql(db,context.tenantId,context.actorId,'kyc_material_read',JSON.parse(json),id,'always',createdAt).run();
+ const result=await auditInsertSql(db,context.tenantId,context.actorId,'kyc_material_read',JSON.parse(json),id,'always',createdAt,'id').run();
  return {id,createdAt,bucket,inserted:Number(result.meta?.changes||0)===1};
 }

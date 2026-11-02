@@ -1,5 +1,7 @@
 ALTER TABLE team_audit ADD COLUMN seq INTEGER;
 --> statement-breakpoint
+DROP TRIGGER IF EXISTS team_audit_no_update;
+--> statement-breakpoint
 UPDATE team_audit SET seq=(SELECT rn FROM (SELECT id,ROW_NUMBER() OVER (ORDER BY created_at,id) rn FROM team_audit) x WHERE x.id=team_audit.id);
 --> statement-breakpoint
 CREATE UNIQUE INDEX team_audit_seq_unique ON team_audit(seq) WHERE seq IS NOT NULL;
