@@ -2,6 +2,7 @@ import {env} from 'cloudflare:workers';
 import {headers} from 'next/headers';
 import {getChatGPTUser} from '@/app/chatgpt-auth';
 import {AuthError,randomToken,digest} from '@/lib/h5-auth-core';
+import {auditInsertSql} from './audit-writer';
 export const STAFF_SESSION='payease_staff_session',STAFF_MODE='payease_staff_mode',STAFF_COMPANY='payease_staff_company',STAFF_PORTAL='payease_staff_portal',STAFF_MFA_SETUP='payease_staff_mfa_setup';
 export type StaffPortal='business'|'lender';
 export function portal(value:unknown):StaffPortal{return value==='lender'?'lender':'business'}
@@ -32,7 +33,7 @@ export async function createSsoSession(memberId:string,siteUserId:string){
  const token=randomToken(),credentialVersion=row.credential_version??0;
  const result=await db().batch([
   db().prepare('INSERT INTO team_staff_sessions (token_hash,member_id,site_user_id,member_version,credential_version,expires_at) VALUES (?,?,?,?,?,?)').bind(await digest(token),row.id,siteUserId,row.version,credentialVersion,Date.now()+8*3600000),
-  db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),row.tenant_id,row.email,'staff_sso_login',JSON.stringify({member:row.id}),new Date().toISOString())
+  auditInsertSql(db(),row.tenant_id,row.email,'staff_sso_login',{member:row.id})
  ]);
  if(!result[0].meta.changes)throw new AuthError('员工登录状态已变化，请重试',409);
  return {token,companyId:row.tenant_id};
@@ -75,7 +76,7 @@ export async function passwordLogin(p:any,siteUserId:string){
  const token=randomToken(),hash=await digest(token);
  const result=await db().batch([
   db().prepare(`INSERT INTO team_staff_sessions (token_hash,member_id,site_user_id,member_version,credential_version,expires_at) SELECT ?,id,?,?,?,? FROM team_members WHERE id=? AND version=? AND active=1 AND EXISTS(SELECT 1 FROM team_staff_credentials WHERE member_id=? AND version=?) AND EXISTS(SELECT 1 FROM team_companies WHERE id=? AND active=1)`).bind(hash,siteUserId,m.version,m.credential_version,now+8*3600000,m.id,m.version,m.id,m.credential_version,m.tenant_id),
-  db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) SELECT ?,?,?,?,?,? WHERE changes()=1').bind(crypto.randomUUID(),m.tenant_id,m.email,'staff_login',JSON.stringify({member:m.id}),new Date().toISOString())
+  auditInsertSql(db(),m.tenant_id,m.email,'staff_login',{member:m.id},undefined,'changes()=1')
  ]);
  if(!result[0].meta.changes)throw new AuthError('账号权限已变化，请重试',409);
  return {token,companyId:m.tenant_id,portal:effective};
@@ -88,10 +89,10 @@ export async function completeMfaLogin(challenge:string,code:string,siteUserId:s
  if(attempt.meta.changes!==1)throw new AuthError('MFA 尝试次数已用尽，请重新登录',429,undefined,'MFA_ATTEMPTS_EXCEEDED');
  const secret=await revealMfaSecret(row.mfa_secret),totpResult=await verifyTotpWithCounter(secret,code);let usedTotp=false;if(totpResult){const claimedTotp=await db().prepare('UPDATE team_members SET mfa_last_counter=? WHERE id=? AND mfa_enabled=1 AND (mfa_last_counter IS NULL OR mfa_last_counter<?)').bind(totpResult.counter,row.member_id,totpResult.counter).run();usedTotp=claimedTotp.meta.changes===1}if(!usedTotp&&!await consumeRecoveryCode(row.member_id,code))throw new AuthError('MFA 验证码不正确或已使用',401);
  if(!portalAllows(row.role,selected))throw new AuthError(selected==='lender'?'该账号没有持牌机构复核权限，请联系管理员':'该账号不属于服务机构后台，请切换到正确入口',403);
- const claimed=await db().prepare('UPDATE team_mfa_challenges SET consumed_at=? WHERE token_hash=? AND site_user_id=? AND consumed_at IS NULL AND expires_at>?').bind(Date.now(),challengeHash,siteUserId,Date.now()).run();if(claimed.meta.changes!==1)throw new AuthError('MFA 验证已使用，请重新登录',401);const token=randomToken();const result=await db().batch([db().prepare('INSERT INTO team_staff_sessions (token_hash,member_id,site_user_id,member_version,credential_version,expires_at) VALUES (?,?,?,?,?,?)').bind(await digest(token),row.member_id,siteUserId,row.version,row.credential_version??0,Date.now()+8*3600000),db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),row.tenant_id,row.email,'staff_mfa_login',JSON.stringify({member:row.member_id,portal:selected}),new Date().toISOString())]);if(!result[0].meta.changes)throw new AuthError('MFA 登录状态已变化，请重试',409);return {token,sso:!row.credential_version,companyId:row.tenant_id,portal:selected};
+ const claimed=await db().prepare('UPDATE team_mfa_challenges SET consumed_at=? WHERE token_hash=? AND site_user_id=? AND consumed_at IS NULL AND expires_at>?').bind(Date.now(),challengeHash,siteUserId,Date.now()).run();if(claimed.meta.changes!==1)throw new AuthError('MFA 验证已使用，请重新登录',401);const token=randomToken();const result=await db().batch([db().prepare('INSERT INTO team_staff_sessions (token_hash,member_id,site_user_id,member_version,credential_version,expires_at) VALUES (?,?,?,?,?,?)').bind(await digest(token),row.member_id,siteUserId,row.version,row.credential_version??0,Date.now()+8*3600000),auditInsertSql(db(),row.tenant_id,row.email,'staff_mfa_login',{member:row.member_id,portal:selected})]);if(!result[0].meta.changes)throw new AuthError('MFA 登录状态已变化，请重试',409);return {token,sso:!row.credential_version,companyId:row.tenant_id,portal:selected};
 }
 export async function logoutStaff(raw:string|null){
  const token=value(raw,STAFF_SESSION);if(!token||!/^[a-f0-9]{64}$/.test(token))return;
  const hash=await digest(token);const row=await db().prepare('SELECT m.tenant_id,m.email,m.id FROM team_staff_sessions s JOIN team_members m ON m.id=s.member_id WHERE s.token_hash=?').bind(hash).first<any>();
- await db().batch([db().prepare('DELETE FROM team_staff_sessions WHERE token_hash=?').bind(hash),...(row?[db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) SELECT ?,?,?,?,?,? WHERE changes()=1').bind(crypto.randomUUID(),row.tenant_id,row.email,'staff_logout',JSON.stringify({member:row.id}),new Date().toISOString())]:[])]);
+ await db().batch([db().prepare('DELETE FROM team_staff_sessions WHERE token_hash=?').bind(hash),...(row?[auditInsertSql(db(),row.tenant_id,row.email,'staff_logout',{member:row.id},undefined,'changes()=1')]:[])]);
 }

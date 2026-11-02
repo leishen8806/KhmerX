@@ -2,7 +2,7 @@ import {requireOrigin} from '@/lib/http/route';
 import {passwordLogin,completeMfaLogin,createMfaChallenge,createSsoSession,logoutStaff,STAFF_SESSION,STAFF_MODE,STAFF_COMPANY,STAFF_PORTAL,STAFF_MFA_SETUP,portal} from '@/lib/team/auth';
 import {getChatGPTUser} from '@/app/chatgpt-auth';
 import {input,json,failure,cookie} from '@/lib/h5-auth';
-import {db} from '@/lib/team/server';
+import {db,auditInsertSql} from '@/lib/team/server';
 import {AuthError,digest} from '@/lib/h5-auth-core';
 import {env} from 'cloudflare:workers';
 export const dynamic='force-dynamic';
@@ -34,7 +34,7 @@ export async function POST(request:Request){try{requireOrigin(request);
      const now=new Date().toISOString();
      const claims=(stale.results||[]).flatMap((m:any)=>[
       db().prepare("UPDATE team_members SET user_id=?,version=version+1 WHERE id=? AND user_id=? AND active=1 AND role='admin'").bind(outer.userId,m.id,m.user_id),
-      db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),m.tenant_id,email,'platform_admin_identity_rebind',JSON.stringify({memberId:m.id,reason:'verified platform email re-authentication'}),now)
+      auditInsertSql(m.tenant_id,email,'platform_admin_identity_rebind',{memberId:m.id,reason:'verified platform email re-authentication'},undefined,'1=1',now)
      ]);
      await db().batch(claims);
      eligible=(stale.results||[]).map((m:any)=>({...m,user_id:outer.userId}));
@@ -53,7 +53,7 @@ export async function POST(request:Request){try{requireOrigin(request);
    const now=new Date().toISOString();
    const claimed=await db().batch([
     db().prepare("UPDATE team_members SET user_id=?,version=version+1 WHERE id=? AND user_id=? AND active=1").bind(outer.userId,match.id,match.user_id),
-    db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),match.tenant_id,email,'platform_admin_bootstrap_bound',JSON.stringify({memberId:match.id,siteUserId:outer.userId}),now)
+    auditInsertSql(match.tenant_id,email,'platform_admin_bootstrap_bound',{memberId:match.id,siteUserId:outer.userId},undefined,'1=1',now)
    ]);
    if(claimed[0].meta.changes!==1)throw new AuthError('管理员引导已被使用或已过期',409,'PLATFORM_BOOTSTRAP_EXPIRED');
   }
