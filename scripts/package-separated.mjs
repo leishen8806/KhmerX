@@ -1,7 +1,8 @@
 import {cp,mkdir,readFile,rm,writeFile} from 'node:fs/promises';
-import {join,resolve} from 'node:path';
+import {dirname,join,resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
 
-const root=resolve(new URL('..',import.meta.url).pathname);
+const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const dist=join(root,'dist');
 const out=join(root,'dist-separated');
 const client=join(out,'client');
