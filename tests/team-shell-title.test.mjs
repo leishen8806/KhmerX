@@ -17,3 +17,11 @@ test('different queue entry points have distinct configured section names',()=>{
     assert.match(subpages,new RegExp(`${queue}:'${label}'`));
   }
 });
+
+test('breadcrumbs omit the fixed overview prefix and report KPI values share one style',()=>{
+  assert.doesNotMatch(client,/>今日概览<\/a><i>\/<\/i><span>\{sectionParent\}<\/span>/);
+  const report=readFileSync('components/report-center.tsx','utf8');
+  const css=readFileSync('app/globals.css','utf8');
+  assert.equal((report.match(/className="report-kpi"/g)||[]).length,4);
+  assert.match(css,/\.report-kpis>\.report-kpi \.operator-row-status-plain\{[^}]*color:var\(--color-text-primary\);font-size:24px;font-weight:700/);
+});
