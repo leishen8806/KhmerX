@@ -10,6 +10,19 @@ The APP backend is the **built worker** (`dist/server`) run through `wrangler de
 
 Run `npm run build` (vinext build) first if the worker source changed, so `dist/server` reflects the latest backend code.
 
+For a local `/team` demo, the harness seeds a fictional admin identity. Start it
+with the test-only identity override below; this changes only headers emitted by
+the localhost proxy and is ignored by the production gateway:
+```sh
+DEV_TEAM_USER_ID=b0-runner@example.test \
+DEV_TEAM_USER_EMAIL=b0-runner@example.test \
+DEV_TEAM_LOCALHOST=true \
+APP_BACKEND_PORT=8092 APP_MF_PORT=8794 \
+node scripts/dev-app-backend/start.mjs
+```
+Open `http://127.0.0.1:8092/team`. The seeded company is `khmerx-test`; no
+production account, password, or Telegram message is used.
+
 ## Use (Windows PowerShell — run each line separately; PowerShell 5.1 has no `&&`)
 All commands start from the repository root `E:\KhmerX\KhmerX` (not `E:\KhmerX`).
 
@@ -47,6 +60,9 @@ Pull down to refresh Home in the app after changing the status.
 |---|---|---|
 | `APP_BACKEND_PORT` | `80` | Port the emulator reaches at `10.0.2.2` (the APP's dev base URL has no port, so keep 80) |
 | `APP_MF_PORT` | `8788` | Where `wrangler dev --local` (the Miniflare worker) listens |
+| `DEV_TEAM_USER_ID` | random visitor | Used only with `DEV_TEAM_LOCALHOST=true` by the test-only localhost proxy |
+| `DEV_TEAM_USER_EMAIL` | `<id>@visitor.invalid` | Used only with `DEV_TEAM_LOCALHOST=true` by the test-only localhost proxy |
+| `DEV_TEAM_LOCALHOST` | false | Enables the fictional admin identity override only for local test mode |
 
 Port 80 needs to be free. Requires Node ≥ 22.13 (`node:sqlite`). The seeded workspace id is `t_00000000-0000-4000-8000-000000000001`; the APP never sees or sends it.
 
