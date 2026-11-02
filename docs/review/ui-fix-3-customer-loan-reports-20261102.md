@@ -2,7 +2,7 @@
 
 Date: 2026-11-02 (Asia/Phnom Penh)
 
-Before captures use merged `origin/main` at `1d3a282` (after PR #162); after captures use `feat/ui/fix-3-customer-loan-reports` at the final screenshot-fix commit. Playwright used synthetic local identity headers and route-mocked `/api/team` and `/api/state` responses; no production or remote service was contacted. All captures are first-screen screenshots with `fullPage: false`; the 390px capture keeps the CRM menu collapsed (`打开菜单` visible) and `scrollY: 0` after the first matching row was brought into view.
+Before captures use merged `origin/main` at `1d3a282` (after PR #162); after captures use `feat/ui/fix-3-customer-loan-reports` at `e78f042`. Playwright used synthetic local identity headers and route-mocked `/api/team` and `/api/state` responses; no production or remote service was contacted. All captures are first-screen screenshots with `fullPage: false`; the 390px capture keeps the CRM menu collapsed (`打开菜单` visible) and `scrollY: 0` after the first matching row was brought into view.
 
 ## Capture matrix
 
