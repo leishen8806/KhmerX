@@ -2,15 +2,19 @@
 
 Date: 2026-11-02 (Asia/Phnom Penh)
 
-Before captures use `origin/main` at `3983e3d`; after captures use `feat/ui/fix-3-customer-loan-reports` at `48f30b3`. Playwright used synthetic local identity headers and route-mocked `/api/team` and `/api/state` responses; no production or remote service was contacted. All captures are first-screen screenshots with `fullPage: false`.
+Before captures use merged `origin/main` at `1d3a282` (after PR #162); after captures use `feat/ui/fix-3-customer-loan-reports` at `55a8d39`. Playwright used synthetic local identity headers and route-mocked `/api/team` and `/api/state` responses; no production or remote service was contacted. All captures are 390×844 first-screen screenshots with `fullPage: false`, the CRM menu collapsed (`打开菜单` visible), and `scrollY: 0` after the first matching row was brought into view.
 
 ## Capture matrix
 
 | Page | Viewport | Before | After | SHA-256 before / after |
 |---|---:|---|---|---|
 | `/team/customers?view=客户列表` | 1280 | [before](assets/ui-fix-3-customer-loan-reports/before-customers-1280.png) | [after](assets/ui-fix-3-customer-loan-reports/after-customers-1280.png) | `524e0914059d31fce94efce243e3fe72617693a553e622b326318451e6cf16dc` / `c8b9bb97d2741453630f5a7b7ef81793d125da05e0a5312522ded6dceac7f866` |
-| `/team/customers?view=客户列表` | 390 | [before](assets/ui-fix-3-customer-loan-reports/before-customers-390.png) | [after](assets/ui-fix-3-customer-loan-reports/after-customers-390.png) | `323da169c7118fbf85ab0db69faf9e68d3060c854f7f65ed9b34b56795205bfe` / `323da169c7118fbf85ab0db69faf9e68d3060c854f7f65ed9b34b56795205bfe` |
+| `/team/customers?view=客户列表` | 390 | [before](assets/ui-fix-3-customer-loan-reports/before-customers-390.png) | [after](assets/ui-fix-3-customer-loan-reports/after-customers-390.png) | `450df8f75845e5828a8677298d394b3b368553cdfeabe8a997e6d4c27f822c90` / `1f1a4ac18e7d22d9f5148041eb83acea942fab0715a8ba11ab1347310b190e27` |
 | `/team/reports?view=客户漏斗` | 1280 | [before](assets/ui-fix-3-customer-loan-reports/before-reports-1280.png) | [after](assets/ui-fix-3-customer-loan-reports/after-reports-1280.png) | `e6f9d30ad91938959c67e2e6b9dc025dd4dea7aca867d83c160ee51e7712159a` / `2b47c27ed7a82fe437620242c3a8fac47ba8dde06f85088a6585599e2b0be3a0` |
-| `/team/reports?view=客户漏斗` | 390 | [before](assets/ui-fix-3-customer-loan-reports/before-reports-390.png) | [after](assets/ui-fix-3-customer-loan-reports/after-reports-390.png) | `fcacf81f7c908207edab5741427369612187967720e6fd32ffe10c076dcc2666` / `fcacf81f7c908207edab5741427369612187967720e6fd32ffe10c076dcc2666` |
+| `/team/reports?view=客户漏斗` | 390 | [before](assets/ui-fix-3-customer-loan-reports/before-reports-390.png) | [after](assets/ui-fix-3-customer-loan-reports/after-reports-390.png) | `553b923280b42ae8ee4007027ae0b43adf755f0e28db984f73c4c337eac6f72a` / `5c41aa95a0e373ac2852983e493d5088dc16cc3079b939a1f49bf56589359f68` |
 
-The mobile first-screen captures are intentionally unchanged where the existing CRM sidebar occupies the viewport; the responsive row and button changes are covered by the shared styles and by the desktop capture, while the 390px dimensions and first-screen state remain recorded honestly.
+## Mobile verification
+
+- Customer list: both before and after show two visible `OperatorRow` customer rows (`CUS-0001`, `CUS-0002`), the first row is visible without horizontal overflow, and the menu remains collapsed. The after capture reflects the merged #162 mobile sidebar behavior.
+- Report center: all four KPI `OperatorRow` cards are visible before and after, with the collapsed menu and no horizontal overflow.
+- The rendered customer-list and report-center rows do not receive `actions` props in this PR, so no vertical action-button stack is present in these two screenshots. This is recorded as a verification gap rather than inferred from CSS; the requested action-button evidence cannot be claimed by these captures.
