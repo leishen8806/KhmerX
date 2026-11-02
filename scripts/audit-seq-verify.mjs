@@ -5,8 +5,10 @@ import {createHmac} from 'node:crypto';
 
 const args=process.argv.slice(2);
 if(args.includes('--remote')||args.includes('--production')){console.error('refusing remote/production database');process.exit(2)}
-if(args.length!==2||args[0]!=='--db'||!args[1]){console.error('usage: --db <local sqlite path>');process.exit(2)}
+if((args.length!==2&&args.length!==4)||args[0]!=='--db'||!args[1]){console.error('usage: --db <local sqlite path> [--backfill-max-seq <N>]');process.exit(2)}
 const databasePath=args[1];
+let backfillMaxSeq=null;
+if(args.length===4){if(args[2]!=='--backfill-max-seq'||!/^[0-9]+$/.test(args[3])){console.error('usage: --db <local sqlite path> [--backfill-max-seq <N>]');process.exit(2)}backfillMaxSeq=Number(args[3])}
 if(!existsSync(databasePath)){console.error(`database not found: ${databasePath}`);process.exit(2)}
 
 const db=new DatabaseSync(databasePath,{readOnly:true});
@@ -17,9 +19,10 @@ const nullSeqRows=rows.filter(row=>row.seq===null||row.seq===undefined).map(row=
 const nonNullSeqRows=rows.filter(row=>row.seq!==null&&row.seq!==undefined);
 const seqValues=nonNullSeqRows.map(row=>Number(row.seq));
 const seqUnique=new Set(seqValues).size===seqValues.length;
-const seqOrder=nonNullSeqRows.slice().sort((a,b)=>Number(a.seq)-Number(b.seq)).map(row=>row.id);
-const createdOrder=nonNullSeqRows.slice().sort((a,b)=>a.created_at.localeCompare(b.created_at)||a.id.localeCompare(b.id)).map(row=>row.id);
-const seqOrderMatchesCreatedAtId=seqUnique&&seqOrder.every((id,index)=>id===createdOrder[index]);
+const orderRows=backfillMaxSeq===null?[]:nonNullSeqRows.filter(row=>Number(row.seq)<=backfillMaxSeq);
+const seqOrder=orderRows.slice().sort((a,b)=>Number(a.seq)-Number(b.seq)).map(row=>row.id);
+const createdOrder=orderRows.slice().sort((a,b)=>a.created_at.localeCompare(b.created_at)||a.id.localeCompare(b.id)).map(row=>row.id);
+const orderCheck=backfillMaxSeq===null?'skipped':seqUnique&&seqOrder.every((id,index)=>id===createdOrder[index])?'passed':'failed';
 
 function canonical(input){return input.map(row=>JSON.stringify([row.id,row.actor,row.action,row.detail,row.created_at])).join('\n')}
 function v2Digest(input){
@@ -48,8 +51,11 @@ console.log(JSON.stringify({
   mode:'verify-read-only',
   database:databasePath,
   rows:rows.length,
-  seqNull:{count:nullSeqRows.length,ids:nullSeqRows},
+  seqNull:{count:nullSeqRows.length,ids:nullSeqRows.slice(0,50)},
   seqUnique,
-  seqOrderMatchesCreatedAtId,
+  orderCheck,
+  orderCheckRows:orderRows.length,
+  ...(backfillMaxSeq===null?{orderCheckHint:'pass --backfill-max-seq N from the migration-complete MAX(seq) to check only backfilled rows'}:{}),
   v2Verify:v2Checks()
 },null,2));
+process.exitCode=nullSeqRows.length||!seqUnique||orderCheck==='failed'?1:0;
