@@ -65,6 +65,7 @@ test('AuthLocale initial storage, switching, fresh observer, reentry and cleanup
  for(const saved of ['en','km','zh','invalid']){
   const h=client('auth',{saved}),initial=saved==='invalid'?'en':saved;
   assert.equal(h.root.lang,initial);assert.equal(active(h).length,1);
+  for(const locale of ['zh','en','km'])assert.equal(h.button(p=>p['aria-label']===h.i18n.localeLabels[locale])['aria-pressed'],locale===initial);
   const old=active(h)[0],oldObserves=old.observes,next=initial==='km'?'en':'km';
   h.choose(next);assert.equal(h.storage.get('payease-auth-language'),next);assert.equal(h.document.documentElement.lang,next);
   h.render();assert.equal(h.root.lang,next);assert.equal(h.text.textContent,next==='km'?'ចូលដោយពាក្យសម្ងាត់':'Password sign in');
