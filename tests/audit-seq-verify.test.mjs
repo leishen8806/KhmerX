@@ -26,7 +26,7 @@ test('verifier reports nulls, uniqueness, ordering and v2 comparison without wri
     ['same-a',2,'t','u','x','{}','2026-01-01T00:00:00.000Z']
   ]);
   const result=run(f.file);assert.equal(result.status,0);const report=JSON.parse(result.stdout);
-  assert.equal(report.mode,'verify-read-only');assert.equal(report.seqNull.count,0);assert.equal(report.seqUnique,true);assert.equal(report.orderCheck,'skipped');assert.equal(report.v2Verify.available,true);assert.equal(report.v2Verify.secretAvailable,false);rmSync(f.directory,{recursive:true,force:true});
+  assert.equal(report.mode,'verify-read-only');assert.equal(report.version,'v3');assert.equal(report.rows,3);assert.equal(report.canonicalBytes>0,true);assert.equal(typeof report.elapsedMs,'number');assert.equal(report.seqNull.count,0);assert.equal(report.seqUnique,true);assert.equal(report.orderCheck,'skipped');assert.equal(report.v2Verify.available,true);assert.equal(report.v2Verify.secretAvailable,false);rmSync(f.directory,{recursive:true,force:true});
 });
 
 test('backfill order is scoped to the recorded max seq and permits later early timestamps',()=>{
