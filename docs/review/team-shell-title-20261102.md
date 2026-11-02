@@ -2,7 +2,7 @@
 
 ## Scope
 
-- Capture commit: `d612010` (`origin/main` before this task).
+- Capture commit: `8bd1c98` (implementation commit on `fix/team/shell-title`; based on `origin/main` `d612010`).
 - Browser: Playwright Chromium headless.
 - Viewports: 390×844 and 1280×844; first screen, menu collapsed at mobile width.
 - API responses were synthetic and contained no secrets.
