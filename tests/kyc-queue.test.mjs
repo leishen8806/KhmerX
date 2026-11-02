@@ -11,7 +11,7 @@ function load(file,mocks,globals={}){
  const exports={};vm.runInNewContext('(function(exports,require){'+js+'\n})',globals)(exports,n=>{assert(n in mocks,n);return mocks[n]});return exports;
 }
 function queue(locale='zh'){
- let cursor=0;const state=[];const jsx=(type,props)=>({type,props});
+ let cursor=0;const state=[];const jsx=(type,props)=>typeof type==='function'?type(props):({type,props});
  const component=load('components/kyc-orders.tsx',{
   react:{useState(initial){const i=cursor++;if(!(i in state))state[i]=typeof initial==='function'?initial():initial;return [state[i],v=>state[i]=v]},useEffect(){}},
   'react/jsx-runtime':{jsx,jsxs:jsx},'@/lib/client-id':{},'@/lib/kyc/queue-copy':queueCopy,'@/lib/api-client':{},
