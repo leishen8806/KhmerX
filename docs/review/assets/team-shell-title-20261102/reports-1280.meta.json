@@ -1,5 +1,5 @@
 {
-  "commit": "f78a5a5",
+  "commit": "pending",
   "base": "http://127.0.0.1:5184",
   "path": "/team/reports?view=%E5%AE%A2%E6%88%B7%E6%BC%8F%E6%96%97",
   "viewport": {
@@ -10,5 +10,31 @@
   "breadcrumb": "客户漏斗\n/\n报表中心",
   "documentTitle": "客户漏斗 · KhmerX 后台",
   "overflow": false,
-  "sha256": "dfa3ff79e9aba7544e681233ef6eee185f71bff01f6d05e6e67474e4e3d5e90a"
+  "computedKpiStyles": [
+    {
+      "text": "0",
+      "fontSize": "24px",
+      "fontWeight": "700",
+      "color": "rgb(23, 32, 51)"
+    },
+    {
+      "text": "0",
+      "fontSize": "24px",
+      "fontWeight": "700",
+      "color": "rgb(23, 32, 51)"
+    },
+    {
+      "text": "$0.00",
+      "fontSize": "24px",
+      "fontWeight": "700",
+      "color": "rgb(23, 32, 51)"
+    },
+    {
+      "text": "$0.00",
+      "fontSize": "24px",
+      "fontWeight": "700",
+      "color": "rgb(23, 32, 51)"
+    }
+  ],
+  "sha256": "f388a949b41d501be285578cbd7492604f9fb76d8e57c85b711ce8f91a8e9fd7"
 }
