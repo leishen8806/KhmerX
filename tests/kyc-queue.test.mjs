@@ -70,7 +70,7 @@ test('real submission time renders relative age with full timestamp title; only 
  const overdue=times.find(n=>n.props.dateTime===q.props.orders[0].submitted_at);
  assert.match(overdue.props.children.join(''),/1天前/);
  assert.equal(overdue.props.title,new Date(q.props.orders[0].submitted_at).toLocaleString('zh'));
- assert.equal(nodes.filter(n=>n.props?.style?.color==='#b91c1c').length,1);
+ assert.equal(nodes.filter(n=>typeof n.props?.className==='string'&&n.props.className.split(' ').includes('is-late')).length,1);
  assert.match(times.find(n=>n.props.dateTime===q.props.orders[1].submitted_at).props.children.join(''),/2小时前/);
  assert.equal(q.relativeSubmission(now-60000,now,'en'),'1 minute ago');
  assert.equal(q.relativeSubmission(now-3600000,now,'km'),'1 ម៉ោងមុន');
