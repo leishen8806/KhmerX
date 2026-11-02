@@ -1,0 +1,14 @@
+{
+  "commit": "f78a5a5",
+  "base": "http://127.0.0.1:5184",
+  "path": "/team/kyc",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "title": "KYC 审核队列",
+  "breadcrumb": "KYC 审核队列\n/\n客户中心",
+  "documentTitle": "KYC 审核队列 · KhmerX 后台",
+  "overflow": false,
+  "sha256": "70fce835b66718c8e2239113f34efe8e8716354562651dfb7fbca739607daa3b"
+}
