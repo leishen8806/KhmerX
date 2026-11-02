@@ -13,3 +13,4 @@
 .kyc-review-panel button,.kyc-review-actions button{min-height:48px}
 .kyc-review-actions>div{gap:8px}
 @media(max-width:760px){.kyc-review-decision{padding:16px}.kyc-review-actions>div{display:grid;grid-template-columns:1fr}.kyc-review-actions>button{width:100%}}
+.kyc-review-materials-block{display:grid;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)}
