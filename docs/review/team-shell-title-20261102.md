@@ -2,7 +2,7 @@
 
 ## Scope
 
-- Capture commit: pending final commit on `fix/team/shell-title` (implementation base `origin/main` `d612010`).
+- Capture commit: `f78a5a5` (follow-up commit on `fix/team/shell-title`; implementation base `origin/main` `d612010`).
 - Browser: Playwright Chromium headless.
 - Viewports: 390×844 and 1280×844; first screen, menu collapsed at mobile width.
 - API responses were synthetic and contained no secrets.
