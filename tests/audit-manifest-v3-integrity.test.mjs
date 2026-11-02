@@ -48,7 +48,7 @@ async function loadIntegrity(sql){
   const audit=(tenantId,actor,action,detail)=>({async run(){const id=crypto.randomUUID();const now=new Date().toISOString();sql.prepare('INSERT INTO team_audit(id,seq,tenant_id,actor,action,detail,created_at) SELECT ?,COALESCE((SELECT MAX(seq) FROM team_audit),0)+1,?,?,?,?,? WHERE 1=1').run(id,tenantId,actor,action,JSON.stringify(detail),now);return {meta:{changes:1}}}});
   const context=vm.createContext({console,crypto,TextEncoder,TextDecoder,Uint8Array,ArrayBuffer,Date,structuredClone});
   const cache=new Map();
-  function synth(id,values){const module=new vm.SyntheticModule(Object.keys(values),function(){for(const [key,value] of Object.entries(values))this.setExport(key,value)},{context,identifier:id});cache.set(id,module);return module}
+  function synth(id,values){const vmModule=new vm.SyntheticModule(Object.keys(values),function(){for(const [key,value] of Object.entries(values))this.setExport(key,value)},{context,identifier:id});cache.set(id,vmModule);return vmModule}
   const serverId=path.join(root,'lib/team/server.ts');
   synth('cloudflare:workers',{env});
   synth('@/lib/h5-auth-core',{AuthError:class AuthError extends Error{constructor(message,status=400){super(message);this.status=status}}});
@@ -61,12 +61,12 @@ async function loadIntegrity(sql){
     if(!path.extname(id)&&fs.existsSync(`${id}.ts`))id+='.ts';
     if(cache.has(id))return cache.get(id);
     const source=ts.transpileModule(fs.readFileSync(id,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
-    const module=new vm.SourceTextModule(source,{context,identifier:id});cache.set(id,module);return module;
+    const vmModule=new vm.SourceTextModule(source,{context,identifier:id});cache.set(id,vmModule);return vmModule;
   }
-  const module=moduleFor('@/lib/team/audit-integrity');
-  if(module.status==='unlinked')await module.link((specifier,referencing)=>moduleFor(specifier,referencing.identifier));
-  if(module.status==='linked')await module.evaluate();
-  return module.namespace;
+  const vmModule=moduleFor('@/lib/team/audit-integrity');
+  if(vmModule.status==='unlinked')await vmModule.link((specifier,referencing)=>moduleFor(specifier,referencing.identifier));
+  if(vmModule.status==='linked')await vmModule.evaluate();
+  return vmModule.namespace;
 }
 
 test('real v3 verifier accepts migration backfill and later append',async()=>{
