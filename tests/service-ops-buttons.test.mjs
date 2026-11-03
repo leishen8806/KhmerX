@@ -11,5 +11,5 @@ test('service operations mark irreversible actions as danger buttons', () => {
   assert.ok(crm.includes('variant="destructive"') && crm.includes('>关闭事件</Button>'));
   assert.ok(crm.includes('variant="destructive"') && crm.includes('>撤销会话</Button>'));
   assert.ok(repayment.includes('variant="destructive"') && repayment.includes('>确认登记测试还款</Button>'));
-  assert.match(tickets, /variant=\{t\.status==='open'\?'secondary':'destructive'\}/);
+  assert.match(tickets, /<Button disabled=\{busy\|\|t\.status==='closed'\} onClick=\{\(\)=>void update\(t\)\}>处理<\/Button>/);
 });
