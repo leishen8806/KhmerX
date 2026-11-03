@@ -7,6 +7,7 @@ const args=process.argv.slice(2);
 if(args.includes('--remote')||args.includes('--production')){console.error('refusing remote/production database');process.exit(2)}
 if((args.length!==2&&args.length!==4)||args[0]!=='--db'||!args[1]){console.error('usage: --db <local sqlite path> [--backfill-max-seq <N>]');process.exit(2)}
 const databasePath=args[1];
+const startedAt=performance.now();
 let backfillMaxSeq=null;
 if(args.length===4){if(args[2]!=='--backfill-max-seq'||!/^[0-9]+$/.test(args[3])){console.error('usage: --db <local sqlite path> [--backfill-max-seq <N>]');process.exit(2)}backfillMaxSeq=Number(args[3])}
 if(!existsSync(databasePath)){console.error(`database not found: ${databasePath}`);process.exit(2)}
@@ -50,7 +51,10 @@ function v2Checks(){
 console.log(JSON.stringify({
   mode:'verify-read-only',
   database:databasePath,
+  version:'v3',
   rows:rows.length,
+  canonicalBytes:Buffer.byteLength(canonical(rows),'utf8'),
+  elapsedMs:Number((performance.now()-startedAt).toFixed(2)),
   seqNull:{count:nullSeqRows.length,ids:nullSeqRows.slice(0,50)},
   seqUnique,
   orderCheck,
