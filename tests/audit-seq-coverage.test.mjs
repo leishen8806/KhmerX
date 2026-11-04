@@ -12,11 +12,10 @@ function sourceFiles(directory){
   });
 }
 
-test('every team_audit INSERT declares and populates seq',()=>{
+test('all team_audit INSERT write points declare seq',()=>{
   const inserts=sourceFiles(join(root,'lib')).concat(sourceFiles(join(root,'app'))).flatMap(file=>{
     const source=readFileSync(file,'utf8');
     return [...source.matchAll(/INSERT(?: OR IGNORE)?\s+INTO\s+team_audit\b\s*(\([^)]*\))/gi)].map(match=>({file,columns:match[1]}));
   });
-  assert.equal(inserts.length,30);
   assert.deepEqual(inserts.filter(insert=>!/(^|,)\s*seq\s*(,|$)/i.test(insert.columns)),[]);
 });

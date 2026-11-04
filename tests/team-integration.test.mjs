@@ -664,3 +664,33 @@ test('K4 requests validate before mutation and persist encrypted review, actor a
  }
  const audit=sql.prepare('SELECT detail FROM team_audit WHERE tenant_id=?').all(A);assert(audit.every(x=>!x.detail.includes(requests[0].note)));selected=A;user=owner;
 });
+
+test('all NULL audit seq rows are synthetic test fixtures',async()=>{
+ const materialAudit=await mod('@/lib/kyc/material-read-audit');
+ await materialAudit.auditMaterialRead({tenantId:A,actorId:'synthetic-material-auditor',caseId:'synthetic-material-case',revision:1,slot:'idFront',fileId:'synthetic-material-file',action:'read',requestId:'synthetic-material-request'},Date.parse('2026-01-01T00:00:00.000Z'),DB);
+ const unexpected=sql.prepare('SELECT action FROM team_audit WHERE seq IS NULL ORDER BY action').all().map(row=>row.action).filter(action=>!['synthetic_null_seq','synthetic_audit_collision'].includes(action));
+ assert.deepEqual(unexpected,[],`unexpected NULL seq actions: ${unexpected.join(', ')}`);
+});
+
+test('audit assigns seq 1 to the first row in an empty audit table',async()=>{
+ sql.exec('ALTER TABLE team_audit RENAME TO team_audit_backup; CREATE TABLE team_audit (id TEXT PRIMARY KEY,seq INTEGER,tenant_id TEXT,actor TEXT,action TEXT,detail TEXT,created_at TEXT)');
+ try {
+  await team.audit('t_empty-audit','synthetic-audit','synthetic_empty_audit',{ok:true}).run();
+  assert.equal(sql.prepare("SELECT seq FROM team_audit WHERE action='synthetic_empty_audit'").get().seq,1);
+ } finally {
+  sql.exec('DROP TABLE team_audit; ALTER TABLE team_audit_backup RENAME TO team_audit');
+ }
+});
+
+test('verifyManifest requires manual review when a v3 tenant contains NULL seq',async()=>{
+ const integrity=await mod('@/lib/team/audit-integrity');
+ selected='';user=owner;
+ const tenant=(await team.manage({action:'create_company',name:'Synthetic Seq Review',slug:'synthetic-seq-review'})).companyId;
+ selected=tenant;user=owner;
+ const manifest=await integrity.createManifest();
+ sql.prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) VALUES (?,?,?,?,?,?)').run('synthetic-null-for-verify',tenant,'synthetic-audit','synthetic_null_seq','{}','2026-01-01T00:00:00.000Z');
+ const verified=await integrity.verifyManifest(manifest.id);
+ assert.equal(verified.status,'needsManualReview');
+ assert.equal(verified.needsManualReview,true);
+ assert.equal(verified.match,false);
+});
