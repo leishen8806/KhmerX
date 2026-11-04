@@ -45,3 +45,4 @@
 | D-38 | 审计清单排序实施另行立项 | 技术负责人 2026-10-30 解除 D-33，#129 按 Claude 评审合并；审计清单排序按 D-36 方案 R 另行实施。 | 已确认 |
 | D-39 | Plan-R R-1/R-2 implementation | 技术负责人 2026-10-30 批准本地可选迁移：R-1 增加显式 `team_audit.seq` 与 manifest v3 边界；R-2 仅对本地/备份做回填 dry-run/apply 与运维文档。不得远程、生产、部署或合并；合并仍需 Claude 明确批准。 | 已确认 |
 | D-40 | 金融机构 VPS 灰度范围 | 技术负责人 2026-11-03 确认生产尚未上线；先在金融机构服务器 `159.223.77.134` 的 `testadmin.khmerx.org`、`testapi.khmerx.org`、`test.khmerx.org`、`testpayease.khmerx.org` 灰度最新 main（含方案 R 0062 迁移）。仅限该机器；`165.22.108.5`（持牌机构）和 `159.223.92.104` 不在本次范围内。部署、线上写操作和迁移执行仍须按单独卡片的检查点与批准范围进行。 | 已确认 |
+| D-42 | K-S1:其余审计写入点逐点补 `seq` | 技术负责人 2026-11-04 在对话中确认:对其余 29 处 `INSERT INTO team_audit` 逐点补写 `seq`,不加迁移、不加触发器。R-1 独立评审结论:不批准按现状部署,v3 不能称为已启用(真实路径 155 行中 120 行 NULL seq;v3 校验路径缺真实代码测试)。灰度回填、依赖漏洞、Playwright 安装仍待决定。详见 `docs/reviews/audit-seq-r1-review-20261104.md` 与 `docs/tasks/status/2026-11-04-decisions-batch-e.md` | 已确认 |
