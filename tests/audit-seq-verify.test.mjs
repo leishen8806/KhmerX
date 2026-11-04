@@ -5,8 +5,9 @@ import {mkdtempSync,readFileSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {spawnSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
 
-const script=new URL('../scripts/audit-seq-verify.mjs',import.meta.url);
+const script=fileURLToPath(new URL('../scripts/audit-seq-verify.mjs',import.meta.url));
 function fixture(rows){
   const directory=mkdtempSync(join(tmpdir(),'audit-seq-verify-'));
   const file=join(directory,'audit.sqlite');
@@ -17,7 +18,7 @@ function fixture(rows){
   db.close();
   return {file,directory};
 }
-function run(file,...args){return spawnSync(process.execPath,[script.pathname,'--db',file,...args],{encoding:'utf8',env:{...process.env,PAYEASE_AUTH_SECRET:''}})}
+function run(file,...args){return spawnSync(process.execPath,[script,'--db',file,...args],{encoding:'utf8',env:{...process.env,PAYEASE_AUTH_SECRET:''}})}
 
 test('verifier reports nulls, uniqueness, ordering and v2 comparison without writing',()=>{
   const f=fixture([

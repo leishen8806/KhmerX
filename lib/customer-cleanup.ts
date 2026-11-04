@@ -1,4 +1,4 @@
-import {db,platformAdmin} from '@/lib/team/server';
+import {db,platformAdmin,AUDIT_SEQ_SQL} from '@/lib/team/server';
 import {runtime} from '@/lib/h5-auth';
 import {AuthError,keyed,normalizePhone} from '@/lib/h5-auth-core';
 import {serializeWorkspacePayload} from '@/lib/workspace-payload';
@@ -37,7 +37,7 @@ export async function customerCleanup(p:any){
   statements.push(db().prepare("SELECT CASE WHEN (SELECT COUNT(*) FROM kyc_files WHERE owner=? AND customer_id=?)=0 AND (SELECT COUNT(*) FROM kyc_cases WHERE owner=? AND customer_id=?)=? THEN 1 ELSE json('changed KYC') END").bind(owner,id,owner,id,x.cases.length));
   for(const k of x.cases)statements.push(db().prepare("SELECT CASE WHEN EXISTS(SELECT 1 FROM kyc_cases WHERE id=? AND revision=? AND status='draft') THEN 1 ELSE json('changed KYC') END").bind(k.id,k.revision));
   statements.push(db().prepare("SELECT CASE WHEN COALESCE((SELECT revision FROM demo_workspaces WHERE owner=?),-1)=? THEN 1 ELSE json('changed loans') END").bind(owner,x.work?.revision??-1));
-  statements.push(db().prepare("INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) SELECT ?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM team_companies WHERE id=? AND active=1)").bind(crypto.randomUUID(),owner,operator.email,'customer_cleanup',JSON.stringify({customerId:id,kycDrafts:x.cases.length,unsubmittedLoans:x.loans.length,files:0,mode:'demo'}),new Date().toISOString(),owner));
+  statements.push(db().prepare(`INSERT INTO team_audit (id,seq,tenant_id,actor,action,detail,created_at) SELECT ?,${AUDIT_SEQ_SQL},?,?,?,?,? WHERE EXISTS (SELECT 1 FROM team_companies WHERE id=? AND active=1)`).bind(crypto.randomUUID(),owner,operator.email,'customer_cleanup',JSON.stringify({customerId:id,kycDrafts:x.cases.length,unsubmittedLoans:x.loans.length,files:0,mode:'demo'}),new Date().toISOString(),owner));
   statements.push(db().prepare('DELETE FROM h5_sessions WHERE owner=? AND customer_id=?').bind(owner,id));
   statements.push(db().prepare('DELETE FROM h5_challenges WHERE owner=? AND phone_key=?').bind(owner,id));
   statements.push(db().prepare('DELETE FROM telegram_subscriptions WHERE owner=? AND customer_id=?').bind(owner,id));

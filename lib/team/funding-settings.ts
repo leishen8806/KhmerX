@@ -1,6 +1,6 @@
 import {AuthError} from '@/lib/h5-auth-core';
 import {defaultFundingLimits} from '@/lib/funding-limits';
-import {db,staff} from './server';
+import {db,staff,AUDIT_SEQ_SQL} from './server';
 
 const roles=new Set(['admin','audit','finance','finance_checker','checker']);
 const integer=(value:unknown)=>typeof value==='number'&&Number.isSafeInteger(value)&&value>0?value:null;
@@ -34,7 +34,7 @@ export async function fundingSettingsSave(input:any){
   const now=new Date().toISOString();
   const result=await db().batch([
     db().prepare('INSERT INTO team_funding_settings(tenant_id,daily_cents,monthly_cents,warning_percent,timezone,version,updated_at,updated_by) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(tenant_id) DO UPDATE SET daily_cents=excluded.daily_cents,monthly_cents=excluded.monthly_cents,warning_percent=excluded.warning_percent,timezone=excluded.timezone,version=excluded.version,updated_at=excluded.updated_at,updated_by=excluded.updated_by WHERE team_funding_settings.version=? AND EXISTS(SELECT 1 FROM team_members WHERE id=? AND tenant_id=? AND role=\'admin\' AND active=1 AND version=?)').bind(s.tenant.id,dailyCents,monthlyCents,warningPercent,next.timezone,next.version,now,s.user.userId,version,s.member.id,s.tenant.id,s.member.version),
-    db().prepare('INSERT INTO team_audit(id,tenant_id,actor,action,detail,created_at) SELECT ?,?,?,?,?,? WHERE changes()=1').bind(crypto.randomUUID(),s.tenant.id,s.user.userId,'funding_settings_save',JSON.stringify({before:current,after:next}),now),
+    db().prepare('INSERT INTO team_audit(id,seq,tenant_id,actor,action,detail,created_at) SELECT ?,'+AUDIT_SEQ_SQL+',?,?,?,?,? WHERE changes()=1').bind(crypto.randomUUID(),s.tenant.id,s.user.userId,'funding_settings_save',JSON.stringify({before:current,after:next}),now),
   ]);
   if(result[0].meta.changes!==1)throw new AuthError('资金配置或权限已变化，请刷新后重试',409,undefined,'FUNDING_SETTINGS_CONFLICT');
   return {ok:true,settings:await fundingSettingsForTenant(s.tenant.id)};
