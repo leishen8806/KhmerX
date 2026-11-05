@@ -11,7 +11,7 @@ export async function POST(request:Request){
  try{requireOrigin(request);
   const initData=request.headers.get('x-telegram-init-data')||'';
   if(!initData||initData.length>10000)throw new AuthError('请从 Telegram Mini App 打开后再登录',401);
-  const r=runtime(),b=await browser(request);
+  const r=runtime('telegram'),b=await browser(request);
   const requestedChannel=new URL(request.url).searchParams.get('channel')?.trim()||'';
   if(requestedChannel&&!/^bot-[1-9]\d*$/.test(requestedChannel))throw new AuthError('Telegram 渠道无效',400);
   // A direct Telegram Mini App launch has no payease_company cookie. Resolve

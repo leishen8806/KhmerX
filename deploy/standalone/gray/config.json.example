@@ -30,7 +30,7 @@
   ],
   "bindings": {
     "PAYEASE_ENV": "gray",
-    "KHMERX_TEST_MODE": "false",
+    "KHMERX_TEST_MODE": "true",
     "PAYEASE_IDENTITY_PROOF_REQUIRED": "true",
     "PAYEASE_AUTH_SECRET": "replace-with-a-random-32-byte-auth-secret",
     "PAYEASE_IDENTITY_PROOF_SECRET": "replace-with-a-random-32-byte-proof-secret",
@@ -39,6 +39,8 @@
     "PAYEASE_LIMIT_SCALE": "1",
     "PAYEASE_GATEWAY_RATE_SCALE": "1",
     "PAYEASE_AUTH_MODE": "telegram",
+    "PAYEASE_H5_AUTH_MODE": "demo",
+    "PAYEASE_TELEGRAM_AUTH_MODE": "telegram",
     "TELEGRAM_GATEWAY_TOKEN": "replace-with-gray-telegram-gateway-token",
     "TELEGRAM_BOT_TOKEN_1": "replace-with-gray-telegram-bot-token",
     "TELEGRAM_BOT_TOKEN_2": "",
