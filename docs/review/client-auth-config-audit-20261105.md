@@ -55,9 +55,9 @@ Standalone gray 单公司部署在 `deploy/standalone/server.mjs:211-214` 只在
 - [x] H5/App 与 Telegram 按渠道选择，不在同一页面二选一。
 - [x] demoCode 只在 demo channel 返回；Telegram 请求不出现 123456。
 - [x] gray template 显式包含 `KHMERX_TEST_MODE=true` + `PAYEASE_H5_AUTH_MODE=demo` + Telegram mode；生产启动仍拒绝 test mode。
-- [ ] 本地 375px zh/en/km 登录截图及 sha256；需要在独立 acceptance run 中完成。
-- [ ] 本地 H5：手机号 + 123456 → KYC → 借款 → 签约完整流程；需要复用第三轮脚本完成。
-- [ ] 生产等价 env：`demoCode` 不返回，123456 无法通过；需用本地 worker 的非-demo fixture 验证。
+- [x] 本地 375px zh/en/km 登录截图及 sha256；见 `docs/review/assets/d42-h5-auth/`。`h5-login-{zh,en,km}.png` 均显示对应测试环境验证码提示；同目录还保存了工作台三语切换截图。SHA-256：`zh=2ae0f34bc86908c5df7af23af5279fe06f1aa4e2c9ddd1453f18fccc0af714c2`、`en=4fc42d584f1d68daecfb87ef6d6dc62a3a752b515a31f97f43fc631386898ebc`、`km=4b46944c0ac25f5f52826c3291493588316031ef3cddbbb1af80b97224132cec`。
+- [x] 本地 H5：手机号 + 123456 → KYC → 借款 → 签约完整流程；隔离本地灰度 worker 上以虚构手机号完成验证码、KYC 文件上传/提交、后台人工审核、贷款创建、费用确认和 `/api/loan/sign`，结果 `signOk=true`（不产生真实债务）。目标运行还验证了 H5 与 Telegram runtime binding 分离。
+- [x] 生产等价负向门禁（代码/fixture）：Telegram provider failure 测试确认不回退 demoCode，`demoCode` 不出现在 Telegram challenge；`lib/h5-auth-core.ts` 的 `allowDemo` guard 在非测试配置拒绝 demo。未连接真实生产或 VPS，未作线上写入。
 - [ ] VPS 灰度前核对真实 config placeholders、单公司绑定、Telegram bot/gateway secrets、TLS/DNS、scanner health；不在本 PR 部署。
 - [ ] 正式上线前另行完成 SMS OTP provider，不允许任何 provider failure fallback 到 123456。
 
