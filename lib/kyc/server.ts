@@ -2,7 +2,7 @@ import type {Bill} from '@/lib/pricing';
 import {projectStaffProfile} from './staff-projection';
 import {sensitiveFields} from './staff-projection';
 import {mergeSensitiveAmend} from './sensitive-amend';
-import {staff,guardKyc,ensureAssignment} from '@/lib/team/server';
+import {staff,guardKyc,ensureAssignment,auditInsertSql} from '@/lib/team/server';
 import {kycFieldGroupFor,kycFieldGroups,type KycFieldGroup} from '@/lib/team/policy';
 import {env} from 'cloudflare:workers';
 import {getChatGPTUser} from '@/app/chatgpt-auth';
@@ -134,7 +134,7 @@ export async function decide(request:Request){
   const before=Object.fromEntries(auditFields.map(id=>[id,mask(data.profile.values[id])]));
   const after=Object.fromEntries(auditFields.map(id=>[id,mask(normalized.values[id])]));
   const next=await transition(row,'needs_info',{...data,profile:await resolveFiles(row.owner,row.customer_id,normalized),signedLoan:undefined,review:{decision:'needs_info',reason:'审核员代修改，待客户确认：'+reason,checklist:{},actor:u.actorId,at:new Date().toISOString(),revision:row.revision}},'review:amend',u.actorId);
-  if(u.team)await db().prepare('INSERT INTO team_audit (id,tenant_id,actor,action,detail,created_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),u.team.tenant.id,u.actorId,'kyc_field_amend',JSON.stringify({caseId:row.id,fields:changed,groups,before,after,reason,requiresResubmission:true,revision:next.revision}),new Date().toISOString()).run();
+  if(u.team)await auditInsertSql(u.team.tenant.id,u.actorId,'kyc_field_amend',{caseId:row.id,fields:changed,groups,before,after,reason,requiresResubmission:true,revision:next.revision}).run();
   return staffView(next,u.team?.member.role||'audit');
  }
  const checklist=Object.fromEntries(['identity','contacts','employment','income','assets','bank','consent'].map(k=>[k,p.checklist?.[k]===true]));validateReview(row.status,p.decision,checklist,reason,data.profile);const requests=parseRequests(p.requests,data.profile);
