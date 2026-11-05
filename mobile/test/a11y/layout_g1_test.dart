@@ -171,18 +171,18 @@ void main() {
       }
     });
 
-    testWidgets('A11Y-04 Telegram Code Page: no overflow + CTA>=48',
+    testWidgets('A11Y-04 Phone Code Page: no overflow + CTA>=48',
         (tester) async {
       for (final w in dimensions) {
         for (final s in scales) {
           await pumpAt(
             tester,
-            () => const TelegramCodePage(),
+            () => const PhoneCodePage(),
             widthDp: w,
             scale: s,
           );
-          noOverflow(tester, 'TelegramCode ${w}dp @${s}x');
-          assertButtons48dp(tester, 'TelegramCode ${w}dp @${s}x');
+          noOverflow(tester, 'PhoneCode ${w}dp @${s}x');
+          assertButtons48dp(tester, 'PhoneCode ${w}dp @${s}x');
         }
       }
     });

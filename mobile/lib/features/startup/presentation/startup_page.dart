@@ -79,8 +79,8 @@ final class _StartupPageState extends ConsumerState<StartupPage>
           context.go('/home');
         case StartupRedirectKind.authLogin:
           context.go('/auth/login');
-        case StartupRedirectKind.authTelegramCode:
-          context.go('/auth/telegram-code');
+        case StartupRedirectKind.authPhoneCode:
+          context.go('/auth/phone-code');
         case StartupRedirectKind.authSetPassword:
           context.go('/auth/set-password');
         case StartupRedirectKind.candidateConfirm:
