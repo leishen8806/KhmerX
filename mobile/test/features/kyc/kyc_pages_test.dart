@@ -342,8 +342,11 @@ void main() {
           kycCase: _case(KycCaseStatus.draft),
         );
         final l = await AppLocalizations.delegate.load(Locale(lang));
-        final field = tester.widget<TextFormField>(find.byType(TextFormField).first);
-        final border = field.decoration.border! as OutlineInputBorder;
+        final field = find.byType(TextFormField).first;
+        final input = tester.widget<InputDecorator>(
+          find.descendant(of: field, matching: find.byType(InputDecorator)),
+        );
+        final border = input.decoration.border! as OutlineInputBorder;
         expect(border.borderRadius, BorderRadius.circular(16));
         final cta = find.byType(FilledButton).last;
         expect(find.text(l.kycNext), findsOneWidget);

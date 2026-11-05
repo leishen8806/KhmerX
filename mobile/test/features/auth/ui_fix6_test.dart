@@ -12,7 +12,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [secureKvProvider.overrideWithValue(FakeSecureKv())],
-        child: MaterialApp(
+        child: const MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const TelegramConsentPage(),
