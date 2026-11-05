@@ -6,9 +6,9 @@
 
 | 环境/入口 | 仓库中对应的配置 | 数据库判断 | 结论与待确认项 |
 |---|---|---|---|
-| `testpayease.khmerx.org`、`testadmin.khmerx.org`、`testapi.khmerx.org`（灰度源站 `159.223.77.134`） | `deploy/standalone/gray/compose.gray.yaml`、`deploy/standalone/gray/README.md`、`deploy/standalone/Caddyfile.gray` | VPS 上的 Miniflare/workerd 兼容 D1，持久化目录映射为 `/opt/payease/data`，其中 D1 状态在 `/data/d1` | 明确是灰度 SQLite 文件，不是 Cloudflare 托管 D1。 |
-| Licensed `165.22.108.5` | `deploy/clamav-gateway/gray/*` | 这些文件只描述 Licensed 机上的临时 ClamAV 扫描服务；应用 compose 和应用数据库配置未在仓库中绑定到该 IP | 不能据仓库判断该机是否运行 PayEase 应用或数据库，待负责人确认；不要把它当作 Plan R 迁移目标。 |
-| `payease.khmerx.org`、`admin.khmerx.org`、`api.khmerx.org`（生产源站 `159.223.92.104`） | `deploy/standalone/compose.yaml`、`deploy/standalone/server.mjs`、`deploy/standalone/hosts.mjs`；正式域名列表也出现在 `deploy/standalone/server.mjs` | `server.mjs` 使用 Miniflare 的 `d1Persist: '/data/d1'`，compose 将宿主机 `/opt/payease/data` 挂到容器 `/data`；因此按仓库设计是 VPS 上的 Miniflare/D1 SQLite 文件 | 入口与生产配置吻合，但仓库没有把该 IP 写进 compose 的主机映射，实际当前容器/域名归属仍待负责人确认。 |
+| `testadmin.khmerx.org`、`testapi.khmerx.org`、`test.khmerx.org`、`testpayease.khmerx.org`（金融机构服务器 `159.223.77.134`） | `deploy/standalone/gray/compose.gray.yaml`、`deploy/standalone/gray/README.md`、`deploy/standalone/gray/Caddyfile.gray` | VPS 上的 Miniflare/workerd 兼容 D1，持久化目录映射为 `/opt/payease/data`，其中 D1 状态在 `/data/d1` | 金融机构服务器（负责人确认）；按仓库设计是灰度 SQLite 文件，不是 Cloudflare 托管 D1。 |
+| `licensed.khmerx.org`（持牌机构服务器 `165.22.108.5`） | 仓库中只有 `deploy/clamav-gateway/gray/*` 的 Licensed/扫描服务配置；`deploy/standalone/hosts.mjs` 的 `DEFAULT_HOSTS` 没有 `licensed.khmerx.org`，应用 compose 和应用数据库配置也未绑定该域名/IP | 未发现该套配置提供 PayEase 应用或独立应用数据库的证据；现有扫描网关配置不能证明存在应用数据库 | 持牌机构服务器，承载 `licensed.khmerx.org`（负责人确认）；由仓库无法判断应用入口或是否有自己的数据库，保留为待确认项；不作为本次 Plan R 迁移目标。 |
+| `payease.khmerx.org`、`admin.khmerx.org`、`api.khmerx.org`（旧服务器 `159.223.92.104`） | `deploy/standalone/compose.yaml`、`deploy/standalone/server.mjs`、`deploy/standalone/hosts.mjs`；正式域名列表也出现在 `deploy/standalone/server.mjs` | `server.mjs` 使用 Miniflare 的 `d1Persist: '/data/d1'`，compose 将宿主机 `/opt/payease/data` 挂到容器 `/data`；因此按仓库设计是 VPS 上的 Miniflare/D1 SQLite 文件 | 负责人 11-03 的服务器清单中未列出，需确认是否仍在使用；仓库没有把该 IP 写进 compose 的主机映射，实际当前容器/域名归属仍待确认。 |
 
 仓库没有证据表明这些入口使用 Cloudflare 托管 D1。`wrangler d1 export --remote` 不适用于当前已核实的数据库目标，也不应作为本手册的备份命令。若负责人确认另有 Cloudflare D1 环境，必须另建环境专用步骤；届时 `wrangler d1 export` 会占用数据库资源并可能造成不可用窗口，Time Travel 可用 `wrangler d1 time-travel info` 查询、用 `wrangler d1 time-travel restore` 做时间点恢复，但本任务不执行这些命令。
 
@@ -145,8 +145,8 @@ SELECT seq, id, created_at FROM team_audit ORDER BY seq DESC LIMIT 20;
 
 ## 7. 待负责人确认清单
 
-- `159.223.92.104` 当前实际运行的是 `deploy/standalone/compose.yaml`，以及三个生产域名是否都由该实例承载。
-- `165.22.108.5` 是否只运行 ClamAV/扫描服务，是否存在未写入仓库的 PayEase 应用或数据库。
+- `159.223.92.104`（`payease/admin/api.khmerx.org`）负责人 11-03 的服务器清单中未列出，需确认是否仍在使用，以及三个域名是否仍由该实例承载。
+- `165.22.108.5` 上 `licensed.khmerx.org` 的实际应用入口、是否只运行 ClamAV/扫描服务，以及是否存在未写入仓库的 PayEase 应用或独立数据库。
 - 生产现有 off-host 备份脚本、备份存储和恢复责任人；仓库只给出灰度备份脚本。
 - 生产 Caddy/网关是否已配置 `GRAY_CLOSED_FILE` 或其他维护页机制；未确认前按“停止容器、可能返回 502”评估影响。
 - 生产迁移窗口、停止写入范围、部署版本、备份校验值和允许执行线上 0062 的明确批准。
