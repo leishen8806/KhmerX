@@ -28,7 +28,7 @@ final class KhmerXTheme {
     const textSecondary = Color(0xFF667085);
     const background = Color(0xFFF7F9FC);
 
-    final colorScheme = ColorScheme.light(
+    const colorScheme = ColorScheme.light(
       primary: primary,
       onPrimary: Colors.white,
       secondary: textSecondary,
@@ -106,7 +106,7 @@ final class KhmerXTheme {
     const background = Color(0xFF101722);
     const surface = Color(0xFF192332);
 
-    final colorScheme = ColorScheme.dark(
+    const colorScheme = ColorScheme.dark(
       primary: primary,
       onPrimary: Colors.black,
       secondary: primary,
