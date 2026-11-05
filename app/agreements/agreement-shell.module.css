@@ -1,0 +1,33 @@
+.shell {
+  --agreement-logo-size: 40px;
+  --agreement-content-width: 800px;
+}
+
+.logo {
+  width: var(--agreement-logo-size);
+  height: var(--agreement-logo-size);
+  object-fit: contain;
+}
+
+.article {
+  max-width: var(--agreement-content-width);
+}
+
+.footer {
+  display: block;
+}
+
+.footer p {
+  margin: 8px 0;
+}
+
+.signature {
+  display: block;
+  max-width: 100%;
+  height: var(--agreement-signature-height, 160px);
+  object-fit: contain;
+}
+
+.hash {
+  overflow-wrap: anywhere;
+}
