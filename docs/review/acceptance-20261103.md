@@ -1,43 +1,44 @@
-# 本地测试环境全面验收评审（D-41，第二轮）
+# 本地测试环境全面验收评审（D-41，第三轮）
 
 日期：2026-11-05
-基线：`987130e384f8abf6eafd8e29e238d0ce973997ef`（本地验收分支，源自 `origin/main` `8eeee227c1639b9b17fbb14bc3faac27d6685623`）
+基线：`123680b`（本地验收分支，已合入最新 `origin/main`；仅保留本轮验收文档和截图）
 范围：仅本地 checkout、Miniflare/D1 和无头 Chromium；没有登录服务器、没有 `--remote`、没有部署、没有线上读写。
 
 ## 结论
 
-结论：**No-Go（有条件 Go 的前置条件尚未满足）**。
+结论：**有条件 Go（不解除 VPS 灰度/部署门禁）**。
 
-第二轮已补齐本机 Playwright 1.55.0 + Chromium 140、重新拍摄 23 张截图、后台各菜单打开、持牌机构角色入口、响应错误/控制台采集、移动端横向溢出检查、计算样式检查，以及从 0062 之前版本升级到最新版本的虚构数据演练。仍有三个上线前阻塞：
+第三轮在最新 main 上完成了门禁、迁移回放、v3 清单、客户 H5 核心 UI 流程和本地持牌机构登录复核。仍有上线前硬条件：
 
-1. 升级演练初始库在 0062 后需要显式回填历史 `seq`；并且浏览器流程产生的两条审计行仍为 NULL seq，最终只读 verifier 报 `seqNull=2`。这不是数据丢失，但清单进入人工复核状态，不能作为 VPS 灰度绿灯。
-2. `npm audit --omit=dev` 的 high/critical 依赖风险仍未修复（仅记录，不在本任务修复）。
-3. 仓库的 `DEFAULT_HOSTS` 没有 `licensed.khmerx.org`；只能在本地 `/team/login` 的“持牌机构后台”切换并用虚构 checker 账号验收，无法证明该域名部署入口。
+1. 最新本地浏览器请求仍会产生 `team_audit.seq IS NULL` 的审计行；只读 verifier 报 `seqNull=2`，不能作为 VPS 灰度绿灯。
+2. 本轮依赖审计为零漏洞，但每次 VPS 发布仍须锁定依赖并重跑审计。
+3. 本地 `/team/login` 的持牌机构角色登录成功，但 `licensed.khmerx.org` 未在默认 host 映射中，真实域名入口仍未证明。
+4. 客户 UI 已走到申请、账单确认、手写签名保存和申请记录；在本地隔离数据中最终状态仍是 `kyc_approved`，未转为 `decision_pending`，因此不能宣称 lender/checker 已完成真实客户链路。
 
 ## 验收矩阵
 
 | 阶段 | 验收项 | 结果 | 证据 |
 |---|---|---|---|
-| 1 | test/typecheck/separated build/lint/diff | 通过（沿用本分支无源代码变化的门禁日志） | `/private/tmp/khmerx-acceptance-test.log`、`-build.log`、`-lint.log`、`-ui-tests.log`；原报告记录 525 tests：508 pass、0 fail、17 skipped，separated leaks=0，lint 0 errors |
-| 1 | 依赖审计 | 不通过/需负责人接受 | 原报告的 `npm audit --omit=dev`：critical `next` 16.0.0–16.4.0；high `zod<4.6.6`、传递依赖 `undici` 7.0.0–7.30.0 |
+| 1 | test/typecheck/separated build/lint/diff | 通过 | `/tmp/acceptance-round3-test.log`、`-typecheck.log`、`-build.log`、`-lint.log`；537 tests：520 pass、0 fail、17 skipped；separated leaks=0；lint 0 errors |
+| 1 | 依赖审计 | 通过 | `npm audit --omit=dev`：`found 0 vulnerabilities`（`/tmp/acceptance-round3-audit.log`） |
 | 2 | 全新库 0000–0062 | 通过 | `migrateDev` 应用到 0062；`pragma table_info(team_audit)` 出现 `seq`；无 migration 报错 |
-| 2 | 升级路径与数据保留 | 有条件通过 | 0062 引入 commit `884aa368`，假设 pre-0062 为父提交 `20c2f8a`；迁移前后关键表：`h5_accounts=4`、`kyc_cases=3`、`loan_index=3`、`team_service_tickets=3`、`team_audit=4`；迁移后首轮回填 verifier：rows=8，seqNull=0、seqUnique=true、orderCheck=passed |
-| 2 | v3 清单 create/verify | 通过（回填后） | API 返回 `version=3,status=v3`，verify `match=true,tampered=false,needsManualReview=false`；manifest id `a26961d7-79ed-4aca-bc9d-02000c01f5f6`，rows=8；`audit-seq-verify.mjs --backfill-max-seq 8` 全部通过 |
+| 2 | 升级路径与数据保留 | 通过 | 从 pre-0062 `.wrangler/state` 回放最新迁移，自动应用 0062；迁移前 verifier rows=4，迁移后仍保留 4 行，`seqNull=0,seqUnique=true,orderCheck=passed` |
+| 2 | v3 清单 create/verify | 通过 | 浏览器真实 UI 登录后创建并校验 manifest：`version=3,status=v3,match=true,tampered=false,appendOnly=true,prefixMatches=true`，rows=6，appendedRows=0；升级后 verifier rows=6 全部通过 |
 | 2 | 浏览器流程后的审计连续性 | 不通过/人工复核 | 后续本地浏览器访问新增审计行；只读 verifier `rows=10,seqNull=2,seqUnique=true,orderCheck=passed`，两条 NULL id 已记录在 `/private/tmp/khmerx-acceptance` 当次输出中 |
-| 3 | H5 页面与三语言截图 | 部分通过 | Playwright 重新访问 `/h5`、`/h5/kyc`，en/km/zh，1280 与 375；页面可渲染，`/h5/loans` 在当前路由返回 404。三种 `lang` 查询截图哈希相同，说明本轮没有证明语言切换生效 |
-| 3 | 登录/注册/KYC 六组/上传/补件/通过/借款/账单/合同/记录/我的完整流程 | 未覆盖 | 当前本地 seed 没有可直接驱动完整客户 UI 状态；本轮只用本地 demo API 完成短信 challenge/verify，返回脱敏 `+855 •••• 0001`，没有伪造 UI 通过结论 |
-| 4 | `/team` 1280/390、各菜单 | 通过（页面可打开） | Playwright 截图：customers、reports、notifications、kyc、loans、funding、tickets、repayment、postloan；authenticated dashboard 使用虚构 checker 账号打开，见截图表 |
+| 3 | H5 客户完整核心流程 | 有条件通过 | 375×812 Playwright 实际 UI 完成注册、六组 KYC、上传、提交、needs-info、补件、重提、approved、借款申请、账单确认、手写签名保存、记录和“我的”；证据见 `assets/acceptance-20261103/01–15` |
+| 3 | 客户贷款审批状态转换 | 未通过/阻塞 | 账单和签名 API 均 200，签名页面与记录页可见；最终隔离本地客户贷款仍为 `kyc_approved`，未进入 `decision_pending`，不能把 lender/checker fixture 当成真实客户闭环 |
+| 4 | `/team` 1280/390、各菜单 | 通过（页面可打开） | Playwright 截图：customers、reports、notifications、kyc、loans、funding、tickets、repayment、postloan；本轮另用虚构 checker 账号登录持牌机构 dashboard，见 `16–19` |
 | 4 | MFA 页面 | 部分通过 | `/team/login` 可打开并有 MFA challenge 分支代码与截图入口；未配置 MFA secret 的本地虚构账号未执行真实 TOTP 循环 |
 | 4 | 审计完整性 NULL seq 后人工复核 | 通过（风险可复现） | verifier 在 NULL seq 时报告 `seqNull=2`；API v3 清单在全量 seq 时返回 `match=true` |
 | 5 | licensed 入口 | 未覆盖/阻塞 | 本地 `/team/login` 切换“持牌机构后台”，虚构 checker 账号密码登录 API 返回 200 并进入 dashboard；但 `deploy/standalone/hosts.mjs:3-7` 的 `DEFAULT_HOSTS` 没有 `licensed.khmerx.org`，无法验收该域名 |
 | 6 | 未登录/客户身份后台 API | 部分通过 | 无身份 `GET /api/team` 返回 401；测试身份在 `KHMERX_TEST_MODE=true` 下可读到空公司列表（200），因此非测试模式拒绝未完成，不能把测试模式结果当生产安全证明 |
 | 6 | 客户 H5 demo 认证与脱敏 | 通过（本地 demo） | `/api/h5/auth/send` 返回 `phoneMasked=+855 •••• 0001`、`demoCode=123456`；verify 返回 `authenticated=true`；未完成密码设置时 `/api/h5/state` 按预期拒绝继续申请 |
 | 7 | 375/390 横向滚动与计算样式 | 通过（抽查） | Playwright：375 时 `scrollWidth=375,clientWidth=375`；390 时 `documentWidth=390,viewportWidth=390`；按钮计算样式：height/min-height 44px、padding-inline 12px、border-radius 8px、背景 `rgb(53,70,96)` |
-| 7 | 控制台/网络错误 | 不通过 | `/private/tmp/acceptance-round2-browser-evidence.json`：控制台/响应错误 4xx/5xx 共 13/4；明确问题包括 `/h5/loans` 404、`/team/audit` 404（该路径不在 `crmQueueSections`）及若干本地 API 503/404 |
+| 7 | 控制台/网络错误 | 有条件通过 | 本轮客户流程 API 响应均为 200；记录 1 条 `[vinext] RSC prefetch setup error: TypeError: m is not a function`，需在发布前定位。自动化重复设置同一文件槽产生的 409 属于 harness 重复上传，不计作产品失败；首轮未登录 `/api/team` 的 403 属于预期防护 |
 
 ## 数据与迁移证据
 
-0062 引入 commit 为 `884aa368f883512480d3335994019ce8a97e9c03`，其父提交 `20c2f8a73fc36e5fb1e6fc5c5cdf7dc6acfe3ba6` 作为“0062 之前”的可复现假设。旧工作树先迁移并写入虚构客户、KYC、贷款、工单和 4 条同毫秒 `created_at` 的审计数据，再复制本地 `.wrangler/state` 到最新工作树。最新迁移应用 0062 后，手工按 `created_at,id` 回填历史 seq；首轮完整数据验证通过，随后创建并校验 v3 manifest。
+0062 之前的本地 `.wrangler/state` 先恢复到隔离 worktree，再运行最新迁移；迁移自动应用 0062，未执行手工业务回填。迁移前后 verifier 均通过（4 行 → 4 行，`seqNull=0`），随后用浏览器登录会话创建并校验 v3 manifest（6 行，`match=true`）。浏览器继续访问后台后仍复现两条 NULL seq，因此此项保留为 VPS 前置修复。
 
 本地 demo API 还验证了手机号挑战：发送、验证码 `123456` 验证和会话建立均只在本地完成，未发送 Telegram。所有业务数据为 `acceptance` 虚构来源。浏览器访问后台后发现新增审计写入路径仍会产生 NULL seq，因此将该复现保留为上线前阻塞，而不是掩盖在最终回填里。
 
@@ -46,7 +47,7 @@
 ### P1
 
 - **P1-1：浏览器流程仍可产生 NULL seq。** 位置：`lib/team/auth.ts` 的登录审计路径与其他后台写入路径；复现：0062 后用本地 checker 登录、打开后台菜单，再运行 `node scripts/audit-seq-verify.mjs --db <sqlite> --backfill-max-seq 10`；结果 `rows=10,seqNull=2`。证据：审计 verifier 输出；升级成功截图和 `team-dashboard-authenticated-1280.png`。上 VPS 前必须修复或明确所有审计写入都经过 seq 分配。
-- **P1-2：生产依赖 high/critical 未处理。** 位置：`package-lock.json` 对应 `next`/`zod`/`undici`；复现 `npm audit --omit=dev`。证据：原门禁日志。上 VPS 前由负责人接受风险或升级依赖并重跑门禁。
+- **P1-2：发布前必须保持依赖审计为零漏洞。** 本轮 `npm audit --omit=dev` 已为 0 vulnerabilities；VPS 发布仍须锁定同一 lockfile 并重跑。
 
 ### P2
 
@@ -57,13 +58,23 @@
 ### P3
 
 - **P3-1：三种 `lang` 查询参数截图像素哈希相同。** 本轮没有把语言切换误报为通过；需要通过真实语言选择器/状态参数重新验收漏翻与混用。
-- **P3-2：完整客户业务流程未形成可重复的 UI fixture。** 当前仅完成本地 demo auth API，未伪造合同签署或审批通过截图。
+- **P3-2：客户贷款审批未完成真实客户闭环。** 本轮已形成可重复的 KYC/补件/批准/借款/账单/手写签名 UI 证据，但本地客户贷款仍停在 `kyc_approved`；需要真实机构待审数据或修复本地 fixture 后再验证 lender/checker 操作。
 
 未发现由本轮证据直接证明的 P0。
 
 ## 截图与 SHA256
 
-以下全部是在本轮从 Playwright/Chromium 重新生成的文件，旧目录截图已删除：
+以下本轮 Playwright/Chromium 证据已复制到 `docs/review/assets/acceptance-20261103/`；客户截图 01–15 覆盖实际 UI 生命周期，持牌机构截图 16–19 覆盖登录后的 dashboard、贷款入口以及 English/Km 语言选择器可见状态：
+
+| 文件 | 内容 |
+|---|---|
+| `01-register.png`–`04-submitted.png` | 注册、登录、六组 KYC 填写与提交 |
+| `05-customer-needs-info.png`–`08-customer-approved.png` | needs-info、补件、重提与批准 |
+| `09-loan-application.png`–`12-signed.png` | 借款申请、结算账单、手写签名与保存 |
+| `13-loan-record.png`–`15-my.png` | 申请记录、贷款记录与我的账户 |
+| `16-checker-dashboard.png`–`19-checker-km.png` | checker 登录后的持牌机构 dashboard、贷款视图与 English/Km 选择器 |
+
+以下保留第二轮的历史 SHA256 记录，用于与旧报告比对：
 
 | 文件 | SHA256 |
 |---|---|
@@ -93,9 +104,9 @@
 
 ## 未覆盖与下一步
 
-1. 修复所有审计写入路径的 seq 分配，重跑升级、浏览器、v3 manifest 和 verifier。
-2. 处理或正式接受依赖审计 high/critical；不得以本地截图替代风险决定。
+1. 修复所有审计写入路径的 seq 分配，重跑升级、浏览器、v3 manifest 和 verifier；当前 `seqNull=2` 是 P1 阻塞。
+2. 以同一 lockfile 在 VPS 灰度前重跑四项门禁与 `npm audit --omit=dev`。
 3. 明确 `licensed.khmerx.org` 的真实入口/配置后，在隔离本地 host 映射上复验；当前禁止登录或修改任何线上环境。
-4. 为客户 KYC/补件/批准、借款、账单确认、合同签署建立一次性本地 fixture，重新做三语言 375/390 全流程；当前报告只把已观察到的页面和 API 证据写为部分通过。
+4. 提供与客户 loan 关联的可重复 lender/checker fixture，验证 `decision_pending → approve → approval_check`；当前客户 UI 最终停在 `kyc_approved`。
 
-基于以上 P1/P2 阻塞，本报告不解除 D-40 暂停，也不授权 VPS 灰度、部署或线上写操作。
+基于以上硬条件，本报告不授权部署或线上写操作；完成 seq 修复、真实 licensed host、客户 loan 的机构审批闭环和灰度前依赖复核后，才可重新评估 VPS 灰度。
