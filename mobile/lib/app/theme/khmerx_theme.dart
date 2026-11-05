@@ -5,13 +5,14 @@ final class KhmerXTheme {
 
   static InputDecorationTheme _inputTheme(ColorScheme c) {
     OutlineInputBorder border(Color color, [double width = 1]) => OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(color: color, width: width),
         );
     return InputDecorationTheme(
       isDense: false,
       filled: true,
       fillColor: c.surface,
+      constraints: const BoxConstraints(minHeight: 48),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       border: border(c.outlineVariant),
       enabledBorder: border(c.outlineVariant),
@@ -27,10 +28,13 @@ final class KhmerXTheme {
     const textSecondary = Color(0xFF667085);
     const background = Color(0xFFF7F9FC);
 
-    final colorScheme = ColorScheme.fromSeed(
-      seedColor: primary,
-      brightness: Brightness.light,
+    final colorScheme = ColorScheme.light(
       primary: primary,
+      onPrimary: Colors.white,
+      secondary: textSecondary,
+      onSecondary: Colors.white,
+      surface: Colors.white,
+      onSurface: textPrimary,
     );
 
     return ThemeData(
@@ -69,8 +73,8 @@ final class KhmerXTheme {
       inputDecorationTheme: _inputTheme(colorScheme),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size.fromHeight(52),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          minimumSize: const Size.fromHeight(48),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
       ),
@@ -102,11 +106,13 @@ final class KhmerXTheme {
     const background = Color(0xFF101722);
     const surface = Color(0xFF192332);
 
-    final colorScheme = ColorScheme.fromSeed(
-      seedColor: primary,
-      brightness: Brightness.dark,
+    final colorScheme = ColorScheme.dark(
       primary: primary,
+      onPrimary: Colors.black,
+      secondary: primary,
+      onSecondary: Colors.black,
       surface: surface,
+      onSurface: textPrimary,
     );
 
     return ThemeData(
@@ -145,8 +151,8 @@ final class KhmerXTheme {
       inputDecorationTheme: _inputTheme(colorScheme),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size.fromHeight(52),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          minimumSize: const Size.fromHeight(48),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
       ),
