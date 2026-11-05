@@ -12,8 +12,7 @@
 
 1. #174 已把后台审计写入统一到带 `seq` 的 writer；本轮全新本地环境的浏览器菜单/审计写入后 verifier 为 `seqNull=0`。这关闭了第三轮旧报告中的 P1-1；不能把旧的 `rows=10,seqNull=2` 结果继续用于当前结论。
 2. 本轮依赖审计为零漏洞，但每次 VPS 发布仍须锁定依赖并重跑审计。
-3. 本地 `/team/login` 的持牌机构角色登录成功，但 `licensed.khmerx.org` 未在默认 host 映射中，真实域名入口仍未证明。
-4. 客户 UI 走到申请、账单确认、手写签名和提交审批后，隔离 D1 中该笔贷款为 `decision_pending`；当前仍没有把“持牌机构真实域名”和线上机构审批当作已验收。
+3. 客户 UI 走到申请、账单确认、手写签名和提交审批后，隔离 D1 中该笔贷款为 `decision_pending`；lender/checker 角色流程仍需独立验证。
 
 ## 验收矩阵
 
@@ -30,7 +29,7 @@
 | 4 | `/team` 1280/390、各菜单 | 通过（页面可打开） | Playwright 截图：customers、reports、notifications、kyc、loans、funding、tickets、repayment、postloan；本轮另用虚构 checker 账号登录持牌机构 dashboard，见 `16–19` |
 | 4 | MFA 页面 | 部分通过 | `/team/login` 可打开并有 MFA challenge 分支代码与截图入口；未配置 MFA secret 的本地虚构账号未执行真实 TOTP 循环 |
 | 4 | 审计完整性 NULL seq 后人工复核 | 通过 | v3 清单 create/verify 返回 `match=true,tampered=false,appendOnly=true,prefixMatches=true`；只读 verifier 返回 `seqNull=0` |
-| 5 | licensed 入口 | 未覆盖/阻塞 | 本地 `/team/login` 切换“持牌机构后台”，虚构 checker 账号密码登录 API 返回 200 并进入 dashboard；但 `deploy/standalone/hosts.mjs:3-7` 的 `DEFAULT_HOSTS` 没有 `licensed.khmerx.org`，无法验收该域名 |
+| 5 | licensed 入口 | 范围外 | 负责人确认：仓库尚未配置持牌机构服务器部署，`licensed.khmerx.org` 暂用旧服务器；本轮不登录服务器、不修改 host 配置。lender/checker 角色流程仍需验证 |
 | 6 | 未登录/客户身份后台 API | 部分通过 | 无身份 `GET /api/team` 返回 401；测试身份在 `KHMERX_TEST_MODE=true` 下可读到空公司列表（200），因此非测试模式拒绝未完成，不能把测试模式结果当生产安全证明 |
 | 6 | 客户 H5 demo 认证与脱敏 | 通过（本地 demo） | `/api/h5/auth/send` 返回 `phoneMasked=+855 •••• 0001`、`demoCode=123456`；verify 返回 `authenticated=true`；未完成密码设置时 `/api/h5/state` 按预期拒绝继续申请 |
 | 7 | 375/390 横向滚动与计算样式 | 通过（抽查） | Playwright：375 时 `scrollWidth=375,clientWidth=375`；390 时 `documentWidth=390,viewportWidth=390`；按钮计算样式：height/min-height 44px、padding-inline 12px、border-radius 8px、背景 `rgb(53,70,96)` |
@@ -52,7 +51,7 @@
 ### P2
 
 - **P2-1：已关闭（#173）。** 最新 `scripts/dev-app-backend/start.mjs` 先物化/迁移再 seed；全新 `.wrangler/state` 启动和 `TMPDIR=/private/tmp npm run build:separated` 已通过。
-- **P2-2：待负责人确认。** 本地 `/team/login` 的持牌机构入口可以打开，但本报告不登录服务器、不改 host 配置；`licensed.khmerx.org` 的入口列为“待负责人确认：165.22.108.5 上实际跑的是什么”。
+- **P2-2：范围外（负责人确认：仓库尚未配置，暂用旧服务器）。** `licensed.khmerx.org` 不再作为本轮验收阻塞项；本报告不登录服务器、不修改 host 配置。lender/checker 角色流程仍需验证。
 - **P2-3：已关闭（#173，预期路由）。** `/h5/loans` 和 `/team/audit` 不是当前允许的产品入口；验收使用 `/h5/records`、`/team?queue=audit` 等实际入口，不把这些旧路径 404 记为产品缺陷。
 
 ### P3
@@ -106,7 +105,6 @@
 
 1. `[vinext] RSC prefetch setup error: TypeError: m is not a function` 在当前 main 的客户 `/h5` 流程仍可复现；错误栈指向生成的 `mini-shell-*.js`，源码关联 `components/mini-shell.tsx` 中的 MiniNavLink/`MiniNavigationProvider`。页面可继续操作，未证明是状态或数据损坏；应另开小 PR 做最小化 prefetch 复现与修复，本 docs-only PR 不改代码。
 2. 以同一 lockfile 在 VPS 灰度前重跑四项门禁与 `npm audit --omit=dev`；本地本轮 `npm audit --omit=dev` 为 `found 0 vulnerabilities`。
-3. 明确 `licensed.khmerx.org` 的真实入口/配置后，在隔离本地 host 映射上复验；当前禁止登录或修改任何线上环境。入口：**待负责人确认：165.22.108.5 上实际跑的是什么**。
-4. 若要完成机构侧 UI 闭环，补充与客户 loan 关联的可重复 lender/checker fixture，并单独验证 `decision_pending → approve → approval_check`；本轮已证明客户侧转换不是代码缺陷。
+3. 若要完成机构侧 UI 闭环，补充与客户 loan 关联的可重复 lender/checker fixture，并单独验证 `decision_pending → approve → approval_check`；本轮已证明客户侧转换不是代码缺陷。licensed 域名部署属于范围外。
 
-基于以上条件，本报告不授权部署或线上写操作。#174/#173 已关闭 seq、fresh-state、预期路由和语言切换的旧报告矛盾；在确认 licensed host、补齐机构审批独立复验、定位 RSC prefetch 错误并完成灰度前依赖复核后，才可重新评估 VPS 灰度。当前结论仍为**有条件 Go**，不是线上 Go。
+基于以上条件，本报告不授权部署或线上写操作。#174/#173 已关闭 seq、fresh-state、预期路由和语言切换的旧报告矛盾；在补齐 lender/checker 独立复验、定位 RSC prefetch 错误并完成灰度前依赖复核后，才可重新评估 VPS 灰度。licensed 域名属于范围外，不再作为本轮阻塞项。当前结论仍为**有条件 Go**，不是线上 Go。
