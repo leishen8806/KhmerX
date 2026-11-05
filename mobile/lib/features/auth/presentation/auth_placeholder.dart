@@ -223,18 +223,20 @@ class _AuthLoginState extends ConsumerState<AuthLoginPage> {
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
                     icon: const Icon(Icons.lock_outline),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(52),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    ),
                     onPressed: loading ? null : () => context.push('/auth/password'),
                     label: Text(_l(context).authUsePassword),
                   ),
-                  const SizedBox(height: 8),
-                  Center(
-                    child: TextButton(
-                      onPressed: loading ? null : () => context.push('/auth/recover'),
-                      child: Text(_l(context).authForgotPassword),
+                  const SizedBox(height: 16),
+                  Card(
+                    margin: EdgeInsets.zero,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                      child: Center(
+                        child: TextButton(
+                          onPressed: loading ? null : () => context.push('/auth/recover'),
+                          child: Text(_l(context).authForgotPassword),
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -245,6 +247,19 @@ class _AuthLoginState extends ConsumerState<AuthLoginPage> {
       ),
     );
   }
+}
+
+/// Groups a compact form's controls and validation feedback on one surface.
+final class FormSection extends StatelessWidget {
+  const FormSection({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        margin: EdgeInsets.zero,
+        child: Padding(padding: const EdgeInsets.all(16), child: child),
+      );
 }
 
 final class TelegramConsentPage extends ConsumerStatefulWidget {
@@ -303,48 +318,48 @@ class _ConsentState extends ConsumerState<TelegramConsentPage> with _RebuildOnTe
   @override
   Widget build(BuildContext context) => _FormPage(
     title: _l(context).authTelegramVerificationTitle,
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        TextField(
-          controller: phone,
-          keyboardType: numericKeyboardType(ref),
-          decoration: InputDecoration(
-            labelText: _l(context).authPhoneLabel,
-            suffixIcon: keyboardSwitchButton(context, ref),
+    child: FormSection(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: phone,
+            keyboardType: numericKeyboardType(ref),
+            decoration: InputDecoration(
+              labelText: _l(context).authPhoneLabel,
+              suffixIcon: keyboardSwitchButton(context, ref),
+            ),
           ),
-        ),
-        const SizedBox(height: 12),
-        CheckboxListTile(
-          value: consent,
-          onChanged: submitting
-              ? null
-              : (v) => setState(() => consent = v ?? false),
-          contentPadding: EdgeInsets.zero,
-          title: Text(
-            _l(context).authConsentTelegramCode,
+          const SizedBox(height: 16),
+          CheckboxListTile(
+            value: consent,
+            onChanged: submitting
+                ? null
+                : (v) => setState(() => consent = v ?? false),
+            contentPadding: EdgeInsets.zero,
+            title: Text(
+              _l(context).authConsentTelegramCode,
+            ),
+            controlAffinity: ListTileControlAffinity.leading,
           ),
-          controlAffinity: ListTileControlAffinity.leading,
-        ),
-        if (error != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(error!, style: const TextStyle(color: Colors.red)),
+          if (error != null) ...[
+            const SizedBox(height: 16),
+            Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+          ],
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed:
+                (consent && phone.text.trim().isNotEmpty && !submitting) ? _send : null,
+            child: submitting
+                ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+                : Text(_l(context).authSendCode),
           ),
-        const SizedBox(height: 12),
-        FilledButton(
-          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-          onPressed:
-              (consent && phone.text.trim().isNotEmpty && !submitting) ? _send : null,
-          child: submitting
-              ? const SizedBox(
-                height: 20,
-                width: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-              : Text(_l(context).authSendCode),
-        ),
-      ],
+        ],
+      ),
     ),
   );
 }

@@ -333,6 +333,25 @@ void main() {
         expect(find.text(l.kycConsentBody), findsOneWidget);
         expect(find.text(l.kycConsentNotice), findsOneWidget);
       });
+
+      testWidgets('UI-FIX-6 fields use 16px focus surfaces and 48dp footer CTA', (tester) async {
+        await _pump(
+          tester,
+          page: const KycSectionPage(sectionId: 'identity'),
+          locale: Locale(lang),
+          kycCase: _case(KycCaseStatus.draft),
+        );
+        final l = await AppLocalizations.delegate.load(Locale(lang));
+        final field = find.byType(TextFormField).first;
+        final input = tester.widget<InputDecorator>(
+          find.descendant(of: field, matching: find.byType(InputDecorator)),
+        );
+        final border = input.decoration.border! as OutlineInputBorder;
+        expect(border.borderRadius, BorderRadius.circular(16));
+        final cta = find.byType(FilledButton).last;
+        expect(find.text(l.kycNext), findsOneWidget);
+        expect(tester.getSize(cta).height, greaterThanOrEqualTo(48));
+      });
     });
   }
 }
