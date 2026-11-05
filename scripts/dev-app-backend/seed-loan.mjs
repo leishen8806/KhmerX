@@ -17,6 +17,7 @@ const id = 'dev-loan-' + Math.random().toString(16).slice(2, 10);
 const billing = { quoteId: 'dev-quote', principal: 5000, deduction: 0, interest: 150, service: 50, upfront: 0, net: 5000, total: 5200, currency: 'USD', termDays: 14, version: 1 };
 state.loans.unshift({
   id, customerId: acc.customer_id, name: 'TEST USER', botId: 'bot-1', amount: 5000, fee: 200, status: 'active',
+  approvalActor: 'dev-seed-lender', approvalCheckedBy: 'dev-seed-checker', fundingActor: 'dev-seed-finance', fundingCheckedBy: 'dev-seed-finance-checker',
   createdAt: signedAt, paid: 0, wallet: 5000, note: 'Dev test loan (test funds only)', demoDays: 0, dueAt, billing, billConfirmedAt: signedAt,
   signedAt, signature: 'dev', contract: JSON.stringify({ loanId: id, principal: 5000, fee: 200, currency: 'USD', termDays: 14, signedAt, notice: 'Test funds only' }),
   kyc: { income: 0, contacts: [], document: '' },
