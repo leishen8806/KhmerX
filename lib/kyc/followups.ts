@@ -2,6 +2,7 @@ import {readState} from '@/lib/store';
 import {staff,db,assignment} from '@/lib/team/server';
 import {canSee} from '@/lib/team/policy';
 import {AuthError} from '@/lib/h5-auth-core';
+import {auditInsertSql} from '@/lib/team/audit-writer';
 export const followupStatuses={pending:'待跟进',contacted:'已联系',waiting:'等待客户补充',resolved:'跟进完成'};
 export async function kycFollowups(id:string,p?:any){
  const s=await staff();if(!s)throw new AuthError('请先登录公司工作区',403);
@@ -13,8 +14,7 @@ export async function kycFollowups(id:string,p?:any){
   if(!canNote)throw new AuthError('当前岗位只可查看跟进记录',403);
   const note=typeof p.note==='string'?p.note.trim():'';
   if(!note||note.length>1000||!Object.hasOwn(followupStatuses,p.status)||typeof p.requestId!=='string'||!/^[a-f0-9-]{36}$/.test(p.requestId))throw new AuthError('请填写有效跟进情况及 1–1000 字备注');
-  const result=await db().prepare(`INSERT OR IGNORE INTO team_audit (id,tenant_id,actor,action,detail,created_at)
-   SELECT ?,?,?,'kyc_followup',?,? WHERE EXISTS(SELECT 1 FROM team_members WHERE id=? AND active=1 AND version=?) AND EXISTS(SELECT 1 FROM team_assignments WHERE tenant_id=? AND customer_id=? AND version=?)`).bind('kyc-followup:'+s.tenant.id+':'+id+':'+s.member.id+':'+p.requestId,s.tenant.id,s.user.email,JSON.stringify({caseId:id,status:p.status,note}),new Date().toISOString(),s.member.id,s.member.version,s.tenant.id,k.customer_id,a!.version).run();
+  const result=await auditInsertSql(db(),s.tenant.id,s.user.email,'kyc_followup',{caseId:id,status:p.status,note},'kyc-followup:'+s.tenant.id+':'+id+':'+s.member.id+':'+p.requestId,'kyc-followup',new Date().toISOString(),'ignore',[s.member.id,s.member.version,s.tenant.id,k.customer_id,a!.version]).run();
   if(!result.meta.changes&&!await db().prepare('SELECT id FROM team_audit WHERE id=?').bind('kyc-followup:'+s.tenant.id+':'+id+':'+s.member.id+':'+p.requestId).first())throw new AuthError('权限或分单已变化，请刷新后重试',409);
  }
  const rows=(await db().prepare("SELECT id,actor,detail,created_at FROM team_audit WHERE tenant_id=? AND action='kyc_followup' AND json_extract(detail,'$.caseId')=? ORDER BY created_at DESC,id DESC LIMIT 100").bind(s.tenant.id,id).all<any>()).results;
