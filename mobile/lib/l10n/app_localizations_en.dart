@@ -1018,7 +1018,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authSignInTitle => 'Sign in';
 
   @override
-  String get authContinueTelegram => 'Continue with Telegram';
+  String get authContinuePhone => 'Continue with phone';
 
   @override
   String get authUsePassword => 'Use password';
@@ -1031,14 +1031,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Enter a valid phone number, e.g. +85512345678 or 012345678.';
 
   @override
-  String get authTelegramVerificationTitle => 'Telegram verification';
+  String get authPhoneVerificationTitle => 'Phone verification';
 
   @override
   String get authPhoneLabel => 'Phone number';
 
   @override
-  String get authConsentTelegramCode =>
-      'I consent to receive a verification code via Telegram.';
+  String get authConsentPhoneCode =>
+      'I consent to receive a verification code by phone.';
 
   @override
   String get authSendCode => 'Send code';
@@ -1052,7 +1052,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Verification code has expired. Resend a code.';
 
   @override
-  String get authEnterCodeTitle => 'Enter Telegram code';
+  String get authEnterCodeTitle => 'Enter phone verification code';
 
   @override
   String authCodeSentTo(String phone) {
@@ -1093,7 +1093,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get authConsentResetCode =>
-      'I consent to receive a reset code via Telegram.';
+      'I consent to receive a reset code by phone.';
 
   @override
   String authRateLimited(int seconds) {

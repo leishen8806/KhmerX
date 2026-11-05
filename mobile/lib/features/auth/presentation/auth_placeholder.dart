@@ -109,7 +109,7 @@ class _AuthLoginState extends ConsumerState<AuthLoginPage> {
           );
           ref.read(pendingOtpChallengeProvider.notifier).set(resp);
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) context.go('/auth/telegram-code');
+            if (mounted) context.go('/auth/phone-code');
           });
         }
       },
@@ -217,8 +217,8 @@ class _AuthLoginState extends ConsumerState<AuthLoginPage> {
                     ),
                   FilledButton.icon(
                     icon: const Icon(Icons.send_rounded),
-                    onPressed: loading ? null : () => context.push('/auth/telegram-consent'),
-                    label: Text(_l(context).authContinueTelegram),
+                    onPressed: loading ? null : () => context.push('/auth/phone-consent'),
+                    label: Text(_l(context).authContinuePhone),
                   ),
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
@@ -262,13 +262,13 @@ final class FormSection extends StatelessWidget {
       );
 }
 
-final class TelegramConsentPage extends ConsumerStatefulWidget {
-  const TelegramConsentPage({super.key});
+final class PhoneConsentPage extends ConsumerStatefulWidget {
+  const PhoneConsentPage({super.key});
   @override
-  ConsumerState<TelegramConsentPage> createState() => _ConsentState();
+  ConsumerState<PhoneConsentPage> createState() => _ConsentState();
 }
 
-class _ConsentState extends ConsumerState<TelegramConsentPage> with _RebuildOnText<TelegramConsentPage> {
+class _ConsentState extends ConsumerState<PhoneConsentPage> with _RebuildOnText<PhoneConsentPage> {
   @override
   List<TextEditingController> get watched => [phone];
 
@@ -310,14 +310,14 @@ class _ConsentState extends ConsumerState<TelegramConsentPage> with _RebuildOnTe
         repo.setLastCanonicalPhone(id, identity);
         ref.read(pendingOtpChallengeProvider.notifier).set(resp);
         setState(() => submitting = false);
-        context.go('/auth/telegram-code');
+        context.go('/auth/phone-code');
       },
     );
   }
 
   @override
   Widget build(BuildContext context) => _FormPage(
-    title: _l(context).authTelegramVerificationTitle,
+    title: _l(context).authPhoneVerificationTitle,
     child: FormSection(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -338,7 +338,7 @@ class _ConsentState extends ConsumerState<TelegramConsentPage> with _RebuildOnTe
                 : (v) => setState(() => consent = v ?? false),
             contentPadding: EdgeInsets.zero,
             title: Text(
-              _l(context).authConsentTelegramCode,
+              _l(context).authConsentPhoneCode,
             ),
             controlAffinity: ListTileControlAffinity.leading,
           ),
@@ -364,13 +364,13 @@ class _ConsentState extends ConsumerState<TelegramConsentPage> with _RebuildOnTe
   );
 }
 
-final class TelegramCodePage extends ConsumerStatefulWidget {
-  const TelegramCodePage({super.key});
+final class PhoneCodePage extends ConsumerStatefulWidget {
+  const PhoneCodePage({super.key});
   @override
-  ConsumerState<TelegramCodePage> createState() => _CodeState();
+  ConsumerState<PhoneCodePage> createState() => _CodeState();
 }
 
-class _CodeState extends ConsumerState<TelegramCodePage> with _RebuildOnText<TelegramCodePage> {
+class _CodeState extends ConsumerState<PhoneCodePage> with _RebuildOnText<PhoneCodePage> {
   @override
   List<TextEditingController> get watched => [code];
 

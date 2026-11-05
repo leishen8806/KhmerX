@@ -1960,11 +1960,11 @@ abstract class AppLocalizations {
   /// **'Sign in'**
   String get authSignInTitle;
 
-  /// No description provided for @authContinueTelegram.
+  /// No description provided for @authContinuePhone.
   ///
   /// In en, this message translates to:
-  /// **'Continue with Telegram'**
-  String get authContinueTelegram;
+  /// **'Continue with phone'**
+  String get authContinuePhone;
 
   /// No description provided for @authUsePassword.
   ///
@@ -1984,11 +1984,11 @@ abstract class AppLocalizations {
   /// **'Enter a valid phone number, e.g. +85512345678 or 012345678.'**
   String get authPhoneInvalidE164;
 
-  /// No description provided for @authTelegramVerificationTitle.
+  /// No description provided for @authPhoneVerificationTitle.
   ///
   /// In en, this message translates to:
-  /// **'Telegram verification'**
-  String get authTelegramVerificationTitle;
+  /// **'Phone verification'**
+  String get authPhoneVerificationTitle;
 
   /// No description provided for @authPhoneLabel.
   ///
@@ -1996,11 +1996,11 @@ abstract class AppLocalizations {
   /// **'Phone number'**
   String get authPhoneLabel;
 
-  /// No description provided for @authConsentTelegramCode.
+  /// No description provided for @authConsentPhoneCode.
   ///
   /// In en, this message translates to:
-  /// **'I consent to receive a verification code via Telegram.'**
-  String get authConsentTelegramCode;
+  /// **'I consent to receive a verification code by phone.'**
+  String get authConsentPhoneCode;
 
   /// No description provided for @authSendCode.
   ///
@@ -2023,7 +2023,7 @@ abstract class AppLocalizations {
   /// No description provided for @authEnterCodeTitle.
   ///
   /// In en, this message translates to:
-  /// **'Enter Telegram code'**
+  /// **'Enter phone verification code'**
   String get authEnterCodeTitle;
 
   /// No description provided for @authCodeSentTo.
@@ -2095,7 +2095,7 @@ abstract class AppLocalizations {
   /// No description provided for @authConsentResetCode.
   ///
   /// In en, this message translates to:
-  /// **'I consent to receive a reset code via Telegram.'**
+  /// **'I consent to receive a reset code by phone.'**
   String get authConsentResetCode;
 
   /// No description provided for @authRateLimited.

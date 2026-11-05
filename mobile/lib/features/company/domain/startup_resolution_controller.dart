@@ -20,7 +20,7 @@ enum StartupResolutionStage {
 enum StartupRedirectKind {
   home,
   authLogin,
-  authTelegramCode,
+  authPhoneCode,
   authSetPassword,
   candidateConfirm,
   recovery,
@@ -162,7 +162,7 @@ final class StartupResolutionController
         ref.read(pendingOtpChallengeProvider.notifier).set(otp);
         state = const StartupResolutionResult(
           stage: StartupResolutionStage.ready,
-          redirect: StartupRedirectKind.authTelegramCode,
+          redirect: StartupRedirectKind.authPhoneCode,
         );
         return state;
       }
@@ -206,7 +206,7 @@ final class StartupResolutionController
       ref.read(pendingOtpChallengeProvider.notifier).set(otp);
       state = const StartupResolutionResult(
         stage: StartupResolutionStage.ready,
-        redirect: StartupRedirectKind.authTelegramCode,
+        redirect: StartupRedirectKind.authPhoneCode,
       );
       return state;
     }

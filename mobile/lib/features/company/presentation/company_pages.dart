@@ -127,7 +127,7 @@ class _CompanySelectState extends ConsumerState<CompanySelectPage> {
         retryAt: retry,
       );
       ref.read(pendingOtpChallengeProvider.notifier).set(otp);
-      context.go('/auth/telegram-code');
+      context.go('/auth/phone-code');
       return;
     }
     context.go('/auth/login');
@@ -362,7 +362,7 @@ class _CandidateState extends ConsumerState<CompanyCandidateConfirmationPage> {
         retryAt: retry,
       );
       ref.read(pendingOtpChallengeProvider.notifier).set(otp);
-      context.go('/auth/telegram-code');
+      context.go('/auth/phone-code');
       return;
     }
     context.go('/auth/login');
