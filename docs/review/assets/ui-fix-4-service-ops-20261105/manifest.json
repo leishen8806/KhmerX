@@ -1,0 +1,19 @@
+{
+  "captureCommit": "a4fe02b",
+  "beforeCommit": "8eeee22",
+  "environment": "local DEV_TEAM_LOCALHOST=true, synthetic test workspace; no production access",
+  "viewports": [
+    { "width": 1280, "height": 844 },
+    { "width": 390, "height": 844 }
+  ],
+  "screenshots": {
+    "before-funding-1280.png": "20af0d046a05d791da30c59058aa9f76dc7ff02b3cacb3fb608293b27d953dc5",
+    "before-funding-390.png": "f6fb4e72a7d65f2ae66fd7131751e65ba89b553a683d4a3cb540c351656aacee",
+    "before-tickets-1280.png": "a9fe9194fa7066c87be318d9014e7203f46540d24a37ac64624780f4f97bc4b3",
+    "before-tickets-390.png": "3ccc58abd386d054d7d3aaa25607661a4a58a009763abd5a02a954a0f99f6a4f",
+    "after-funding-1280.png": "20af0d046a05d791da30c59058aa9f76dc7ff02b3cacb3fb608293b27d953dc5",
+    "after-funding-390.png": "f6fb4e72a7d65f2ae66fd7131751e65ba89b553a683d4a3cb540c351656aacee",
+    "after-tickets-1280.png": "9d63c1825a40bd314b85f1ce105ec85ef5c8005dfa0506ec439618d57dfbba4d",
+    "after-tickets-390.png": "dd54cf9a44f4419d1ef35dd1342ae5ccc23a5cad4f03935fae60b28192971636"
+  }
+}
