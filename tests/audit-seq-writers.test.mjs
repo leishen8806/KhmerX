@@ -9,8 +9,8 @@ test('all team_audit writers include seq', () => {
   const offenders = [];
   for (const file of files) {
     const text = readFileSync(file, 'utf8');
-    for (const match of text.matchAll(/INSERT\s+INTO\s+team_audit\s*\(([^)]*)\)/gi)) {
-      if (!/\bseq\b/i.test(match[1])) offenders.push(`${file}: ${match[0]}`);
+    for (const match of text.matchAll(/INSERT\s+(OR\s+\w+\s+)?INTO\s+team_audit\s*\(([^)]*)\)/gi)) {
+      if (!/\bseq\b/i.test(match[2])) offenders.push(`${file}: ${match[0]}`);
     }
   }
   assert.deepEqual(offenders, [], offenders.join('\n'));
