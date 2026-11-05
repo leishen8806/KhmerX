@@ -2,6 +2,7 @@ import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {hostRules,isPublicClientHost} from '../hosts.mjs';
+import {assertCustomerCompanyConfig} from '../company-config.mjs';
 const exampleCompany='t_00000000-0000-4000-8000-000000000001';
 const check=(ok,key)=>{if(!ok)throw Error('Invalid gray configuration: '+key)};
 export function checkConfig(c,{example=false}={}){
@@ -17,7 +18,7 @@ export function checkConfig(c,{example=false}={}){
  check(b.TELEGRAM_BOT_TOKEN_2===undefined||typeof b.TELEGRAM_BOT_TOKEN_2==='string','TELEGRAM_BOT_TOKEN_2');if(b.TELEGRAM_BOT_TOKEN_2)value(b.TELEGRAM_BOT_TOKEN_2,'TELEGRAM_BOT_TOKEN_2');
  check(b.PAYEASE_AUTH_MODE==='telegram'&&b.PAYEASE_H5_AUTH_MODE==='demo'&&b.PAYEASE_TELEGRAM_AUTH_MODE==='telegram'&&['off','shadow','on'].includes(b.CUSTOMER_ROWS),'channel auth/rows mode');check(b.KYC_SCAN_URL==='http://scanner:8080/scan','KYC_SCAN_URL');
  for(const key of ['PAYEASE_LIMIT_SCALE','PAYEASE_GATEWAY_RATE_SCALE'])check(typeof b[key]==='string'&&Number.isFinite(Number(b[key]))&&Number(b[key])>0,key);
- check(Array.isArray(c.companies)&&c.companies.length===1,'single public company');const company=c.companies[0];check(company&&typeof company==='object'&&!Array.isArray(company),'company object');
+ check(Array.isArray(c.companies)&&c.companies.length===1,'single public company');let bound;try{bound=assertCustomerCompanyConfig(c,{requireExplicit:true})}catch(e){throw Error('Invalid gray configuration: '+String(e.message))}const company=c.companies[0];check(company&&typeof company==='object'&&!Array.isArray(company),'company object');check(bound===company.id,'customer company binding');
  check(/^t_[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(company.id||'')&&(example||company.id!==exampleCompany),'company id');value(company.name,'company name');check(/^[a-z0-9][a-z0-9-]{2,63}$/.test(company.slug||''),'company slug');
  check(Array.isArray(company.accounts)&&company.accounts.length>0,'company accounts');const rolesSeen=new Set();
  for(const a of company.accounts){check(a&&['admin','collection_admin','collector','dept_admin','ops','kyc','lender','checker','finance','finance_checker','audit'].includes(a.role)&&!rolesSeen.has(a.role),'account role');rolesSeen.add(a.role);check(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a.email||''),'account email');value(a.hash,'account hash');check(example&&a.hash.startsWith('replace-with-')||/^v2:(?:[1-9]\d{5}|1\d{6}|2000000):[a-f0-9]{64}:[a-f0-9]{64}$/.test(a.hash),'account hash format')}
