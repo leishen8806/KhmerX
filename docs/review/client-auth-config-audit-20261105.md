@@ -70,3 +70,25 @@ Standalone gray 单公司部署在 `deploy/standalone/server.mjs:211-214` 只在
 | 灰度配置 | `deploy/standalone/gray/check-config.mjs` 强制三项 channel bindings，配置样例可读验证 |
 | 公司绑定 | 单公司 gray 的 standalone 注入可用；多公司必须显式 cookie/入口，`payease.khmerx.org` 的 null 已解释 |
 | 后台权限/审计 | `team/server.ts` 的 platform/Admin/employee checks 与 audit writer 位置已核对 |
+
+## 6. 后台入口角色矩阵与机构回调边界（P0 方案 A）
+
+本节锁定 2026-10-06 的入口设计：持牌机构后台入口只服务独立复核岗位；机构初审和放款发起由持牌机构系统通过签名回调完成，不通过本仓库的两个员工登录入口。`portalAllows` 未修改。
+
+| 角色 | 服务机构后台 | 持牌机构后台 | 后台 action | 持牌机构回调事件/边界 |
+|---|---|---|---|---|
+| `admin` | 允许 | 拒绝 | `admin_disburse`、`admin_repay`、`bot_save`、`bot_add`、`bot_switch` | 不代替机构审批；仅接收已配置的机构事件记录 |
+| `collection_admin` | 允许 | 拒绝 | 贷后主管范围内读取/任务管理 | 无机构审批/放款回调写权限 |
+| `collector` | 允许 | 拒绝 | 贷后客服范围内读取/任务处理 | 无机构审批/放款回调写权限 |
+| `dept_admin` | 允许 | 拒绝 | KYC 部门管理/分单 | 无机构审批/放款回调写权限 |
+| `ops` | 允许 | 拒绝 | `overdue`（部门范围） | 无机构审批/放款回调写权限 |
+| `kyc` | 允许 | 拒绝 | KYC 审核 API（分配范围） | 无机构审批/放款回调写权限 |
+| `audit` | 允许 | 拒绝 | 审计只读 | 可查看审计证据，不触发机构动作 |
+| `lender` | 拒绝 | 拒绝 | `approve`、`reject` 不在后台入口执行 | 机构系统以 `loan.approved`/`loan.rejected` 回调通知结果 |
+| `checker` | 拒绝 | 允许 | `approval_check` | 回调接收仍需签名、时间窗口、nonce 防重放和幂等校验 |
+| `finance` | 拒绝 | 拒绝 | `disburse_request` 不在后台入口执行 | 机构系统以 `funding.confirmed` 回调通知放款结果 |
+| `finance_checker` | 拒绝 | 允许 | `disburse` 复核 | 回调接收仍需签名、时间窗口、nonce 防重放和幂等校验 |
+
+`lib/team/policy.ts:actionRoles` 仍由服务端执行岗位/范围校验；`app/api/institution/callback/route.ts` 仅接受 `loan.approved`、`loan.rejected`、`funding.confirmed`、`repayment.confirmed`、`payment.failed` 等已登记事件，并使用 `INSTITUTION_CALLBACK_SECRET(S_JSON)`。回调进入 `received`/重试队列不等于直接伪造员工会话或绕过内部状态机。
+
+验收锁定项：每个角色在 `business` 与 `lender` 两个入口均有显式允许/拒绝断言；`lender`、`finance` 两个角色在两个入口都拒绝是设计结果，不是缺陷。机构链路的本地验证应使用测试回调密钥和回调事件，同时穿插后台 `checker`/`finance_checker` 的独立复核。

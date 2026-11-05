@@ -479,6 +479,12 @@ test('service and lender portal selection enforces reviewer-only access',async()
  await assert.rejects(auth.passwordLogin({...lenderCreated.loginDetails,portal:'lender'},owner.userId),/持牌机构复核/);
  await assert.rejects(auth.passwordLogin({...financeCreated.loginDetails,portal:'lender'},owner.userId),/持牌机构复核/);
  await assert.rejects(auth.passwordLogin({...serviceCreated.loginDetails,portal:'lender'},owner.userId),/持牌机构复核/);
+ const institutionRoles=new Set(['lender','finance']);
+ const lenderRoles=new Set(['checker','finance_checker']);
+ for(const role of Object.keys(policy.roleLabels)){
+  assert.equal(auth.portalAllows(role,'business'),!institutionRoles.has(role)&&!lenderRoles.has(role),`business portal matrix: ${role}`);
+  assert.equal(auth.portalAllows(role,'lender'),lenderRoles.has(role),`lender portal matrix: ${role}`);
+ }
 });
 
 test('existing SSO Admin can use company password without inheriting other companies or platform access',async()=>{
