@@ -24,3 +24,7 @@ Playwright 结果：
 | zh | `首页` | `f5b702656196e1e89fc89f3cbca4d83c58e07d199b36d231e7d2e6ef9ea404bf` |
 
 截图目录：`docs/review/assets/acceptance-p2-language/`。
+
+## D-42：客户端认证渠道与灰度前置项
+
+本轮新增审计报告 `docs/review/client-auth-config-audit-20261105.md`。验收矩阵新增普通 H5/App（手机号验证码）与 Telegram Mini App（signed initData）两条互斥渠道路径；灰度模板显式要求 `KHMERX_TEST_MODE=true`、`PAYEASE_H5_AUTH_MODE=demo`、`PAYEASE_TELEGRAM_AUTH_MODE=telegram`。生产等价配置仍由 standalone boot 拒绝 test mode。完整 375px 三语登录截图、H5 全流程和非 demo `123456` 负向证据列为上 VPS 前未完成门禁，不能用代码审计替代。

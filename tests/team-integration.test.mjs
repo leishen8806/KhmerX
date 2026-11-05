@@ -249,6 +249,7 @@ test('channel registration switches are isolated, account-bound and enforced by 
  await assert.rejects(policy.requireRegistrationStep({db:DB},A,d.session.customerId,'phoneVerification'));
  await flow.staffAction({action:'bot_switch',botId:'bot-1',previousBotId:'bot-2',requestId:crypto.randomUUID()});
  assert.equal((await policy.registrationPolicy({db:DB},A,d.session.customerId)).phoneVerification,false);assert.equal((await policy.registrationPolicy({db:DB},A)).phoneVerification,true);assert.equal((await policy.registrationPolicy({db:DB},B)).passwordSetup,true);
+ assert.equal((await policy.registrationPolicy({db:DB,config:{mode:'demo',demoOtpAllowed:true}},'owner')).phoneVerification,true,'gray H5 demo OTP keeps phone verification required even without a bot');
  user=reviewer1;await assert.rejects(flow.staffAction({action:'bot_save',botId:'bot-2',label:'Forbidden',username:'',enabled:true,passwordSetup:true,requestId:crypto.randomUUID()}));
 });
 
@@ -479,6 +480,12 @@ test('service and lender portal selection enforces reviewer-only access',async()
  await assert.rejects(auth.passwordLogin({...lenderCreated.loginDetails,portal:'lender'},owner.userId),/持牌机构复核/);
  await assert.rejects(auth.passwordLogin({...financeCreated.loginDetails,portal:'lender'},owner.userId),/持牌机构复核/);
  await assert.rejects(auth.passwordLogin({...serviceCreated.loginDetails,portal:'lender'},owner.userId),/持牌机构复核/);
+ const institutionRoles=new Set(['lender','finance']);
+ const lenderRoles=new Set(['checker','finance_checker']);
+ for(const role of Object.keys(policy.roleLabels)){
+  assert.equal(auth.portalAllows(role,'business'),!institutionRoles.has(role)&&!lenderRoles.has(role),`business portal matrix: ${role}`);
+  assert.equal(auth.portalAllows(role,'lender'),lenderRoles.has(role),`lender portal matrix: ${role}`);
+ }
 });
 
 test('existing SSO Admin can use company password without inheriting other companies or platform access',async()=>{
