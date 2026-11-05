@@ -264,6 +264,7 @@ void main() {
           final b = req.bodyAsJson;
           expect(b['phone'], '+85512345678');
           expect(b['consent'], false);
+          expect(b['mode'], isNull, 'the server, not the client, selects the auth channel');
           expect(req.bodyBytes.length, lessThanOrEqualTo(4096));
           return HttpResponseData.ok({});
         });
