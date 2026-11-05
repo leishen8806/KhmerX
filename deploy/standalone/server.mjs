@@ -26,6 +26,7 @@ const scannerTokenPath=process.env.SCANNER_TOKEN_PATH||'/data/scanner-token';
 writeFileSync(scannerTokenPath,String(cfg.bindings?.KYC_SCAN_TOKEN||''),{mode:0o640});
 if(cfg.bindings?.KHMERX_TEST_MODE==='true')throw new Error('KHMERX_TEST_MODE must be disabled for standalone production boot');
 if(cfg.bindings?.PAYEASE_IDENTITY_PROOF_REQUIRED!==undefined&&cfg.bindings.PAYEASE_IDENTITY_PROOF_REQUIRED!=='true')throw new Error('PAYEASE_IDENTITY_PROOF_REQUIRED must be true for standalone production boot');
+if(cfg.bindings?.PAYEASE_DEMO_OTP_ALLOWED==='true'&&!['local','gray'].includes(String(cfg.bindings?.PAYEASE_ENV||'').toLowerCase()))throw new Error('PAYEASE_DEMO_OTP_ALLOWED is restricted to local/gray H5 runtime');
 const mf=new Miniflare({modules,modulesRoot:moduleRoot,compatibilityDate:'2026-05-15',compatibilityFlags:['nodejs_compat'],assets:{directory:'/app/dist/client',binding:'ASSETS',routerConfig:{has_user_worker:true}},d1Databases:{DB:'payease'},d1Persist:'/data/d1',r2Buckets:{BUCKET:'payease'},r2Persist:'/data/r2',bindings:cfg.bindings,host:'127.0.0.1'});
 const db=await mf.getD1Database('DB');
 const bucket=await mf.getR2Bucket('BUCKET');

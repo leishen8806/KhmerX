@@ -6,7 +6,7 @@ const exampleCompany='t_00000000-0000-4000-8000-000000000001';
 const check=(ok,key)=>{if(!ok)throw Error('Invalid gray configuration: '+key)};
 export function checkConfig(c,{example=false}={}){
  check(c&&typeof c==='object'&&!Array.isArray(c),'object');const b=c.bindings;
- check(b&&b.PAYEASE_ENV==='gray'&&b.KHMERX_TEST_MODE==='true'&&b.PAYEASE_IDENTITY_PROOF_REQUIRED==='true','runtime guards');
+ check(b&&b.PAYEASE_ENV==='gray'&&b.KHMERX_TEST_MODE==='false'&&b.PAYEASE_IDENTITY_PROOF_REQUIRED==='true'&&b.PAYEASE_DEMO_OTP_ALLOWED==='true','runtime guards');
  const roles={publicClientHosts:['testpayease.khmerx.org','testadmin.khmerx.org','testapi.khmerx.org'],adminHosts:['testadmin.khmerx.org'],apiHosts:['testapi.khmerx.org']};
  for(const [key,hosts]of Object.entries(roles))check(Array.isArray(c[key])&&c[key].length===hosts.length&&hosts.every(h=>c[key].includes(h)),key);
  check(c.host==='testpayease.khmerx.org','host');const rules=hostRules(c);check([...rules.adminHosts,...rules.apiHosts].every(h=>isPublicClientHost(h,rules)),'public auth routing');
