@@ -25,13 +25,18 @@ class _AuthenticatedShellState extends State<AuthenticatedShell> {
     final current = widget.currentTab;
     return Scaffold(
       body: widget.child,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: switch (current) {
-          ShellTab.home => 0,
-          ShellTab.loans => 1,
-          ShellTab.me => 2,
-        },
-        onDestinationSelected: (index) {
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: NavigationBar(
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          surfaceTintColor: Colors.transparent,
+          indicatorColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.14),
+          selectedIndex: switch (current) {
+            ShellTab.home => 0,
+            ShellTab.loans => 1,
+            ShellTab.me => 2,
+          },
+          onDestinationSelected: (index) {
           final next = switch (index) {
             0 => ShellTab.home,
             1 => ShellTab.loans,
@@ -49,8 +54,8 @@ class _AuthenticatedShellState extends State<AuthenticatedShell> {
               context.go('/me');
               break;
           }
-        },
-        destinations: [
+          },
+          destinations: [
           NavigationDestination(
             icon: const Icon(Icons.home_outlined),
             selectedIcon: const Icon(Icons.home),
@@ -69,7 +74,8 @@ class _AuthenticatedShellState extends State<AuthenticatedShell> {
             label: l10n.shellTabMe,
             tooltip: l10n.shellSemanticMe,
           ),
-        ],
+          ],
+        ),
       ),
     );
   }
