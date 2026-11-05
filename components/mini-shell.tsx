@@ -19,7 +19,7 @@ export function MiniNavigationProvider({navigate,children}:{navigate:MiniNavigat
  return <MiniNavigationContext.Provider value={guarded}>{children}</MiniNavigationContext.Provider>;
 }
 export function useMiniNavigation(){return useContext(MiniNavigationContext)}
-export function MiniNavLink({href,className,children,ariaLabel}:{href:string;className?:string;children:ReactNode;ariaLabel?:string}){const navigate=useMiniNavigation();if(!navigate)return <Link href={href} className={className} aria-label={ariaLabel}>{children}</Link>;return <button type="button" className={[className,'mini-nav-button'].filter(Boolean).join(' ')} aria-label={ariaLabel} onClick={()=>navigate(href)}>{children}</button>}
+export function MiniNavLink({href,className,children,ariaLabel}:{href:string;className?:string;children:ReactNode;ariaLabel?:string}){const navigate=useMiniNavigation();if(!navigate)return <Link href={href} prefetch={false} className={className} aria-label={ariaLabel}>{children}</Link>;return <button type="button" className={[className,'mini-nav-button'].filter(Boolean).join(' ')} aria-label={ariaLabel} onClick={()=>navigate(href)}>{children}</button>}
 export function MiniTranslatedGreeting({name}:{name:string}){const {t}=useContext(I18nContext);return <p>{t('hello',{name})}</p>}
 
 export function MiniShell({screen,backHref,children}:{screen:string;backHref?:string;children:ReactNode}){
