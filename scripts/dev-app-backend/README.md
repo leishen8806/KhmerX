@@ -10,6 +10,13 @@ The APP backend is the **built worker** (`dist/server`) run through `wrangler de
 
 Run `npm run build` (vinext build) first if the worker source changed, so `dist/server` reflects the latest backend code.
 
+On a completely fresh `.wrangler` state, `start.mjs` first makes a test-only
+request to `/api/team` with the seeded company cookie. This intentionally primes
+the local D1 binding so Wrangler materializes its sqlite file; `seed.mjs` can
+then open that file and apply `migrateDev` before inserting the demo workspace.
+The response from this priming request is ignored because the schema is not
+migrated yet. No remote D1 or deployed environment is touched.
+
 For a local `/team` demo, the harness seeds a fictional admin identity. Start it
 with the test-only identity override below; this changes only headers emitted by
 the localhost proxy and is ignored by the production gateway:

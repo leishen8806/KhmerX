@@ -11,11 +11,11 @@
 process.env.KHMERX_TEST_MODE = 'true';
 import { spawn } from 'node:child_process';
 import http from 'node:http';
-import { ROOT, MF_PORT, MF_ORIGIN } from './common.mjs';
+import { ROOT, MF_PORT, MF_ORIGIN, PUBLIC_COMPANY_ID } from './common.mjs';
 
-const ping = (path = '/api/h5/auth') =>
+const ping = (path = '/api/h5/auth', headers = {}) =>
   new Promise((resolve) => {
-    const req = http.get({ host: '127.0.0.1', port: MF_PORT, path, timeout: 4000 }, (r) => {
+    const req = http.get({ host: '127.0.0.1', port: MF_PORT, path, timeout: 4000, headers }, (r) => {
       r.resume();
       resolve(r.statusCode);
     });
@@ -56,6 +56,18 @@ if (!(await ping())) {
   if (!(await ping())) { console.error(`Miniflare worker did not come up on ${MF_ORIGIN}`); process.exit(1); }
 }
 console.log(`Miniflare worker ready at ${MF_ORIGIN}`);
+
+// A brand-new `wrangler dev --local` process does not materialize its D1
+// sqlite file until a request actually touches the binding. Prime the worker
+// with a test-only team request before the seed opens the local sqlite file;
+// the response is intentionally ignored because the schema is not migrated
+// yet. This keeps a clean `.wrangler` state from failing before `seed.mjs` can
+// run `migrateDev`.
+await ping('/api/team', {
+  cookie: `payease_staff_company=${PUBLIC_COMPANY_ID}`,
+  'oai-authenticated-user-id': process.env.DEV_TEAM_USER_ID || 'dev-seed-user',
+  'oai-authenticated-user-email': process.env.DEV_TEAM_USER_EMAIL || 'dev-seed-user@example.test',
+});
 
 await import('./seed.mjs');
 await import('./proxy.mjs');
