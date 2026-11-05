@@ -31,3 +31,4 @@ Text dumps with the same hashes are beside each image (`en.txt`, `km.txt`, `zh.t
 - `npm run build:separated`: pass; client-boundary check passed, separated build reported `leaks: 0`.
 - `npm run lint`: pass with the repository's existing warnings and 0 errors.
 - Full `TMPDIR=/private/tmp npm test`: 525 pass, 1 failure, 16 skipped. The only failure is the existing Docker Desktop bootstrap (`Q4 bootstrap metadata repairs...`: Docker Desktop unable to start); the locale-focused and H5 navigation tests pass.
+- GitHub Web gate: pass. Run `42017425690`, job `127211335234` (`gates`).
