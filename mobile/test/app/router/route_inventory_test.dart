@@ -14,8 +14,8 @@ void main() {
     const p1Required = <String>{
       '/startup',
       '/auth/login',
-      '/auth/telegram-consent',
-      '/auth/telegram-code',
+      '/auth/phone-consent',
+      '/auth/phone-code',
       '/auth/password',
       '/auth/set-password',
       '/auth/recover',

@@ -116,12 +116,12 @@ GoRouter createRouter(Ref ref) {
       GoRoute(path: '/startup', pageBuilder: (_, __) => _fade(const StartupPage())),
       GoRoute(path: '/auth/login', pageBuilder: (_, __) => _fade(const AuthLoginPage())),
       GoRoute(
-        path: '/auth/telegram-consent',
-        builder: (_, __) => const TelegramConsentPage(),
+        path: '/auth/phone-consent',
+        builder: (_, __) => const PhoneConsentPage(),
       ),
       GoRoute(
-        path: '/auth/telegram-code',
-        builder: (_, __) => const TelegramCodePage(),
+        path: '/auth/phone-code',
+        builder: (_, __) => const PhoneCodePage(),
       ),
       GoRoute(
         path: '/auth/password',
