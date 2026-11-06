@@ -1,0 +1,2 @@
+PayEase ZH English ភាសាខ្មែរ Register / log in Test environment · OTP 123456 Enter your phone to continue. New users get an account automatically. Complete only the account setup enabled for this channel. Phone number (with country code) Continue Other login methods and account recovery Demo company · Test funds
+sha256=bc2fad681194f56cf9fcacc092ec1346c08bbd339a03c17fbfb6eae0272e0c26
