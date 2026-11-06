@@ -36,7 +36,7 @@ const publicChannel=async(row:CompanyChannelRow,viewer:ChannelViewer):Promise<Re
 };
 async function channelViewer(){const s=await staff();if(!s||!allowedViewer(s.member.role))throw new AuthError('当前岗位没有渠道配置查看权限',403,'CHANNEL_VIEW_FORBIDDEN');return s}
 export async function readCompanyChannels(){const s=await channelViewer();const rows=(await db().prepare('SELECT * FROM company_channels WHERE tenant_id=? ORDER BY type,label,id').bind(s.tenant.id).all<CompanyChannelRow>()).results;return {staff:s,rows};}
-export async function listCompanyChannels(){const {staff:s,rows}=await readCompanyChannels();return Promise.all(rows.map(row=>publicChannel(row,s.member.role as ChannelViewer)));}
+export async function listCompanyChannels(){const {staff:s,rows}=await readCompanyChannels();return Promise.all(rows.map(async row=>({...await publicChannel(row,s.member.role as ChannelViewer),companyName:s.tenant.name})));}
 export async function resolveCompanyChannel(tenantId:string,type:CompanyChannelType,host?:string){
  if(!tenantId||!['telegram','h5','app'].includes(type))throw new AuthError('渠道类型无效',400,undefined,'CHANNEL_TYPE_INVALID');
  const rows=(await db().prepare('SELECT * FROM company_channels WHERE tenant_id=? AND type=? AND enabled=1 ORDER BY id').bind(tenantId,storedType(type)).all<CompanyChannelRow>()).results;
