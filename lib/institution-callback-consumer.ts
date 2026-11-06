@@ -25,8 +25,9 @@ export async function consumeInstitutionCallbackEvent(input:{database:Database;t
  if(!source)return {status:'dead_letter',reason:'LOAN_NOT_FOUND',loanId};
  const state=JSON.parse(source.payload) as State,loan=state.loans.find(item=>item.id===loanId);
  if(!loan)return {status:'dead_letter',reason:'LOAN_NOT_FOUND',loanId};
- const assignment=loan.customerId?await database.prepare('SELECT institution_id FROM team_assignments WHERE tenant_id=? AND customer_id=?').bind(tenantId,loan.customerId).first<{institution_id:string|null}>():null;
- if(!assignment||assignment.institution_id!==institutionId)return {status:'dead_letter',reason:'INSTITUTION_MISMATCH',loanId};
+ const assignment=loan.customerId?await database.prepare('SELECT institution_id,funding_institution_id FROM team_assignments WHERE tenant_id=? AND customer_id=?').bind(tenantId,loan.customerId).first<{institution_id:string|null;funding_institution_id:string|null}>():null;
+ const assignedInstitution=eventType==='funding.confirmed'?(assignment?.funding_institution_id||assignment?.institution_id):assignment?.institution_id;
+ if(!assignment||assignedInstitution!==institutionId)return {status:'dead_letter',reason:'INSTITUTION_MISMATCH',loanId};
  if(eventType==='funding.confirmed'){
   if(loan.status!=='signed'||!loan.approvalCheckedBy||loan.fundingActor)return {status:'dead_letter',reason:'STATUS_MISMATCH',loanId};
   if(!externalReference)return {status:'dead_letter',reason:'EXTERNAL_REFERENCE_MISSING',loanId};
