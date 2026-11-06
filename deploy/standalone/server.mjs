@@ -7,13 +7,16 @@ import {splitSql} from './sql-split.mjs';
 import {maintenanceResponse} from './maintenance.mjs';
 import {hostRules,isAllowedHost,isPublicClientHost,isAdminHost,isApiHost,resolveClientIp} from './hosts.mjs';
 import {assertCustomerCompanyConfig,deploymentCustomerCompany} from './company-config.mjs';
-const moduleRoot='/app/dist/server';
+const standaloneRoot=process.env.PAYEASE_STANDALONE_ROOT||'';
+const appRoot=standaloneRoot?standaloneRoot+'/app':'/app';
+const dataRoot=standaloneRoot?standaloneRoot+'/data':'/data';
+const moduleRoot=appRoot+'/dist/server';
 // macOS AppleDouble resource-fork files (._*.js) are not JavaScript. Exclude
 // them so a copied release cannot make the Workers runtime fail at boot.
 const modulePaths=readdirSync(moduleRoot,{recursive:true}).filter(n=>/\.m?js$/.test(n)&&!n.split('/').some(part=>part.startsWith('._')));
 const modules=['index.js',...modulePaths.filter(n=>n!=='index.js')].map(n=>({type:'ESModule',path:moduleRoot+'/'+n}));
 const buildId=existsSync(moduleRoot+'/BUILD_ID')?readFileSync(moduleRoot+'/BUILD_ID','utf8').trim():'unknown';
-const cfg=JSON.parse(readFileSync('/data/config.json','utf8'));
+const cfg=JSON.parse(readFileSync(dataRoot+'/config.json','utf8'));
 const deploymentCompanyId=assertCustomerCompanyConfig(cfg);
 const hosts=hostRules(cfg);
 const configuredHosts=[...hosts.publicClientHosts,...hosts.adminHosts,...hosts.apiHosts].map(host=>host.toLowerCase());
@@ -24,17 +27,17 @@ if(hasFormalHost&&(cfg.bindings?.PAYEASE_LIMIT_SCALE!==undefined||cfg.bindings?.
 // scanner gateway runs as nobody, while /data is intentionally root-only.
 // A dedicated secret mount lets the gateway enforce authorization without
 // widening access to the database/object-store files in /data.
-const scannerTokenPath=process.env.SCANNER_TOKEN_PATH||'/data/scanner-token';
+const scannerTokenPath=process.env.SCANNER_TOKEN_PATH||dataRoot+'/scanner-token';
 writeFileSync(scannerTokenPath,String(cfg.bindings?.KYC_SCAN_TOKEN||''),{mode:0o640});
 if(cfg.bindings?.KHMERX_TEST_MODE==='true')throw new Error('KHMERX_TEST_MODE must be disabled for standalone production boot');
 if(cfg.bindings?.PAYEASE_IDENTITY_PROOF_REQUIRED!==undefined&&cfg.bindings.PAYEASE_IDENTITY_PROOF_REQUIRED!=='true')throw new Error('PAYEASE_IDENTITY_PROOF_REQUIRED must be true for standalone production boot');
 if(cfg.bindings?.PAYEASE_DEMO_OTP_ALLOWED==='true'&&!['local','gray'].includes(String(cfg.bindings?.PAYEASE_ENV||'').toLowerCase()))throw new Error('PAYEASE_DEMO_OTP_ALLOWED is restricted to local/gray H5 runtime');
 const bindings={...cfg.bindings,...(deploymentCompanyId?{PAYEASE_DEPLOYMENT_COMPANY_ID:deploymentCompanyId}:{})};
-const mf=new Miniflare({modules,modulesRoot:moduleRoot,compatibilityDate:'2026-05-15',compatibilityFlags:['nodejs_compat'],assets:{directory:'/app/dist/client',binding:'ASSETS',routerConfig:{has_user_worker:true}},d1Databases:{DB:'payease'},d1Persist:'/data/d1',r2Buckets:{BUCKET:'payease'},r2Persist:'/data/r2',bindings,host:'127.0.0.1'});
+const mf=new Miniflare({modules,modulesRoot:moduleRoot,compatibilityDate:'2026-05-15',compatibilityFlags:['nodejs_compat'],assets:{directory:appRoot+'/dist/client',binding:'ASSETS',routerConfig:{has_user_worker:true}},d1Databases:{DB:'payease'},d1Persist:dataRoot+'/d1',r2Buckets:{BUCKET:'payease'},r2Persist:dataRoot+'/r2',bindings,host:'127.0.0.1'});
 const db=await mf.getD1Database('DB');
 const bucket=await mf.getR2Bucket('BUCKET');
 await db.prepare('CREATE TABLE IF NOT EXISTS standalone_migrations (name TEXT PRIMARY KEY)').run();
-const migrationFiles=readdirSync('/app/drizzle').filter(n=>/^\d.*\.sql$/.test(n)).sort();
+const migrationFiles=readdirSync(appRoot+'/drizzle').filter(n=>/^\d.*\.sql$/.test(n)).sort();
 const migrationNames=new Set(migrationFiles);
 const appliedMigrations=await db.prepare('SELECT name FROM standalone_migrations').all();
 const migrationNumbers=new Set(migrationFiles.map(name=>name.match(/^\d+/)?.[0]).filter(Boolean));
@@ -44,7 +47,7 @@ const unknownMigrations=[...appliedNames].filter(name=>!migrationNames.has(name)
 if(unknownMigrations.length)throw new Error(`Unknown standalone migrations: ${unknownMigrations.join(',')}`);
 for(const name of migrationFiles){
  if(appliedNames.has(name)||appliedNumbers.has(name.match(/^\d+/)?.[0]))continue;
- const parts=splitSql(readFileSync('/app/drizzle/'+name,'utf8'));
+ const parts=splitSql(readFileSync(appRoot+'/drizzle/'+name,'utf8'));
  await db.batch([...parts.map(s=>db.prepare(s)),db.prepare('INSERT INTO standalone_migrations VALUES (?)').bind(name)]);
 }
 // A worker crash can happen after the pending KYC row is inserted but before
@@ -172,7 +175,7 @@ const server=createServer(async(req,res)=>{
  req.setTimeout(isUpload?60000:30000);
  const expected='Basic '+Buffer.from(cfg.accessUser+':'+cfg.accessPassword).toString('base64');
  const jobRequest=req.url==='/api/jobs/postloan'&&req.method==='POST'&&eq(req.headers.authorization||'','Bearer '+cfg.bindings.POSTLOAN_JOB_SECRET);
- const host=req.headers.host;
+ const host=String(req.headers.host||'').replace(/^\[([^\]]+)\](?::\d+)?$/, '$1').replace(/:\d+$/, '');
  if(req.method==='GET'&&['/healthz','/readyz','/version'].includes(req.url)){
   if(req.url==='/healthz'){
    res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});
@@ -194,7 +197,7 @@ const server=createServer(async(req,res)=>{
  if(inFlight>=maxInFlight||(isUpload&&uploadInFlight>=maxUploads)){rejectOverload(res);return;}
  inFlight++;slot=true;if(isUpload){uploadInFlight++;uploadSlot=true;}
  if(!isAllowedHost(host,hosts,cfg.host)){res.writeHead(400);return res.end('Invalid host');}
- const maintenance=maintenanceResponse(req,cfg.bindings?.GRAY_CLOSED_FILE||process.env.GRAY_CLOSED_FILE||'/data/gray-closed',cfg.bindings?.GRAY_RETRY_AFTER_SECONDS||300);
+ const maintenance=maintenanceResponse(req,cfg.bindings?.GRAY_CLOSED_FILE||process.env.GRAY_CLOSED_FILE||dataRoot+'/gray-closed',cfg.bindings?.GRAY_RETRY_AFTER_SECONDS||300);
  if(maintenance){res.writeHead(maintenance.status,maintenance.headers);return res.end(maintenance.body);}
  const publicClient=isPublicClientHost(host,hosts);
  if(!jobRequest&&!publicClient&&!eq(req.headers.authorization||'',expected)){res.writeHead(401,{'WWW-Authenticate':'Basic realm="PayEase private test"','Cache-Control':'no-store'});return res.end('Private test environment');}
@@ -231,5 +234,5 @@ const server=createServer(async(req,res)=>{
  }catch(e){console.error(e instanceof Error?e.stack||e:e);if(!res.headersSent)gatewayError(res,503,'SERVICE_UNAVAILABLE','Service temporarily unavailable',overloadRetryAfter);}});
 server.headersTimeout=30000;
 server.requestTimeout=60000;
-server.listen(4300,'0.0.0.0',()=>console.log('PayEase test server ready'));
+server.listen(Number(process.env.PAYEASE_STANDALONE_PORT||4300),'127.0.0.1',()=>console.log('PayEase test server ready'));
 for(const signal of ['SIGTERM','SIGINT'])process.on(signal,()=>{server.close(async()=>{await mf.dispose();process.exit(0)});});
