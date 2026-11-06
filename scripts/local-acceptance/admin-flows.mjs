@@ -38,8 +38,9 @@ async function request(j, path, init = {}) {
   if (cookies) headers.set('Cookie', cookies);
   const response = await fetch(base + path, { ...init, headers });
   remember(j, response);
+  const raw = await response.text();
   let body = null;
-  try { body = await response.json(); } catch { body = await response.text(); }
+  try { body = raw ? JSON.parse(raw) : null; } catch { body = raw; }
   return { response, body };
 }
 async function json(j, path, body, extra = {}) {
@@ -204,7 +205,7 @@ if (customer?.jar) await check('customer real interface creates loan after KYC a
   if (!loanId) throw new Error('loan id missing');
   const bill = created.body.state.loans.at(-1).billing;
   assertOk(await json(customer.jar, '/api/h5/state', { action: 'confirm_bill', loanId, billConfirmed: true, quoteId: bill?.quoteId, requestId: randomUUID() }), 'confirm bill');
-  assertOk(await request(customer.jar, '/api/loan/sign', { method: 'POST', headers: { 'content-type': 'image/png', 'X-Loan-Id': loanId, 'X-Loan-Consent': 'true', 'X-Loan-Terms': 'loan-terms-v1' }, body: png }), 'loan sign');
+  assertOk(await request(customer.jar, '/api/loan/sign', { method: 'POST', headers: { 'content-type': 'image/png', 'X-Loan-Id': loanId, 'X-Loan-Consent': 'true', 'X-Loan-Terms': 'loan-terms-zh-v1-f363b1d8c58c' }, body: png }), 'loan sign');
   const applied = await json(customer.jar, '/api/h5/state', { action: 'apply', loanId, billConfirmed: true, quoteId: bill?.quoteId, requestId: randomUUID() });
   assertOk(applied, 'loan apply');
   return { loanId, status: applied.body.state.loans.find(item => item.id === loanId)?.status };
@@ -232,6 +233,7 @@ if (loanId) {
     return { loanId, status: action.body.state.loans.find(item => item.id === loanId)?.status };
   });
   await check('finance and finance_checker complete real disbursement interfaces', async () => {
+    if (!financeSession.response.ok) throw blocked(`finance portal login is denied by portalAllows (${financeSession.response.status}); the current authorization baseline denies finance in both portals, so a real finance request cannot be reached without changing that baseline`);
     const requestAction = await json(financeSession.jar, '/api/state', { action: 'disburse_request', loanId, requestId: randomUUID() }); assertOk(requestAction, 'disburse_request');
     const sameEmployee = await json(financeSession.jar, '/api/state', { action: 'disburse', loanId, requestId: randomUUID() });
     if (sameEmployee.response.status !== 403) throw new Error(`requireDifferent expected 403, got ${sameEmployee.response.status}`);

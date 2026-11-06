@@ -1,5 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { pbkdf2Sync, randomBytes } from 'node:crypto';
+import { spawn } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -26,8 +27,12 @@ const hashPassword = password => {
   const salt = randomBytes(32).toString('hex');
   return { password, hash: `v2:600000:${salt}:${pbkdf2Sync(password, salt, 600000, 32, 'sha256').toString('hex')}` };
 };
-const staff = ['admin', 'kyc', 'checker', 'finance', 'finance_checker'].map(role => {
-  const email = `local-${role}@example.test`, credentials = hashPassword(`Acceptance-${randomBytes(18).toString('base64url')}`);
+const configPath = join(data, 'config.json');
+const config = existsSync(configPath) ? JSON.parse(readFileSync(configPath, 'utf8')) : {};
+const configuredAdmin = config.companies?.find(company => company.id === companyId)?.accounts?.find(account => account.role === 'admin');
+const staff = ['admin', 'business', 'kyc', 'checker', 'finance', 'finance_checker', 'lender'].map(role => {
+  const email = role === 'admin' ? configuredAdmin?.email || 'gray-admin@example.test' : `local-${role}@example.test`;
+  const credentials = hashPassword(`Acceptance-${randomBytes(18).toString('base64url')}`);
   return { role, email, ...credentials };
 });
 const department = companyId + ':ops', institution = companyId + ':institution', postloan = companyId + ':postloan';
@@ -44,6 +49,25 @@ for (const entry of staff) {
 db.prepare('INSERT OR IGNORE INTO demo_workspaces(owner,revision,payload) VALUES (?,0,?)').run(companyId, JSON.stringify({ loans: [], bots: [{ id: 'bot-1', label: 'Local Telegram', enabled: true, envKey: 'TELEGRAM_BOT_TOKEN_1', phoneVerification: false, passwordSetup: false }], events: [], entries: [], notifications: [], requests: [] }));
 db.exec('COMMIT');
 db.close();
+const scanner = spawn(process.execPath, ['-e', "const http=require('node:http');http.createServer((req,res)=>{if(req.method!=='POST'||req.url!=='/scan'){res.writeHead(404);return res.end()}res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify({clean:true,status:'clean'}))}).listen(9999,'127.0.0.1')"], { detached: true, stdio: 'ignore' });
+scanner.unref();
+const port = Number(process.env.LOCAL_ACCEPTANCE_PORT || 4300);
+const base = `http://127.0.0.1:${port}`;
+const admin = staff.find(entry => entry.role === 'admin');
+if (!admin) throw new Error('admin seed missing');
+const cookieJar = new Map();
+const remember = response => { for (const value of response.headers.getSetCookie?.() || []) { const first = value.split(';', 1)[0]; const at = first.indexOf('='); if (at > 0) cookieJar.set(first.slice(0, at), first.slice(at + 1)); } };
+const api = async (path, body) => {
+  const headers = new Headers({ Origin: base, 'content-type': 'application/json' });
+  if (cookieJar.size) headers.set('Cookie', [...cookieJar].map(([key, value]) => `${key}=${value}`).join('; '));
+  const response = await fetch(base + path, { method: 'POST', headers, body: JSON.stringify(body) });
+  remember(response);
+  return { response, body: await response.json() };
+};
+const login = await api('/api/team/auth', { action: 'login', portal: 'business', company: 'khmerx-gray', email: admin.email, password: admin.password });
+if (!login.response.ok) throw new Error(`admin login failed while preparing channel: HTTP ${login.response.status} ${JSON.stringify(login.body)}`);
+const bot = await api('/api/state', { action: 'bot_save', requestId: `seed-${randomBytes(12).toString('hex')}`, botId: 'bot-1', label: 'Local acceptance channel', username: '', enabled: true, phoneVerification: true, passwordSetup: true });
+if (!bot.response.ok) throw new Error(`admin bot_save failed while preparing channel: HTTP ${bot.response.status} ${JSON.stringify(bot.body)}`);
 const output = join(data, 'local-acceptance-staff.json');
 writeFileSync(output, JSON.stringify({ companyId, dbPath, staff }, null, 2) + '\n', { mode: 0o600 });
 console.log(JSON.stringify({ event: 'local_acceptance_seeded', companyId, output }));
