@@ -27,7 +27,7 @@ test('0063 creates channel records without copying secrets and is idempotent', (
   const migration = readFileSync('drizzle/0063_company_channels.sql', 'utf8');
   for (const statement of splitSql(migration)) db.exec(statement);
   for (const statement of splitSql(migration)) db.exec(statement);
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM company_channels').get().n, 2);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM company_channels').get().n, 3);
   const h5 = db.prepare("SELECT * FROM company_channels WHERE type='h5'").get();
   assert.equal(h5.source_channel, 'H5');
   assert.equal(h5.phone_verification, 1);
@@ -35,6 +35,16 @@ test('0063 creates channel records without copying secrets and is idempotent', (
   const tg = db.prepare("SELECT * FROM company_channels WHERE type='telegram_miniapp'").get();
   assert.equal(tg.bot_username, 'alpha_bot');
   assert.equal(tg.token_encrypted, undefined);
+  assert.equal(tg.telegram_token_configured, 1);
+  const app = db.prepare("SELECT * FROM company_channels WHERE type='app'").get();
+  assert.equal(app.app_platform, 'android');
+  assert.equal(app.api_base_url, 'https://testapi.khmerx.org');
+  assert.equal(app.force_upgrade, 0);
+  assert.deepEqual(JSON.parse(app.maintenance_messages_json), {
+    zh: '系统维护中，请稍后再试',
+    en: 'System maintenance. Please try again later.',
+    km: 'ប្រព័ន្ធកំពុងថែទាំ សូមព្យាយាមម្ដងទៀត'
+  });
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM team_audit').get().n, 1);
   db.close();
 });
