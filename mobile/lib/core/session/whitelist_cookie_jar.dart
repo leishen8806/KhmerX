@@ -67,7 +67,9 @@ final class WhitelistCookieJar implements CookieJar {
         port: config!.baseUrl.hasPort ? config!.baseUrl.port : null,
         path: '/',
       ),);
-      candidates.add(Uri.https('payease.khmerx.org', '/'));
+      for (final host in config!.cookieHosts) {
+        candidates.add(Uri.https(host, '/'));
+      }
     } else {
       candidates.add(Uri.https('api.khmerx.org', '/'));
       candidates.add(Uri.https('payease.khmerx.org', '/'));
