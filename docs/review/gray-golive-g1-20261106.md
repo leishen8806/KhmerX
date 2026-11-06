@@ -33,19 +33,21 @@ added 681 packages, and audited 682 packages in 1m
 
 ## E2 审计 seq
 
-结果：**部分完成，运行时证据不足**。
+结果：**部分完成，运行时证据仍不足**。
 
 续跑记录：按要求在同一 worktree 执行了索引清理/恢复；`drizzle/0062_audit_manifest_v3_seq.sql` 与 `lib/i18n.tsx` 的 CRLF 检查均为 0，恢复后 Git 状态干净。Windows 客户端边界检查仍因已知 GL-5 双盘符路径缺陷失败；未修改脚本，记录 Claude Linux 侧既有 PASS（126 files）。改用 `node scripts/run-framework.mjs build` 后本地构建成功。
 
-本地服务曾以虚构环境变量启动，完成 63 条开发迁移并播种公开 workspace；数据库文件为本地 `.wrangler/state/.../faaf2b0445ab934c3aac48ddf0cdfade8f9bac050be98993748742cdd2cb05fb.sqlite`。只读 verifier 输出 `version v3`、`rows 0`、`seqNull count 0`、`seqUnique true`，但这是空数据库，不能证明真实业务写入。浏览器使用虚构 checker 账号尝试登录，分别返回“你没有权限执行此操作”/“请求未完成，请重试”，未能进入后台或创建清单。`kyc-smoke.mjs` 随后因其默认连接 `127.0.0.1:80` 而本地服务在 8092，失败：`fetch failed ... ECONNREFUSED 127.0.0.1:80`。因此没有客户流程或 KYC 写入证据。
+续跑 3：只改名了该 worktree 的 `.wrangler/state`，未删除仓库文件；按卡片环境变量启动本地服务，确认 `dev migrations applied: 63`。使用站点账号登录后台成功并访问今日概览；密码登录的 checker/lender 虚构账号仍返回请求未完成，未以此绕过权限。设置 `APP_BACKEND_PORT=8092` 后 `kyc-smoke.mjs +12025550130` 成功：发送/验证演示验证码、KYC 读取、4 个虚构文件上传、保存、过期 revision 拒绝、提交、提交后锁定均通过。`KHMERX_TEST_MODE=true` 仅作为本地脚本回放环境变量，使 `kyc-review.mjs approved` 成功，状态从 submitted 变为 approved。通过后台审计 API 创建 v3 清单并验证，返回 `match=true`、`tampered=false`、`needsManualReview=false`、`appendOnly=true`；仅在本地浏览器会话中执行。
+
+最新只读 verifier：`version v3`、`rows 4`、`seqNull count 0`、`seqUnique true`。这证明本地合成写入的审计行满足 seq 检查，不证明灰度或生产状态。服务随后已停止。
 
 ## E3 客户全流程
 
-结果：**未完成**。后台登录被本地权限/路由阻断，未执行注册、KYC、机构回调、复核、签约、放款或还款流程；未访问远端环境。
+结果：**部分完成**。本地合成客户 KYC 申请→提交→approved 已完成；机构回调签名批准、checker 复核、签约、测试放款、还款未完成。密码登录 checker/lender 被本地接口拒绝，未伪造或绕过机构权限；未访问远端环境。
 
 ## E4 D-42 门禁
 
-结果：**未完成**。未生成三语言截图，未执行 H5 demo/负向验证码验证，未执行 Mini App initData 检查。
+结果：**未完成**。未生成三语言截图，未完成 H5 负向验证码（`123456` 必须被拒绝）验证，未执行 Mini App initData 检查；本地 KYC smoke 使用的是开发演示验证码流程，不能替代该负向门禁。
 
 ## E5 全量门禁
 
