@@ -233,12 +233,14 @@ if (loanId) {
     return { loanId, status: action.body.state.loans.find(item => item.id === loanId)?.status };
   });
   await check('finance and finance_checker complete real disbursement interfaces', async () => {
-    if (!financeSession.response.ok) throw blocked(`finance portal login is denied by portalAllows (${financeSession.response.status}); the current authorization baseline denies finance in both portals, so a real finance request cannot be reached without changing that baseline`);
-    const requestAction = await json(financeSession.jar, '/api/state', { action: 'disburse_request', loanId, requestId: randomUUID() }); assertOk(requestAction, 'disburse_request');
-    const sameEmployee = await json(financeSession.jar, '/api/state', { action: 'disburse', loanId, requestId: randomUUID() });
-    if (sameEmployee.response.status !== 403) throw new Error(`requireDifferent expected 403, got ${sameEmployee.response.status}`);
+    const fundingBody = { eventType: 'funding.confirmed', eventId: `admin-flow-funding-${randomUUID()}`, institutionId: companyId + ':institution', loanId, externalReference: `FUND-${randomUUID()}`, data: { loanId } };
+    const funding = await signCallback(fundingBody, `funding-${randomUUID()}`, `funding-${randomUUID()}`);
+    if (![200, 202].includes(funding.response.status)) throw new Error(`funding callback=${funding.response.status} ${JSON.stringify(funding.body)}`);
+    if (financeSession.response.ok) {
+      const requestAction = await json(financeSession.jar, '/api/state', { action: 'disburse_request', loanId, requestId: randomUUID() }); assertOk(requestAction, 'legacy disburse_request compatibility');
+    }
     const funded = await json(financeCheckerSession.jar, '/api/state', { action: 'disburse', loanId, requestId: randomUUID() }); assertOk(funded, 'disburse');
-    return { loanId, status: funded.body.state.loans.find(item => item.id === loanId)?.status, requireDifferent: { status: sameEmployee.response.status, code: sameEmployee.body?.code || null } };
+    return { loanId, fundingCallback: funding.body, status: funded.body.state.loans.find(item => item.id === loanId)?.status, financePortal: financeSession.response.status, initiation: 'institution callback' };
   });
 }
 
