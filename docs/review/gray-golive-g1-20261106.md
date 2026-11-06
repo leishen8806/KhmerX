@@ -33,19 +33,23 @@ added 681 packages, and audited 682 packages in 1m
 
 ## E2 审计 seq
 
-结果：**未完成**。依赖已安装，但 `npm run build` 在 `check:client-boundary` 阶段因 Windows 双盘符路径失败，未生成 `dist/server`，因此无法启动本地服务、登录后台、运行 `audit-seq-verify.mjs` 或创建 v3 清单。
+结果：**部分完成，运行时证据不足**。
+
+续跑记录：按要求在同一 worktree 执行了索引清理/恢复；`drizzle/0062_audit_manifest_v3_seq.sql` 与 `lib/i18n.tsx` 的 CRLF 检查均为 0，恢复后 Git 状态干净。Windows 客户端边界检查仍因已知 GL-5 双盘符路径缺陷失败；未修改脚本，记录 Claude Linux 侧既有 PASS（126 files）。改用 `node scripts/run-framework.mjs build` 后本地构建成功。
+
+本地服务曾以虚构环境变量启动，完成 63 条开发迁移并播种公开 workspace；数据库文件为本地 `.wrangler/state/.../faaf2b0445ab934c3aac48ddf0cdfade8f9bac050be98993748742cdd2cb05fb.sqlite`。只读 verifier 输出 `version v3`、`rows 0`、`seqNull count 0`、`seqUnique true`，但这是空数据库，不能证明真实业务写入。浏览器使用虚构 checker 账号尝试登录，分别返回“你没有权限执行此操作”/“请求未完成，请重试”，未能进入后台或创建清单。`kyc-smoke.mjs` 随后因其默认连接 `127.0.0.1:80` 而本地服务在 8092，失败：`fetch failed ... ECONNREFUSED 127.0.0.1:80`。因此没有客户流程或 KYC 写入证据。
 
 ## E3 客户全流程
 
-结果：**未完成**。因构建未生成本地 worker，未执行注册、KYC、机构回调、复核、签约、放款或还款流程。
+结果：**未完成**。后台登录被本地权限/路由阻断，未执行注册、KYC、机构回调、复核、签约、放款或还款流程；未访问远端环境。
 
 ## E4 D-42 门禁
 
-结果：**未完成**。因本地 worker 无法构建，未生成三语言截图，未执行 H5 demo/负向验证码验证，未执行 Mini App initData 检查。
+结果：**未完成**。未生成三语言截图，未执行 H5 demo/负向验证码验证，未执行 Mini App initData 检查。
 
 ## E5 全量门禁
 
-结果：**失败**。`npm test` 有失败项（包括审计 verifier 相关用例）；`npm run typecheck` 通过；`npm run lint` 退出码 0，但有 605 条既有 warning；`npm run check:client-boundary` 失败，复现 Windows 双盘符路径 `E:\E:\KhmerX\wt-GL-1\app`；`npm audit --omit=dev` 通过，输出 `found 0 vulnerabilities`。
+结果：**失败**。`npm test`：551 项，527 通过、5 失败、19 跳过；失败均在 `tests/audit-seq-verify.test.mjs`（verifier 基线、backfill、NULL/duplicate、NULL id limit、remote/production 参数检查）。`npm run typecheck` 通过；`npm run lint` 退出码 0，但有 605 条既有 warning；`npm run check:client-boundary` 失败，复现 Windows 双盘符路径 `E:\E:\KhmerX\wt-GL-1\app`；`node scripts/run-framework.mjs build` 通过；`npm audit --omit=dev` 通过，输出 `found 0 vulnerabilities`。开发依赖的 27 个漏洞仅记录，未修复。
 
 ## 其他准备文件
 
