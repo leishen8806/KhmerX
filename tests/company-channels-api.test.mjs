@@ -10,6 +10,7 @@ test('company channel API contract exposes resolver requirements and E1 errors',
  assert.match(source,/allowed_origins_json/);
  assert.match(source,/token_encrypted/);
  assert.match(source,/checker.*finance_checker|finance_checker.*checker/);
+ assert.match(fs.readFileSync('app/api/team/channels/route.ts','utf8'),/listCompanyChannels/);
  const db=new DatabaseSync(':memory:');db.exec('CREATE TABLE company_channels(id TEXT PRIMARY KEY,tenant_id TEXT,type TEXT,enabled INTEGER,hosts_json TEXT,allowed_origins_json TEXT)');db.prepare('INSERT INTO company_channels VALUES (?,?,?,?,?,?)').run('h5-1','t-a','h5',1,'["testpayease.khmerx.org"]','["https://testpayease.khmerx.org"]');assert.equal(db.prepare('SELECT COUNT(*) n FROM company_channels WHERE tenant_id=? AND type=? AND enabled=1').get('t-a','h5').n,1);
 });
 
