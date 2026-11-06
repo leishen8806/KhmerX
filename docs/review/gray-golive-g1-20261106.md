@@ -91,3 +91,11 @@ GL-1 **未通过**：离线缓存缺包；获批联网安装后开发依赖审�
 - **API 级替代**：本次未产生（team-integration 在 Node 25 加载阶段失败）。
 - **留到灰度冒烟**：真实运行时的负向验证码、Mini App initData、三语言截图/设备显示、机构回调后的完整贷款链路。
 - **失败**：lender 登录 HTTP 403；启动日志迁移计数为 0 而非 63；375px 截图因缺少 Playwright 浏览器未执行。
+
+## Claude 验收结论（2026-11-06）
+
+- 结论：有条件通过。
+- lender 返回 403 是设计结果（lender/finance 两个入口都拒绝，见 client-auth-config-audit-20261105.md），不是缺陷；任务卡要求登录 lender 是 Claude 的错误。
+- 迁移计数 0：续跑 4 复用了续跑 3 的本地库，63 条迁移已在续跑 3 执行。
+- team-integration：Windows 上用的是 Node v25.9.0，且单独运行时缺少 --experimental-vm-modules；Claude 在 Linux（Node 22）上运行 63/63 通过，其中第 22 项"KYC approval → amount application → signature → institution callback → checker → funding"作为 E3 的 API 级替代证据。
+- 留到灰度冒烟（作为窗口内的必过项）：运行时负向验证码、Mini App initData、375px 三语截图、浏览器端贷款全流程。
