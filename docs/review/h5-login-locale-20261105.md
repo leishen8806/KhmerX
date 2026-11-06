@@ -4,6 +4,8 @@
 
 `app/h5/login.tsx` now reads all login-page copy through the shared `messages` dictionary. English and Khmer screenshots were captured at 390×844 and contain no CJK characters in the rendered body text, including the test-funds banner. The Chinese screenshot remains the source-language variant. The legacy greeting DOM patch was removed from `app/h5/layout.tsx`; no CJK remains in the H5 login/layout source files.
 
+The language switcher is intentionally excluded from the English/Khmer body-copy assertion and renders each locale's native label (`中文`, `English`, `ភាសាខ្មែរ`).
+
 The scan command was:
 
 ```sh

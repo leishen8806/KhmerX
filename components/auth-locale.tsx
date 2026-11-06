@@ -47,7 +47,7 @@ export function AuthLocaleBridge(){
   const schedule=typeof window.setTimeout==='function'?window.setTimeout.bind(window):(fn:()=>void)=>fn();
   for(const delay of [0,100,500,1000])schedule(repaint,delay);
  };
- return <div className="auth-locale" aria-label="Language">{(['zh','en','km'] as Locale[]).map(next=><button key={next} type="button" onClick={()=>choose(next)} aria-label={localeLabels[next]} aria-pressed={locale===next}>{next==='zh'?'ZH':localeLabels[next]}</button>)}</div>
+ return <div className="auth-locale" aria-label="Language">{(['zh','en','km'] as Locale[]).map(next=><button key={next} type="button" onClick={()=>choose(next)} aria-label={localeLabels[next]} aria-pressed={locale===next}>{localeLabels[next]}</button>)}</div>
 }
 
 copy['输入手机号继续，新用户自动创建账号。当前渠道未开启验证与密码设置，后台将直接创建或登录账号，可跳过验证。']=['输入手机号继续，新用户自动创建账号。当前渠道未开启验证与密码设置，后台将直接创建或登录账号，可跳过验证。','Enter your phone number to continue. New users are created automatically. This channel has no verification or password setup enabled; the backend will create or sign in the account directly.','បញ្ចូលលេខទូរស័ព្ទដើម្បីបន្ត។ អ្នកប្រើថ្មីនឹងបង្កើតគណនីដោយស្វ័យប្រវត្តិ។ ឆានែលនេះមិនបានបើកការផ្ទៀងផ្ទាត់ ឬកំណត់ពាក្យសម្ងាត់ទេ ដូច្នេះប្រព័ន្ធនឹងបង្កើត ឬចូលគណនីដោយផ្ទាល់។'];
