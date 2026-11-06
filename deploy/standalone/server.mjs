@@ -6,6 +6,7 @@ import {Readable} from 'node:stream';
 import {splitSql} from './sql-split.mjs';
 import {maintenanceResponse} from './maintenance.mjs';
 import {hostRules,isAllowedHost,isPublicClientHost,isAdminHost,isApiHost,resolveClientIp} from './hosts.mjs';
+import {assertCustomerCompanyConfig,deploymentCustomerCompany} from './company-config.mjs';
 const moduleRoot='/app/dist/server';
 // macOS AppleDouble resource-fork files (._*.js) are not JavaScript. Exclude
 // them so a copied release cannot make the Workers runtime fail at boot.
@@ -13,6 +14,7 @@ const modulePaths=readdirSync(moduleRoot,{recursive:true}).filter(n=>/\.m?js$/.t
 const modules=['index.js',...modulePaths.filter(n=>n!=='index.js')].map(n=>({type:'ESModule',path:moduleRoot+'/'+n}));
 const buildId=existsSync(moduleRoot+'/BUILD_ID')?readFileSync(moduleRoot+'/BUILD_ID','utf8').trim():'unknown';
 const cfg=JSON.parse(readFileSync('/data/config.json','utf8'));
+const deploymentCompanyId=assertCustomerCompanyConfig(cfg);
 const hosts=hostRules(cfg);
 const configuredHosts=[...hosts.publicClientHosts,...hosts.adminHosts,...hosts.apiHosts].map(host=>host.toLowerCase());
 const formalHosts=['payease.khmerx.org','payeas.khmerx.org','admin.khmerx.org','api.khmerx.org'];
@@ -27,7 +29,8 @@ writeFileSync(scannerTokenPath,String(cfg.bindings?.KYC_SCAN_TOKEN||''),{mode:0o
 if(cfg.bindings?.KHMERX_TEST_MODE==='true')throw new Error('KHMERX_TEST_MODE must be disabled for standalone production boot');
 if(cfg.bindings?.PAYEASE_IDENTITY_PROOF_REQUIRED!==undefined&&cfg.bindings.PAYEASE_IDENTITY_PROOF_REQUIRED!=='true')throw new Error('PAYEASE_IDENTITY_PROOF_REQUIRED must be true for standalone production boot');
 if(cfg.bindings?.PAYEASE_DEMO_OTP_ALLOWED==='true'&&!['local','gray'].includes(String(cfg.bindings?.PAYEASE_ENV||'').toLowerCase()))throw new Error('PAYEASE_DEMO_OTP_ALLOWED is restricted to local/gray H5 runtime');
-const mf=new Miniflare({modules,modulesRoot:moduleRoot,compatibilityDate:'2026-05-15',compatibilityFlags:['nodejs_compat'],assets:{directory:'/app/dist/client',binding:'ASSETS',routerConfig:{has_user_worker:true}},d1Databases:{DB:'payease'},d1Persist:'/data/d1',r2Buckets:{BUCKET:'payease'},r2Persist:'/data/r2',bindings:cfg.bindings,host:'127.0.0.1'});
+const bindings={...cfg.bindings,...(deploymentCompanyId?{PAYEASE_DEPLOYMENT_COMPANY_ID:deploymentCompanyId}:{})};
+const mf=new Miniflare({modules,modulesRoot:moduleRoot,compatibilityDate:'2026-05-15',compatibilityFlags:['nodejs_compat'],assets:{directory:'/app/dist/client',binding:'ASSETS',routerConfig:{has_user_worker:true}},d1Databases:{DB:'payease'},d1Persist:'/data/d1',r2Buckets:{BUCKET:'payease'},r2Persist:'/data/r2',bindings,host:'127.0.0.1'});
 const db=await mf.getD1Database('DB');
 const bucket=await mf.getR2Bucket('BUCKET');
 await db.prepare('CREATE TABLE IF NOT EXISTS standalone_migrations (name TEXT PRIMARY KEY)').run();
@@ -209,17 +212,21 @@ const server=createServer(async(req,res)=>{
  headers.set('cf-connecting-ip',clientIp);
  if(jobRequest)headers.set('authorization',req.headers.authorization);
  const identityId='visitor:'+id, identityEmail=id+'@visitor.invalid',identityProofTs=Math.floor(Date.now()/1000).toString();headers.set('oai-authenticated-user-id',identityId);headers.set('oai-authenticated-user-email',identityEmail);headers.set('x-payease-identity-proof-ts',identityProofTs);headers.set('x-payease-identity-proof',identitySign(identityId+'\n'+identityEmail+'\n'+identityProofTs));
- // Do not silently bind a multi-company visitor to the first tenant. The UI
- // must establish an explicit company selection; auto-select is safe only
- // when the deployment contains exactly one company.
- if(cfg.companies.length===1&&!/(?:^|;\s*)payease_company=/.test(cookies)){cookies+='; payease_company='+cfg.companies[0].id;headers.set('cookie',cookies);}
+ // A bound deployment owns one customer tenant. Remove stale or conflicting
+ // customer cookies before dispatching so every H5/Mini App request resolves
+ // to the same company. Multi-company deployments without a binding retain
+ // explicit company selection and never default to the first tenant.
+ const companyCookie=cookies.split(';').map(x=>x.trim()).find(x=>x.startsWith('payease_company='));
+ const customerCookie=deploymentCompanyId?`payease_company=${deploymentCompanyId}`:companyCookie;
+ if(deploymentCompanyId){cookies=cookies.split(';').map(x=>x.trim()).filter(x=>x&&!x.startsWith('payease_company=')).concat(customerCookie).join('; ');headers.set('cookie',cookies);}
+ else if(deploymentCustomerCompany(cfg)&&!companyCookie){cookies+='; '+customerCookie;headers.set('cookie',cookies);}
  const url=(secure?'https://':'http://')+host+(req.url||'/');
  const method=req.method||'GET';let body;
  if(!['GET','HEAD'].includes(method)){const chunks=[];let size=0;for await(const c of req){size+=c.length;if(size>maxBodyBytes){gatewayError(res,413,'PAYLOAD_TOO_LARGE','Request too large');return;}chunks.push(c);}body=Buffer.concat(chunks);}
  const response=await mf.dispatchFetch(url,{method,headers,body,redirect:'manual'});
  res.statusCode=response.status;for(const [k,v]of response.headers)if(!['set-cookie','transfer-encoding','connection'].includes(k))res.setHeader(k,v);
  const securityHeaders={'X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'strict-origin-when-cross-origin','Permissions-Policy':'camera=(self), geolocation=(self), microphone=(self), payment=()','Content-Security-Policy':"default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' https://telegram.org 'unsafe-inline' 'unsafe-eval'; connect-src 'self' https://*.khmerx.org https://api.telegram.org https://gatewayapi.telegram.org"};for(const [k,v] of Object.entries(securityHeaders))if(!res.hasHeader(k))res.setHeader(k,v);if(secure&&!res.hasHeader('Strict-Transport-Security'))res.setHeader('Strict-Transport-Security','max-age=31536000; includeSubDomains');
- const set=response.headers.getSetCookie();if(fresh)set.push('payease_visitor='+value+'; Path=/; HttpOnly; SameSite=Strict; Max-Age=2592000'+(secure?'; Secure':''));if(set.length)res.setHeader('Set-Cookie',set);
+ const set=response.headers.getSetCookie();if(deploymentCompanyId&&companyCookie!==customerCookie)set.push(customerCookie+'; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400'+(secure?'; Secure':''));if(fresh)set.push('payease_visitor='+value+'; Path=/; HttpOnly; SameSite=Strict; Max-Age=2592000'+(secure?'; Secure':''));if(set.length)res.setHeader('Set-Cookie',set);
  if(response.body)Readable.fromWeb(response.body).pipe(res);else res.end();
  }catch(e){console.error(e instanceof Error?e.stack||e:e);if(!res.headersSent)gatewayError(res,503,'SERVICE_UNAVAILABLE','Service temporarily unavailable',overloadRetryAfter);}});
 server.headersTimeout=30000;
