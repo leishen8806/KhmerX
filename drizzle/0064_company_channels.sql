@@ -27,8 +27,6 @@ CREATE TABLE IF NOT EXISTS company_channels (
   webhook_secret_configured INTEGER NOT NULL DEFAULT 0 CHECK (webhook_secret_configured IN (0,1)),
   init_data_max_age_seconds INTEGER NOT NULL DEFAULT 86400,
   notifications_enabled INTEGER NOT NULL DEFAULT 1 CHECK (notifications_enabled IN (0,1)),
-  telegram_token_configured INTEGER NOT NULL DEFAULT 0 CHECK (telegram_token_configured IN (0,1)),
-  telegram_token_last4 TEXT,
   app_platform TEXT CHECK (app_platform IS NULL OR app_platform IN ('android','ios')),
   package_id TEXT,
   bundle_id TEXT,
@@ -39,7 +37,7 @@ CREATE TABLE IF NOT EXISTS company_channels (
   download_url TEXT,
   force_upgrade INTEGER NOT NULL DEFAULT 0 CHECK (force_upgrade IN (0,1)),
   maintenance_messages_json TEXT NOT NULL DEFAULT '{}',
-  updated_by TEXT NOT NULL DEFAULT 'migration:0063',
+  updated_by TEXT NOT NULL DEFAULT 'migration:0064',
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (tenant_id, id),
   CHECK (type <> 'h5' OR phone_verification = 1),
@@ -61,47 +59,63 @@ INSERT OR IGNORE INTO company_channels (
 )
 SELECT
   'h5-' || slug, id, 'h5', name || ' H5', active, 'sms', 1,
-  0,
+  COALESCE((
+    SELECT CASE WHEN json_extract(bot.value, '$.passwordSetup') = 0 THEN 0 ELSE 1 END
+    FROM demo_workspaces w, json_each(w.payload, '$.bots') bot
+    WHERE w.owner = team_companies.id AND json_extract(bot.value, '$.enabled') = 1
+    ORDER BY CASE WHEN json_extract(bot.value, '$.id') = json_extract(w.payload, '$.activeBotId') THEN 0 ELSE 1 END
+    LIMIT 1
+  ), 1),
   json_object('zh', client_zh_enabled = 1, 'en', client_en_enabled = 1, 'km', client_km_enabled = 1),
   CASE WHEN client_zh_enabled = 1 THEN 'zh' WHEN client_en_enabled = 1 THEN 'en' ELSE 'km' END,
-  'H5', slug, '["testpayease.khmerx.org"]', '["https://testpayease.khmerx.org"]'
+  'H5', slug, '[]', '[]'
 FROM team_companies;
 --> statement-breakpoint
 INSERT OR IGNORE INTO company_channels (
   id, tenant_id, type, label, enabled, auth_mode, phone_verification,
   password_setup, languages_json, default_language, source_channel, entry_slug,
-  hosts_json, allowed_origins_json, app_platform, package_id, api_base_url,
+  app_platform, package_id, api_base_url,
   cookie_hosts_json, min_supported_version, latest_version, download_url,
   force_upgrade, maintenance_messages_json
 )
 SELECT
   'app-' || slug, id, 'app', name || ' App', active, 'sms', 1,
-  0,
+  COALESCE((
+    SELECT CASE WHEN json_extract(bot.value, '$.passwordSetup') = 0 THEN 0 ELSE 1 END
+    FROM demo_workspaces w, json_each(w.payload, '$.bots') bot
+    WHERE w.owner = team_companies.id AND json_extract(bot.value, '$.enabled') = 1
+    ORDER BY CASE WHEN json_extract(bot.value, '$.id') = json_extract(w.payload, '$.activeBotId') THEN 0 ELSE 1 END
+    LIMIT 1
+  ), 1),
   json_object('zh', client_zh_enabled = 1, 'en', client_en_enabled = 1, 'km', client_km_enabled = 1),
   CASE WHEN client_zh_enabled = 1 THEN 'zh' WHEN client_en_enabled = 1 THEN 'en' ELSE 'km' END,
-  'AP', slug,
-  '["testapi.khmerx.org"]', '["https://testpayease.khmerx.org"]', 'android',
-  'org.khmerx.payease', 'https://testapi.khmerx.org',
-  '["testapi.khmerx.org","testpayease.khmerx.org"]',
-  NULL, NULL, 'https://testapi.khmerx.org/app/latest', 0,
+  'AP', slug, 'android',
+  'org.khmerx.payease',
+  NULL, '[]', NULL, NULL, NULL, 0,
   json_object('zh', '系统维护中，请稍后再试', 'en', 'System maintenance. Please try again later.', 'km', 'ប្រព័ន្ធកំពុងថែទាំ សូមព្យាយាមម្ដងទៀត')
 FROM team_companies;
 --> statement-breakpoint
 INSERT OR IGNORE INTO company_channels (
   id, tenant_id, type, label, enabled, auth_mode, phone_verification,
   password_setup, source_channel, entry_slug, telegram_bot_id,
-  bot_username, bot_telegram_id, telegram_token_configured
+  bot_username, bot_telegram_id
 )
 SELECT
   'tg-' || replace(replace(c.id, '-', ''), ':', '') || '-' || replace(replace(b.bot_id, '-', ''), ':', ''),
   c.id, 'telegram_miniapp', COALESCE(b.label, b.username, b.bot_id), c.active, 'telegram', 0,
-  0, 'TG', c.slug, b.bot_id, NULLIF(b.username, ''), NULLIF(b.telegram_id, ''), 1
+  COALESCE((
+    SELECT CASE WHEN json_extract(bot.value, '$.passwordSetup') = 0 THEN 0 ELSE 1 END
+    FROM demo_workspaces w, json_each(w.payload, '$.bots') bot
+    WHERE w.owner = c.id AND json_extract(bot.value, '$.id') = b.bot_id AND json_extract(bot.value, '$.enabled') = 1
+    LIMIT 1
+  ), 1),
+  'TG', c.slug, b.bot_id, NULLIF(b.username, ''), NULLIF(b.telegram_id, '')
 FROM telegram_bot_credentials b
 JOIN team_companies c ON c.id = b.owner;
 --> statement-breakpoint
 INSERT INTO team_audit (id, tenant_id, actor, action, detail, created_at)
 SELECT
-  'company-channels-backfill:' || id, id, 'migration:0063', 'company_channels_backfill',
+  'company-channels-backfill:' || id, id, 'migration:0064', 'company_channels_backfill',
   '{"source":"team_companies/client_flags and telegram_bot_credentials","secrets":"not copied"}', datetime('now')
 FROM team_companies
 WHERE NOT EXISTS (
