@@ -9,11 +9,18 @@ import {MiniClient} from '@/components/mini-client';
 import {MiniNavigationProvider} from '@/components/mini-shell';
 import {MiniRouteLoading} from '@/components/mini-route-loading';
 import {apiFetch,ApiClientError} from '@/lib/api-client';
-import {messageForError} from '@/lib/error-messages';
 import {messages,type Locale} from '@/lib/i18n';
 import {AuthLocaleBridge} from '@/components/auth-locale';
 type Session={phoneMasked:string;mode:'demo'|'telegram';expiresAt:number;phoneVerified?:boolean;verificationCompleted?:boolean;hasPassword?:boolean};
 type Challenge={challengeId:string;expiresAt:number;retryAt:number;demoCode?:string;phoneMasked:string};
+const channelErrorMessages:Record<string,Record<Locale,string>>={
+ CHANNEL_DISABLED:{en:'This channel is currently disabled.',km:'បណ្តាញនេះកំពុងត្រូវបានបិទ។',zh:'\u6b64\u6e20\u9053\u76ee\u524d\u5df2\u505c\u7528\u3002'},
+ CHANNEL_MAINTENANCE:{en:'This channel is temporarily under maintenance.',km:'បណ្តាញនេះកំពុងថែទាំជាបណ្តោះអាសន្ន។',zh:'\u6b64\u6e20\u9053\u6682\u65f6\u7ef4\u62a4\u4e2d\u3002'},
+ CHANNEL_COMPANY_MISMATCH:{en:'This channel is not available for this company.',km:'បណ្តាញនេះមិនមានសម្រាប់ក្រុមហ៊ុននេះទេ។',zh:'\u6b64\u6e20\u9053\u4e0d\u9002\u7528\u4e8e\u8be5\u516c\u53f8\u3002'},
+ VERIFICATION_EXPIRED:{en:'This verification code has expired. Request a new code.',km:'លេខកូដផ្ទៀងផ្ទាត់នេះបានផុតកំណត់។ សូមស្នើលេខកូដថ្មី។',zh:'\u6b64\u9a8c\u8bc1\u7801\u5df2\u8fc7\u671f\uff0c\u8bf7\u91cd\u65b0\u83b7\u53d6\u3002'},
+ VERIFICATION_RATE_LIMITED:{en:'Too many verification attempts. Please try again later.',km:'ការផ្ទៀងផ្ទាត់ច្រើនពេក។ សូមព្យាយាមម្ដងទៀតពេលក្រោយ។',zh:'\u9a8c\u8bc1\u7801\u5c1d\u8bd5\u6b21\u6570\u8fc7\u591a\uff0c\u8bf7\u7a0d\u540e\u518d\u8bd5\u3002'}
+};
+const localizedChannelError=(code:string,locale:Locale)=>channelErrorMessages[code]?.[locale]||code;
 function AuthHeader(){return <header className="h5-header"><Link prefetch={false} className="brand" href="/h5"><img className="brand-logo" src="/brand/khmerx-icon-v2.png" alt="KhmerX" width={72} height={72}/><span>PayEase</span></Link><AuthLocaleBridge/></header>}
 export default function H5Login(){
  const pathname=usePathname(),router=useRouter(),screen=pathname.split('/')[2]||'home';
@@ -27,7 +34,7 @@ export default function H5Login(){
  const navigateMini=(href:string)=>{const target=new URL(href,window.location.origin),parts=target.pathname.split('/').filter(Boolean);setMiniScreen(parts[0]==='h5'?(parts[1]||'home'):'home');setMiniQuery(target.search)};
  const complete=(value:Session|null,requirements:{phoneVerification:boolean;passwordSetup:boolean})=>!!value&&(!requirements.phoneVerification||!!value.verificationCompleted)&&(!requirements.passwordSetup||!!value.hasPassword);
  const telegramInitData=()=>{const runtime=(window as any).Telegram?.WebApp?.initData;if(typeof runtime==='string'&&runtime)return runtime;const raw=window.location.hash.startsWith('#')?window.location.hash.slice(1):'';return new URLSearchParams(raw).get('tgWebAppData')||''};
- const load=useCallback(async()=>{const initData=telegramInitData(),{data}=await apiFetch<any>('/api/h5/auth',{cache:'no-store',...(initData?{headers:{'X-Telegram-Init-Data':initData}}:{})});setSession(data.session);if(!data.session)setView('register');setCompany(data.company||'');setMode(data.mode);setPolicy(data.policy);if(data.channelErrorCode)setError(messageForError({code:data.channelErrorCode},authLocale));return data},[authLocale]);
+ const load=useCallback(async()=>{const initData=telegramInitData(),{data}=await apiFetch<any>('/api/h5/auth',{cache:'no-store',...(initData?{headers:{'X-Telegram-Init-Data':initData}}:{})});setSession(data.session);if(!data.session)setView('register');setCompany(data.company||'');setMode(data.mode);setPolicy(data.policy);if(data.channelErrorCode)setError(localizedChannelError(data.channelErrorCode,authLocale));return data},[authLocale]);
  useEffect(()=>{load().then(async data=>{if(data.mode==='telegram'&&!data.session){const initData=telegramInitData();if(initData){try{const channel=new URLSearchParams(window.location.search).get('channel')||'bot-1',endpoint=channel==='bot-1'?'/api/h5/auth/telegram':'/api/h5/auth/telegram?channel='+encodeURIComponent(channel),{data:account}=await apiFetch<any>(endpoint,{method:'POST',headers:{'X-Telegram-Init-Data':initData}});setSession(account.session);setPolicy(account.policy);setView(complete(account.session,account.policy)?'workspace':'security');return}catch{setError(copy('authTelegramUnavailable'));setView('telegram');return}}else{setError(copy('authNotTelegram'));setView('verify')}}if(!((data.mode==='telegram'&&!data.session)&&!telegramInitData()))setView((screen==='login'||new URLSearchParams(window.location.search).get('view')==='login')?'register':data.session?(complete(data.session,data.policy)?'workspace':'security'):'register')}).then(()=>setReady(true)).catch(value=>setError(readableError(value)))},[load]);
  useEffect(()=>{if(ready&&session){setView(screen==='login'?'register':complete(session,policy)?'workspace':'security');setError('');setNotice('')}},[screen]);
  useEffect(()=>{const refresh=()=>{if(document.visibilityState==='visible')void load().catch(value=>setError(readableError(value)))};window.addEventListener('focus',refresh);document.addEventListener('visibilitychange',refresh);return()=>{window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',refresh)}},[load]);
