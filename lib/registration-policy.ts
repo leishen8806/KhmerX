@@ -13,7 +13,7 @@ export async function registrationPolicy(r:AuthRuntime,owner:string,customerId?:
  return {channelId:bot?.id,phoneVerification:demoOtp?true:silentTelegram?false:r.config?.mode==='telegram'?true:!!bot&&bot.phoneVerification!==false,passwordSetup:!!bot&&bot.passwordSetup!==false};
 }
 export async function requireRegistrationStep(r:AuthRuntime,owner:string,customerId:string,step:'phoneVerification'|'passwordSetup'){
- if(!(await registrationPolicy(r,owner,customerId))[step])throw new AuthError('当前业务渠道已关闭此注册步骤',403);
+ if(!(await registrationPolicy(r,owner,customerId))[step])throw new AuthError('当前业务渠道已关闭此注册步骤',403,undefined,'REGISTRATION_STEP_DISABLED');
 }
 export async function requireRegistrationComplete(r:AuthRuntime,owner:string,session:CustomerSession){
  const policy=await registrationPolicy(r,owner,session.customerId);
