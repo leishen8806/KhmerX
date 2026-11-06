@@ -44,7 +44,7 @@
 
 | 原型 screen | 用途 | 关键字段（对应数据字段） | 权限与安全边界 |
 | --- | --- | --- | --- |
-| `list` 渠道列表 | 按公司分组查看 Telegram Mini App、H5、App 的绑定状态 | `tenant_id`、`type`、`label`、`enabled`、`auth_mode`、`source_channel`、`hosts_json`/bot 标识、`languages_json`、`default_language`、Token `configured/last4`、`updated_by/updated_at` | `admin` 查看全部；`checker`/`finance_checker` 只读机构摘要和审批状态；`finance`/`lender` 按既有入口矩阵只看业务摘要；`audit` 只读审计摘要；不显示 token 原文 |
+| `list` 渠道列表 | 按公司分组查看 Telegram Mini App、H5、App 的绑定状态 | `tenant_id`、`type`、`label`、`enabled`、`auth_mode`、`source_channel`、`hosts_json`/bot 标识、`languages_json`、`default_language`、Token `configured/last4`、`updated_by/updated_at` | `admin` 查看全部；`checker`/`finance_checker` 只读机构摘要和审批状态且不显示任何 Token；`finance`/`lender` 不登录后台、无入口；`audit` 只读审计摘要；不显示 token 原文 |
 | `detail-telegram` Telegram 详情/编辑 | 展示 Bot、Mini App 和 webhook 元数据，预览可编辑草稿 | `tenant_id`、`type=telegram`、`bot_telegram_id`、`bot_username`、`mini_app_url`、`webhook` 非密文元数据、`auth_mode`、`languages_json`、`default_language`、`notifications_enabled`、Token 状态 | `admin` 可看并提交草稿；`checker`/`finance_checker` 可读；Token 仅 configured/末四位；替换 Token 要 MFA；停用或 auth mode 变化要二人复核 |
 | `detail-h5` H5 详情/编辑 | 检查 host/origin、手机号认证和语言 | `hosts_json`、`allowed_origins_json`、`entry_slug`、`auth_mode`、`phone_verification`、`password_setup`、`languages_json`、`default_language`、`enabled`、`notifications_enabled` | `admin` 可读写草稿；`phone_verification`、`PAYEASE_ENV`、Demo OTP 为环境/策略只读；`checker`/`finance_checker` 只读；host 冲突 fail-closed |
 | `detail-app` App 详情/编辑 | 检查 API、Cookie allow-list 和版本升级策略 | `api_base_url`、`cookie_hosts`、平台/包标识、`min_supported_version`、下载 URL、`hosts_json`、`auth_mode`、`phone_verification`、`password_setup`、`enabled` | `admin` 可读写草稿；客户端仅消费已发布配置；环境字段只读；`finance`/`lender` 不见配置入口 |
@@ -63,7 +63,7 @@
 | `client-app-default` / `upgrade` / `offline` | App 登录、最低版本升级提示、API 不可用重试 | 由 `api_base_url`、`cookie_hosts`、版本/下载字段构造请求；沿用 `CompanyCookieStore` 隔离，跨公司 Cookie 不复用；升级/接口不可用不改变资金状态 |
 | `client-h5-disabled` / `client-maintenance` | 渠道停用和维护页 | `enabled=false` 或运行时维护状态只显示统一停用/维护文案；不渲染 host、Bot、Token；登录态和公司身份不跨租户迁移 |
 
-客户端三种语言（中文/English/ខ្មែរ）均使用渠道的 `languages_json`/`default_language`，缺失语言按既定 fallback；原型的所有显示值为虚构值。
+客户端三种语言（中文/English/ខ្មែរ）均使用渠道的 `languages_json`/`default_language`，缺失语言按 `default_language → 公司默认语言 → en` 回退；原型的所有显示值为虚构值。H5 复用 PayEase 标识、圆角卡片、顶部语言切换和测试环境横幅；测试主机只使用 `testpayease.khmerx.org`、`testapi.khmerx.org`、`testadmin.khmerx.org`。
 
 ### 待 Claude/负责人决定的问题
 
@@ -74,6 +74,15 @@
 5. App 各平台的最低版本、下载 URL、强制升级时间窗是否已有 owner 和正式清单？
 6. 客户端语言缺失时的 fallback 顺序，以及 Telegram/H5/App 的维护文案是否统一？
 7. UI 评审通过后，PR-c 是否只做只读页，还是同时开放已具备 MFA/二人复核门禁的草稿写入？
+
+### 返工评审决定（2026-11-06）
+
+- `finance`/`lender` 不登录后台、无配置入口；`checker`/`finance_checker` 只读且看不到任何 Token 信息（含末四位）；只有 `admin` 可发起修改。
+- 三类详情页拆成独立字段组：Telegram 固定 `auth_mode=telegram`、不需要手机号验证，并展示 Bot ID、Bot 用户名、Mini App URL/短名称、Webhook URL/密钥状态、Init Data 最大年龄；H5 展示 host/origin/entry、OTP TTL/尝试次数/重发冷却/频率限制、短信服务商；App 展示 platform、package/bundle、API 基址、cookie hosts、最低/最新版本和下载地址，不出现机器人 Token。
+- host/bot 冲突直接阻止保存并提示“已属于其他公司”；当前只有一家公司，不设计归属转移流程。
+- 停用或认证方式变更必须由同一家公司的另一位 `admin` 复核并 MFA；暂不设 SLA，列表按时间排序。
+- E4 启用渠道失败阻止本地和灰度启动，停用渠道失败只显示警告；面板只读。
+- App 最低版本和下载地址为可配置占位字段；维护文案三语可由渠道覆盖；第一阶段 PR-c 只做只读页。
 
 ## 测试与门禁
 
