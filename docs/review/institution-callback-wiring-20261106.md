@@ -28,7 +28,7 @@ The missing callback consumer is therefore a P0 functional gap (institution deci
 
 ## Planned repair boundary
 
-The repair PR will add only approval/rejection event consumption after the existing signature and nonce gates, set `approvalActor` to `institution:<institution id>`, write an audit record, and preserve the checker second-person gate. `funding.confirmed` will remain report-only and no funding/loan-money logic will be changed. The handler will be idempotent and fail closed for status mismatch, duplicate, and late events.
+The repair PR consumes approval/rejection and `funding.confirmed` only after the existing signature and nonce gates. Approval callbacks set `approvalActor` to `institution:<institution id>` and preserve the checker second-person gate. A funding callback is accepted only for a `signed` loan with `approvalCheckedBy`, a matching funding institution assignment, and no existing `fundingActor`; it sets the institution actor and external funding reference, writes an audit event, and leaves wallet, balance and ledger entries unchanged. The existing finance `disburse_request` action remains for compatibility but is not needed by the current finance-disabled portal flow. The handler is idempotent and fails closed for status mismatch, duplicate, and late events.
 
 Any VPS or production deployment/runbook action remains deferred until local standalone/dev-harness acceptance and owner evaluation.
 
