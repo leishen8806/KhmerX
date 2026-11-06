@@ -26,7 +26,11 @@ export async function POST(request:Request){
   const p=await input(request) as RetryInput;if(p.action!=='retry')throw new AuthError('回调队列操作无效',400);
   const eventId=text(p.eventId,80),event=await db().prepare(`SELECT e.id,e.institution_id,e.status,COALESCE(MAX(a.attempt),-1) AS attempts FROM institution_callback_events e LEFT JOIN institution_callback_attempts a ON a.event_id=e.id WHERE e.id=? AND EXISTS (SELECT 1 FROM team_units u WHERE u.id=e.institution_id AND u.tenant_id=? AND u.kind='institution') GROUP BY e.id`).bind(eventId,s.tenant.id).first<RetryEvent>();
   if(!event)throw new AuthError('回调记录不存在或不属于当前公司',404);
-  if(event.status!=='dead_letter')throw new AuthError('只有死信回调允许人工重试',409);
+  if(event.status!=='dead_letter'&&event.status!=='received')throw new AuthError('只有死信或版本冲突回调允许人工重试',409);
+  if(event.status==='received'){
+   const conflict=await db().prepare('SELECT last_error FROM institution_callback_attempts WHERE event_id=? ORDER BY attempt DESC LIMIT 1').bind(event.id).first<{last_error:string|null}>();
+   if(conflict?.last_error!=='REVISION_CONFLICT')throw new AuthError('只有版本冲突回调允许人工重试',409);
+  }
   const attempt=Number(event.attempts)+1,retry=nextCallbackRetry(attempt),now=new Date().toISOString();
   if(retry.status==='dead_letter')throw new AuthError('回调已达到最大重试次数',409);
   await db().batch([db().prepare("UPDATE institution_callback_events SET status='received',updated_at=? WHERE id=? AND status='dead_letter'").bind(now,event.id),db().prepare('INSERT INTO institution_callback_attempts (id,event_id,attempt,status,next_at,last_error,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)').bind(crypto.randomUUID(),event.id,attempt,retry.status,retry.nextAt,'manual retry',now,now),audit(s.tenant.id,s.user.userId,'institution_callback_retry',{eventId:event.id,attempt,nextAt:retry.nextAt})]);

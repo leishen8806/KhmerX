@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {nextCallbackRetry,callbackAttemptStatus,callbackRetryPolicy,callbackConsumerRetry} from '../lib/institution-callback-queue.ts';
+import {nextCallbackRetry,callbackAttemptStatus,callbackRetryPolicy,callbackConsumerRetry,retryRevisionConflict} from '../lib/institution-callback-queue.ts';
 import {applyInstitutionDecision} from '../lib/institution-callback-decision.ts';
 
 test('callback retries use bounded exponential-style backoff and end in dead letter',()=>{
@@ -21,4 +21,26 @@ test('revision conflicts keep the event received and schedule a retry before a l
  const applied=applyInstitutionDecision(state,'loan-1','loan.approved','institution:unit-1','',JSON.stringify({loanId:'loan-1'}),'2026-11-06T00:00:00.000Z');
  assert.equal(applied.loans[0].approvalActor,'institution:unit-1');
  assert.equal(applied.events[0].action,'loan.approved');
+});
+
+test('callback consumer retries two revision conflicts and applies on the third attempt',async()=>{
+ let calls=0;
+ const result=await retryRevisionConflict(async()=>{
+  calls++;
+  return calls<3?{status:'received',reason:'REVISION_CONFLICT'}:{status:'applied'};
+ });
+ assert.equal(calls,3);
+ assert.deepEqual(result,{result:{status:'applied'},attempts:3,exhausted:false});
+});
+
+test('callback consumer stops after three revision conflicts for upstream retry',async()=>{
+ let calls=0;
+ const result=await retryRevisionConflict(async()=>{
+  calls++;
+  return {status:'received',reason:'REVISION_CONFLICT'};
+ });
+ assert.equal(calls,3);
+ assert.equal(result.attempts,3);
+ assert.equal(result.exhausted,true);
+ assert.deepEqual(result.result,{status:'received',reason:'REVISION_CONFLICT'});
 });
