@@ -56,14 +56,15 @@ CREATE UNIQUE INDEX IF NOT EXISTS company_channels_bot_telegram_id ON company_ch
 --> statement-breakpoint
 INSERT OR IGNORE INTO company_channels (
   id, tenant_id, type, label, enabled, auth_mode, phone_verification,
-  password_setup, languages_json, default_language, source_channel, entry_slug
+  password_setup, languages_json, default_language, source_channel, entry_slug,
+  hosts_json, allowed_origins_json
 )
 SELECT
   'h5-' || slug, id, 'h5', name || ' H5', active, 'sms', 1,
   0,
   json_object('zh', client_zh_enabled = 1, 'en', client_en_enabled = 1, 'km', client_km_enabled = 1),
   CASE WHEN client_zh_enabled = 1 THEN 'zh' WHEN client_en_enabled = 1 THEN 'en' ELSE 'km' END,
-  'H5', slug
+  'H5', slug, '["testpayease.khmerx.org"]', '["https://testpayease.khmerx.org"]'
 FROM team_companies;
 --> statement-breakpoint
 INSERT OR IGNORE INTO company_channels (
