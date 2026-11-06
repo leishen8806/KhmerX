@@ -2,12 +2,27 @@
 
 本手册只适用于 `testpayease.khmerx.org` 灰度，不适用于正式域名。灰度仍启用身份证明中间件，但 H5 演示 OTP 是独立开关；不得把 `KHMERX_TEST_MODE` 打开。
 
+## 主机与验收边界
+
+- 正式 PayEase 主机：`159.223.92.104`（只用于负责人批准后的正式环境核对；本手册不授权登录、写入或部署）。
+- 灰度测试主机：`159.223.77.134`（只用于负责人批准后的灰度核对；本任务不连接服务器）。
+- 本地/CI 先执行以下公开只读检查；响应必须是 HTTP 200，并确认 JSON 的 `company` 是部署绑定公司名称：
+
+```sh
+curl -fsS -D /tmp/h5-auth.headers https://payease.khmerx.org/api/h5/auth -o /tmp/h5-auth.json
+curl -fsS https://testpayease.khmerx.org/api/h5/auth
+curl -fsS https://testapi.khmerx.org/api/h5/auth
+```
+
+不得把无效或伪造的 Telegram initData 当作登录证据。正式域名的 bot token 必须属于同一 `customerCompanyId`；灰度域名同理，Mini App 登录失败时应返回 `CHANNEL_COMPANY_MISMATCH`，不能回退到另一家公司。
+
 ## 单公司灰度注入
 
 `deploy/standalone/server.mjs` 在配置只有一家公司且请求没有 `payease_company` 时，才会注入该公司的 cookie。单公司配置必须同时满足：
 
 ```json
 {
+  "customerCompanyId": "t_<与 companies[0].id 完全相同的真实 UUID>",
   "companies": [{
     "id": "t_<真实 UUID>",
     "slug": "khmerx-gray",
@@ -24,6 +39,8 @@
   }
 }
 ```
+
+`customerCompanyId` 是部署绑定，不是客户端可提交的公司选择。单公司部署可省略该字段并由网关沿用 `companies[0]`；灰度配置检查器要求显式填写并验证二者相同。多公司部署必须显式绑定，未绑定时禁止默认第一家公司。
 
 注入前先用真实值替换所有 `replace-with-*` 占位符，再执行：
 
