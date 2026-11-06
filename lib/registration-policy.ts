@@ -9,7 +9,8 @@ export async function registrationPolicy(r:AuthRuntime,owner:string,customerId?:
  // skip the client phone step. H5/phone accounts keep the existing Gateway
  // requirement, even when the shared auth mode is Telegram.
  const silentTelegram=r.config?.mode==='telegram'&&account?.telegram_verified===1;
- return {channelId:bot?.id,phoneVerification:silentTelegram?false:r.config?.mode==='telegram'?true:!!bot&&bot.phoneVerification!==false,passwordSetup:!!bot&&bot.passwordSetup!==false};
+ const demoOtp=r.config?.mode==='demo'&&r.config?.demoOtpAllowed===true;
+ return {channelId:bot?.id,phoneVerification:demoOtp?true:silentTelegram?false:r.config?.mode==='telegram'?true:!!bot&&bot.phoneVerification!==false,passwordSetup:!!bot&&bot.passwordSetup!==false};
 }
 export async function requireRegistrationStep(r:AuthRuntime,owner:string,customerId:string,step:'phoneVerification'|'passwordSetup'){
  if(!(await registrationPolicy(r,owner,customerId))[step])throw new AuthError('当前业务渠道已关闭此注册步骤',403);

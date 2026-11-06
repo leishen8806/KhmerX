@@ -111,6 +111,28 @@ test('S3: runtime guards centralize the test-mode switch and block production+te
  assert.equal(released.blocked,false);
 });
 
+test('S3: demo OTP is independent, H5-only, and rejected by production guards',async()=>{
+ const oldEnv=env.PAYEASE_ENV,oldDemo=env.PAYEASE_DEMO_OTP_ALLOWED,oldTest=env.KHMERX_TEST_MODE,oldProof=env.PAYEASE_IDENTITY_PROOF_REQUIRED;
+ try{
+  env.PAYEASE_ENV='gray';env.KHMERX_TEST_MODE='false';env.PAYEASE_IDENTITY_PROOF_REQUIRED='true';env.PAYEASE_DEMO_OTP_ALLOWED='true';
+  assert.equal(guards.isProduction(),false,'gray identity proof is not production');
+  assert.equal(guards.demoOtpAllowed(),true,'gray demo OTP is allowed');
+  const grayRuntime=auth.runtime('h5');
+  assert.equal(grayRuntime.config.allowDemo,true);
+  assert.equal(grayRuntime.config.demoOtpAllowed,true);
+  const telegramRuntime=auth.runtime('telegram');
+  assert.equal(telegramRuntime.config.demoOtpAllowed,false,'the switch never enables Telegram demo auth');
+  env.PAYEASE_ENV='production';
+  assert.equal(guards.demoOtpAllowed(),false,'production cannot use demo OTP');
+  assert.throws(()=>guards.assertProductionSafe(),/PAYEASE_DEMO_OTP_ALLOWED/);
+ }finally{
+  if(oldEnv===undefined)delete env.PAYEASE_ENV;else env.PAYEASE_ENV=oldEnv;
+  if(oldDemo===undefined)delete env.PAYEASE_DEMO_OTP_ALLOWED;else env.PAYEASE_DEMO_OTP_ALLOWED=oldDemo;
+  if(oldTest===undefined)delete env.KHMERX_TEST_MODE;else env.KHMERX_TEST_MODE=oldTest;
+  if(oldProof===undefined)delete env.PAYEASE_IDENTITY_PROOF_REQUIRED;else env.PAYEASE_IDENTITY_PROOF_REQUIRED=oldProof;
+ }
+});
+
 test('S3: Telegram bot-credential failure logs redact the token and mask URLs',()=>{
  const source=fs.readFileSync('lib/bot-credentials.ts','utf8');
  assert.ok(source.includes("console.error('telegram_getme_connection'"),'connection failures are logged');

@@ -341,17 +341,17 @@
   "startupFailureBody": "We could not connect to the service right now. Check your connection and retry.",
   "languagePageTitle": "Language",
   "authSignInTitle": "Sign in",
-  "authContinueTelegram": "Continue with Telegram",
+  "authContinuePhone": "Continue with phone",
   "authUsePassword": "Use password",
   "authForgotPassword": "Forgot password?",
   "authPhoneInvalidE164": "Enter a valid phone number, e.g. +85512345678 or 012345678.",
-  "authTelegramVerificationTitle": "Telegram verification",
+  "authPhoneVerificationTitle": "Phone verification",
   "authPhoneLabel": "Phone number",
-  "authConsentTelegramCode": "I consent to receive a verification code via Telegram.",
+  "authConsentPhoneCode": "I consent to receive a verification code by phone.",
   "authSendCode": "Send code",
   "authPhoneMissing": "Phone number missing or invalid. Enter the phone number again.",
   "authCodeExpiredResend": "Verification code has expired. Resend a code.",
-  "authEnterCodeTitle": "Enter Telegram code",
+  "authEnterCodeTitle": "Enter phone verification code",
   "authCodeSentTo": "Verification code sent to {phone}",
   "@authCodeSentTo": {
     "placeholders": {
@@ -377,7 +377,7 @@
   "authPasswordSignInTitle": "Password sign in",
   "authPasswordLabel": "Password",
   "authRecoverTitle": "Recover password",
-  "authConsentResetCode": "I consent to receive a reset code via Telegram.",
+  "authConsentResetCode": "I consent to receive a reset code by phone.",
   "authRateLimited": "Rate limited. Retry in {seconds}s.",
   "@authRateLimited": {
     "placeholders": {

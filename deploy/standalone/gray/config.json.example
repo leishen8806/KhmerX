@@ -14,6 +14,7 @@
   "accessUser": "replace-with-gray-basic-user",
   "accessPassword": "replace-with-gray-basic-password",
   "sessionSecret": "replace-with-a-random-32-byte-secret",
+  "customerCompanyId": "t_00000000-0000-4000-8000-000000000001",
   "companies": [
     {
       "id": "t_00000000-0000-4000-8000-000000000001",
@@ -39,6 +40,9 @@
     "PAYEASE_LIMIT_SCALE": "1",
     "PAYEASE_GATEWAY_RATE_SCALE": "1",
     "PAYEASE_AUTH_MODE": "telegram",
+    "PAYEASE_H5_AUTH_MODE": "demo",
+    "PAYEASE_DEMO_OTP_ALLOWED": "true",
+    "PAYEASE_TELEGRAM_AUTH_MODE": "telegram",
     "TELEGRAM_GATEWAY_TOKEN": "replace-with-gray-telegram-gateway-token",
     "TELEGRAM_BOT_TOKEN_1": "replace-with-gray-telegram-bot-token",
     "TELEGRAM_BOT_TOKEN_2": "",

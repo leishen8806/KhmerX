@@ -952,7 +952,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authSignInTitle => '登录';
 
   @override
-  String get authContinueTelegram => '使用 Telegram 继续';
+  String get authContinuePhone => '使用手机号继续';
 
   @override
   String get authUsePassword => '使用密码登录';
@@ -964,13 +964,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authPhoneInvalidE164 => '请输入有效的电话号码，例如 +85512345678 或 012345678。';
 
   @override
-  String get authTelegramVerificationTitle => 'Telegram 验证';
+  String get authPhoneVerificationTitle => '手机号验证';
 
   @override
   String get authPhoneLabel => '手机号';
 
   @override
-  String get authConsentTelegramCode => '我同意通过 Telegram 接收验证码。';
+  String get authConsentPhoneCode => '我同意通过手机号接收验证码。';
 
   @override
   String get authSendCode => '发送验证码';
@@ -982,7 +982,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authCodeExpiredResend => '验证码已过期，请重新发送。';
 
   @override
-  String get authEnterCodeTitle => '输入 Telegram 验证码';
+  String get authEnterCodeTitle => '输入手机号验证码';
 
   @override
   String authCodeSentTo(String phone) {
@@ -1022,7 +1022,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authRecoverTitle => '找回密码';
 
   @override
-  String get authConsentResetCode => '我同意通过 Telegram 接收重置验证码。';
+  String get authConsentResetCode => '我同意通过手机号接收重置验证码。';
 
   @override
   String authRateLimited(int seconds) {

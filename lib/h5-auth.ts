@@ -2,18 +2,18 @@ import {requireRegistrationComplete} from '@/lib/registration-policy';
 import {customerCompany} from '@/lib/team/server';
 import {env} from 'cloudflare:workers';
 import {getChatGPTUser} from '@/app/chatgpt-auth';
-import {AuthError,getSession,digest,randomToken,isLocalOrGray,type AuthMode,type AuthRuntime} from './h5-auth-core';
+import {AuthError,getSession,digest,randomToken,isLocalOrGray,type AuthChannel,type AuthMode,type AuthRuntime} from './h5-auth-core';
 import {addErrorCode} from './error-codes.ts';
 import {assertAllowedOrigin} from './request-security';
 import {ApiError} from './http/api-error';
 import {errorResponse,readJsonBody} from './http/route';
 import {requestIdOf,resolveRequestId} from './http/request-id';
-import {isTestMode} from './runtime-guards';
+import {demoOtpAllowed,isTestMode} from './runtime-guards';
 export const SESSION_COOKIE='payease_h5_session',BROWSER_COOKIE='payease_h5_browser';
 let warnedLimitScale=false;
 function positive(value:string|undefined,fallback:number){const number=Number(value);return Number.isFinite(number)&&number>0?number:fallback}
 function configuredScale(values:Record<string,string>){const raw=values.PAYEASE_LIMIT_SCALE,scale=positive(raw,1);if(raw!==undefined&&!isLocalOrGray(values.PAYEASE_ENV)&&!warnedLimitScale){console.warn('[auth] ignoring PAYEASE_LIMIT_SCALE outside local/gray');warnedLimitScale=true}return isLocalOrGray(values.PAYEASE_ENV)?scale:1}
-export function runtime():AuthRuntime{if(!env.DB)throw new AuthError('登录数据库暂不可用',503);const values=env as unknown as Record<string,string>;return {db:env.DB,config:{mode:(values.PAYEASE_AUTH_MODE||'disabled') as AuthMode,secret:values.PAYEASE_AUTH_SECRET||'',gatewayToken:values.TELEGRAM_GATEWAY_TOKEN,allowDemo:isTestMode(),environment:values.PAYEASE_ENV,limitScale:configuredScale(values),ownerLimits:{register:positive(values.PAYEASE_REGISTER_OWNER_LIMIT,5000),send:positive(values.PAYEASE_SEND_OWNER_LIMIT,5000),password:positive(values.PAYEASE_PASSWORD_OWNER_LIMIT,5000)}}}}
+export function runtime(channel:AuthChannel='h5'):AuthRuntime{if(!env.DB)throw new AuthError('登录数据库暂不可用',503);const values=env as unknown as Record<string,string>;const configuredMode=channel==='telegram'?(values.PAYEASE_TELEGRAM_AUTH_MODE||'telegram'):(values.PAYEASE_H5_AUTH_MODE||values.PAYEASE_AUTH_MODE||'disabled');const demoOtp=channel==='h5'&&configuredMode==='demo'&&demoOtpAllowed();return {db:env.DB,config:{mode:configuredMode as AuthMode,secret:values.PAYEASE_AUTH_SECRET||'',gatewayToken:values.TELEGRAM_GATEWAY_TOKEN,allowDemo:demoOtp||isTestMode(),demoOtpAllowed:demoOtp,environment:values.PAYEASE_ENV,limitScale:configuredScale(values),ownerLimits:{register:positive(values.PAYEASE_REGISTER_OWNER_LIMIT,5000),send:positive(values.PAYEASE_SEND_OWNER_LIMIT,5000),password:positive(values.PAYEASE_PASSWORD_OWNER_LIMIT,5000)}}}}
 export function telegramBotToken(channelId='bot-1'){const values=env as unknown as Record<string,string>;const suffix=channelId.match(/^bot-(\d+)$/)?.[1]||'1';const specific=values['TELEGRAM_BOT_TOKEN_'+suffix];return specific||(suffix==='1'?values.TELEGRAM_BOT_TOKEN||'':'')}
 export function cookieValue(request:Request,name:string){const value=request.headers.get('cookie')?.split(';').map(x=>x.trim()).find(x=>x.startsWith(name+'='))?.slice(name.length+1);return value&&/^[a-f0-9]{64}$/.test(value)?value:undefined}
 export function cookie(request:Request,name:string,value:string,age:number){return `${name}=${value}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${age}${new URL(request.url).protocol==='https:'?'; Secure':''}`}

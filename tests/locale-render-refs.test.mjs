@@ -118,7 +118,7 @@ test('MiniShell server fallback refreshes ref before observer/rAF; failed prefli
 
 test('MiniNavLink retains client navigation through its provider',()=>{
  const h=client('mini'),provider=h.component.MiniNavigationProvider({navigate:href=>h.routes.push(href),children:null});
- const link=h.component.MiniNavLink({href:'/h5/records',children:'Synthetic records'});assert.equal(link.type,'Link');assert.equal(link.props.href,'/h5/records');
+ const link=h.component.MiniNavLink({href:'/h5/records',children:'Synthetic records'});assert.equal(link.type,'Link');assert.equal(link.props.href,'/h5/records');assert.equal(link.props.prefetch,false);
  h.provide(provider);const button=h.component.MiniNavLink({href:'/h5/records',children:'Synthetic records'});assert.equal(button.type,'button');button.props.onClick();assert.deepEqual(h.routes,['/h5/records']);
  h.render();h.button(p=>p.className==='mini-tab-button'&&p['aria-current']!=='page').onClick();assert.deepEqual(h.routes,['/h5/records','/h5/records']);h.unmount();
 });

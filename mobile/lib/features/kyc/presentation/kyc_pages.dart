@@ -193,7 +193,11 @@ class _KycOverviewState extends ConsumerState<KycOverviewPage> {
             for (final sec in KycSection.values)
               Card(
                 margin: const EdgeInsets.only(bottom: 8),
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(16)),
+                ),
                 child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   minVerticalPadding: 12,
                   leading: Icon(
                     sectionDone(sec) ? Icons.check_circle : Icons.radio_button_unchecked,
@@ -210,8 +214,11 @@ class _KycOverviewState extends ConsumerState<KycOverviewPage> {
               const SizedBox(height: 4),
               Card(
                 color: Theme.of(context).colorScheme.errorContainer,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(16)),
+                ),
                 child: Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -278,6 +285,9 @@ final class _StatusCard extends StatelessWidget {
       _ => Theme.of(context).colorScheme.primary,
     };
     return Card(
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(16)),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -318,7 +328,10 @@ final class _InfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       color: error ? Theme.of(context).colorScheme.errorContainer : null,
-      child: Padding(padding: const EdgeInsets.all(12), child: Text(text)),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(16)),
+      ),
+      child: Padding(padding: const EdgeInsets.all(16), child: Text(text)),
     );
   }
 }
@@ -611,8 +624,9 @@ class _KycSectionState extends ConsumerState<KycSectionPage> {
                   ),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+              SafeArea(
+                top: false,
+                minimum: const EdgeInsets.fromLTRB(20, 8, 20, 12),
                 child: Row(
                   children: [
                     if (_step > 0) ...[
@@ -672,6 +686,32 @@ class _KycSectionState extends ConsumerState<KycSectionPage> {
   }
 }
 
+InputDecoration _kycFieldDecoration(
+  BuildContext context, {
+  required String label,
+  String? errorText,
+  int? errorMaxLines,
+}) {
+  final scheme = Theme.of(context).colorScheme;
+  OutlineInputBorder border(Color color, [double width = 1]) => OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: color, width: width),
+      );
+  return InputDecoration(
+    labelText: label,
+    errorText: errorText,
+    errorMaxLines: errorMaxLines,
+    filled: true,
+    fillColor: scheme.surface,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    border: border(scheme.outlineVariant),
+    enabledBorder: border(scheme.outlineVariant),
+    focusedBorder: border(scheme.primary, 2),
+    errorBorder: border(scheme.error),
+    focusedErrorBorder: border(scheme.error, 2),
+  );
+}
+
 final class _FieldWidget extends StatelessWidget {
   const _FieldWidget({
     required this.field,
@@ -686,6 +726,18 @@ final class _FieldWidget extends StatelessWidget {
   final KycUiState state;
   final KycController controller;
   final KycOptions options;
+
+  InputDecoration _decoration(
+    BuildContext context, {
+    required String label,
+    String? errorText,
+    int? errorMaxLines,
+  }) => _kycFieldDecoration(
+        context,
+        label: label,
+        errorText: errorText,
+        errorMaxLines: errorMaxLines,
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -722,7 +774,7 @@ final class _FieldWidget extends StatelessWidget {
           autocorrect: false,
           enableSuggestions: false,
           inputFormatters: [LengthLimitingTextInputFormatter(240)],
-          decoration: InputDecoration(labelText: label, errorText: err),
+          decoration: _decoration(context, label: label, errorText: err),
           onChanged: (v) => controller.setValue(field.id, v),
         );
       case KycFieldKind.select:
@@ -751,8 +803,9 @@ final class _FieldWidget extends StatelessWidget {
           key: ValueKey('${field.id}-$revision-${state.values['province']}-$value'),
           initialValue: value,
           isExpanded: true,
-          decoration: InputDecoration(
-            labelText: label,
+          decoration: _decoration(
+            context,
+            label: label,
             errorText: err,
             errorMaxLines: 3,
           ),
@@ -809,8 +862,11 @@ final class _SlotTile extends StatelessWidget {
     final enabled = state.editable && !uploading;
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(16)),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -931,10 +987,12 @@ class _PhoneField extends ConsumerWidget {
       autocorrect: false,
       enableSuggestions: false,
       inputFormatters: const [KycPhoneInputFormatter()],
-      decoration: InputDecoration(
-        labelText: label,
+      decoration: _kycFieldDecoration(
+        context,
+        label: label,
         errorText: errorText,
         errorMaxLines: 3,
+      ).copyWith(
         suffixIcon: IconButton(
           tooltip: l.kycSwitchKeyboard,
           icon: Icon(full ? Icons.dialpad : Icons.keyboard_alt_outlined),

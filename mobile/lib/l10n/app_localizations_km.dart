@@ -1025,7 +1025,7 @@ class AppLocalizationsKm extends AppLocalizations {
   String get authSignInTitle => 'ចូលគណនី';
 
   @override
-  String get authContinueTelegram => 'បន្តជាមួយ Telegram';
+  String get authContinuePhone => 'បន្តជាមួយលេខទូរស័ព្ទ';
 
   @override
   String get authUsePassword => 'ប្រើពាក្យសម្ងាត់';
@@ -1038,14 +1038,14 @@ class AppLocalizationsKm extends AppLocalizations {
       'សូមបញ្ចូលលេខទូរស័ព្ទត្រឹមត្រូវ ឧទាហរណ៍ +85512345678 ឬ 012345678។';
 
   @override
-  String get authTelegramVerificationTitle => 'ការផ្ទៀងផ្ទាត់តាម Telegram';
+  String get authPhoneVerificationTitle => 'ការផ្ទៀងផ្ទាត់តាមលេខទូរស័ព្ទ';
 
   @override
   String get authPhoneLabel => 'លេខទូរស័ព្ទ';
 
   @override
-  String get authConsentTelegramCode =>
-      'ខ្ញុំយល់ព្រមទទួលលេខកូដផ្ទៀងផ្ទាត់តាម Telegram។';
+  String get authConsentPhoneCode =>
+      'ខ្ញុំយល់ព្រមទទួលលេខកូដផ្ទៀងផ្ទាត់តាមលេខទូរស័ព្ទ។';
 
   @override
   String get authSendCode => 'ផ្ញើលេខកូដ';
@@ -1059,7 +1059,7 @@ class AppLocalizationsKm extends AppLocalizations {
       'លេខកូដផ្ទៀងផ្ទាត់ផុតកំណត់។ សូមផ្ញើម្តងទៀត។';
 
   @override
-  String get authEnterCodeTitle => 'បញ្ចូលលេខកូដ Telegram';
+  String get authEnterCodeTitle => 'បញ្ចូលលេខកូដផ្ទៀងផ្ទាត់តាមទូរស័ព្ទ';
 
   @override
   String authCodeSentTo(String phone) {
@@ -1102,7 +1102,7 @@ class AppLocalizationsKm extends AppLocalizations {
 
   @override
   String get authConsentResetCode =>
-      'ខ្ញុំយល់ព្រមទទួលលេខកូដកំណត់ឡើងវិញតាម Telegram។';
+      'ខ្ញុំយល់ព្រមទទួលលេខកូដកំណត់ឡើងវិញតាមលេខទូរស័ព្ទ។';
 
   @override
   String authRateLimited(int seconds) {

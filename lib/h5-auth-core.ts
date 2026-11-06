@@ -3,7 +3,9 @@ import {codeForError} from './error-codes.ts';
 import {attachCustomerRef} from './public-id-store.ts';
 /** App-owned customer verification inside the existing private Sites workspace. */
 export type AuthMode='demo'|'telegram';
-export type AuthConfig={mode:AuthMode;secret:string;gatewayToken?:string;allowDemo?:boolean;environment?:string;limitScale?:number;ownerLimits?:{register?:number;send?:number;password?:number}};
+export type AuthChannel='h5'|'telegram';
+export function authChannelFromInitData(value:unknown):AuthChannel{return typeof value==='string'&&value.trim()?'telegram':'h5'}
+export type AuthConfig={mode:AuthMode;secret:string;gatewayToken?:string;allowDemo?:boolean;demoOtpAllowed?:boolean;environment?:string;limitScale?:number;ownerLimits?:{register?:number;send?:number;password?:number}};
 type Result={meta:{changes:number}};
 export interface AuthDB {prepare(sql:string):{bind(...args:unknown[]):{first<T=Record<string,unknown>>():Promise<T|null>;run():Promise<Result>}}}
 export type AuthRuntime={db:AuthDB;config:AuthConfig;now?:()=>number;transport?:typeof fetch};

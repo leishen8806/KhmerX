@@ -50,9 +50,9 @@
     "actual ClamAV scan"
   ],
   "templateSha256": {
-    "config.json.example": "7b8362e6b7ce6fa1f672444429d51dd7299c8a6db30cc350ec2372239a09cbc2",
+    "config.json.example": "edabf3ee3ec22afde18eebfc16946db673324bbd464d99447bf111e9c09f5424",
     "compose.gray.yaml": "b3ee24930f4225c2ee9e4d94dc85c912751397fe44fdcd13b7de55f05c66459a",
     "bootstrap-gray.sh": "aac278c269cda41a5978f6feb8f07cbfdf0e9c73b7ea621f780113e9c6d11983",
-    "check-config.mjs": "6510e916ba08005309183e26d4064d2f3ea3099867dd5ec3a08c1c0407320091"
+    "check-config.mjs": "16afb6d2053079bff44f78ef81f0793b155f2709d2ec7d83c3c4d113a7fe9352"
   }
 }

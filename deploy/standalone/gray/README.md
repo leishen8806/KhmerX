@@ -45,9 +45,18 @@ format `v2:600000:<64-hex-salt>:<64-hex-PBKDF2-SHA256-digest>` (UTF-8 salt text,
 32 derived bytes); generate it through the approved credential process, never
 store a plaintext staff password in config/Git. The sample email is fictional.
 
-Authentication is Telegram, never demo; KHMERX_TEST_MODE stays false. Supply a
-dedicated Telegram Gateway token for H5 OTP and bot-1 token for Mini App initData.
-Bot-2 token may remain blank only while channel 2 is not used. These are separate
+Authentication is channel-specific in gray: regular H5/App requests use the
+explicit demo phone OTP (`PAYEASE_H5_AUTH_MODE=demo` and
+`KHMERX_TEST_MODE=true`), while Telegram Mini App requests use Telegram
+initData (`PAYEASE_TELEGRAM_AUTH_MODE=telegram`). The shared
+`PAYEASE_AUTH_MODE=telegram` value remains the compatibility/default value and
+does not override the explicit H5 channel setting. The H5 page visibly labels
+the test environment and `123456`; the API never returns `demoCode` to the
+Telegram channel. This example is gray-only and must never be copied into a
+production binding; standalone production boot rejects `KHMERX_TEST_MODE=true`.
+Supply a dedicated Telegram Gateway token only if phone verification is moved
+to the non-demo H5 mode, and a bot-1 token for Mini App initData. Bot-2 token
+may remain blank only while channel 2 is not used. These are separate
 credentials. KYC_DATA_SECRET is a stable >=32-character encryption secret;
 KYC_SCAN_URL targets the internal scanner. CUSTOMER_ROWS remains off; changing
 that flag, limit scales or running fixtures/load tests requires its separate gate.
