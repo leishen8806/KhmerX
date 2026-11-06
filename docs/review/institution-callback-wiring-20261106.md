@@ -31,3 +31,8 @@ The missing callback consumer is therefore a P0 functional gap (institution deci
 The repair PR will add only approval/rejection event consumption after the existing signature and nonce gates, set `approvalActor` to `institution:<institution id>`, write an audit record, and preserve the checker second-person gate. `funding.confirmed` will remain report-only and no funding/loan-money logic will be changed. The handler will be idempotent and fail closed for status mismatch, duplicate, and late events.
 
 Any VPS or production deployment/runbook action remains deferred until local standalone/dev-harness acceptance and owner evaluation.
+
+## Local acceptance evidence
+
+- `tests/team-integration.test.mjs` now drives a synthetic local flow through the signed callback route, verifies `applied`/`completed`, confirms the loan remains `decision_pending` with `approvalActor=institution:<id>`, then completes the independent checker and funding guards. The test passed with 63/63 cases.
+- `docs/review/institution-callback-h5-local.png` is a local standalone H5 shell capture at 390×844; it confirms the same local test server renders the native locale labels (`中文`, `English`, `ភាសាខ្មែរ`). The callback acceptance itself is API/integration evidence, not a production screenshot.
