@@ -9,18 +9,21 @@ function checkCompanyChannels(channels){
  if(channels===undefined)return;
  check(Array.isArray(channels)&&channels.length>0,'company channels');
  const ids=new Set();
+ const warnings=[];
  for(const channel of channels){
   check(channel&&typeof channel==='object'&&!Array.isArray(channel),'company channel object');
   check(typeof channel.id==='string'&&!ids.has(channel.id),'company channel id');ids.add(channel.id);
   check(['telegram','h5','app'].includes(channel.type),'company channel type');
   check(typeof channel.enabled==='boolean','company channel enabled');
-  check(Array.isArray(channel.languages)&&channel.languages.length>0&&channel.languages.every(x=>['en','km','zh'].includes(x)),'company channel languages');
-  check(channel.languages.includes(channel.defaultLanguage),'company channel default language');
+  const channelCheck=(ok,key)=>{if(ok)return;if(channel.enabled)check(false,key);warnings.push(`${channel.id}: ${key}`)};
+  channelCheck(Array.isArray(channel.languages)&&channel.languages.length>0&&channel.languages.every(x=>['en','km','zh'].includes(x)),'company channel languages');
+  channelCheck(Array.isArray(channel.languages)&&channel.languages.includes(channel.defaultLanguage),'company channel default language');
   check(!Object.hasOwn(channel,'token')&&!Object.hasOwn(channel,'token_encrypted')&&!Object.hasOwn(channel,'password'),'company channel secret');
-  if(channel.type!=='telegram'){check(Array.isArray(channel.hosts)&&channel.hosts.length>0,'company channel hosts');check(Array.isArray(channel.origins)&&channel.origins.length>0,'company channel origins')}
-  if(channel.type==='telegram')check(typeof channel.telegramBotId==='string'&&typeof channel.telegramUsername==='string','company Telegram metadata');
-  if(channel.type==='app')check(typeof channel.appPlatform==='string'&&typeof channel.apiBaseUrl==='string','company App metadata');
+  if(channel.type!=='telegram'){channelCheck(Array.isArray(channel.hosts)&&channel.hosts.length>0,'company channel hosts');channelCheck(Array.isArray(channel.origins)&&channel.origins.length>0,'company channel origins')}
+  if(channel.type==='telegram')channelCheck(typeof channel.telegramBotId==='string'&&typeof channel.telegramUsername==='string','company Telegram metadata');
+  if(channel.type==='app')channelCheck(typeof channel.appPlatform==='string'&&typeof channel.apiBaseUrl==='string','company App metadata');
  }
+ return warnings;
 }
 export function checkConfig(c,{example=false}={}){
  check(c&&typeof c==='object'&&!Array.isArray(c),'object');const b=c.bindings;
@@ -39,7 +42,7 @@ export function checkConfig(c,{example=false}={}){
  check(/^t_[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(company.id||'')&&(example||company.id!==exampleCompany),'company id');value(company.name,'company name');check(/^[a-z0-9][a-z0-9-]{2,63}$/.test(company.slug||''),'company slug');
  check(Array.isArray(company.accounts)&&company.accounts.length>0,'company accounts');const rolesSeen=new Set();
  for(const a of company.accounts){check(a&&['admin','collection_admin','collector','dept_admin','ops','kyc','lender','checker','finance','finance_checker','audit'].includes(a.role)&&!rolesSeen.has(a.role),'account role');rolesSeen.add(a.role);check(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a.email||''),'account email');value(a.hash,'account hash');check(example&&a.hash.startsWith('replace-with-')||/^v2:(?:[1-9]\d{5}|1\d{6}|2000000):[a-f0-9]{64}:[a-f0-9]{64}$/.test(a.hash),'account hash format')}
- check(rolesSeen.has('admin'),'admin account');checkCompanyChannels(c.companyChannels);return {schema:'gray',deployable:!example,companies:1,authMode:'telegram',customerRows:b.CUSTOMER_ROWS};
+ check(rolesSeen.has('admin'),'admin account');const channelWarnings=checkCompanyChannels(c.companyChannels);return {schema:'gray',deployable:!example,companies:1,authMode:'telegram',customerRows:b.CUSTOMER_ROWS,warnings:channelWarnings};
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  try{const args=process.argv.slice(2),example=args.includes('--example'),files=args.filter(a=>a!=='--example');check(files.length===1&&!files[0].startsWith('--'),'arguments');const result=checkConfig(JSON.parse(readFileSync(files[0],'utf8')),{example});console.log(example?'EXAMPLE VALID — NOT DEPLOYABLE': 'GRAY CONFIG CHECK: PASS');console.log(JSON.stringify(result))}catch(e){console.error(e instanceof SyntaxError?'GRAY CONFIG CHECK: FAIL (invalid JSON)':/^Invalid gray configuration:/.test(e.message)?e.message:'GRAY CONFIG CHECK: FAIL (unreadable file)');process.exitCode=1}
