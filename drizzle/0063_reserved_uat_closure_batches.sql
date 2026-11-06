@@ -1,0 +1,3 @@
+-- Migration number 0063 is reserved for the UAT closure batch schema.
+-- Keep the slot explicit so standalone migrations remain numerically ordered;
+-- deployments that already applied the UAT schema retain their existing table.
