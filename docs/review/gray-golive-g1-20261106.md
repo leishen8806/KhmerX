@@ -65,3 +65,28 @@ added 681 packages, and audited 682 packages in 1m
 ## 结论
 
 GL-1 **未通过**：离线缓存缺包；获批联网安装后开发依赖审计报告 27 个漏洞，虽生产依赖审计为 0，但全量测试和客户端边界检查仍失败，构建/本地服务无法启动，因此没有产生运行时、浏览器、数据库或灰度证据。没有修改业务代码或配置。
+
+## 续跑 4（2026-11-06）
+
+### 登录诊断
+
+- 启动命令按 `scripts/dev-app-backend/README.md` 执行，代理端口为 `8092`，Miniflare 为 `8794`；日志显示 `dev migrations applied: 0`，未达到卡片要求的 63。
+- `checker@example.test`（持牌机构后台）通过浏览器提交后，`POST /api/team/auth` 返回 **200**，随后进入 `/team`；服务日志记录 `POST /api/team/auth 200 OK`。
+- `lender@example.test` 使用同样流程只提交一次，`POST /api/team/auth` 返回 **403**；页面显示“你没有权限执行此操作”。按卡片规则不再重试。未记录密码或 Cookie。
+
+### E3 替代证据
+
+由于 lender 登录失败，浏览器贷款全流程未执行。按卡片要求运行 `node --test tests/team-integration.test.mjs` 作为 API 级替代，但测试在加载阶段失败：`TypeError: vm.SyntheticModule is not a constructor`（Node.js v25.9.0）。因此 E3 结论为 **失败**，没有可用的 API 级替代证据；不把它写成浏览器流程通过。
+
+### E4 门禁
+
+- 375px 三语言截图：**失败**。`h5-language-switch.mjs` 所需 Playwright 浏览器可执行文件不存在；按本地冻结未执行 `npx playwright install`，因此没有生成截图或 SHA-256。
+- Demo 正向：引用续跑 3 的 `kyc-smoke.mjs +12025550130` 记录，演示验证码流程已通过；这是本地 harness 证据，不是灰度证据。
+- H5 负向与 Mini App initData：运行 `node --test tests/h5-auth.test.mjs`，26/26 通过。覆盖用例包括：`challenge and session expiry and auth mode changes fail closed`、`provider failures never fall back to demo, enumerate phones or produce sessions`、`Telegram initData replay key is stable across ordering and hash casing variants`、`Telegram login hides verifier details behind a stable error code`、`provider code invalid and mismatched request IDs fail closed`。运行时负向验证留到灰度冒烟。
+
+### E5 分类结论
+
+- **已通过**：checker 本地登录（HTTP 200）；H5 认证静态/集成单测 26/26；续跑 3 已记录的本地 `seqNull=0` 与 v3 清单匹配。
+- **API 级替代**：本次未产生（team-integration 在 Node 25 加载阶段失败）。
+- **留到灰度冒烟**：真实运行时的负向验证码、Mini App initData、三语言截图/设备显示、机构回调后的完整贷款链路。
+- **失败**：lender 登录 HTTP 403；启动日志迁移计数为 0 而非 63；375px 截图因缺少 Playwright 浏览器未执行。
