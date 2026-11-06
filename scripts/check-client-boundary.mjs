@@ -1,7 +1,8 @@
 import {readFile,readdir} from 'node:fs/promises';
 import {relative,resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
 
-const root=resolve(new URL('..',import.meta.url).pathname);
+const root=resolve(fileURLToPath(new URL('..',import.meta.url)));
 async function filesUnder(dir){
  const out=[];
  for(const entry of await readdir(resolve(root,dir),{withFileTypes:true})){
