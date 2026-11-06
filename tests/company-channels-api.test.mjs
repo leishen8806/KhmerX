@@ -18,4 +18,7 @@ test('selfcheck contract rejects incomplete and unsafe channel bindings',()=>{
  assert.match(source,/必须存在且只能存在一个公司渠道绑定/);
  assert.match(source,/formalEnvironment/);
  assert.match(source,/Telegram Bot 不能跨公司重复绑定/);
+ assert.match(source,/checks/);
+ assert.match(source,/status:SelfcheckStatus/);
+ assert.match(source,/'pass'\|'fail'\|'warn'/);
 });
