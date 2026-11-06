@@ -15,6 +15,7 @@ const secret = () => randomBytes(32).toString('hex');
 const password = `local-${randomBytes(18).toString('base64url')}`;
 const telegramToken = `123456:${randomBytes(24).toString('base64url')}`;
 const institutionSecret = secret();
+const telegramBindingKey = `TELEGRAM_${companyId.slice(2).replaceAll('-', '').toUpperCase()}_BOT_1_TOKEN`;
 
 if (!existsSync(join(repo, 'dist-separated', 'api', 'server'))) {
   const result = spawnSync('npm', ['run', 'build:separated'], { cwd: repo, stdio: 'inherit', env: { ...process.env, TMPDIR: '/private/tmp' } });
@@ -42,7 +43,7 @@ const cfg = {
     POSTLOAN_JOB_SECRET: secret(), PAYEASE_LIMIT_SCALE: '1', PAYEASE_GATEWAY_RATE_SCALE: '1',
     PAYEASE_AUTH_MODE: 'telegram', PAYEASE_H5_AUTH_MODE: 'demo', PAYEASE_DEMO_OTP_ALLOWED: 'true',
     PAYEASE_TELEGRAM_AUTH_MODE: 'telegram', TELEGRAM_GATEWAY_TOKEN: telegramToken,
-    TELEGRAM_BOT_TOKEN_1: telegramToken, TELEGRAM_BOT_TOKEN_2: '', KYC_DATA_SECRET: secret(),
+    TELEGRAM_BOT_TOKEN_1: telegramToken, TELEGRAM_BOT_TOKEN_2: '', [telegramBindingKey]: telegramToken, KYC_DATA_SECRET: secret(),
     INSTITUTION_CALLBACK_SECRETS_JSON: JSON.stringify({ [companyId + ':institution']: institutionSecret }),
     KYC_SCAN_URL: 'http://127.0.0.1:9999/scan', CUSTOMER_ROWS: 'off',
     PAYEASE_ALLOWED_ORIGINS: `http://127.0.0.1:${port},http://localhost:${port}`,
