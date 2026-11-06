@@ -1,13 +1,13 @@
 import type {Locale} from './i18n';
 
 export const errorCodes = [
- 'ACCOUNT_ALREADY_REGISTERED','AUTH_DEMO_FORBIDDEN','AUTH_REQUIRED','BOT_ACCESS_FORBIDDEN','BOT_CONFIG_INVALID','BOT_NOT_CONFIGURED','BOT_VERIFICATION_FAILED','CHANNEL_COMPANY_MISMATCH',
+ 'ACCOUNT_ALREADY_REGISTERED','AUTH_DEMO_FORBIDDEN','AUTH_REQUIRED','BOT_ACCESS_FORBIDDEN','BOT_CONFIG_INVALID','BOT_NOT_CONFIGURED','BOT_VERIFICATION_FAILED','CHANNEL_COMPANY_MISMATCH','CHANNEL_DISABLED','CHANNEL_MAINTENANCE',
  'BROWSER_SESSION_MISMATCH','BROWSER_TOKEN_RATE_LIMITED','CALLBACK_HEADERS_INVALID','CALLBACK_NOT_CONFIGURED','CALLBACK_REPLAYED','CALLBACK_SIGNATURE_INVALID',
  'COMPANY_ACCESS_FORBIDDEN','COMPANY_NOT_FOUND','CONFLICT','CROSS_SITE_REQUEST','CUSTOMER_SETTLEMENT_FORBIDDEN','EMERGENCY_TARGET_MISMATCH','EMERGENCY_TARGET_REQUIRED',
  'EVENT_ENVELOPE_INVALID','EVENT_PAYLOAD_MISMATCH','FORBIDDEN','FUNDING_DUAL_CONTROL_REQUIRED','FUNDING_LIMIT_EXCEEDED','FUNDING_RISK_ACTION_INVALID','FUNDING_RISK_FORBIDDEN',
  'FUNDING_RISK_NOT_FOUND','FUNDING_RISK_REASON_REQUIRED','FUNDING_RISK_STATE_CONFLICT','FUNDING_SETTINGS_CONFLICT','FUNDING_SETTINGS_FORBIDDEN','FUNDING_SETTINGS_INVALID',
  'GEOCODE_RATE_LIMITED','IDEMPOTENCY_KEY_INVALID','IDEMPOTENCY_PAYLOAD_MISMATCH','INSTITUTION_NOT_FOUND','INTERNAL_ERROR','INVALID_ARGUMENT','INVALID_FILE','INVALID_KYC',
- 'INVALID_PHONE','INVALID_REQUEST','INVALID_VERIFICATION_CODE','INVITE_COMPANY_INVALID','INVITE_PORTAL_MISMATCH','INVITE_STATE_CHANGED','INVITE_TOKEN_INVALID','INVITE_TOKEN_REQUIRED',
+ 'INVALID_PHONE','INVALID_REQUEST','INVALID_VERIFICATION_CODE','VERIFICATION_EXPIRED','VERIFICATION_RATE_LIMITED','INVITE_COMPANY_INVALID','INVITE_PORTAL_MISMATCH','INVITE_STATE_CHANGED','INVITE_TOKEN_INVALID','INVITE_TOKEN_REQUIRED',
  'JOB_UNAUTHORIZED','KYC_DOC_VALIDITY','KYC_REVISION_CONFLICT','KYC_SCAN_REQUIRED','MFA_ATTEMPTS_EXCEEDED','MFA_REQUIRED_FOR_INVITE','MFA_REQUIRED_FOR_SSO','MFA_STEP_UP_REQUIRED',
  'MISSING_ORIGIN','NOT_FOUND','NOTIFICATION_AMOUNT_FORBIDDEN','NOTIFICATION_TEMPLATE_FORBIDDEN','PASSWORD_ADMIN_ISSUE_FORBIDDEN','PASSWORD_ADMIN_RESET_FORBIDDEN',
  'PAYLOAD_TOO_LARGE','PAYMENT_RECEIPT_AMOUNT_MISMATCH','PAYMENT_RECEIPT_UNVERIFIED','PLATFORM_BOOTSTRAP_EXPIRED','POSTLOAN_JOB_FAILED','RATE_LIMITED','REPAYMENT_AMOUNT_INVALID',
@@ -28,7 +28,7 @@ const copy: Record<Locale, Record<string,string>> = {
   INVALID_ARGUMENT:'Check the information and try again.', SERVICE_UNAVAILABLE:'The service is temporarily unavailable.', INTERNAL_ERROR:'Something went wrong. Contact support with the request ID.',
   VALIDATION_FAILED:'Check the highlighted information and try again.', ACCOUNT_ALREADY_REGISTERED:'This phone number is already registered. Sign in with a verification code or password.',
   CROSS_SITE_REQUEST:'This request could not be verified. Refresh and try again.', MISSING_ORIGIN:'This request could not be verified. Refresh and try again.',
-  BROWSER_TOKEN_RATE_LIMITED:'Too many attempts. Please wait and try again.', GEOCODE_RATE_LIMITED:'Address lookup is temporarily limited. Try again later.',
+  BROWSER_TOKEN_RATE_LIMITED:'Too many attempts. Please wait and try again.', GEOCODE_RATE_LIMITED:'Address lookup is temporarily limited. Try again later.', CHANNEL_COMPANY_MISMATCH:'This Mini App belongs to a different company. Reopen the correct company link.', CHANNEL_DISABLED:'This channel is currently disabled.', CHANNEL_MAINTENANCE:'This channel is temporarily under maintenance.', VERIFICATION_EXPIRED:'This verification code has expired. Request a new code.', VERIFICATION_RATE_LIMITED:'Too many verification requests. Please wait before trying again.',
  },
  km: {
   REQUEST_FAILED:'សំណើមិនអាចបញ្ចប់បានទេ។ សូមព្យាយាមម្ដងទៀត។', AUTH_REQUIRED:'សម័យចូលប្រើរបស់អ្នកបានផុតកំណត់។ សូមចូលម្ដងទៀត។', FORBIDDEN:'អ្នកមិនមានសិទ្ធិធ្វើសកម្មភាពនេះទេ។',
@@ -38,7 +38,7 @@ const copy: Record<Locale, Record<string,string>> = {
   INVALID_ARGUMENT:'សូមពិនិត្យព័ត៌មាន ហើយព្យាយាមម្ដងទៀត។', SERVICE_UNAVAILABLE:'សេវាកម្មមិនអាចប្រើបានបណ្តោះអាសន្ន។', INTERNAL_ERROR:'មានបញ្ហាមួយកើតឡើង។ សូមទាក់ទងជំនួយដោយផ្តល់លេខសំណើ។',
   VALIDATION_FAILED:'សូមពិនិត្យព័ត៌មាន ហើយព្យាយាមម្ដងទៀត។', ACCOUNT_ALREADY_REGISTERED:'លេខទូរស័ព្ទនេះបានចុះឈ្មោះរួចហើយ។ សូមចូលដោយលេខកូដផ្ទៀងផ្ទាត់ ឬពាក្យសម្ងាត់។',
   CROSS_SITE_REQUEST:'មិនអាចផ្ទៀងផ្ទាត់សំណើនេះបានទេ។ សូមផ្ទុកឡើងវិញ ហើយព្យាយាមម្ដងទៀត។', MISSING_ORIGIN:'មិនអាចផ្ទៀងផ្ទាត់សំណើនេះបានទេ។ សូមផ្ទុកឡើងវិញ ហើយព្យាយាមម្ដងទៀត។',
-  BROWSER_TOKEN_RATE_LIMITED:'មានការព្យាយាមច្រើនពេក។ សូមរង់ចាំ ហើយព្យាយាមម្ដងទៀត។', GEOCODE_RATE_LIMITED:'ការស្វែងរកអាសយដ្ឋានត្រូវបានកំណត់បណ្តោះអាសន្ន។ សូមព្យាយាមពេលក្រោយ។',
+  BROWSER_TOKEN_RATE_LIMITED:'មានការព្យាយាមច្រើនពេក។ សូមរង់ចាំ ហើយព្យាយាមម្ដងទៀត។', GEOCODE_RATE_LIMITED:'ការស្វែងរកអាសយដ្ឋានត្រូវបានកំណត់បណ្តោះអាសន្ន។ សូមព្យាយាមពេលក្រោយ។', CHANNEL_COMPANY_MISMATCH:'Mini App នេះជារបស់ក្រុមហ៊ុនផ្សេង។ សូមបើកតំណរបស់ក្រុមហ៊ុនត្រឹមត្រូវ។', CHANNEL_DISABLED:'បណ្តាញនេះត្រូវបានបិទជាបណ្តោះអាសន្ន។', CHANNEL_MAINTENANCE:'បណ្តាញនេះកំពុងថែទាំជាបណ្តោះអាសន្ន។', VERIFICATION_EXPIRED:'លេខកូដផ្ទៀងផ្ទាត់នេះបានផុតកំណត់។ សូមស្នើលេខកូដថ្មី។', VERIFICATION_RATE_LIMITED:'ការស្នើលេខកូដមានច្រើនពេក។ សូមរង់ចាំមុនព្យាយាមម្ដងទៀត។',
  },
  zh: {
   REQUEST_FAILED:'请求未完成，请重试。', AUTH_REQUIRED:'登录状态已失效，请重新登录。', FORBIDDEN:'你没有权限执行此操作。',
@@ -48,7 +48,7 @@ const copy: Record<Locale, Record<string,string>> = {
   INVALID_ARGUMENT:'请检查输入内容后重试。', SERVICE_UNAVAILABLE:'服务暂时不可用，请稍后重试。', INTERNAL_ERROR:'系统发生错误，请联系客服并提供请求编号。',
   VALIDATION_FAILED:'请检查填写内容后重试。', ACCOUNT_ALREADY_REGISTERED:'该手机号已注册，请使用验证码或密码登录。',
   CROSS_SITE_REQUEST:'请求无法通过验证，请刷新后重试。', MISSING_ORIGIN:'请求无法通过验证，请刷新后重试。',
-  BROWSER_TOKEN_RATE_LIMITED:'操作过于频繁，请稍后重试。', GEOCODE_RATE_LIMITED:'地址查询暂时受限，请稍后重试。',
+  BROWSER_TOKEN_RATE_LIMITED:'操作过于频繁，请稍后重试。', GEOCODE_RATE_LIMITED:'地址查询暂时受限，请稍后重试。', CHANNEL_COMPANY_MISMATCH:'此 Mini App 属于其他公司，请重新打开正确的公司链接。', CHANNEL_DISABLED:'当前渠道已停用。', CHANNEL_MAINTENANCE:'当前渠道正在维护，请稍后再试。', VERIFICATION_EXPIRED:'验证码已过期，请重新获取。', VERIFICATION_RATE_LIMITED:'验证码请求过于频繁，请稍后再试。',
  },
 };
 
