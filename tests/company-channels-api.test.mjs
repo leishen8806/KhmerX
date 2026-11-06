@@ -17,8 +17,12 @@ test('selfcheck contract rejects incomplete and unsafe channel bindings',()=>{
  const source=fs.readFileSync('lib/company-channel-selfcheck.ts','utf8');
  assert.match(source,/必须存在且只能存在一个公司渠道绑定/);
  assert.match(source,/formalEnvironment/);
- assert.match(source,/Telegram Bot 不能跨公司重复绑定/);
+ assert.match(source,/机器人不能跨公司重复绑定/);
  assert.match(source,/checks/);
  assert.match(source,/status:SelfcheckStatus/);
  assert.match(source,/'pass'\|'fail'\|'warn'/);
+ assert.match(source,/app_api_host_configured/);
+ assert.match(source,/telegram_token_configured/);
+ assert.match(source,/cross_company_unique/);
+ assert.match(fs.readFileSync('app/api/team/channels/selfcheck/route.ts','utf8'),/token_encrypted/);
 });
