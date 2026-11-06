@@ -63,7 +63,7 @@
 | `client-app-default` / `upgrade` / `offline` | App 登录、最低版本升级提示、API 不可用重试 | 由 `api_base_url`、`cookie_hosts`、版本/下载字段构造请求；沿用 `CompanyCookieStore` 隔离，跨公司 Cookie 不复用；升级/接口不可用不改变资金状态 |
 | `client-h5-disabled` / `client-maintenance` | 渠道停用和维护页 | `enabled=false` 或运行时维护状态只显示统一停用/维护文案；不渲染 host、Bot、Token；登录态和公司身份不跨租户迁移 |
 
-客户端三种语言（中文/English/ខ្មែរ）均使用渠道的 `languages_json`/`default_language`，缺失语言按 `default_language → 公司默认语言 → en` 回退；原型的所有显示值为虚构值。H5 复用 PayEase 标识、圆角卡片、顶部语言切换和测试环境横幅；测试主机只使用 `testpayease.khmerx.org`、`testapi.khmerx.org`、`testadmin.khmerx.org`。
+客户端三种语言（中文/English/ខ្មែរ）均使用渠道的 `languages_json`/`default_language`，缺失语言按 `default_language → 公司默认语言 → en` 回退；原型示例固定为一家公司 `KhmerX Gray` 下的 Telegram Mini App、H5、App 三个渠道。H5 复用仓库现有 PayEase/KhmerX 标识、圆角卡片、顶部语言切换和测试环境横幅；H5 只使用 `testpayease.khmerx.org`，App 只使用 `testapi.khmerx.org`，后台 `testadmin.khmerx.org` 不作为客户端渠道主机。
 
 ### 待 Claude/负责人决定的问题
 
