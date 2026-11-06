@@ -71,3 +71,8 @@ Flutter App 的 `AuthRepository` 只调用 `/api/h5/auth/send`、`/api/h5/auth/v
 - `KHMERX_TEST_MODE=true`：standalone 启动拒绝。
 - `PAYEASE_DEMO_OTP_ALLOWED=true` 且 `PAYEASE_ENV` 不是 `local/gray`：standalone 启动拒绝。
 - 生产环境身份证明标记与演示 OTP 同时开启：运行时 `assertProductionSafe()` 拒绝启动。
+
+## 客户公司启动前置条件
+
+- `companies` 为空会导致 standalone 启动失败；部署前必须先填好至少一个客户公司，并让 `customerCompanyId` 与绑定公司的真实 ID 一致。
+- 涉及 VPS 灰度或正式环境的步骤一律暂缓，等本地测试环境验收通过、负责人评估后再执行。本手册不授权连接、部署或写入任何远程环境。
