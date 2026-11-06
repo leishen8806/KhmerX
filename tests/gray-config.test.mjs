@@ -8,7 +8,7 @@ import {spawnSync} from 'node:child_process';
 import {checkConfig} from '../deploy/standalone/gray/check-config.mjs';
 const composeAvailable=spawnSync('docker',['compose','version'],{encoding:'utf8'}).status===0,daemonAvailable=spawnSync('docker',['info','--format','{{.OSType}}'],{encoding:'utf8',timeout:5000}).status===0;
 const sample=()=>JSON.parse(readFileSync('deploy/standalone/gray/config.json.example','utf8'));
-function configured(){const c=sample(),secret=()=>randomBytes(32).toString('hex');for(const key of ['accessUser','accessPassword','sessionSecret'])c[key]=secret();for(const [key,value]of Object.entries(c.bindings))if(value.startsWith('replace-with-'))c.bindings[key]=secret();c.companies[0].id='t_'+randomUUID();c.companies[0].accounts[0].hash='v2:600000:'+secret()+':'+secret();return c}
+function configured(){const c=sample(),secret=()=>randomBytes(32).toString('hex');for(const key of ['accessUser','accessPassword','sessionSecret'])c[key]=secret();for(const [key,value]of Object.entries(c.bindings))if(value.startsWith('replace-with-'))c.bindings[key]=secret();c.companies[0].id='t_'+randomUUID();c.customerCompanyId=c.companies[0].id;c.companies[0].accounts[0].hash='v2:600000:'+secret()+':'+secret();return c}
 test('Q4 sample documents the real schema but is never deployable unchanged',()=>{
  assert.equal(checkConfig(sample(),{example:true}).deployable,false);assert.throws(()=>checkConfig(sample()),/accessUser/);
  assert.deepEqual(checkConfig(configured()),{schema:'gray',deployable:true,companies:1,authMode:'telegram',customerRows:'off'});const c=configured();for(const mode of ['shadow','on']){c.bindings.CUSTOMER_ROWS=mode;assert.equal(checkConfig(c).customerRows,mode)}

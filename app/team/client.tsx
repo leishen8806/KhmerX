@@ -101,6 +101,7 @@ function TeamClientInner({initialQueue=''}:{initialQueue?:string}){
  <TabsContent value="loans"><h3>贷款申请订单</h3><p className="fine">展示 KYC 通过后的借款申请，包含费用确认、签约、机构审批和放款状态。机构分单沿用客户所属机构；调整会影响该客户后续处理范围，已有审批或资金记录时禁止直接改派。</p>{!work?.state?.loans?.filter((l:any)=>!['registered','kyc_pending','needs_info'].includes(l.status)).length&&<p>当前权限范围内暂无贷款申请订单。</p>}{work?.state?.loans?.filter((l:any)=>!['registered','kyc_pending','needs_info'].includes(l.status)).map((l:any)=>{const a=work.scope?.find((a:any)=>a.customer_id===l.customerId);return <div key={l.id}><LoanRow loan={l} role={member.role} busy={busy} post={post}/><p className="fine" style={{overflowWrap:'anywhere'}}>关联用户：{l.customerId||'历史测试订单'} · 注册手机：{l.phoneMasked||'未关联'} · KYC 订单：{l.kycCaseId||'未关联'} · 资料版本：{l.kycRevision??'—'}</p><p className="fine">承接机构：{units.find((u:any)=>u.id===a?.institution_id)?.name||'待分配'}</p>{manager&&a&&<details><summary>调整客户所属机构与分单</summary><AssignmentRow key={a.customer_id+':'+a.version} assignment={a} units={units} members={members} admin={admin} busy={busy} post={post}/></details>}</div>})}</TabsContent>
  <TabsContent value="funding"><FundingPanel pageOnly={Boolean(work?.pagination)} scope={work?.scope||[]} units={units} key={data.company.id+member.id} loans={work?.state?.loans||[]} events={work?.state?.events||[]} entries={work?.state?.entries||[]} role={member.role} busy={busy} post={post}/></TabsContent><TabsContent value="repayment">{['admin','audit'].includes(member.role)?<RepaymentPanel loans={work?.state?.loans||[]} events={work?.state?.events||[]} scope={work?.scope||[]} units={units} role={member.role} busy={busy} post={post}/>:<p>还款登记由公司 Admin 处理。</p>}</TabsContent><TabsContent value="postloan">{['admin','audit','collection_admin','collector'].includes(member.role)?<PostloanPanel key={'assignment-postloan:'+data.company.id+':'+member.id}/>:<p>贷后订单由公司管理员、审计员及授权贷后部门查看和处理。</p>}</TabsContent>
  </Tabs></section>
+ {data?.company&&<AuthStatusPanel status={data.authStatus}/>}
  {!queueView&&<>
  {admin&&<ServicingConfig key={'servicing:'+data.company.id} units={units} busy={busy} post={post}/>} 
  {admin&&<EmergencyAccess/>}
@@ -141,6 +142,12 @@ function TeamClientInner({initialQueue=''}:{initialQueue?:string}){
 }
 
  function queueRoute(queue:string){const routes:Record<string,[string,string]>={customers:['/team/customers','客户列表'],reports:['/team/reports','客户漏斗'],notifications:['/team/notifications','通知发送记录'],tickets:['/team/tickets','客服工单'],kyc:['/team/kyc','KYC 审核队列'],loans:['/team/loans','贷款申请'],funding:['/team/funding','风控事件'],repayment:['/team/repayment','账单与还款'],postloan:['/team/postloan','贷后任务']};const [path,view]=routes[queue]||['/team',''];return view?`${path}?view=${encodeURIComponent(view)}`:path}
+ function AuthStatusPanel({status}:{status:any}){
+  if(!status)return null;
+  const bindingLabels:Record<string,string>={current:'当前公司',other:'其他公司',missing:'未绑定',invalid:'无效 Cookie'};
+  const binding=bindingLabels[status.customerCompanyBinding]||'未知';
+  return <section className="panel" aria-labelledby="team-auth-status"><h2 id="team-auth-status">渠道认证与公司绑定（只读）</h2><p className="fine">仅展示当前运行时状态，不会修改环境变量、密钥或客户公司绑定。</p><div className="team-grid"><p><strong>H5：{status.h5?.mode||'未知'}</strong><br/><span className="fine">Demo OTP：{status.h5?.demoOtpAllowed?'允许（仅灰度/本地）':'关闭'}</span></p><p><strong>Telegram：{status.telegram?.mode||'未知'}</strong><br/><span className="fine">Gateway：{status.telegram?.gatewayConfigured?'已配置':'未配置'}</span></p><p><strong>客户公司绑定：{binding}</strong><br/><span className="fine">仅比较当前浏览器绑定与当前员工公司，不显示 Cookie 原值。</span></p><p><strong>运行环境：{status.runtime?.production?'生产':'非生产'}</strong><br/><span className="fine">测试模式：{status.runtime?.testMode?'开启':'关闭'}</span></p></div></section>
+ }
  function CrmOverview({work,member,admin}:any){
   const loans=work?.state?.loans||[],kyc=work?.kycOrders||[],events=work?.state?.events||[];
   const lender=member.role==='checker'||member.role==='finance_checker';
