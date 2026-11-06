@@ -73,6 +73,7 @@ GL-1 **未通过**：离线缓存缺包；获批联网安装后开发依赖审�
 - 启动命令按 `scripts/dev-app-backend/README.md` 执行，代理端口为 `8092`，Miniflare 为 `8794`；日志显示 `dev migrations applied: 0`，未达到卡片要求的 63。
 - `checker@example.test`（持牌机构后台）通过浏览器提交后，`POST /api/team/auth` 返回 **200**，随后进入 `/team`；服务日志记录 `POST /api/team/auth 200 OK`。
 - `lender@example.test` 使用同样流程只提交一次，`POST /api/team/auth` 返回 **403**；页面显示“你没有权限执行此操作”。按卡片规则不再重试。未记录密码或 Cookie。
+- 本次浏览器工具未暴露响应体读取接口，因此 `error/code` 字段为**未验证**；仅保留 HTTP 状态、页面错误文案和本地服务日志。
 
 ### E3 替代证据
 
