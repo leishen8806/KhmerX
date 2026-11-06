@@ -13,6 +13,8 @@ import '../../features/me/presentation/change_password_page.dart';
 import '../../features/me/presentation/me_page.dart' as me_tab;
 import '../../features/settings/presentation/language_page.dart';
 import '../../features/startup/presentation/startup_page.dart';
+import '../../features/startup/domain/upgrade_notice.dart';
+import '../../features/startup/presentation/upgrade_pages.dart';
 import '../bootstrap/providers.dart';
 
 final class _RouterRefreshNotifier extends ChangeNotifier {
@@ -114,6 +116,22 @@ GoRouter createRouter(Ref ref) {
     },
     routes: [
       GoRoute(path: '/startup', pageBuilder: (_, __) => _fade(const StartupPage())),
+      GoRoute(
+        path: '/upgrade/required',
+        builder: (_, state) => UpgradeRequiredPage(
+          notice: state.extra is UpgradeNotice
+              ? state.extra! as UpgradeNotice
+              : const UpgradeNotice(kind: UpgradeKind.required, currentVersion: '', latestVersion: ''),
+        ),
+      ),
+      GoRoute(
+        path: '/upgrade/available',
+        builder: (_, state) => UpgradeAvailablePage(
+          notice: state.extra is UpgradeNotice
+              ? state.extra! as UpgradeNotice
+              : const UpgradeNotice(kind: UpgradeKind.available, currentVersion: '', latestVersion: ''),
+        ),
+      ),
       GoRoute(path: '/auth/login', pageBuilder: (_, __) => _fade(const AuthLoginPage())),
       GoRoute(
         path: '/auth/phone-consent',
