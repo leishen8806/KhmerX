@@ -47,3 +47,9 @@
 | D-40 | 金融机构 VPS 灰度范围 | 技术负责人 2026-11-03 确认生产尚未上线；先在金融机构服务器 `159.223.77.134` 的 `testadmin.khmerx.org`、`testapi.khmerx.org`、`test.khmerx.org`、`testpayease.khmerx.org` 灰度最新 main（含方案 R 0062 迁移）。仅限该机器；`165.22.108.5`（持牌机构）和 `159.223.92.104` 不在本次范围内。部署、线上写操作和迁移执行仍须按单独卡片的检查点与批准范围进行。 | 已确认 |
 | D-41 | 本地全面验收先于 VPS 灰度 | 技术负责人 2026-11-03 决定：先在本地测试环境全面验收评审，评估结果出来后再决定是否执行 D-40 灰度部署。 | 已确认 |
 | D-43 | K-S1:其余审计写入点逐点补 `seq`(已被 main 的 audit-writer 取代) | 技术负责人 2026-11-04 在对话中确认"A":对其余 29 处 `INSERT INTO team_audit` 逐点补写 `seq`,不加迁移、不加触发器。**之后 main 在 11-05(`9701b1e`、`01daad0`)改用共享写入器 `lib/team/audit-writer.ts`,同一问题已解决,PR #198 与 main 冲突。** Claude 建议不批准、关闭 #198,由技术负责人决定;K-S1b 批准表述作废,K-S1c 取消。0062 被原地修改、回填随迁移执行超出 D-39 的 R-2 范围、回填排序、`INSERT OR REPLACE` 绕过等待决定。详见 `docs/reviews/audit-seq-r1-review-20261104.md`(§8)与 `docs/tasks/status/2026-11-04-decisions-batch-e.md` | 已确认;已被取代 |
+| D-44 | GL-4 灰度机只读预检 | 授权经 SSH 对灰度机做一次只读预检，严格按卡片范围执行；详见 `docs/tasks/status/2026-11-06-decisions-batch-g.md` | 已确认 |
+| D-45 | 灰度部署时回填审计记录 seq | 仅限灰度，对全部 `team_audit` 行按 `created_at,id` 排序回填；详见 `docs/tasks/status/2026-11-06-decisions-batch-g.md` | 已确认（仅灰度） |
+| D-46 | 有条件追认 0062 原地修改 | 仅当 GL-4 确认灰度库未执行 0062 时有效，否则作废并改写新迁移；详见 `docs/tasks/status/2026-11-06-decisions-batch-g.md` | 有条件确认 |
+| D-47 | 灰度制品从合并后的 main 构建 | 构建机按锁定文件联网执行一次 `npm ci`，制品须经校验后再传灰度；详见 `docs/tasks/status/2026-11-06-decisions-batch-g.md` | 已确认（范围受限） |
+| D-48 | 关闭 PR #198 | 由技术负责人在 GitHub 上关闭；详见 `docs/tasks/status/2026-11-06-decisions-batch-g.md` | 已确认 |
+| D-49 | 灰度部署窗口 2026-11-09 13:00–17:30 | 四项开窗前置条件任一不满足即顺延，17:30 硬截止；详见 `docs/tasks/status/2026-11-06-decisions-batch-g.md` | 已确认（附前置条件） |
