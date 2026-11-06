@@ -1,13 +1,15 @@
 export type H5ChannelStatus='active'|'maintenance'|'disabled';
 
 type ChannelConfig={mode?:unknown};
+export type ConfiguredChannel={exists:boolean;enabled?:unknown};
 
 /** Resolve the public H5 channel state without reading a request or database. */
-export function h5ChannelStatus(config:ChannelConfig,channelId?:unknown,override?:unknown):H5ChannelStatus{
+export function h5ChannelStatus(config:ChannelConfig,channelId?:unknown,override?:unknown,configured?:ConfiguredChannel):H5ChannelStatus{
  const value=String(override??'').trim().toLowerCase();
  if(value==='maintenance'||value==='maint')return 'maintenance';
  if(value==='disabled'||value==='off')return 'disabled';
- if(String(config.mode||'').trim().toLowerCase()==='disabled'||!channelId)return 'disabled';
+ if(configured?.exists)return Number(configured.enabled)===0?'disabled':'active';
+ if(String(config.mode||'').trim().toLowerCase()==='disabled')return 'disabled';
  return 'active';
 }
 

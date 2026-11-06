@@ -4,6 +4,7 @@ import {loginTelegram,SESSION_TTL,AuthError} from '@/lib/h5-auth-core';
 import {registrationPolicy} from '@/lib/registration-policy';
 import {channelToken,telegramCredentialOwners,telegramCredentialChannels} from '@/lib/bot-credentials';
 import {customerCompany} from '@/lib/team/server';
+import {requireH5ChannelAvailable} from '@/lib/h5-channel-guard';
 import {env} from 'cloudflare:workers';
 
 export const dynamic='force-dynamic';
@@ -33,6 +34,7 @@ export async function POST(request:Request){
   for(const candidate of candidates){
    try{
     const token=await channelToken(candidate.owner,candidate.channel);
+    await requireH5ChannelAvailable(r,candidate.owner,'telegram_miniapp',candidate.channel);
     result=await loginTelegram(r,candidate.owner,b,initData,token,candidate.channel);
     id=candidate.owner;break;
    }catch(error){last=error}
