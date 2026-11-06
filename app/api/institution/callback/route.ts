@@ -1,7 +1,7 @@
 import {env} from 'cloudflare:workers';
 import {addErrorCode} from '@/lib/error-codes';
 import {verifyInstitutionCallback} from '@/lib/institution-callback';
-import {nextCallbackRetry} from '@/lib/institution-callback-queue';
+import {callbackConsumerRetry,nextCallbackRetry} from '@/lib/institution-callback-queue';
 import {normalizeInstitutionEvent} from '@/lib/institution-events';
 import {consumeInstitutionCallbackEvent} from '@/lib/institution-callback-consumer';
 
@@ -52,11 +52,13 @@ export async function POST(request:Request){
   ]);
   if(!results[0].meta?.changes) return failure('回调 nonce 已使用','CALLBACK_REPLAYED',409,requestId);
   const consumed=await consumeInstitutionCallbackEvent({database:db,tenantId:institution.tenant_id,institutionId,eventId:storedEventId,eventType,payload:raw});
-  if(consumed.status!=='received'){
+  const retryable=callbackConsumerRetry(consumed.reason,now);
+  if(consumed.status!=='received'||retryable){
    const error=consumed.reason||null,attemptStatus=consumed.status==='dead_letter'?'dead_letter':'completed';
+   const eventStatus=retryable?.eventStatus||consumed.status,nextAttemptStatus=retryable?.attemptStatus||attemptStatus,nextAt=retryable?.nextAt??null,lastError=retryable?.lastError??error;
    await db.batch([
-    db.prepare('UPDATE institution_callback_events SET status=?,updated_at=? WHERE id=? AND status=\'received\'').bind(consumed.status,nowIso,storedEventId),
-    db.prepare('UPDATE institution_callback_attempts SET status=?,last_error=?,updated_at=?,next_at=NULL WHERE event_id=? AND attempt=0').bind(attemptStatus,error,nowIso,storedEventId),
+    db.prepare('UPDATE institution_callback_events SET status=?,updated_at=? WHERE id=? AND status=\'received\'').bind(eventStatus,nowIso,storedEventId),
+    db.prepare('UPDATE institution_callback_attempts SET status=?,last_error=?,updated_at=?,next_at=? WHERE event_id=? AND attempt=0').bind(nextAttemptStatus,lastError,nowIso,nextAt,storedEventId),
    ]);
   }
   const httpStatus=consumed.status==='received'?202:200;

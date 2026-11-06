@@ -42,6 +42,6 @@ export async function consumeInstitutionCallbackEvent(input:{database:Database;t
  const statements=[write,auditInsertSql(database,tenantId,`institution:${institutionId}`,'institution_approval_callback',detail,crypto.randomUUID(),'changed')];
  if(rows)statements.push(loanIndexUpdate(database,tenantId,source.customer_id!,next.loans.find(item=>item.id===loanId)!,source.revision+1,staffPayload(next,source.customer_id!)) as never);
  const result=await database.batch(statements);
- if(result[0]?.meta.changes!==1)return {status:'dead_letter',reason:'REVISION_CONFLICT',loanId};
+ if(result[0]?.meta.changes!==1)return {status:'received',reason:'REVISION_CONFLICT',loanId};
  return {status:eventType==='loan.rejected'?'rejected':'applied',loanId};
 }

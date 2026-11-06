@@ -1,4 +1,5 @@
 export const callbackRetryPolicy={maxAttempts:5,backoffSeconds:[60,300,900,3600] as const};
+export const revisionConflictRetryDelaySeconds=30;
 
 export function nextCallbackRetry(attempt:number,now=Math.floor(Date.now()/1000)){
  const n=Math.max(1,Math.floor(attempt));
@@ -10,4 +11,9 @@ export function nextCallbackRetry(attempt:number,now=Math.floor(Date.now()/1000)
 export function callbackAttemptStatus(attempts:number,lastError?:string){
  const next=nextCallbackRetry(attempts);
  return {attempts, status:next.status, nextAt:next.nextAt, lastError:lastError?.slice(0,500)||null};
+}
+
+export function callbackConsumerRetry(reason:string|undefined,now=Math.floor(Date.now()/1000)){
+ if(reason!=='REVISION_CONFLICT')return null;
+ return {eventStatus:'received' as const,attemptStatus:'pending' as const,nextAt:now+revisionConflictRetryDelaySeconds,lastError:reason};
 }
