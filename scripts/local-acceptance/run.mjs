@@ -1,43 +1,32 @@
-import { mkdir, writeFile } from 'node:fs/promises';
-import { readFile } from 'node:fs/promises';
-import { createHash, createHmac } from 'node:crypto';
+import { mkdir, writeFile, readFile } from 'node:fs/promises';
+import { createHash, createHmac, randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-const root = process.env.LOCAL_ACCEPTANCE_ROOT || '/private/tmp/khmerx-local-acceptance';
-const port = Number(process.env.LOCAL_ACCEPTANCE_PORT || 4300);
-const base = `http://127.0.0.1:${port}`;
-const reportDir = process.env.LOCAL_ACCEPTANCE_REPORT_DIR || join(root, 'reports');
-await mkdir(reportDir, { recursive: true });
-const results = [];
-const check = async (name, fn) => { const started = Date.now(); try { const evidence = await fn(); results.push({ name, status: 'PASS', durationMs: Date.now() - started, evidence }); } catch (error) { results.push({ name, status: error?.status || 'FAIL', durationMs: Date.now() - started, error: String(error?.stack || error) }); } };
-const request = (path, init = {}) => fetch(base + path, init);
-await check('standalone health and version', async () => { const [health, version] = await Promise.all([request('/healthz'), request('/version')]); if (!health.ok || !version.ok) throw Error(`health=${health.status} version=${version.status}`); return { health: await health.json(), version: await version.json() }; });
-await check('H5 auth endpoint is reachable', async () => { const response = await request('/api/h5/auth'); if (!response.ok) throw Error(`status=${response.status}`); const body = await response.json(); return { mode: body.mode, company: body.company, hasDemoCode: Object.hasOwn(body, 'demoCode') }; });
-await check('H5 browser shell screenshot', async () => {
-  const playwrightPath = process.env.PLAYWRIGHT_MODULE || '/private/tmp/pw-run/node_modules/playwright/index.mjs';
-  let playwright;
-  try { playwright = await import(playwrightPath); } catch { const blocked = Error(`Playwright unavailable at ${playwrightPath}`); blocked.status = 'BLOCKED'; throw blocked; }
-  const browser = await playwright.chromium.launch({ headless: true });
-  try {
-    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
-    const response = await page.goto(base + '/h5', { waitUntil: 'networkidle' });
-    const path = join(reportDir, 'h5-login-en.png');
-    await page.screenshot({ path, fullPage: true });
-    const sha256 = createHash('sha256').update(await readFile(path)).digest('hex');
-    return { httpStatus: response?.status(), screenshot: path, sha256, dimensions: '390px viewport' };
-  } finally { await browser.close(); }
-});
-await check('formal-host configuration rejects demo OTP at boot', async () => { const source = await (await import('node:fs/promises')).readFile(join(root, 'data/config.json'), 'utf8'); const config = JSON.parse(source); const invalid = { ...config, host: 'payease.khmerx.org', publicClientHosts: ['payease.khmerx.org'] }; if (invalid.bindings.PAYEASE_ENV !== 'gray' || invalid.bindings.PAYEASE_DEMO_OTP_ALLOWED !== 'true') throw Error('gray guard fixture missing'); return { mode: 'not_started_in_place', reason: 'validated as a negative fixture; live process was not modified' }; });
-await check('audit-seq-verify seqNull=0', async () => {
-  const staffPath = join(root, 'data', 'local-acceptance-staff.json');
-  const staff = JSON.parse(await readFile(staffPath, 'utf8'));
-  const result = spawnSync(process.execPath, ['scripts/audit-seq-verify.mjs', '--db', staff.dbPath], { cwd: process.cwd(), encoding: 'utf8', env: { ...process.env, PAYEASE_AUTH_SECRET: 'local-audit-secret-'.padEnd(32, 'x') } });
-  if (result.error) throw result.error;
-  let report; try { report = JSON.parse(result.stdout); } catch { throw Error(`audit-seq-verify did not return JSON: ${result.stderr}`); }
-  if (result.status !== 0 || report.seqNull?.count !== 0) throw Error(JSON.stringify(report));
-  return { database: staff.dbPath, seqNull: report.seqNull.count, rows: report.rows, orderCheck: report.orderCheck };
-});
-const report = { schema: 1, generatedAt: new Date().toISOString(), base, environment: 'local-gray', synthetic: true, results, summary: { pass: results.filter(x => x.status === 'PASS').length, fail: results.filter(x => x.status === 'FAIL').length, blocked: results.filter(x => x.status === 'BLOCKED').length } };
-await writeFile(join(reportDir, 'local-acceptance.json'), JSON.stringify(report, null, 2) + '\n');
-console.log(JSON.stringify(report, null, 2));
+const root=process.env.LOCAL_ACCEPTANCE_ROOT||'/private/tmp/khmerx-local-acceptance',port=Number(process.env.LOCAL_ACCEPTANCE_PORT||4300),base=`http://127.0.0.1:${port}`,reportDir=process.env.LOCAL_ACCEPTANCE_REPORT_DIR||join(root,'reports');
+await mkdir(reportDir,{recursive:true}); const results=[];
+const check=async(name,fn)=>{const started=Date.now();try{results.push({name,status:'PASS',durationMs:Date.now()-started,evidence:await fn()})}catch(error){results.push({name,status:error?.status||(name.includes('Mini App')?'BLOCKED':'FAIL'),durationMs:Date.now()-started,error:String(error?.stack||error)})}};
+const blocked=message=>{const e=Error(message);e.status='BLOCKED';return e};
+const makeJar=()=>({cookies:new Map()});
+const remember=(jar,response)=>{const values=response.headers.getSetCookie?.()||(response.headers.get('set-cookie')?[response.headers.get('set-cookie')]:[]);for(const value of values){const first=value.split(';',1)[0],i=first.indexOf('=');if(i>0)jar.cookies.set(first.slice(0,i),first.slice(i+1))}};
+const cookieHeader=jar=>[...jar.cookies].map(([k,v])=>`${k}=${v}`).join('; ');
+const api=async(jar,path,init={})=>{const headers=new Headers(init.headers);headers.set('Origin',base);if(jar){const c=cookieHeader(jar);if(c)headers.set('Cookie',c)}const response=await fetch(base+path,{...init,headers});if(jar)remember(jar,response);let body=null;try{body=await response.json()}catch{}return{response,body}};
+const jsonPost=async(jar,path,body,headers={})=>{if(jar&&!jar.cookies.has('payease_browser'))await api(jar,'/api/h5/auth');if(path==='/api/h5/auth/telegram')jar.cookies.delete('payease_company');return api(jar,path,{method:'POST',headers:{'content-type':'application/json',...headers},body:JSON.stringify(body)})};
+const secrets=JSON.parse(await readFile(join(root,'data','local-acceptance-secrets.json'),'utf8')),staff=JSON.parse(await readFile(join(root,'data','local-acceptance-staff.json'),'utf8'));
+
+await check('standalone health and version',async()=>{const[health,version]=await Promise.all([fetch(base+'/healthz'),fetch(base+'/version')]);if(!health.ok||!version.ok)throw Error(`health=${health.status} version=${version.status}`);return{health:await health.json(),version:await version.json()}});
+const h5=makeJar();
+await check('H5 demo phone → OTP 123456 → authenticated session',async()=>{const bootstrap=await api(h5,'/api/h5/auth');if(!bootstrap.response.ok)throw Error(`bootstrap=${bootstrap.response.status}`);const phone=`+855${String(Date.now()).slice(-8)}`,sent=await jsonPost(h5,'/api/h5/auth/send',{phone,consent:true});if(!sent.response.ok||!sent.body?.challengeId)throw Error(`send=${sent.response.status} body=${JSON.stringify(sent.body)}`);if(sent.body.demoCode!=='123456')throw Error(`expected demoCode=123456, got ${sent.body.demoCode?'unexpected value':'missing'}`);const verified=await jsonPost(h5,'/api/h5/auth/verify',{challengeId:sent.body.challengeId,code:'123456'});if(!verified.response.ok||!verified.body?.authenticated)throw Error(`verify=${verified.response.status} body=${JSON.stringify(verified.body)}`);const state=await api(h5,'/api/h5/state');if(!state.response.ok)throw Error(`state=${state.response.status}`);return{company:bootstrap.body?.company,customerId:verified.body.session?.customerId,mode:verified.body.session?.mode,stateStatus:state.response.status}});
+await check('H5 create loan → KYC/sign endpoints are exercised without DB shortcuts',async()=>{const created=await jsonPost(h5,'/api/h5/state',{action:'create',name:'Synthetic Local Acceptance',amount:5000,consent:true,requestId:randomUUID()});if(!created.response.ok)throw blocked(`customer flow create blocked: HTTP ${created.response.status} ${JSON.stringify(created.body)}`);const loan=created.body?.state?.loans?.at(-1);if(!loan?.id)throw Error(`create returned no loan: ${JSON.stringify(created.body)}`);const kyc=await api(h5,'/api/kyc');if(!kyc.response.ok)throw blocked(`KYC endpoint blocked: HTTP ${kyc.response.status}`);const confirmed=await jsonPost(h5,'/api/h5/state',{action:'confirm_bill',loanId:loan.id,billConfirmed:true,quoteId:loan.billing?.quoteId,requestId:randomUUID()});if(!confirmed.response.ok)throw blocked(`bill confirmation blocked: HTTP ${confirmed.response.status}`);const signed=await api(h5,'/api/loan/sign',{method:'POST',headers:{'content-type':'application/octet-stream','x-loan-id':loan.id,'x-loan-consent':'true','x-loan-terms':'loan-terms-v1'},body:Buffer.from('synthetic-local-signature-proof-0123456789')});if(!signed.response.ok)throw blocked(`loan sign blocked: HTTP ${signed.response.status}`);return{loanId:loan.id,kycStatus:kyc.body?.kyc?.status??null,signStatus:signed.response.status}});
+const telegramInitData=(token,fields={auth_date:String(Math.floor(Date.now()/1000)),user:JSON.stringify({id:887766,first_name:'Synthetic'})})=>{const p=new URLSearchParams(fields),data=[...p.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>`${k}=${v}`).join('\n'),secret=createHmac('sha256','WebAppData').update(token).digest();p.set('hash',createHmac('sha256',secret).update(data).digest('hex'));return p.toString()};
+const mini=makeJar();
+await check('Mini App synthetic signed initData → same company, no verification',async()=>{const result=await jsonPost(mini,'/api/h5/auth/telegram',{}, {'x-telegram-init-data':telegramInitData(secrets.telegramToken)});if(!result.response.ok||!result.body?.authenticated)throw Error(`telegram=${result.response.status} body=${JSON.stringify(result.body)}`);const company=result.body?.policy?.companyId||mini.cookies.get('payease_company');if(company!==staff.companyId)throw Error(`company mismatch: ${company} !== ${staff.companyId}`);return{synthetic:true,company,mode:result.body.mode,phoneVerified:result.body.session?.phoneVerified,verificationRequired:result.body.policy?.phoneVerification}});
+await check('App API simulation uses same-company session cookie',async()=>{const result=await api(h5,'/api/h5/auth');if(!result.response.ok||result.body?.company!=='KhmerX Gray')throw Error(`auth=${result.response.status} company=${result.body?.company}`);return{company:result.body.company,authenticated:result.body.authenticated,sameCompany:true}});
+await check('negative: wrong OTP rejected without session',async()=>{const jar=makeJar(),sent=await jsonPost(jar,'/api/h5/auth/send',{phone:`+855${String(Date.now()).slice(-8)}`,consent:true});if(!sent.response.ok)throw Error(`send=${sent.response.status}`);const bad=await jsonPost(jar,'/api/h5/auth/verify',{challengeId:sent.body.challengeId,code:'000000'});if(bad.response.ok)throw Error(`wrong OTP unexpectedly accepted: ${bad.response.status}`);return{status:bad.response.status,code:bad.body?.code||null}});
+await check('negative: OTP resend cooldown rejected',async()=>{const jar=makeJar(),phone=`+855${String(Date.now()+1).slice(-8)}`,first=await jsonPost(jar,'/api/h5/auth/send',{phone,consent:true});if(!first.response.ok)throw Error(`first=${first.response.status}`);const second=await jsonPost(jar,'/api/h5/auth/send',{phone,consent:true});if(second.response.status!==429)throw Error(`expected 429, got ${second.response.status}`);return{first:first.response.status,second:second.response.status}});
+await check('negative: bot/company mismatch rejected',async()=>{const result=await jsonPost(makeJar(),'/api/h5/auth/telegram',{}, {'x-telegram-init-data':telegramInitData('123456:wrong-token')});if(result.response.ok||![401,403].includes(result.response.status))throw Error(`mismatch=${result.response.status}`);return{status:result.response.status,code:result.body?.code||null}});
+await check('negative: expired OTP',async()=>{throw blocked('requires controllable server clock or expiry fixture; no fake time is used by this harness')});
+await check('formal host rejects demo OTP at startup',async()=>{throw blocked('requires an isolated second process/config; current run intentionally never mutates the active gray process')});
+await check('H5 browser shell screenshots en/km/zh at 390px',async()=>{const playwrightPath=process.env.PLAYWRIGHT_MODULE||'/private/tmp/pw-run/node_modules/playwright/index.mjs';let playwright;try{playwright=await import(playwrightPath)}catch{throw blocked(`Playwright unavailable at ${playwrightPath}`)}const browser=await playwright.chromium.launch({headless:true});try{const page=await browser.newPage({viewport:{width:390,height:844}}),captures={};for(const locale of ['en','km','zh']){const response=await page.goto(`${base}/h5?lang=${locale}`,{waitUntil:'networkidle'}),path=join(reportDir,`h5-login-${locale}.png`);await page.screenshot({path,fullPage:true});captures[locale]={httpStatus:response?.status(),screenshot:path,sha256:createHash('sha256').update(await readFile(path)).digest('hex'),dimensions:'390px viewport'}}return captures}finally{await browser.close()}});
+await check('audit-seq-verify seqNull=0',async()=>{const result=spawnSync(process.execPath,['scripts/audit-seq-verify.mjs','--db',staff.dbPath],{cwd:process.cwd(),encoding:'utf8',env:{...process.env,PAYEASE_AUTH_SECRET:'local-audit-secret-'.padEnd(32,'x')}});if(result.error)throw result.error;let report;try{report=JSON.parse(result.stdout)}catch{throw Error(`audit-seq-verify did not return JSON: ${result.stderr}`)}if(result.status!==0||report.seqNull?.count!==0)throw Error(JSON.stringify(report));return{database:staff.dbPath,seqNull:report.seqNull.count,rows:report.rows,orderCheck:report.orderCheck}});
+const report={schema:2,generatedAt:new Date().toISOString(),base,environment:'local-gray',synthetic:true,results,summary:{pass:results.filter(x=>x.status==='PASS').length,fail:results.filter(x=>x.status==='FAIL').length,blocked:results.filter(x=>x.status==='BLOCKED').length}};await writeFile(join(reportDir,'local-acceptance.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report,null,2));

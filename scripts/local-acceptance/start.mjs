@@ -45,6 +45,7 @@ const cfg = {
     TELEGRAM_BOT_TOKEN_1: telegramToken, TELEGRAM_BOT_TOKEN_2: '', KYC_DATA_SECRET: secret(),
     INSTITUTION_CALLBACK_SECRETS_JSON: JSON.stringify({ [companyId + ':institution']: institutionSecret }),
     KYC_SCAN_URL: 'http://127.0.0.1:9999/scan', CUSTOMER_ROWS: 'off',
+    PAYEASE_ALLOWED_ORIGINS: `http://127.0.0.1:${port},http://localhost:${port}`,
   },
 };
 await writeFile(join(data, 'config.json'), JSON.stringify(cfg, null, 2) + '\n', { mode: 0o600 });
@@ -52,7 +53,7 @@ await writeFile(join(data, 'local-acceptance-secrets.json'), JSON.stringify({ ac
 const child = spawn(process.execPath, [join(repo, 'deploy/standalone/server.mjs')], {
   cwd: root,
   stdio: 'inherit',
-  env: { ...process.env, PAYEASE_STANDALONE_ROOT: root, PAYEASE_STANDALONE_PORT: String(port), SCANNER_TOKEN_PATH: join(data, 'scanner-token') },
+  env: { ...process.env, PAYEASE_STANDALONE_ROOT: root, PAYEASE_STANDALONE_PORT: String(port), PAYEASE_ALLOWED_ORIGINS: `http://127.0.0.1:${port},http://localhost:${port}`, SCANNER_TOKEN_PATH: join(data, 'scanner-token') },
 });
 const stop = () => { if (!child.killed) child.kill('SIGTERM'); };
 process.once('SIGINT', stop); process.once('SIGTERM', stop);
