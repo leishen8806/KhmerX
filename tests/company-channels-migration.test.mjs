@@ -4,7 +4,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
 import {splitSql} from '../deploy/standalone/sql-split.mjs';
 
-test('0064 creates channel records without copying secrets and is idempotent', () => {
+test('0063 creates channel records without copying secrets and is idempotent', () => {
   const db = new DatabaseSync(':memory:');
   db.exec(`
     PRAGMA foreign_keys=ON;
@@ -26,7 +26,7 @@ test('0064 creates channel records without copying secrets and is idempotent', (
     INSERT INTO telegram_bot_credentials VALUES ('cred-a','t_a','bot-1','123','Alpha Bot','alpha_bot','ciphertext',1,'now');
     INSERT INTO demo_workspaces VALUES ('t_a',0,'{"activeBotId":"bot-1","bots":[{"id":"bot-1","enabled":true,"passwordSetup":false}]}');
   `);
-  const migration = readFileSync('drizzle/0064_company_channels.sql', 'utf8');
+  const migration = readFileSync('drizzle/0063_company_channels.sql', 'utf8');
   for (const statement of splitSql(migration)) db.exec(statement);
   for (const statement of splitSql(migration)) db.exec(statement);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM company_channels').get().n, 3);

@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS company_channels (
   download_url TEXT,
   force_upgrade INTEGER NOT NULL DEFAULT 0 CHECK (force_upgrade IN (0,1)),
   maintenance_messages_json TEXT NOT NULL DEFAULT '{}',
-  updated_by TEXT NOT NULL DEFAULT 'migration:0064',
+  updated_by TEXT NOT NULL DEFAULT 'migration:0063',
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (tenant_id, id),
   CHECK (type <> 'h5' OR phone_verification = 1),
@@ -115,7 +115,7 @@ JOIN team_companies c ON c.id = b.owner;
 --> statement-breakpoint
 INSERT INTO team_audit (id, tenant_id, actor, action, detail, created_at)
 SELECT
-  'company-channels-backfill:' || id, id, 'migration:0064', 'company_channels_backfill',
+  'company-channels-backfill:' || id, id, 'migration:0063', 'company_channels_backfill',
   '{"source":"team_companies/client_flags and telegram_bot_credentials","secrets":"not copied"}', datetime('now')
 FROM team_companies
 WHERE NOT EXISTS (
