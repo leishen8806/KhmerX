@@ -1,8 +1,9 @@
 import {env} from 'cloudflare:workers';
 import {addErrorCode} from '@/lib/error-codes';
 import {verifyInstitutionCallback} from '@/lib/institution-callback';
-import {nextCallbackRetry} from '@/lib/institution-callback-queue';
+import {callbackConsumerRetry,nextCallbackRetry} from '@/lib/institution-callback-queue';
 import {normalizeInstitutionEvent} from '@/lib/institution-events';
+import {consumeInstitutionCallbackEvent} from '@/lib/institution-callback-consumer';
 
 export const dynamic='force-dynamic';
 const response=(data:unknown,status=200,requestId='')=>{
@@ -50,6 +51,17 @@ export async function POST(request:Request){
    db.prepare('INSERT INTO institution_callback_attempts (id,event_id,attempt,status,next_at,last_error,created_at,updated_at) SELECT ?,?,?,?,?,?,?,? WHERE changes()=1').bind(crypto.randomUUID(),storedEventId,0,retry.status,retry.nextAt,null,nowIso,nowIso)
   ]);
   if(!results[0].meta?.changes) return failure('回调 nonce 已使用','CALLBACK_REPLAYED',409,requestId);
-  return response({ok:true,duplicate:false,eventId:storedEventId,eventType,status:'received'},202,requestId);
+  const consumed=await consumeInstitutionCallbackEvent({database:db,tenantId:institution.tenant_id,institutionId,eventId:storedEventId,eventType,payload:raw});
+  const retryable=callbackConsumerRetry(consumed.reason,now);
+  if(consumed.status!=='received'||retryable){
+   const error=consumed.reason||null,attemptStatus=consumed.status==='dead_letter'?'dead_letter':'completed';
+   const eventStatus=retryable?.eventStatus||consumed.status,nextAttemptStatus=retryable?.attemptStatus||attemptStatus,nextAt=retryable?.nextAt??null,lastError=retryable?.lastError??error;
+   await db.batch([
+    db.prepare('UPDATE institution_callback_events SET status=?,updated_at=? WHERE id=? AND status=\'received\'').bind(eventStatus,nowIso,storedEventId),
+    db.prepare('UPDATE institution_callback_attempts SET status=?,last_error=?,updated_at=?,next_at=? WHERE event_id=? AND attempt=0').bind(nextAttemptStatus,lastError,nowIso,nextAt,storedEventId),
+   ]);
+  }
+  const httpStatus=consumed.status==='received'?202:200;
+  return response({ok:true,duplicate:false,eventId:storedEventId,eventType,status:consumed.status,consumerReason:consumed.reason||null},httpStatus,requestId);
  }catch{return failure('持牌机构回调暂不可用','SERVICE_UNAVAILABLE',503,requestId)}
 }
