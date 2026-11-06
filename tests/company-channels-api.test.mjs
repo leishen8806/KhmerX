@@ -7,6 +7,7 @@ test('company channel API contract exposes resolver requirements and E1 errors',
  assert.match(source,/CHANNEL_CONFIG_INCOMPLETE/);
  assert.match(source,/resolveCompanyChannel/);
  assert.match(source,/WHERE tenant_id=\? AND type=\? AND enabled=1/);
- assert.doesNotMatch(source,/token_encrypted/);
- const db=new DatabaseSync(':memory:');db.exec('CREATE TABLE company_channels(id TEXT PRIMARY KEY,tenant_id TEXT,type TEXT,enabled INTEGER,hosts_json TEXT,origins_json TEXT)');db.prepare('INSERT INTO company_channels VALUES (?,?,?,?,?,?)').run('h5-1','t-a','h5',1,'["payease.khmerx.org"]','["payease.khmerx.org"]');assert.equal(db.prepare('SELECT COUNT(*) n FROM company_channels WHERE tenant_id=? AND type=? AND enabled=1').get('t-a','h5').n,1);
+ assert.match(source,/allowed_origins_json/);
+ assert.doesNotMatch(source,/token_encrypted|saveCompanyChannel/);
+ const db=new DatabaseSync(':memory:');db.exec('CREATE TABLE company_channels(id TEXT PRIMARY KEY,tenant_id TEXT,type TEXT,enabled INTEGER,hosts_json TEXT,allowed_origins_json TEXT)');db.prepare('INSERT INTO company_channels VALUES (?,?,?,?,?,?)').run('h5-1','t-a','h5',1,'["testpayease.khmerx.org"]','["https://testpayease.khmerx.org"]');assert.equal(db.prepare('SELECT COUNT(*) n FROM company_channels WHERE tenant_id=? AND type=? AND enabled=1').get('t-a','h5').n,1);
 });
