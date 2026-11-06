@@ -30,7 +30,7 @@ function config(r:AuthRuntime,requireGateway=false){if(!['demo','telegram'].incl
 const now=(r:AuthRuntime)=>Math.floor((r.now?.()??Date.now())/1000);
 const customerKey=(r:AuthRuntime,owner:string,phone:string)=>keyed(r.config.secret,'customer|'+r.config.mode+'|'+owner+'|'+phone);
 export const telegramCustomerKey=(r:AuthRuntime,owner:string,userId:number)=>keyed(r.config.secret,'telegram-customer|'+owner+'|'+userId);
-async function limit(r:AuthRuntime,key:string,max:number,window:number,delay:number){const t=now(r);
+async function limit(r:AuthRuntime,key:string,max:number,window:number,delay:number,code='RATE_LIMITED'){const t=now(r);
  // Keep the small D1 rate-limit table bounded. All current callers use a
  // window no longer than one hour; records older than that cannot affect a
  // future decision and are safe to remove opportunistically on auth traffic.
@@ -38,7 +38,7 @@ async function limit(r:AuthRuntime,key:string,max:number,window:number,delay:num
  const row=await r.db.prepare(`INSERT INTO h5_limits (key,window_start,count,next_allowed) VALUES (?, ?, 1, ?)
  ON CONFLICT(key) DO UPDATE SET count=CASE WHEN window_start+?<=? THEN 1 ELSE count+1 END,
  window_start=CASE WHEN window_start+?<=? THEN ? ELSE window_start END,next_allowed=?
- WHERE (window_start+?<=? OR count<?) AND next_allowed<=? RETURNING key`).bind(key,t,t+delay,window,t,window,t,t,t+delay,window,t,max,t).first();if(!row)throw new AuthError('请求过于频繁，请稍后再试',429,Math.max(delay,60),'VERIFICATION_RATE_LIMITED')}
+ WHERE (window_start+?<=? OR count<?) AND next_allowed<=? RETURNING key`).bind(key,t,t+delay,window,t,window,t,t,t+delay,window,t,max,t).first();if(!row)throw new AuthError('请求过于频繁，请稍后再试',429,Math.max(delay,60),code)}
 export const isLocalOrGray=(environment?:string)=>['local','gray'].includes(String(environment||'').toLowerCase());
 const ownerDefaults={register:5000,send:5000,password:5000};
 function ownerLimit(r:AuthRuntime,name:keyof typeof ownerDefaults){const configured=r.config.ownerLimits?.[name]??ownerDefaults[name],base=Number(configured),scale=Number(r.config.limitScale??1);return Math.max(1,Math.floor((Number.isFinite(base)&&base>0?base:ownerDefaults[name])*(Number.isFinite(scale)&&scale>0?scale:1)))}
@@ -55,9 +55,9 @@ async function gateway(r:AuthRuntime,method:string,body:Record<string,unknown>){
 export async function sendCode(r:AuthRuntime,owner:string,browserToken:string,input:{phone?:unknown;consent?:unknown},purpose:'login'|'reset'='login'){
  const c=config(r,true);if(input.consent!==true)throw new AuthError('请先同意接收本次手机号验证码');const phone=normalizePhone(input.phone,c.mode);
  const phoneKey=await customerKey(r,owner,phone),browserHash=await digest(browserToken),t=now(r);
- await limit(r,'send-phone|'+phoneKey,5,3600,RESEND_DELAY);
- await limit(r,'send-browser|'+owner+'|'+browserHash,10,3600,0);
- await limit(r,'send-owner|'+owner,ownerLimit(r,'send'),3600,0);
+ await limit(r,'send-phone|'+phoneKey,5,3600,RESEND_DELAY,'VERIFICATION_RATE_LIMITED');
+ await limit(r,'send-browser|'+owner+'|'+browserHash,10,3600,0,'VERIFICATION_RATE_LIMITED');
+ await limit(r,'send-owner|'+owner,ownerLimit(r,'send'),3600,0,'VERIFICATION_RATE_LIMITED');
  await r.db.prepare('DELETE FROM h5_challenges WHERE owner=? AND expires_at<?').bind(owner,t-86400).run();
  await r.db.prepare('DELETE FROM h5_sessions WHERE owner=? AND expires_at<?').bind(owner,t).run();
  const id=randomToken(),code=c.mode==='demo'?'123456':null;
@@ -74,7 +74,7 @@ export async function pendingChallenge(r:AuthRuntime,owner:string,browserToken:s
 async function consumeCode(r:AuthRuntime,owner:string,browserToken:string,input:{challengeId?:unknown;code?:unknown},expectedCustomerId?:string,purpose:'login'|'reset'='login'){
  config(r,true);if(typeof input.challengeId!=='string'||!/^[a-f0-9]{64}$/.test(input.challengeId)||typeof input.code!=='string'||!/^\d{6}$/.test(input.code))throw new AuthError('请输入 6 位数字验证码');
  const id=input.challengeId,t=now(r),browserHash=await digest(browserToken);
- await limit(r,'verify-browser|'+owner+'|'+browserHash,30,600,0);
+ await limit(r,'verify-browser|'+owner+'|'+browserHash,30,600,0,'VERIFICATION_RATE_LIMITED');
  await r.db.prepare('UPDATE h5_challenges SET status=? WHERE id=? AND owner=? AND browser_hash=? AND status=? AND locked_until<? AND consumed=0').bind('ready',id,owner,browserHash,'verifying',t).run();
  const row=await r.db.prepare('UPDATE h5_challenges SET attempts=attempts+1,status=?,locked_until=? WHERE id=? AND owner=? AND browser_hash=? AND mode=? AND purpose=? AND status=? AND consumed=0 AND expires_at>? AND attempts<? RETURNING *').bind('verifying',t+20,id,owner,browserHash,r.config.mode,purpose,'ready',t,MAX_ATTEMPTS).first<Challenge>();
  if(!row)throw new AuthError('验证码已失效、正在核验或尝试次数已用完，请稍后重新获取',409,undefined,'VERIFICATION_EXPIRED');

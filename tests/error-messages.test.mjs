@@ -31,8 +31,9 @@ test('service failures include the request ID and rate limits include retry seco
  assert.match(exports.messageForError({code:'RATE_LIMITED',params:{retryAfterSeconds:30}},'km'),/30/);
 });
 
-test('channel and verification states have explicit localized copy',()=>{
- for(const code of ['CHANNEL_COMPANY_MISMATCH','CHANNEL_DISABLED','CHANNEL_MAINTENANCE','VERIFICATION_EXPIRED','VERIFICATION_RATE_LIMITED'])for(const locale of ['en','km','zh'])assert.ok(exports.errorMessages[locale][code],`${locale} missing ${code}`);
+test('channel, registration and verification states have explicit localized copy',()=>{
+ for(const code of ['CHANNEL_COMPANY_MISMATCH','CHANNEL_DISABLED','CHANNEL_MAINTENANCE','REGISTRATION_STEP_DISABLED','VERIFICATION_EXPIRED','VERIFICATION_RATE_LIMITED'])for(const locale of ['en','km','zh'])assert.ok(exports.errorMessages[locale][code],`${locale} missing ${code}`);
  assert.match(exports.messageForError({code:'CHANNEL_COMPANY_MISMATCH'},'en'),/different company/);
+ assert.match(exports.messageForError({code:'REGISTRATION_STEP_DISABLED'},'en'),/registration step/);
  assert.match(exports.messageForError({code:'VERIFICATION_EXPIRED'},'zh'),/过期/);
 });

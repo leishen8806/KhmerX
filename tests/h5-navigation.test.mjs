@@ -17,6 +17,7 @@ function client(fetch,initData=''){
  };
  const jsx=(type,props,key)=>({type,props,key});
  const mocks={react:hooks,'react/jsx-runtime':{jsx,jsxs:jsx},'next/link':{default:'Link'},'next/navigation':{usePathname:()=>path,useSearchParams:()=>new URLSearchParams(),useRouter:()=>({push:p=>routes.push(p),replace:p=>routes.push(p)})},'@/components/ui/button':{Button:'Button'},'@/components/ui/input':{Input:'Input'},'@/components/password-recovery':{PasswordRecovery:'Recovery'},'@/components/mini-client':{MiniClient:'MiniClient'},'@/components/mini-shell':{MiniNavigationProvider:'MiniNavigationProvider'},'@/components/mini-route-loading':{MiniRouteLoading:'Loading'},'@/lib/api-client':{apiFetch:async(url,init)=>{const result=await fetch(url,init);const data=await result.json();if(!result.ok)throw Object.assign(Error(data.error||'request failed'),{status:result.status,code:data.code});return {data,response:result,requestId:data.requestId}}}};
+ mocks['@/lib/error-messages']={messageForError:({code})=>code};
  mocks['@/components/auth-locale']={AuthLocaleBridge:()=>null};
  mocks['@/lib/i18n']={messages:{en:{authTelegramUnavailable:'Telegram login is temporarily unavailable. Close and reopen the Mini App.',authTelegramChecking:'The server is verifying your Telegram identity. Close and reopen the Mini App.',authTitleRegister:'Register / log in'},km:{},zh:{}}};
  const exports={};
