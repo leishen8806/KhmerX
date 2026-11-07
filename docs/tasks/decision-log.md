@@ -53,9 +53,10 @@
 | D-46 | PR #187 与 PR #196 的迁移链合并 | 技术负责人 2026-11-06 16:36 决定（负责人原话，经 Claude 记录）：批准 #187 的迁移与 #196 的部署自检合并链。 | 已确认 |
 | D-47 | `159.223.92.104` 测试环境的 Demo 认证授权范围 | 技术负责人 2026-11-06 16:48 决定（负责人原话，经 Claude 记录）：`159.223.92.104`（`payease.khmerx.org`）是独立测试环境；仅授权写入 Demo 认证配置、重启测试服务、验证固定验证码 `123456`。不得访问生产、发送 Telegram 或写生产数据。 | 已确认（范围受限） |
 | D-48 | 机构融资回调与 PR #211 的合并前提 | 技术负责人 2026-11-06 17:07 决定（负责人原话，经 Claude 记录）：采用 Plan A；由持牌机构发起资金并签名回调 `funding.confirmed`，由 `finance_checker` 审核；PR #211 需另行取得负责人批准后才能合并。 | 已确认（PR 合并另行批准） |
-| D-49 | GL-4 灰度机只读预检 | 授权经 SSH 对灰度机做一次只读预检，严格按卡片范围执行；详见 `docs/tasks/status/2026-11-06-decisions-batch-g.md` | 已确认 |
-| D-50 | 灰度部署时回填审计记录 seq | 仅限灰度，对全部 `team_audit` 行按 `created_at,id` 排序回填；详见 `docs/tasks/status/2026-11-06-decisions-batch-g.md` | 已确认（仅灰度） |
-| D-51 | 有条件追认 0062 原地修改 | 仅当 GL-4 确认灰度库未执行 0062 时有效，否则作废并改写新迁移；详见 `docs/tasks/status/2026-11-06-decisions-batch-g.md` | 有条件确认 |
-| D-52 | 灰度制品从合并后的 main 构建 | 构建机按锁定文件联网执行一次 `npm ci`，制品须经校验后再传灰度；详见 `docs/tasks/status/2026-11-06-decisions-batch-g.md` | 已确认（范围受限） |
-| D-53 | 关闭 PR #198 | 由技术负责人在 GitHub 上关闭；详见 `docs/tasks/status/2026-11-06-decisions-batch-g.md` | 已确认 |
-| D-54 | 灰度部署窗口 2026-11-09 13:00–17:30 | 四项开窗前置条件任一不满足即顺延，17:30 硬截止；详见 `docs/tasks/status/2026-11-06-decisions-batch-g.md` | 已确认（附前置条件） |
+| D-55 | GL-4 灰度机只读预检 | 授权经 SSH 对灰度机做一次只读预检，严格按卡片范围执行；详见 `docs/tasks/status/2026-11-06-decisions-batch-g.md` | 已确认 |
+| D-56 | 灰度部署时回填审计记录 seq | 仅限灰度，对全部 `team_audit` 行按 `created_at,id` 排序回填；详见 `docs/tasks/status/2026-11-06-decisions-batch-g.md` | 已确认（仅灰度） |
+| D-57 | 有条件追认 0062 原地修改 | 仅当 GL-4 确认灰度库未执行 0062 时有效，否则作废并改写新迁移；详见 `docs/tasks/status/2026-11-06-decisions-batch-g.md` | 有条件确认 |
+| D-58 | 灰度制品从合并后的 main 构建 | 构建机按锁定文件联网执行一次 `npm ci`，制品须经校验后再传灰度；详见 `docs/tasks/status/2026-11-06-decisions-batch-g.md` | 已确认（范围受限） |
+| D-59 | 关闭 PR #198 | 由技术负责人在 GitHub 上关闭；详见 `docs/tasks/status/2026-11-06-decisions-batch-g.md` | 已确认 |
+| D-60 | 灰度部署窗口 2026-11-09 13:00–17:30 | 四项开窗前置条件任一不满足即顺延，17:30 硬截止；详见 `docs/tasks/status/2026-11-06-decisions-batch-g.md` | 已确认（附前置条件） |
+| D-61 | 关闭 PR #211；放款回调不再由金融服务公司内部的 finance_checker 审核 | 技术负责人 2026-11-07 在对话中决定：D-57（放款与还款归持牌机构）取代 D-48 中“由 finance_checker 审核”的部分；机构回调的消费由 HS-1（已合并 77779ae）实现；机构内部的双人复核在机构系统中完成。D-48 的其余内容不变 | 已确认 |

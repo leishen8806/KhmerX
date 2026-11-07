@@ -1,8 +1,8 @@
 # 两家公司硬分离 · 第一批任务卡（2026-11-07）
 
-依据：`docs/plans/2026-11-06-licensed-hard-separation.md`（下称"拆分方案"）、决定 D-50 至 D-54。基线：`origin/main` = `30df6de`（含 0063 公司渠道迁移）。
+依据：`docs/plans/2026-11-06-licensed-hard-separation.md`（下称"拆分方案"）、决定 D-55 至 D-59。基线：`origin/main` = `30df6de`（含 0063 公司渠道迁移）。
 规范：`docs/tasks/queue/start-codex.md`、`_common.md`、`codex-workflow.md`；worktree 一律用 `git -c core.autocrlf=false worktree add ...`；不联网安装依赖；只用虚构数据；不碰任何 VPS 或 khmerx.org 域名。
-**灰度暂停（D-53）**：本批所有卡都只在本地开发和测试。
+**灰度暂停（D-58）**：本批所有卡都只在本地开发和测试。
 
 ## 本批不依赖拆分方案 §5 的答案
 §5 未定的项按 D-17 先用以下默认值，写进每个 PR 的"假设"段；技术负责人回复后再调整：
@@ -12,7 +12,7 @@
 
 | 卡 | 内容 | 仓库 | 合并条件 |
 |---|---|---|---|
-| HS-0 | 把拆分方案和 D-50～D-54 提交进仓库 | KhmerX | 纯文档 |
+| HS-0 | 把拆分方案和 D-55～D-59 提交进仓库 | KhmerX | 纯文档 |
 | HS-1 | 回调消费端改为支持"外部机构模式"，并补齐放款、还款、支付失败三个事件 | KhmerX | `lib/**`：Claude 评审 |
 | HS-2 | 发件箱：申请和签约事件持久化、签名投递、重试、死信（默认关闭） | KhmerX | 含 `drizzle/**`：Claude 评审后，还须**技术负责人本人批准** |
 | HS-3 | 契约测试向量和本地模拟机构 | KhmerX | `tests/**`、`scripts/**`：Claude 评审 |
@@ -30,7 +30,7 @@
    - docs/plans/2026-11-06-licensed-hard-separation.md
    - docs/tasks/status/2026-11-07-hard-separation-wave1.md（本文件）
    - docs/tasks/status/2026-11-06-separated-gray-codex-prompts.md（已标为撤回，只作留档）
-3. docs/tasks/decision-log.md 的表格末尾追加 D-50～D-54 五行，内容取拆分方案 §6；不改已有的行。
+3. docs/tasks/decision-log.md 的表格末尾追加 D-55～D-59 五行，内容取拆分方案 §6；不改已有的行。
    如果 GL-6（docs/tasks/decisions-batch-g-20261106）还没合并，就基于 GL-6 分支堆叠，并在 PR 第一行写"基于 GL-6"。
 4. 只 git add 上面四个文件。推送后把分支名发给 Claude。
 ```
@@ -123,4 +123,4 @@
 ## 本批决定（待随 HS-0 提交进决定记录）
 | 编号 | 决定 | 范围与条件 | 状态 |
 |---|---|---|---|
-| D-55 | 批准合并 HS-2（含迁移 `drizzle/0064_partner_outbox.sql`） | 技术负责人 2026-11-07 16:08 在对话中批准。批准对象是经 Claude 评审的提交 `2cd6891`，加上一次机械变基：先合并 HS-3、HS-1，再把 HS-2 变基到 main，并把发件箱里重复的模式判断换成 `institutionMode()`。变基超出这个范围，或者 0064 有任何改动，都须 Claude 重新评审、技术负责人重新批准。功能默认关闭（`PAYEASE_INSTITUTION_MODE=external` 且 `PARTNER_OUTBOX=on` 才会发送）。不构成任何部署批准；灰度仍按 D-53 暂停。已知缺口：按行存储模式下的发件箱写入没有测试（签名保存功能只支持 `demo_workspaces`），记为待办 | 已确认 |
+| D-60 | 批准合并 HS-2（含迁移 `drizzle/0064_partner_outbox.sql`） | 技术负责人 2026-11-07 16:08 在对话中批准。批准对象是经 Claude 评审的提交 `2cd6891`，加上一次机械变基：先合并 HS-3、HS-1，再把 HS-2 变基到 main，并把发件箱里重复的模式判断换成 `institutionMode()`。变基超出这个范围，或者 0064 有任何改动，都须 Claude 重新评审、技术负责人重新批准。功能默认关闭（`PAYEASE_INSTITUTION_MODE=external` 且 `PARTNER_OUTBOX=on` 才会发送）。不构成任何部署批准；灰度仍按 D-58 暂停。已知缺口：按行存储模式下的发件箱写入没有测试（签名保存功能只支持 `demo_workspaces`），记为待办 | 已确认 |
