@@ -41,6 +41,7 @@
     "PAYEASE_GATEWAY_RATE_SCALE": "1",
     "PAYEASE_AUTH_MODE": "telegram",
     "PAYEASE_H5_AUTH_MODE": "demo",
+    "PAYEASE_APP_CLIENT_KEY": "",
     "PAYEASE_DEMO_OTP_ALLOWED": "true",
     "PAYEASE_TELEGRAM_AUTH_MODE": "telegram",
     "TELEGRAM_GATEWAY_TOKEN": "replace-with-gray-telegram-gateway-token",
