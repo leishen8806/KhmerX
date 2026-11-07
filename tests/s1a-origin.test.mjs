@@ -9,6 +9,7 @@ import vm from 'node:vm';
 import fs from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
+import {createHash,timingSafeEqual} from 'node:crypto';
 
 const root=path.resolve('.');
 const sql=new DatabaseSync(':memory:');sql.exec('PRAGMA foreign_keys=ON');
@@ -29,6 +30,7 @@ const context=vm.createContext({console,crypto,TextEncoder,TextDecoder,Headers,R
 const cache=new Map();
 function synth(id,values){const m=new vm.SyntheticModule(Object.keys(values),function(){for(const [k,v] of Object.entries(values))this.setExport(k,v)},{context,identifier:id});cache.set(id,m);return m}
 synth('cloudflare:workers',{env});
+synth('node:crypto',{createHash,timingSafeEqual});
 synth('next/headers',{headers:async()=>new Headers({})});
 synth(path.join(root,'app/chatgpt-auth.ts'),{getChatGPTUser:async()=>{effects++;return user}});
 function getModule(spec,base=root+'/entry.ts'){let id=spec;if(spec.startsWith('@/'))id=path.join(root,spec.slice(2));else if(spec.startsWith('.'))id=path.resolve(path.dirname(base),spec);if(!cache.has(id)&&!path.extname(id)&&fs.existsSync(id+'.ts'))id+='.ts';if(cache.has(id))return cache.get(id);if(id.endsWith('.json'))return synth(id,{default:JSON.parse(fs.readFileSync(id,'utf8'))});const source=ts.transpileModule(fs.readFileSync(id,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;const m=new vm.SourceTextModule(source,{context,identifier:id});cache.set(id,m);return m}
