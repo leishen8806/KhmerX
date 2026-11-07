@@ -1,11 +1,12 @@
 import {env} from 'cloudflare:workers';
 import {signInstitutionCallback} from '@/lib/institution-callback';
+import {institutionMode} from '@/lib/runtime-guards';
 import type {Loan} from '@/lib/domain';
 
 type DB=Pick<D1Database,'prepare'|'batch'>;
 type OutboxInput={tenantId:string;institutionId:string;eventType:string;idempotencyKey:string;payload:string;payloadSha256:string;createdAt:string};
 const values=()=>env as unknown as Record<string,string>;
-const mode=()=>String(values().PAYEASE_INSTITUTION_MODE||'').toLowerCase()==='external';
+const mode=()=>institutionMode()==='external';
 const sha256=async(value:string)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value))),b=>b.toString(16).padStart(2,'0')).join('');
 
 function configMap(name:string){try{const value=values()[name]?.trim();const parsed=value?JSON.parse(value):{};return parsed&&typeof parsed==='object'?parsed as Record<string,string>:{};}catch{return {};}}
@@ -29,7 +30,7 @@ export async function buildPartnerEvent(input:{tenantId:string;institutionId:str
 }
 
 export function partnerOutboxInsert(db:DB,input:OutboxInput){
- return db.prepare("INSERT OR IGNORE INTO partner_outbox(id,tenant_id,institution_id,event_type,idempotency_key,payload,payload_sha256,status,attempts,next_attempt_at,lease_until,last_error,created_at,delivered_at) SELECT ?,?,?,?,?,?,?, 'pending',0,0,NULL,NULL,?,NULL WHERE ?='external' AND changes()=1").bind(crypto.randomUUID(),input.tenantId,input.institutionId,input.eventType,input.idempotencyKey,input.payload,input.payloadSha256,input.createdAt,values().PAYEASE_INSTITUTION_MODE||'');
+ return db.prepare("INSERT OR IGNORE INTO partner_outbox(id,tenant_id,institution_id,event_type,idempotency_key,payload,payload_sha256,status,attempts,next_attempt_at,lease_until,last_error,created_at,delivered_at) SELECT ?,?,?,?,?,?,?, 'pending',0,0,NULL,NULL,?,NULL WHERE ?='external' AND changes()=1").bind(crypto.randomUUID(),input.tenantId,input.institutionId,input.eventType,input.idempotencyKey,input.payload,input.payloadSha256,input.createdAt,institutionMode());
 }
 
 export async function dispatchPartnerOutbox(now=new Date().toISOString(),fetcher:typeof fetch=fetch){

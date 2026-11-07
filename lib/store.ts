@@ -9,6 +9,7 @@ import {channelForAccount,claimPublicIdentifier} from './public-id-store.ts';
 import {serializeWorkspacePayload} from './workspace-payload.ts';
 import {ApiError} from './http/api-error';
 import {AuthError} from '@/lib/h5-auth-core';
+import {institutionMode} from '@/lib/runtime-guards';
 import {customerRowsMode,readCustomerShard,writeCustomerShard} from './customer-shards';
 import {buildPartnerEvent,partnerOutboxInsert} from '@/lib/partner-outbox';
 function db(){if(!env.DB)throw Error('测试数据库暂不可用');return env.DB}
@@ -76,7 +77,7 @@ export async function mutate(owner:string,p:any,customer?:{id:string;phoneMasked
 
   if(next===state)return {state,revision};if(p.action==='create'&&owner.startsWith('t_')){const termDays=p.termDays??14;if(![14,28].includes(termDays))throw new KycError('请选择 14 天或 28 天贷款期限');const bill=calculateBill(next.loans[0].amount,{...await pricingFor(owner),termDays},crypto.randomUUID());bill.publicRef=publicIdentifier('B',customer?.channel||'AD',new Date(next.loans[0].createdAt));next.loans[0].billing=bill;next.loans[0].fee=bill.total-bill.principal;}if(customer)await ensureAssignment(owner,customer.id);
   let outboxEvent;
-  if(customer&&['apply','sign'].includes(p.action)&&String((env as any).PAYEASE_INSTITUTION_MODE||'').toLowerCase()==='external'){
+  if(customer&&['apply','sign'].includes(p.action)&&institutionMode()==='external'&&String((env as any).PARTNER_OUTBOX||'').toLowerCase()==='on'){
    const assigned=await db().prepare('SELECT institution_id FROM team_assignments WHERE tenant_id=? AND customer_id=?').bind(owner,customer.id).first<{institution_id:string|null}>();
    if(assigned?.institution_id)try{outboxEvent=await buildPartnerEvent({tenantId:owner,institutionId:assigned.institution_id,eventType:p.action==='apply'?'application.submitted':'agreement.signed',loan:next.loans.find(l=>l.id===p.loanId)!,customerId:customer.id,database:db()});}catch(error){if(error instanceof Error&&error.message==='PARTNER_NOT_CONFIGURED')throw new AuthError('申请暂时无法提交，请稍后再试',503,undefined,'PARTNER_NOT_CONFIGURED');throw error}
   }

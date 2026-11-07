@@ -65,7 +65,7 @@ test('dispatcher behavior covers delivery, retry, timeout, expiry, lease reclaim
   const load=async(name)=>{
     if(modules.has(name))return modules.get(name);
     if(name==='cloudflare:workers'){const m=new vm.SourceTextModule('export const env=globalThis.__env',{context,identifier:name});context.__env=env;modules.set(name,m);await m.link(()=>{throw new Error('unexpected')});await m.evaluate();return m;}
-    const file=name==='@/lib/partner-outbox'?'lib/partner-outbox.ts':'lib/institution-callback.ts';
+    const file=name==='@/lib/partner-outbox'?'lib/partner-outbox.ts':name==='@/lib/runtime-guards'?'lib/runtime-guards.ts':'lib/institution-callback.ts';
     const code=ts.transpileModule(await readFile(new URL(`../${file}`,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ES2022,target:ts.ScriptTarget.ES2022}}).outputText.replaceAll("from 'cloudflare:workers'","from 'cloudflare:workers'").replaceAll("from '@/lib/institution-callback'","from '@/lib/institution-callback'");
     const m=new vm.SourceTextModule(code,{context,identifier:name});modules.set(name,m);await m.link((specifier)=>load(specifier));await m.evaluate();return m;
   };
