@@ -63,8 +63,8 @@ test('ARC-04 event fixtures contain eight valid and three invalid samples', asyn
 });
 
 test('local mock institution verifies, deduplicates and rejects replayed requests', async t => {
-  const { server } = createMockInstitutionServer({ port: 0, secret: 'test-only-secret-1' });
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const { server, listen } = createMockInstitutionServer({ port: 0, secret: 'test-only-secret-1' });
+  await listen();
   t.after(() => server.close());
   const { port } = server.address();
   const body = JSON.stringify({ eventType: 'loan.approved', applicationId: 'app-mock-001' });
@@ -97,4 +97,9 @@ test('local mock institution verifies, deduplicates and rejects replayed request
   assert.equal(replay.status, 409);
   const bad = await fetch(endpoint, { ...make('nonce-mock-000004'), headers: { ...make('nonce-mock-000004').headers, 'x-signature': '0'.repeat(64) } });
   assert.equal(bad.status, 401);
+  const shortKey = await fetch(endpoint, {
+    ...make('nonce-mock-000005'),
+    headers: { ...make('nonce-mock-000005').headers, 'x-idempotency-key': 'short' },
+  });
+  assert.equal(shortKey.status, 400);
 });

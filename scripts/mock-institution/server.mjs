@@ -56,6 +56,7 @@ export function createMockInstitutionServer({
   timeout = process.env.MOCK_TIMEOUT === '1',
   duplicateResponse = process.env.MOCK_DUPLICATE_RESPONSE === '1',
 } = {}) {
+  if (host !== '127.0.0.1') throw new Error('mock institution host must be 127.0.0.1');
   const nonces = new Set();
   const idempotency = new Map();
   const server = createServer(async (req, res) => {
@@ -80,7 +81,7 @@ export function createMockInstitutionServer({
       signature: String(headers['x-signature'] || ''),
       body,
     };
-    if (!input.partnerId || !/^[A-Za-z0-9._:-]{3,80}$/.test(input.partnerId) || !input.idempotencyKey || input.idempotencyKey.length > 120) {
+    if (!input.partnerId || !/^[A-Za-z0-9._:-]{3,80}$/.test(input.partnerId) || input.idempotencyKey.length < 8 || input.idempotencyKey.length > 120) {
       json(res, 400, { error: 'headers_invalid' });
       return;
     }
@@ -110,7 +111,10 @@ export function createMockInstitutionServer({
     idempotency.set(input.idempotencyKey, { bodyHash, response });
     json(res, 202, duplicateResponse ? { ...response, duplicate: true } : response, duplicateResponse ? { 'x-mock-duplicate': 'true' } : {});
   });
-  return { server, nonces, idempotency };
+  const listen = (listenPort = port) => new Promise(resolve => {
+    server.listen(listenPort, host, () => resolve(server.address()));
+  });
+  return { server, listen, nonces, idempotency };
 }
 
 function parseArgs(args) {
@@ -129,9 +133,12 @@ async function sendCallback(args) {
   if (target.hostname !== '127.0.0.1') throw new Error('mock callback target must be 127.0.0.1');
   const eventType = args.event || 'loan.approved';
   const applicationId = args.application_id || 'app-001';
+  const eventId = args.event_id || `event-${randomBytes(8).toString('hex')}`;
   const body = JSON.stringify({
+    eventId,
     eventType,
     applicationId,
+    loanId: applicationId,
     externalReference: args.external_reference || `synthetic-${eventType}`,
     amountCents: Number(args.amount_cents || 1000),
     paymentType: args.payment_type || 'repayment',
@@ -146,6 +153,7 @@ async function sendCallback(args) {
     headers: {
       'content-type': 'application/json',
       'x-partner-id': partnerId,
+      'x-institution-id': partnerId,
       'x-timestamp': timestamp,
       'x-nonce': nonce,
       'x-idempotency-key': idempotencyKey,
@@ -162,10 +170,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   if (args._?.[0] === 'callback' || process.argv[2] === 'callback') {
     await sendCallback(parseArgs(process.argv.slice(3)));
   } else {
-    const { server } = createMockInstitutionServer();
-    server.listen(Number(args.port || process.env.MOCK_INSTITUTION_PORT || 8799), '127.0.0.1', () => {
-      const address = server.address();
-      console.log(`mock institution listening on http://127.0.0.1:${address.port}`);
-    });
+    const { listen, server } = createMockInstitutionServer({ port: Number(args.port || process.env.MOCK_INSTITUTION_PORT || 8799) });
+    await listen();
+    const address = server.address();
+    console.log(`mock institution listening on http://127.0.0.1:${address.port}`);
   }
 }

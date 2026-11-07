@@ -33,6 +33,7 @@ node scripts/mock-institution/server.mjs callback `
 
 `--event` 支持 `loan.approved`、`loan.rejected`、`funding.confirmed`、`repayment.confirmed`、`payment.failed`。
 请求使用 ARC-04 的 HMAC-SHA256 规范化串和 `X-Partner-Id`、`X-Timestamp`、`X-Nonce`、`X-Idempotency-Key`、`X-Signature` 头。
+请求还同时发送 `X-Institution-Id`（与 `X-Partner-Id` 同值），并在 body 中同时发送 `applicationId`、`loanId`（同值）和 `eventId`。在 HS-1 合并之前，接收端只认 `X-Institution-Id` 和 `loanId`。
 
 ## 测试向量
 
