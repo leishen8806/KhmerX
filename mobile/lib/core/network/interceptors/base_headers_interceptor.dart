@@ -25,6 +25,9 @@ final class BaseHeadersInterceptor extends Interceptor {
     options.headers.removeWhere((key, _) => key.toLowerCase().startsWith('oai-'));
 
     options.headers['User-Agent'] = _userAgent;
+    // The mobile app uses the H5 auth endpoints but is governed by the
+    // company's `type='app'` channel row, not the browser H5 row.
+    options.headers['X-Payease-Client'] = 'app';
     options.headers['Accept'] = _accept;
 
     super.onRequest(options, handler);
