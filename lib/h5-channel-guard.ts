@@ -1,4 +1,5 @@
 import {env} from 'cloudflare:workers';
+import {createHash,timingSafeEqual} from 'node:crypto';
 import {AuthError,type AuthRuntime} from '@/lib/h5-auth-core';
 import {h5ChannelErrorCode,h5ChannelStatus,type ConfiguredChannel,type H5ChannelStatus} from '@/lib/h5-channel-status';
 
@@ -15,7 +16,26 @@ async function configuredChannel(r:AuthRuntime,owner:string|undefined,type:Publi
  }catch(error){console.warn('[h5-channel] company_channels lookup unavailable; using legacy state',type,error instanceof Error?error.message:'unknown error');return {exists:false};}
 }
 
+export function constantTimeEqual(left:string,right:string):boolean{
+ const a=Buffer.from(left),b=Buffer.from(right);
+ if(a.length!==b.length){return timingSafeEqual(createHash('sha256').update(a).digest(),createHash('sha256').update(b).digest());}
+ return timingSafeEqual(a,b);
+}
+
 export function channelType(request:Request):'h5'|'app'{return request.headers.get('x-payease-client')?.trim().toLowerCase()==='app'?'app':'h5'}
+
+export function appRequestHasValidKey(request:Request,configuredKey:unknown):boolean{
+ if(channelType(request)!=='app')return false;
+ const supplied=request.headers.get('x-payease-app-key')?.trim()||'';
+ return Boolean(supplied&&configuredKey)&&constantTimeEqual(supplied,String(configuredKey));
+}
+
+export async function requestChannelType(r:AuthRuntime,request:Request,owner?:string):Promise<'h5'|'app'>{
+ if(!owner)return 'h5';
+ const configured=await configuredChannel(r,owner,'app');
+ const values=env as unknown as Record<string,unknown>,key=String(values.PAYEASE_APP_CLIENT_KEY??'').trim();
+ return configured?.exists&&key.length>=32&&appRequestHasValidKey(request,key)?'app':'h5';
+}
 
 export async function channelStatus(r:AuthRuntime,owner?:string,channelType:PublicChannelType='h5',channelId?:unknown):Promise<H5ChannelStatus>{
  const values=env as unknown as Record<string,unknown>;
