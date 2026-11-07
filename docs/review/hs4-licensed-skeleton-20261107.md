@@ -15,18 +15,23 @@
 
 本地默认分支：`main`
 
-本地提交：`cc8d5e4 chore: initialize licensed institution skeleton`
+本地提交：`66978a33863b093b5188c9c6c8a97b2e2f5f491c feat: complete licensed institution skeleton`
 
 `node_modules` 是指向 `E:\KhmerX\wt-GL-1\node_modules` 的本地 junction，已由 `.gitignore` 排除，不在 Git 中。
 
 ## 依赖核对
 
-新仓库只声明了骨架测试所需的 KhmerX 已有开发包；运行时服务只用 Node 内置模块，因此没有声明 `miniflare` 等未使用依赖。版本与 KhmerX `package-lock.json` 对照如下：
+新仓库采用 Vinext + Workers/D1 + Miniflare 本地运行结构，声明的包均取自 KhmerX 锁定版本；依赖通过既有 `wt-GL-1/node_modules` junction 复用，未联网执行安装。
 
 | 包 | 新仓库声明 | KhmerX 锁定版本 | 结果 |
 |---|---:|---:|---|
 | `typescript` | `5.9.3` | `5.9.3` | 一致 |
 | `@types/node` | `22.19.19` | `22.19.19` | 一致 |
+| `@cloudflare/vite-plugin` | `1.37.1` | `1.37.1` | 一致 |
+| `@cloudflare/workers-types` | `4.20260515.1` | `4.20260515.1` | 一致 |
+| `miniflare` | `4.20260730.0` | `4.20260730.0` | 一致 |
+| `vinext` | `1.0.0-beta.5` | `1.0.0-beta.5` | 一致 |
+| `vite` | `8.0.13` | `8.0.13` | 一致 |
 
 因此按卡片规则复用了已安装依赖；没有新增包、升级包或联网安装。
 
@@ -40,24 +45,23 @@
 - `lib/http/route.ts`
 - `lib/request-security.ts`
 - `lib/runtime-guards.ts`
+- `lib/team/audit-writer.ts`（按该提交内容复制，文件头注明来源）
 
 复制自 HS-3 已批准提交 `cd66a5b`：
 
 - `lib/institution-callback.ts`（签名/验签实现）
 - `tests/fixtures/arc04-v0/signing.json`
 - `tests/fixtures/arc04-v0/events/*.json`（8 个合法样例、3 个非法样例）
-- `scripts/mock-institution/server.mjs` 与 README
 - `tests/arc04-vectors.test.mjs`
-
-注意：`origin/main` `77779ae` 中不存在 `lib/team/audit-writer.ts`，因此没有可复制的源文件。新仓库中的 `lib/team/audit-writer.ts` 是为本地骨架新写的最小实现，并在文件头注明该事实；未修改 KhmerX。
 
 ## 新写内容
 
-- `drizzle/0001_licensed_core.sql`：`applications`、`inbound_events`、`nonces`、`audit` 四张表。
-- `lib/licensed-events.mjs`：本地接收逻辑，支持 `X-Partner-Id`，兼容 `X-Institution-Id`，验签、nonce 防重放、幂等与应用写入。
-- `server.mjs`：`POST /v0/events` 与 `GET /healthz`，只绑定 `127.0.0.1`。
-- `tests/events-route.test.mjs`：合法/非法事件、幂等、重放及头部冲突测试。
-- `tests/repo-boundary.test.mjs`：确认仓库不含 `app/h5`、`app/mini`、`lib/kyc`、`mobile`。
+- `drizzle/0001_licensed_core.sql`：`applications`、`inbound_events`、`nonces`、`team_audit` 四张表。
+- `lib/licensed-events.ts`：D1 接收逻辑；仅接受 `application.submitted`、`agreement.signed`、`application.withdrawn`，持久化 nonce、幂等记录、申请状态和审计记录。
+- `server.mjs`、`scripts/d1-worker.mjs`、`vite.config.ts`：Miniflare/D1 本地服务和 Vinext/Workers 构建配置，监听仅绑定 `127.0.0.1`。
+- `tests/events-route.test.mjs`：合法/非法事件、未知申请 409、头部冲突、重启后幂等及 nonce 重放测试。
+- `tests/repo-boundary.test.mjs`：禁止客户端、KYC、机构后台、贷后、通知、Mini 组件和 mobile 树。
+- 已删除 `scripts/mock-institution/`；保留 `tests/fixtures/arc04-v0/`。
 
 没有复制客户端、KYC、运营、贷后、通知代码，也没有复制数据库文件或真实密钥。
 
@@ -66,20 +70,34 @@
 在 `E:\KhmerX\KhmerX-Licensed` 执行：
 
 ```text
+npm run typecheck
+tsc --noEmit --pretty false
+
+npm run lint
+eslint . --ignore-pattern dist --ignore-pattern .next
+
+npm run build
+vinext build (Vite 8.0.13)
+Route (app): /, /api/v0/events, /healthz
+Build complete.
+```
+
+```text
 npm test
 ✔ ARC-04 signing vectors match the shared implementation
 ✔ ARC-04 event fixtures contain eight valid and three invalid samples
-✔ local mock institution verifies, deduplicates and rejects replayed requests
-✔ licensed receiver accepts valid event samples and rejects invalid samples
-✔ licensed receiver is idempotent and rejects replay and mismatched headers
+✔ licensed D1 receiver accepts the three outbound event samples and rejects others
+✔ signed and withdrawn unknown applications return 409
+✔ D1 idempotency and nonce replay survive a Miniflare restart
 ✔ licensed repository contains no client, KYC or mobile trees
 ℹ tests 6
 ℹ pass 6
 ℹ fail 0
 ```
 
-## 待办与限制
+## 结果与限制
 
 - 尚未实现机构审批界面、KYC 文件拉取/哈希校验、回调发送端、重试/死信、员工账号表及正式数据库适配；这些属于后续批次。
 - 本卡未创建远程仓库，因此没有推送 `KhmerX-Licensed`。
-- 由于 KhmerX 当前 main 缺少 `lib/team/audit-writer.ts`，审计写入器需要在技术负责人确认来源后再替换为正式实现。
+- 未运行 `npm ci`；没有新增依赖，使用已安装 junction。正式远端仓库创建、部署、真实机构网络验证均未执行。
+- 本地 package-lock 已记录声明版本，但本次未做联网锁文件重建；后续若要求独立 `npm ci`，应在隔离环境中单独核对锁文件闭包。
