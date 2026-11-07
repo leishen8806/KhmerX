@@ -8,6 +8,7 @@ import {publicIdentifier} from './public-id.ts';
 import {channelForAccount,claimPublicIdentifier} from './public-id-store.ts';
 import {serializeWorkspacePayload} from './workspace-payload.ts';
 import {ApiError} from './http/api-error';
+import {AuthError} from '@/lib/h5-auth-core';
 import {customerRowsMode,readCustomerShard,writeCustomerShard} from './customer-shards';
 import {buildPartnerEvent,partnerOutboxInsert} from '@/lib/partner-outbox';
 function db(){if(!env.DB)throw Error('测试数据库暂不可用');return env.DB}
@@ -77,7 +78,7 @@ export async function mutate(owner:string,p:any,customer?:{id:string;phoneMasked
   let outboxEvent;
   if(customer&&['apply','sign'].includes(p.action)&&String((env as any).PAYEASE_INSTITUTION_MODE||'').toLowerCase()==='external'){
    const assigned=await db().prepare('SELECT institution_id FROM team_assignments WHERE tenant_id=? AND customer_id=?').bind(owner,customer.id).first<{institution_id:string|null}>();
-   if(assigned?.institution_id)outboxEvent=await buildPartnerEvent({tenantId:owner,institutionId:assigned.institution_id,eventType:p.action==='apply'?'application.submitted':'agreement.signed',loan:next.loans.find(l=>l.id===p.loanId)!,customerId:customer.id,database:db()});
+   if(assigned?.institution_id)try{outboxEvent=await buildPartnerEvent({tenantId:owner,institutionId:assigned.institution_id,eventType:p.action==='apply'?'application.submitted':'agreement.signed',loan:next.loans.find(l=>l.id===p.loanId)!,customerId:customer.id,database:db()});}catch(error){if(error instanceof Error&&error.message==='PARTNER_NOT_CONFIGURED')throw new AuthError('申请暂时无法提交，请稍后再试',503,undefined,'PARTNER_NOT_CONFIGURED');throw error}
   }
   if(approvedCase){
    const updated=next.loans.find(l=>l.id===p.loanId)!;
@@ -90,7 +91,7 @@ export async function mutate(owner:string,p:any,customer?:{id:string;phoneMasked
   }
   // customerAction records the canonical customer-prefixed idempotency key.
   if(rowsMode==='on'&&customer){
-   if(await writeCustomerShard(db(),owner,customer.id,next,revision,next.requests.at(-1)))return {state:next,revision:revision+1};
+   if(await writeCustomerShard(db(),owner,customer.id,next,revision,next.requests.at(-1),true,outboxEvent?[partnerOutboxInsert(db(),outboxEvent)]:[]))return {state:next,revision:revision+1};
    continue;
   }
   const stateWrite=db().prepare("UPDATE demo_workspaces SET payload=?,revision=revision+1 WHERE owner=? AND revision=? AND (? IS NULL OR EXISTS(SELECT 1 FROM kyc_cases WHERE id=? AND owner=? AND revision=? AND status='approved'))").bind(serializeWorkspacePayload(next),owner,revision,creationCase?.id||null,creationCase?.id||null,owner,creationCase?.revision??0);

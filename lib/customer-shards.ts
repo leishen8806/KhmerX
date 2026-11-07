@@ -45,7 +45,7 @@ export async function readCustomerShard(db:DB,owner:string,customerId:string){
   .bind(owner,customerId).first<{revision:number;payload:string}>();
 }
 
-export async function writeCustomerShard(db:DB,owner:string,customerId:string,state:State,revision:number,requestId?:string,strictRevision=true){
+export async function writeCustomerShard(db:DB,owner:string,customerId:string,state:State,revision:number,requestId?:string,strictRevision=true,extraStatements:any[]=[]){
  const existing=await readCustomerShard(db,owner,customerId);
  const shard=shardForCustomer(state,customerId);
  const requests=existing?(JSON.parse(existing.payload) as CustomerShard):{requests:[] as string[],requestDigests:{} as Record<string,string>};
@@ -63,6 +63,7 @@ export async function writeCustomerShard(db:DB,owner:string,customerId:string,st
  const result=await db.batch([
   db.prepare('UPDATE customer_workspaces SET revision=?,payload=?,updated_at=? WHERE owner=? AND customer_id=? AND revision=?')
    .bind(next,JSON.stringify(shard),new Date().toISOString(),owner,customerId,expected),
+  ...extraStatements,
   ...indexStatements(db,owner,customerId,shard.loans,next),
  ]);
  return result[0]?.meta.changes===1;

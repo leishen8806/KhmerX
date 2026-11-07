@@ -9,6 +9,7 @@ CREATE TABLE partner_outbox (
   status TEXT NOT NULL CHECK (status IN ('pending','sending','delivered','dead')),
   attempts INTEGER NOT NULL DEFAULT 0,
   next_attempt_at INTEGER NOT NULL DEFAULT 0,
+  lease_until INTEGER,
   last_error TEXT,
   created_at TEXT NOT NULL,
   delivered_at TEXT
