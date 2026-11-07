@@ -68,6 +68,10 @@ const login = await api('/api/team/auth', { action: 'login', portal: 'business',
 if (!login.response.ok) throw new Error(`admin login failed while preparing channel: HTTP ${login.response.status} ${JSON.stringify(login.body)}`);
 const bot = await api('/api/state', { action: 'bot_save', requestId: `seed-${randomBytes(12).toString('hex')}`, botId: 'bot-1', label: 'Local acceptance channel', username: '', enabled: true, phoneVerification: true, passwordSetup: true });
 if (!bot.response.ok) throw new Error(`admin bot_save failed while preparing channel: HTTP ${bot.response.status} ${JSON.stringify(bot.body)}`);
+const channelDb = new DatabaseSync(dbPath);
+channelDb.prepare(`INSERT OR IGNORE INTO company_channels (id,tenant_id,type,label,enabled,auth_mode,phone_verification,password_setup,languages_json,default_language,source_channel,hosts_json,allowed_origins_json,entry_slug) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(`h5-${companyId}`, companyId, 'h5', 'Local acceptance H5', 1, 'demo', 1, 1, JSON.stringify({ zh: true, en: true, km: true }), 'zh', 'H5', JSON.stringify(['127.0.0.1']), JSON.stringify([base]), 'khmerx-gray');
+channelDb.prepare(`INSERT OR IGNORE INTO company_channels (id,tenant_id,type,label,enabled,auth_mode,phone_verification,password_setup,languages_json,default_language,source_channel,app_platform,api_base_url,cookie_hosts_json,entry_slug) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(`app-${companyId}`, companyId, 'app', 'Local acceptance App', 1, 'sms', 1, 1, JSON.stringify({ zh: true, en: true, km: true }), 'zh', 'AP', 'android', base, JSON.stringify(['127.0.0.1']), 'khmerx-gray');
+channelDb.close();
 const output = join(data, 'local-acceptance-staff.json');
 writeFileSync(output, JSON.stringify({ companyId, dbPath, staff }, null, 2) + '\n', { mode: 0o600 });
 console.log(JSON.stringify({ event: 'local_acceptance_seeded', companyId, output }));

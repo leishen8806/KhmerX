@@ -122,7 +122,7 @@ await check('company channel list and selfcheck through staff interface', async 
 
 await check('customer_enter sets company cookie and H5 sees same company', async () => {
   if (!adminSession.response.ok) throw blocked(`admin login unavailable: HTTP ${adminSession.response.status}`);
-  const customerEntry = jar();
+  const customerEntry = adminSession.jar;
   const entered = await json(customerEntry, '/api/team', { action: 'customer_enter', slug: companySlug });
   assertOk(entered, 'customer_enter');
   const companyCookie = customerEntry.cookies.get('payease_company');
