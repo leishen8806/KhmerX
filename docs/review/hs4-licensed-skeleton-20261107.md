@@ -101,3 +101,24 @@ npm test
 - 本卡未创建远程仓库，因此没有推送 `KhmerX-Licensed`。
 - 未运行 `npm ci`；没有新增依赖，使用已安装 junction。正式远端仓库创建、部署、真实机构网络验证均未执行。
 - 本地 package-lock 已记录声明版本，但本次未做联网锁文件重建；后续若要求独立 `npm ci`，应在隔离环境中单独核对锁文件闭包。
+
+## HS-4 修改 2（2026-11-07）
+
+本地仓库新增提交：`0f1b10295fc8655178539cddda2e3ea6c7e7a89b`。
+
+- 边界扫描改用 `path.relative`；临时 `lib/kyc/x.ts` 违例测试确认会被识别，测试结束后已删除。
+- 删除 `lib/h5-auth-core.ts`、`lib/kyc/core.ts`，新增 `lib/http/errors.ts`；`lib/http/route.ts` 仅调整错误类导入并注明来源修改。
+- `applications`、`inbound_events`、`nonces` 均按 `partner_id` 隔离；签约/撤回写入 `application_events`，不覆盖 submitted payload。
+- 增加跨合作方 409、重复 submitted、signed/withdrawn 状态推进、withdrawn 闭合和并发唯一约束测试。
+- `.gitignore` 增加无斜杠的 `node_modules` 规则；本地仓库 `git status` 干净。
+
+本机实际结果：
+
+```text
+npm test       10 passed, 0 failed
+npm run typecheck 通过
+npm run lint      通过，0 errors
+npm run build     通过，Vinext 5 个阶段完成
+```
+
+机构本地仓库仍未设置远程、未推送；本报告分支按要求同步更新并推送。
