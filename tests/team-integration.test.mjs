@@ -670,3 +670,26 @@ test('K4 requests validate before mutation and persist encrypted review, actor a
  }
  const audit=sql.prepare('SELECT detail FROM team_audit WHERE tenant_id=?').all(A);assert(audit.every(x=>!x.detail.includes(requests[0].note)));selected=A;user=owner;
 });
+test('external institution callbacks consume funding, repayment and payment failure events',async()=>{
+ selected=A;user=owner;
+ const before=await store.readState(A),originalPayload=sql.prepare('SELECT payload FROM demo_workspaces WHERE owner=?').get(A).payload;
+ const base=before.state.loans.find(l=>l.customerId==='customer-1');assert(base);
+ const synthetic=structuredClone(base);synthetic.id='hs1-external-loan';synthetic.status='decision_pending';synthetic.approvalActor=undefined;synthetic.approvalCheckedBy=undefined;synthetic.fundingActor=undefined;synthetic.fundingCheckedBy=undefined;synthetic.paid=0;synthetic.wallet=0;synthetic.note='Synthetic HS-1 external callback';
+ const state=structuredClone(before.state);state.loans.unshift(synthetic);sql.prepare('UPDATE demo_workspaces SET payload=?,revision=revision+1 WHERE owner=?').run(JSON.stringify(state),A);
+ const previousMode=env.PAYEASE_INSTITUTION_MODE;env.PAYEASE_INSTITUTION_MODE='external';env.INSTITUTION_CALLBACK_SECRETS_JSON=JSON.stringify({[inst]:'synthetic-callback-secret'});
+ let counter=0;
+ const send=async(eventType,extra={},header='x-partner-id')=>{const body=JSON.stringify({eventType,eventId:`hs1-event-${++counter}`,applicationId:synthetic.id,...extra}),timestamp=String(Math.floor(Date.now()/1000)),nonce=`hs1-callback-nonce-${counter.toString().padStart(8,'0')}`,idempotency=`hs1-callback-id-${counter.toString().padStart(8,'0')}`,signature=await callbackSignature.signInstitutionCallback('synthetic-callback-secret',{institutionId:inst,timestamp,nonce,body,idempotencyKey:idempotency});return callbackRoute.POST(new Request('http://localhost/api/institution/callback',{method:'POST',headers:{'content-type':'application/json',[header]:inst,'x-timestamp':timestamp,'x-nonce':nonce,'x-idempotency-key':idempotency,'x-signature':signature},body}))};
+ try{
+  let response=await send('loan.approved');assert.equal(response.status,200);let current=(await store.readState(A)).state.loans.find(l=>l.id===synthetic.id);assert.equal(current.status,'approved');
+  const afterApproval=await store.readState(A);afterApproval.state.loans=afterApproval.state.loans.map(l=>l.id===synthetic.id?{...l,status:'signed'}:l);sql.prepare('UPDATE demo_workspaces SET payload=?,revision=revision+1 WHERE owner=?').run(JSON.stringify(afterApproval.state),A);
+  response=await send('funding.confirmed',{externalReference:'hs1-funding-001'},'x-institution-id');assert.equal(response.status,200);current=(await store.readState(A)).state.loans.find(l=>l.id===synthetic.id);assert.equal(current.status,'active');
+  response=await send('payment.failed',{paymentType:'repayment',externalReference:'hs1-failed-001'});assert.equal(response.status,200);current=(await store.readState(A)).state.loans.find(l=>l.id===synthetic.id);assert.equal(current.status,'active');assert.match(current.note,/还款失败/);
+  response=await send('repayment.confirmed',{amountCents:100,externalReference:'hs1-repay-001'});assert.equal(response.status,200);
+  response=await send('repayment.confirmed',{amountCents:current.billing.total-100,externalReference:'hs1-repay-002'});assert.equal(response.status,200);current=(await store.readState(A)).state.loans.find(l=>l.id===synthetic.id);assert.equal(current.status,'closed');
+  response=await send('repayment.confirmed',{amountCents:100,externalReference:'hs1-repay-001'});assert.equal((await response.json()).consumerReason,'EXTERNAL_REFERENCE_DUPLICATE');
+ }finally{
+  sql.prepare('UPDATE demo_workspaces SET payload=?,revision=revision+1 WHERE owner=?').run(originalPayload,A);
+  if(previousMode===undefined)delete env.PAYEASE_INSTITUTION_MODE;else env.PAYEASE_INSTITUTION_MODE=previousMode;
+  delete env.INSTITUTION_CALLBACK_SECRETS_JSON;
+ }
+});
