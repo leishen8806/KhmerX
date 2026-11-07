@@ -66,7 +66,7 @@ test('App spoof matrix has explicit H5 fallback and selfcheck warning',()=>{
 test('App client key is documented without a committed value',()=>{
  const config=fs.readFileSync(new URL('../deploy/standalone/gray/config.json.example',import.meta.url),'utf8');
  const runbook=fs.readFileSync(new URL('../docs/ops/gray-deploy-runbook-159.223.77.134.md',import.meta.url),'utf8');
- assert.match(config,/"PAYEASE_APP_CLIENT_KEY": ""/);
+ assert.doesNotMatch(config,/PAYEASE_APP_CLIENT_KEY/);
  assert.match(runbook,/PAYEASE_APP_CLIENT_KEY/);
  assert.doesNotMatch(runbook,/PAYEASE_APP_CLIENT_KEY=[^\s<]+/);
 });
