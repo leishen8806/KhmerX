@@ -29,7 +29,7 @@ await cp(join(repo, 'dist-separated', 'api', 'drizzle'), join(app, 'drizzle'), {
 await cp(join(repo, 'dist-separated', 'client'), join(app, 'dist', 'client'), { recursive: true });
 const cfg = {
   host: '127.0.0.1',
-  publicClientHosts: ['127.0.0.1', 'localhost'],
+  publicClientHosts: [`127.0.0.1:${port}`, `localhost:${port}`],
   adminHosts: ['admin.localhost'],
   apiHosts: ['api.localhost'],
   accessUser: `local-${randomUUID()}`,
@@ -54,7 +54,7 @@ await writeFile(join(data, 'local-acceptance-secrets.json'), JSON.stringify({ ac
 const child = spawn(process.execPath, [join(repo, 'deploy/standalone/server.mjs')], {
   cwd: root,
   stdio: 'inherit',
-  env: { ...process.env, PAYEASE_STANDALONE_ROOT: root, PAYEASE_STANDALONE_PORT: String(port), PAYEASE_ALLOWED_ORIGINS: `http://127.0.0.1:${port},http://localhost:${port}`, SCANNER_TOKEN_PATH: join(data, 'scanner-token') },
+  env: { ...process.env, PAYEASE_STANDALONE_ROOT: root, PAYEASE_STANDALONE_PORT: String(port), PAYEASE_STANDALONE_HOST: '127.0.0.1', PAYEASE_ALLOWED_ORIGINS: `http://127.0.0.1:${port},http://localhost:${port}`, SCANNER_TOKEN_PATH: join(data, 'scanner-token') },
 });
 const stop = () => { if (!child.killed) child.kill('SIGTERM'); };
 process.once('SIGINT', stop); process.once('SIGTERM', stop);

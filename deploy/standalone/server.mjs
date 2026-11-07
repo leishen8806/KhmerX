@@ -7,9 +7,8 @@ import {splitSql} from './sql-split.mjs';
 import {maintenanceResponse} from './maintenance.mjs';
 import {hostRules,isAllowedHost,isPublicClientHost,isAdminHost,isApiHost,resolveClientIp} from './hosts.mjs';
 import {assertCustomerCompanyConfig,deploymentCustomerCompany} from './company-config.mjs';
-const standaloneRoot=process.env.PAYEASE_STANDALONE_ROOT||'';
-const appRoot=standaloneRoot?standaloneRoot+'/app':'/app';
-const dataRoot=standaloneRoot?standaloneRoot+'/data':'/data';
+import {standaloneConfig} from './runtime-config.mjs';
+const {appRoot,dataRoot,port,host:listenHost}=standaloneConfig(process.env);
 const moduleRoot=appRoot+'/dist/server';
 // macOS AppleDouble resource-fork files (._*.js) are not JavaScript. Exclude
 // them so a copied release cannot make the Workers runtime fail at boot.
@@ -175,7 +174,7 @@ const server=createServer(async(req,res)=>{
  req.setTimeout(isUpload?60000:30000);
  const expected='Basic '+Buffer.from(cfg.accessUser+':'+cfg.accessPassword).toString('base64');
  const jobRequest=req.url==='/api/jobs/postloan'&&req.method==='POST'&&eq(req.headers.authorization||'','Bearer '+cfg.bindings.POSTLOAN_JOB_SECRET);
- const host=String(req.headers.host||'').replace(/^\[([^\]]+)\](?::\d+)?$/, '$1').replace(/:\d+$/, '');
+ const host=req.headers.host;
  if(req.method==='GET'&&['/healthz','/readyz','/version'].includes(req.url)){
   if(req.url==='/healthz'){
    res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});
@@ -234,5 +233,5 @@ const server=createServer(async(req,res)=>{
  }catch(e){console.error(e instanceof Error?e.stack||e:e);if(!res.headersSent)gatewayError(res,503,'SERVICE_UNAVAILABLE','Service temporarily unavailable',overloadRetryAfter);}});
 server.headersTimeout=30000;
 server.requestTimeout=60000;
-server.listen(Number(process.env.PAYEASE_STANDALONE_PORT||4300),'127.0.0.1',()=>console.log('PayEase test server ready'));
+server.listen(port,listenHost,()=>console.log('PayEase test server ready'));
 for(const signal of ['SIGTERM','SIGINT'])process.on(signal,()=>{server.close(async()=>{await mf.dispose();process.exit(0)});});
