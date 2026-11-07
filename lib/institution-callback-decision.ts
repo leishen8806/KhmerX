@@ -1,11 +1,19 @@
 import type {State} from '@/lib/domain';
 
-export type InstitutionDecision='loan.approved'|'loan.rejected';
+export type InstitutionDecision='loan.approved'|'loan.rejected'|'funding.confirmed';
 
 /** Apply only an institution decision; the independent checker remains required. */
-export function applyInstitutionDecision(state:State,loanId:string,eventType:InstitutionDecision,actor:string,reason:string,contract?:string,now=new Date().toISOString()):State{
+export function applyInstitutionDecision(state:State,loanId:string,eventType:InstitutionDecision,actor:string,reason:string,contract?:string,now=new Date().toISOString(),externalReference?:string):State{
  const next=structuredClone(state),loan=next.loans.find(item=>item.id===loanId);
  if(!loan)throw new Error('贷款申请不存在');
+ if(eventType==='funding.confirmed'){
+  if(loan.status!=='signed'||!loan.approvalCheckedBy||loan.fundingActor)throw new Error('贷款状态不允许处理机构出资');
+  const reference=externalReference?.trim().slice(0,120);if(!reference)throw new Error('机构出资外部编号为空');
+  loan.fundingActor=actor;loan.externalReference=reference;loan.note='机构已确认出资，等待财务复核';
+  next.events.unshift({id:crypto.randomUUID(),loanId:loan.id,role:'lender',action:eventType,note:loan.note,at:now});
+  next.notifications.unshift({id:crypto.randomUUID(),loanId:loan.id,botId:loan.botId,text:loan.note,at:now,status:'机构回调已记录'});
+  return next;
+ }
  if(loan.status!=='decision_pending'||loan.approvalActor)throw new Error('贷款状态不允许处理机构决定');
  loan.approvalActor=actor;
  if(eventType==='loan.approved'){
