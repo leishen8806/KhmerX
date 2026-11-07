@@ -109,6 +109,30 @@ await check('role × portal login matrix (real password login)', async () => {
   return { matrix, source: 'POST /api/team/auth + GET /api/team', scheme: 'portalAllows' };
 });
 
+const adminSession = await login('admin', 'business');
+await check('company channel list and selfcheck through staff interface', async () => {
+  if (!adminSession.response.ok) throw blocked(`admin login unavailable: HTTP ${adminSession.response.status}`);
+  const list = await request(adminSession.jar, '/api/team/channels');
+  assertOk(list, 'channel list');
+  const selfcheck = await request(adminSession.jar, '/api/team/channels/selfcheck');
+  assertOk(selfcheck, 'channel selfcheck');
+  if (selfcheck.body?.ok !== true) throw new Error(`channel selfcheck not ok: ${JSON.stringify(selfcheck.body)}`);
+  return { listStatus: list.response.status, channelCount: list.body?.channels?.length ?? null, selfcheck: selfcheck.body };
+});
+
+await check('customer_enter sets company cookie and H5 sees same company', async () => {
+  if (!adminSession.response.ok) throw blocked(`admin login unavailable: HTTP ${adminSession.response.status}`);
+  const customerEntry = jar();
+  const entered = await json(customerEntry, '/api/team', { action: 'customer_enter', slug: companySlug });
+  assertOk(entered, 'customer_enter');
+  const companyCookie = customerEntry.cookies.get('payease_company');
+  if (companyCookie !== companyId) throw new Error(`company cookie mismatch: ${companyCookie} !== ${companyId}`);
+  const auth = await request(customerEntry, '/api/h5/auth');
+  assertOk(auth, 'H5 bootstrap after customer_enter');
+  if (auth.body?.company !== 'KhmerX Gray') throw new Error(`H5 company mismatch: ${auth.body?.company}`);
+  return { status: entered.response.status, companyCookie, h5Company: auth.body.company, consistent: true };
+});
+
 let playwright;
 try { playwright = await import(process.env.PLAYWRIGHT_MODULE || '/private/tmp/pw-run/node_modules/playwright/index.mjs'); } catch { playwright = null; }
 async function screenshotForSession(name, session, path) {
