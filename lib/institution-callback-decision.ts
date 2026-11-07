@@ -15,7 +15,7 @@ export function applyInstitutionDecision(state:State,loanId:string,eventType:Ins
   const note=reason.trim().slice(0,300);if(!note)throw new Error('机构拒绝原因为空');
   loan.status='rejected';loan.note=note;
  }
- next.events.unshift({id:crypto.randomUUID(),loanId:loan.id,role:'lender',action:eventType,note:loan.note,at:now});
+ next.events.unshift({id:crypto.randomUUID(),loanId:loan.id,role:'lender',action:eventType==='loan.approved'?'approve':'reject',note:loan.note,at:now});
  next.notifications.unshift({id:crypto.randomUUID(),loanId:loan.id,botId:loan.botId,text:loan.note,at:now,status:'机构回调已记录'});
  return next;
 }
