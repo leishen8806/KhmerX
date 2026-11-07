@@ -1,4 +1,4 @@
-type SelfcheckChannel={tenant_id?:string;type?:string;enabled?:number|boolean;hosts_json?:string|string[];allowed_origins_json?:string|string[];auth_mode?:string;phone_verification?:number|boolean;bot_telegram_id?:string|null;bot_username?:string|null;api_base_url?:string|null;token_configured?:number|boolean};
+type SelfcheckChannel={tenant_id?:string;type?:string;enabled?:number|boolean;hosts_json?:string|string[];allowed_origins_json?:string|string[];auth_mode?:string;phone_verification?:number|boolean;bot_telegram_id?:string|null;bot_username?:string|null;api_base_url?:string|null;package_id?:string|null;token_configured?:number|boolean};
 const list=(value:unknown):string[]=>{if(Array.isArray(value))return value.filter((item):item is string=>typeof item==='string'&&item.trim().length>0);if(typeof value!=='string')return [];try{return list(JSON.parse(value||'[]'));}catch{return []}};
 const enabled=(value:unknown)=>value===true||value===1||value==='1';
 export type SelfcheckStatus='pass'|'fail'|'warn';
@@ -15,6 +15,7 @@ export function selfCheckCompanyChannels(channels:SelfcheckChannel[],options:{te
  add('h5_host_configured','H5 主机',h5&&!h5Hosts.length?'fail':h5?'pass':'warn',h5&&!h5Hosts.length?'启用 H5 渠道必须配置绑定主机':'已配置 H5 绑定主机');
  const app=current.find(channel=>channel.type==='app'&&enabled(channel.enabled));
  add('app_api_host_configured','App API 主机',app&&(!app.api_base_url||!String(app.api_base_url).trim())?'fail':app?'pass':'warn',app&&(!app.api_base_url||!String(app.api_base_url).trim())?'启用 App 渠道必须配置 API 地址':'已配置 App API 地址');
+ add('app_shared_key_configured','App 共享标识',app&&(!app.package_id||!String(app.package_id).trim())?'warn':app?'pass':'warn',app&&(!app.package_id||!String(app.package_id).trim())?'未配置 App 共享标识，App 请求将按 H5 处理':app?'已配置 App 共享标识':'没有启用 App 渠道');
  const telegram=current.filter(channel=>channel.type==='telegram_miniapp'&&enabled(channel.enabled));
  add('telegram_auth_mode','Telegram 登录方式',telegram.length>0&&telegram.every(channel=>channel.auth_mode==='telegram')?'pass':telegram.length?'fail':'warn',telegram.length&&telegram.every(channel=>channel.auth_mode==='telegram')?'Telegram 登录方式正确':telegram.length?'启用 Telegram 渠道必须使用 Telegram 登录':'没有启用 Telegram 渠道');
  add('h5_phone_verification','H5 手机验证',h5&&enabled(h5.phone_verification)?'pass':h5?'fail':'warn',h5&&enabled(h5.phone_verification)?'H5 已开启手机验证':h5?'H5 必须开启手机验证':'没有启用 H5 渠道');
