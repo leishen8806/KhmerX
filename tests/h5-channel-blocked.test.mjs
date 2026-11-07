@@ -49,3 +49,9 @@ test('blocked channel pages do not render a phone form',()=>{
  assert.match(login,/localizedChannelError\(blocked,authLocale\)/);
  assert.match(login,/setBlocked\(code\)/);
 });
+test('Telegram verifier errors stay in the form and offer a reopen action',()=>{
+ assert.match(login,/TELEGRAM_INITDATA_EXPIRED/);
+ assert.match(login,/TELEGRAM_INITDATA_INVALID/);
+ assert.match(login,/authTelegramReopen/);
+ assert.match(login,/messageForError\(\{code:nextTelegramCode\},authLocale\)/);
+});
