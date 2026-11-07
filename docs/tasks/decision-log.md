@@ -53,3 +53,9 @@
 | D-47 | 灰度制品从合并后的 main 构建 | 构建机按锁定文件联网执行一次 `npm ci`，制品须经校验后再传灰度；详见 `docs/tasks/status/2026-11-06-decisions-batch-g.md` | 已确认（范围受限） |
 | D-48 | 关闭 PR #198 | 由技术负责人在 GitHub 上关闭；详见 `docs/tasks/status/2026-11-06-decisions-batch-g.md` | 已确认 |
 | D-49 | 灰度部署窗口 2026-11-09 13:00–17:30 | 四项开窗前置条件任一不满足即顺延，17:30 硬截止；详见 `docs/tasks/status/2026-11-06-decisions-batch-g.md` | 已确认（附前置条件） |
+| D-50 | 前后端容器拆分版灰度撤回 | 目标改为两家公司硬分离；详见 `docs/plans/2026-11-06-licensed-hard-separation.md` | 已撤回 |
+| D-51 | 持牌机构系统使用新建的独立仓库 | 每台服务器只部署本公司代码；详见 `docs/plans/2026-11-06-licensed-hard-separation.md` | 已确认 |
+| D-52 | 放款与还款都归持牌机构 | 金融服务公司只根据回调展示状态；详见 `docs/plans/2026-11-06-licensed-hard-separation.md` | 已确认 |
+| D-53 | 暂停灰度 | 取消 11-09 窗口，拆分完成后重新排期；详见 `docs/plans/2026-11-06-licensed-hard-separation.md` | 已确认 |
+| D-54 | 第一步由 Claude 出拆分清单与最小契约 | 确认后再派卡；详见 `docs/plans/2026-11-06-licensed-hard-separation.md` | 已确认 |
+| D-55 | 批准合并 HS-2（含 0064） | 仅限 Claude 评审提交及一次机械变基；详见 `docs/tasks/status/2026-11-07-hard-separation-wave1.md` | 已确认 |
