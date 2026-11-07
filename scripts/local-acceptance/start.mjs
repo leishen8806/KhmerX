@@ -41,7 +41,7 @@ const cfg = {
     PAYEASE_ENV: 'gray', KHMERX_TEST_MODE: 'false', PAYEASE_IDENTITY_PROOF_REQUIRED: 'true',
     PAYEASE_AUTH_SECRET: secret(), PAYEASE_IDENTITY_PROOF_SECRET: secret(), KYC_SCAN_TOKEN: secret(),
     POSTLOAN_JOB_SECRET: secret(), PAYEASE_LIMIT_SCALE: '1', PAYEASE_GATEWAY_RATE_SCALE: '1',
-    PAYEASE_AUTH_MODE: 'telegram', PAYEASE_H5_AUTH_MODE: 'demo', PAYEASE_DEMO_OTP_ALLOWED: 'true',
+    PAYEASE_AUTH_MODE: 'telegram', PAYEASE_H5_AUTH_MODE: 'demo', PAYEASE_DEMO_OTP_ALLOWED: 'true', PAYEASE_H5_CHANNEL_STATUS: process.env.PAYEASE_H5_CHANNEL_STATUS || '',
     PAYEASE_TELEGRAM_AUTH_MODE: 'telegram', TELEGRAM_GATEWAY_TOKEN: telegramToken,
     TELEGRAM_BOT_TOKEN_1: telegramToken, TELEGRAM_BOT_TOKEN_2: '', [telegramBindingKey]: telegramToken, KYC_DATA_SECRET: secret(),
     INSTITUTION_CALLBACK_SECRETS_JSON: JSON.stringify({ [companyId + ':institution']: institutionSecret }),
