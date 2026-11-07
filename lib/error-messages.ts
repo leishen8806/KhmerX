@@ -13,7 +13,7 @@ export const errorCodes = [
  'PAYLOAD_TOO_LARGE','PAYMENT_RECEIPT_AMOUNT_MISMATCH','PAYMENT_RECEIPT_UNVERIFIED','PLATFORM_BOOTSTRAP_EXPIRED','POSTLOAN_JOB_FAILED','RATE_LIMITED','REPAYMENT_AMOUNT_INVALID',
  'REPAYMENT_LEDGER_NOT_RECORDED','REPAYMENT_RECEIPT_NOT_RECORDED','REQUEST_FAILED','RISK_KYC_DOC_REVIEW','RISK_RULE_INVALID_ACTION','RISK_RULE_INVALID_CONDITION','RISK_RULE_INVALID_INPUT',
  'RISK_RULE_NOT_FOUND','RISK_RULE_NOT_MATCHED','RISK_RULE_SELF_APPROVAL','RISK_RULE_STATE_CONFLICT','RISK_RULE_VERSION_CONFLICT','RISK_RULES_FORBIDDEN','SERVICE_UNAVAILABLE',
- 'STAFF_DUAL_CONTROL_REQUIRED','STATE_MUTATION_FAILED','TELEGRAM_INITDATA_INVALID','TELEGRAM_INITDATA_REPLAY','TELEGRAM_SUBSCRIPTION_REPLAY','TICKET_READ_ONLY',
+ 'STAFF_DUAL_CONTROL_REQUIRED','STATE_MUTATION_FAILED','TELEGRAM_INITDATA_EXPIRED','TELEGRAM_INITDATA_INVALID','TELEGRAM_INITDATA_REPLAY','TELEGRAM_SUBSCRIPTION_REPLAY','TICKET_READ_ONLY',
  'VALIDATION_FAILED','VERIFICATION_UNAVAILABLE','WORKSPACE_PAYLOAD_LIMIT','ZERO_RESULTS',
 ] as const;
 
@@ -52,6 +52,12 @@ const copy: Record<Locale, Record<string,string>> = {
  },
 };
 
+const telegramCopy: Record<Locale, Record<string,string>> = {
+ en:{TELEGRAM_INITDATA_EXPIRED:'Your Telegram login has expired. Reopen the Mini App from the bot.',TELEGRAM_INITDATA_INVALID:'Telegram login data is invalid. Reopen the Mini App from the bot.'},
+ km:{TELEGRAM_INITDATA_EXPIRED:'ការចូល Telegram បានផុតកំណត់។ សូមបើក Mini App ពី Bot ម្តងទៀត។',TELEGRAM_INITDATA_INVALID:'ទិន្នន័យចូល Telegram មិនត្រឹមត្រូវ។ សូមបើក Mini App ពី Bot ម្តងទៀត។'},
+ zh:{TELEGRAM_INITDATA_EXPIRED:'Telegram 登录已过期，请重新从机器人打开 Mini App。',TELEGRAM_INITDATA_INVALID:'Telegram 登录凭证无效，请重新从机器人打开 Mini App。'},
+};
+
 const generic: Record<Locale, {forbidden:string;conflict:string;limited:string;missing:string;invalid:string;unavailable:string}> = {
  en:{forbidden:'You do not have permission to do this.',conflict:'This information changed. Refresh and try again.',limited:'Too many attempts. Please try again later.',missing:'The requested information is unavailable.',invalid:'Check the information and try again.',unavailable:'The service is temporarily unavailable.'},
  km:{forbidden:'អ្នកមិនមានសិទ្ធិធ្វើសកម្មភាពនេះទេ។',conflict:'ព័ត៌មាននេះបានផ្លាស់ប្តូរ។ សូមផ្ទុកឡើងវិញ ហើយព្យាយាមម្ដងទៀត។',limited:'មានការព្យាយាមច្រើនពេក។ សូមព្យាយាមម្ដងទៀតនៅពេលក្រោយ។',missing:'ព័ត៌មានដែលស្នើសុំមិនមានទេ។',invalid:'សូមពិនិត្យព័ត៌មាន ហើយព្យាយាមម្ដងទៀត។',unavailable:'សេវាកម្មមិនអាចប្រើបានបណ្តោះអាសន្ន។'},
@@ -69,7 +75,7 @@ function generatedMessage(code: string, locale: Locale): string {
 }
 
 export const errorMessages = Object.fromEntries(locales.map(locale => [locale,
- Object.fromEntries(errorCodes.map(code => [code, copy[locale][code] || generatedMessage(code, locale)])),
+ Object.fromEntries(errorCodes.map(code => [code, copy[locale][code] || telegramCopy[locale][code] || generatedMessage(code, locale)])),
 ])) as Record<Locale, Record<ErrorCode,string>>;
 
 type ErrorShape = {code?:unknown;error?:unknown;message?:unknown;requestId?:unknown;params?:unknown};
