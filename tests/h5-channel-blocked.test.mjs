@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
+import {createHash,timingSafeEqual} from 'node:crypto';
 
 const status=fs.readFileSync(new URL('../lib/h5-channel-status.ts',import.meta.url),'utf8');
 const send=fs.readFileSync(new URL('../app/api/h5/auth/send/route.ts',import.meta.url),'utf8');
@@ -44,10 +45,13 @@ test('app and Telegram entry points select their channel rows before auth core',
  assert.match(telegram,/await requireH5ChannelAvailable\(r,candidate\.owner,'telegram_miniapp'/);
 });
 
-test('App channel requires the configured package id as a constant-time key',()=>{
+test('App channel requires a secret environment key with constant-time comparison',()=>{
  const guard=fs.readFileSync(new URL('../lib/h5-channel-guard.ts',import.meta.url),'utf8');
  assert.match(guard,/constantTimeEqual/);
- assert.match(guard,/package_id/);
+ assert.match(guard,/PAYEASE_APP_CLIENT_KEY/);
+ assert.match(guard,/timingSafeEqual/);
+ assert.match(guard,/createHash\('sha256'\)/);
+ assert.match(guard,/key\.length>=32/);
  assert.match(guard,/return 'h5'/);
 });
 
@@ -56,17 +60,25 @@ test('App spoof matrix has explicit H5 fallback and selfcheck warning',()=>{
  const selfcheck=fs.readFileSync(new URL('../lib/company-channel-selfcheck.ts',import.meta.url),'utf8');
  assert.match(guard,/if\(!owner\)return 'h5'/);
  assert.match(guard,/appRequestHasValidKey/);
- assert.match(selfcheck,/未配置 App 共享标识，App 请求将按 H5 处理/);
+ assert.match(selfcheck,/App 客户端密钥未配置，App 请求按 H5 处理/);
+});
+
+test('App client key is documented without a committed value',()=>{
+ const config=fs.readFileSync(new URL('../deploy/standalone/gray/config.json.example',import.meta.url),'utf8');
+ const runbook=fs.readFileSync(new URL('../docs/ops/gray-deploy-runbook-159.223.77.134.md',import.meta.url),'utf8');
+ assert.match(config,/"PAYEASE_APP_CLIENT_KEY": ""/);
+ assert.match(runbook,/PAYEASE_APP_CLIENT_KEY/);
+ assert.doesNotMatch(runbook,/PAYEASE_APP_CLIENT_KEY=[^\s<]+/);
 });
 
 test('App header spoof matrix distinguishes valid, wrong, other-company and missing keys',()=>{
  const guard=fs.readFileSync(new URL('../lib/h5-channel-guard.ts',import.meta.url),'utf8');
  const {h5ChannelStatus}=statusModule();
  const source=ts.transpileModule(guard,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
- const exports={};const moduleRef={exports};vm.runInNewContext(source,{exports,module:moduleRef,Math,TextEncoder,Request,console,require(name){if(name==='cloudflare:workers')return {env:{}};if(name==='@/lib/h5-auth-core')return {AuthError:class extends Error{}};if(name==='@/lib/h5-channel-status')return {h5ChannelStatus(){return 'active'},h5ChannelErrorCode(){return undefined}};throw new Error(`unexpected import ${name}`)}});
+ const exports={};const moduleRef={exports};vm.runInNewContext(source,{exports,module:moduleRef,Math,TextEncoder,Request,console,Buffer,require(name){if(name==='cloudflare:workers')return {env:{}};if(name==='node:crypto')return {createHash,timingSafeEqual};if(name==='@/lib/h5-auth-core')return {AuthError:class extends Error{}};if(name==='@/lib/h5-channel-status')return {h5ChannelStatus(){return 'active'},h5ChannelErrorCode(){return undefined}};throw new Error(`unexpected import ${name}`)}});
  const {appRequestHasValidKey}=moduleRef.exports;
  const request=(key)=>new Request('https://testpayease.khmerx.org/api/h5/auth',{headers:{'X-Payease-Client':'app',...(key?{'X-Payease-App-Key':key}:{})}});
- const rows=[['valid',request('org.khmerx.payease'),'org.khmerx.payease',true],['wrong',request('wrong'),'org.khmerx.payease',false],['other-company',request('org.other.app'),'org.khmerx.payease',false],['missing',request(),'org.khmerx.payease',false],['no-config',request('org.khmerx.payease'),undefined,false]];
+ const valid='a'.repeat(32),rows=[['valid',request(valid),valid,true],['wrong',request('wrong'),valid,false],['package-id-only',request('org.khmerx.payease'),valid,false],['missing',request(),valid,false],['no-config',request(valid),undefined,false]];
  for(const [label,req,configured,expected] of rows)assert.equal(appRequestHasValidKey(req,configured),expected,label);
  assert.equal(h5ChannelStatus({mode:'demo'},undefined,undefined,{exists:true,enabled:0}),'disabled','H5 fallback is blocked when H5 is disabled');
  assert.equal(h5ChannelStatus({mode:'demo'},undefined,undefined,{exists:true,enabled:1}),'active','valid App key can select the enabled App channel');

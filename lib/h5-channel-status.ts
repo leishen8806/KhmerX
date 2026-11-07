@@ -1,7 +1,7 @@
 export type H5ChannelStatus='active'|'maintenance'|'disabled';
 
 type ChannelConfig={mode?:unknown};
-export type ConfiguredChannel={exists:boolean;enabled?:unknown;appKey?:unknown};
+export type ConfiguredChannel={exists:boolean;enabled?:unknown};
 
 /** Resolve the public H5 channel state without reading a request or database. */
 export function h5ChannelStatus(config:ChannelConfig,channelId?:unknown,override?:unknown,configured?:ConfiguredChannel):H5ChannelStatus{
