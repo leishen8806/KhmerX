@@ -59,3 +59,10 @@
 | D-52 | 灰度制品从合并后的 main 构建 | 构建机按锁定文件联网执行一次 `npm ci`，制品须经校验后再传灰度；详见 `docs/tasks/status/2026-11-06-decisions-batch-g.md` | 已确认（范围受限） |
 | D-53 | 关闭 PR #198 | 由技术负责人在 GitHub 上关闭；详见 `docs/tasks/status/2026-11-06-decisions-batch-g.md` | 已确认 |
 | D-54 | 灰度部署窗口 2026-11-09 13:00–17:30 | 四项开窗前置条件任一不满足即顺延，17:30 硬截止；详见 `docs/tasks/status/2026-11-06-decisions-batch-g.md` | 已确认（附前置条件） |
+| D-55 | 前后端容器拆分版灰度：撤回（17:25）。目标是两家公司硬分离，SEP 卡留档不执行 | 已撤回；详见 `docs/plans/2026-11-06-licensed-hard-separation.md` | 已撤回 |
+| D-56 | 持牌机构系统使用新建的独立仓库；每台服务器只部署本公司代码 | 详见 `docs/plans/2026-11-06-licensed-hard-separation.md` | 已确认 |
+| D-57 | 放款与还款都归持牌机构；金融服务公司只根据回调展示状态 | 详见 `docs/plans/2026-11-06-licensed-hard-separation.md` | 已确认 |
+| D-58 | 暂停灰度：取消 D-54 的 11-09 窗口，等拆分完成后重新排期 | D-50 至 D-52 保留，到时按新的提交号重新确认；详见 `docs/plans/2026-11-06-licensed-hard-separation.md` | 已确认 |
+| D-59 | 第一步由 Claude 出拆分清单与最小契约，确认后再派代码卡 | 详见 `docs/plans/2026-11-06-licensed-hard-separation.md` | 已确认 |
+| D-60 | 批准合并 HS-2（含迁移 `drizzle/0064_partner_outbox.sql`） | 技术负责人 2026-11-07 16:08 批准经 Claude 评审的提交与机械变基；功能默认关闭，灰度仍按 D-58 暂停；详见 `docs/tasks/status/2026-11-07-hard-separation-wave1.md` | 已确认 |
+| D-61 | 关闭 PR #211；放款回调不再由金融服务公司内部的 finance_checker 审核 | 技术负责人 2026-11-07 决定：D-57 取代 D-48 中“由 finance_checker 审核”的部分；机构回调消费由 HS-1 实现，机构内部双人复核在机构系统中完成 | 已确认 |
