@@ -62,3 +62,17 @@ KhmerX-Licensed 分支 `fix/licensed/W2-6a-http-tests`，提交 `433685a`，PR [
 | 两库发件箱最终统计 | 未执行 | 尚无完成的跨进程业务记录，未估算 |
 
 补充测试 PR：KhmerX-Licensed #7 已合并；W2-6b PR 为 [#8](https://github.com/leishen8806/KhmerX-Licensed/pull/8)，合并提交 `cd129c2`。
+
+## 员工会话修复后的复测（2026-11-09）
+
+| 项目 | 结果 | 证据 |
+|---|---|---|
+| 固定本机外层身份 | 通过 | 启用现有联调脚本开关 `DEV_TEAM_LOCALHOST=true`；员工会话随后 `GET /api/team` 返回 200 |
+| 公司选择 Cookie | 通过 | 登录后调用 `POST /api/team` 的 `customer_enter`；仅记录 Cookie 名称：`payease_staff_session`、`payease_staff_mode`、`payease_staff_company`、`payease_staff_portal`、`payease_company` |
+| KYC 审核 HTTP 会话 | 通过 | `GET /api/kyc/review` 返回 200；`POST /api/kyc/review` 返回 200，状态变为 `approved` |
+| 发件箱任务接口 | 通过 | Licensed `POST /api/jobs/partner-outbox` + `x-job-key` 返回 `sent=0,dead=0`；KhmerX `POST /api/jobs/partner-outbox` + Bearer 任务密钥返回 `sent=0,dead=0` |
+| 批准完整跨进程链路 | 未执行 | 当前已完成客户 KYC 提交与机构审核 HTTP，但尚未完成贷款申请、机构回调、签约和双方发件箱入库的同一客户闭环 |
+| 拒绝路径 | 未执行 | 尚未建立可用于该路径的第二个完整跨进程申请 |
+| 撤回路径 | 未执行 | 尚未建立可用于该路径的完整跨进程申请 |
+| 两方向停机 10 分钟 | 未执行 | 前述业务闭环尚未完成；未用单元测试冒充停机证据 |
+| 两库最终统计 | 通过（当前空库基线） | Licensed：`partner_outbox=0`、`inbound_events=0`、`nonces=0`；KhmerX：`partner_outbox=0`、`institution_callback_events=0`、`institution_callback_attempts=0`。这些是当前本地库查询结果，不是业务完成统计 |
