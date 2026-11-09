@@ -3,6 +3,7 @@ import {SESSION_COOKIE,cookie,owner,runtime,browser,json,failure} from '@/lib/h5
 import {loginTelegram,SESSION_TTL,AuthError} from '@/lib/h5-auth-core';
 import {registrationPolicy} from '@/lib/registration-policy';
 import {channelToken,telegramCredentialOwners,telegramCredentialChannels} from '@/lib/bot-credentials';
+import {hasOtherCompanyCredential} from '@/lib/telegram-company-match';
 import {customerCompany} from '@/lib/team/server';
 import {requireH5ChannelAvailable} from '@/lib/h5-channel-guard';
 import {env} from 'cloudflare:workers';
@@ -39,7 +40,15 @@ export async function POST(request:Request){
     id=candidate.owner;break;
    }catch(error){last=error}
   }
-  if(!result){if(deploymentCompanyId)throw new AuthError('Telegram 渠道与部署公司不匹配',403,undefined,'CHANNEL_COMPANY_MISMATCH');throw last instanceof Error?last:new AuthError('Telegram 登录凭证无效，请重新打开 Mini App',401,undefined,'TELEGRAM_INITDATA_INVALID');}
+  if(!result){
+   if(last instanceof AuthError&&last.code==='TELEGRAM_INITDATA_EXPIRED')throw last;
+   if(last instanceof AuthError&&last.code==='TELEGRAM_INITDATA_INVALID'){
+    const other=await hasOtherCompanyCredential(initData,candidates.map(candidate=>candidate.owner),channels,{owners:telegramCredentialOwners,token:channelToken});
+    if(other)throw new AuthError('Telegram 渠道与部署公司不匹配',403,undefined,'CHANNEL_COMPANY_MISMATCH');
+    throw last;
+   }
+   throw last instanceof Error?last:new AuthError('Telegram 登录凭证无效，请重新打开 Mini App',401,undefined,'TELEGRAM_INITDATA_INVALID');
+  }
   await registrationPolicy(r,id,result.session.customerId);
   const sessionCookie=cookie(request,SESSION_COOKIE,result.token,SESSION_TTL);
   const companyCookie=cookie(request,'payease_company',id,86400);

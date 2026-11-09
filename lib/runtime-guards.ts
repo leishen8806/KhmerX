@@ -36,6 +36,11 @@ export function demoOtpAllowed(): boolean {
   return enabled && ['local', 'gray'].includes(environment) && !isProduction();
 }
 
+export function institutionMode(): 'embedded'|'external' {
+  const mode = String((env as unknown as Record<string, unknown>).PAYEASE_INSTITUTION_MODE || '').toLowerCase();
+  return mode === 'external' ? 'external' : 'embedded';
+}
+
 /** Refuse to run a production worker that still has the test-mode switch on. */
 export function assertProductionSafe(): void {
   if (isTestMode() && isProduction()) {

@@ -67,7 +67,7 @@ test('slow Telegram verification keeps loading visible until the workspace is re
 
 test('failed Telegram verification stays on its error view and never opens the workspace',async()=>{
  const c=client(url=>url.endsWith('/telegram')?Promise.resolve(Response.json({error:'Invalid signature'},{status:401})):response(auth(null)),'synthetic-invalid-payload');
- c.render();const tree=await c.settle();assert.equal(tree.type,'main');assert.match(JSON.stringify(tree),/Telegram login is temporarily unavailable/);assert.match(JSON.stringify(tree),/The server is verifying your Telegram identity/);
+ c.render();const tree=await c.settle();assert.equal(tree.type,'main');assert.match(JSON.stringify(tree),/Telegram login is temporarily unavailable/);assert.doesNotMatch(JSON.stringify(tree),/MiniClient/);
 });
 
 test('session expiry on focus removes the workspace and returns to login',async()=>{

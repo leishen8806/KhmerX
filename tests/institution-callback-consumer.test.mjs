@@ -20,3 +20,21 @@ test('institution rejection closes decision and is idempotency-safe at state bou
  assert.throws(()=>source.applyInstitutionDecision(next,'loan-1','loan.rejected','institution:unit-1','重复')); 
 });
 
+test('institution funding confirmation records a maker without touching wallet or ledger',()=>{
+ const original=base();original.loans[0].status='signed';original.loans[0].approvalCheckedBy='checker-1';
+ const next=source.applyInstitutionDecision(original,'loan-1','funding.confirmed','institution:unit-1','',undefined,'2026-11-06T00:00:00.000Z','FUND-1');
+ assert.equal(next.loans[0].status,'signed');
+ assert.equal(next.loans[0].fundingActor,'institution:unit-1');
+ assert.equal(next.loans[0].externalReference,'FUND-1');
+ assert.equal(next.loans[0].wallet,original.loans[0].wallet);
+ assert.deepEqual(next.entries,original.entries);
+ assert.equal(next.events[0].action,'funding.confirmed');
+ assert.equal(next.notifications[0].text,'机构已确认出资，等待财务复核');
+ assert.throws(()=>source.applyInstitutionDecision(next,'loan-1','funding.confirmed','institution:unit-1','',undefined,'2026-11-06T00:00:00.000Z','FUND-1'),/状态/);
+});
+
+test('institution funding confirmation requires the independent approval check',()=>{
+ const pending=base();pending.loans[0].status='signed';
+ assert.throws(()=>source.applyInstitutionDecision(pending,'loan-1','funding.confirmed','institution:unit-1','',undefined,undefined,'FUND-1'),/状态/);
+});
+

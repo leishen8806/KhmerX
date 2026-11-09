@@ -8,7 +8,10 @@ import {publicIdentifier} from './public-id.ts';
 import {channelForAccount,claimPublicIdentifier} from './public-id-store.ts';
 import {serializeWorkspacePayload} from './workspace-payload.ts';
 import {ApiError} from './http/api-error';
+import {AuthError} from '@/lib/h5-auth-core';
+import {institutionMode} from '@/lib/runtime-guards';
 import {customerRowsMode,readCustomerShard,writeCustomerShard} from './customer-shards';
+import {buildPartnerEvent,partnerOutboxInsert} from '@/lib/partner-outbox';
 function db(){if(!env.DB)throw Error('测试数据库暂不可用');return env.DB}
 async function hydratePublicRefs(owner:string,state:State,revision:number){
  let changed=false;
@@ -73,6 +76,11 @@ export async function mutate(owner:string,p:any,customer?:{id:string;phoneMasked
   if(confirmedContract){const target=next.loans.find(l=>l.id===p.loanId)!;target.signedAt=confirmedContract.signedAt;target.signature='已保存的手写签名';target.contract=JSON.stringify({...confirmedContract,notice:'仅测试资金，待机构审批，不产生真实债务'});target.note='费用已确认、合同已签署，等待贷款审批';}
 
   if(next===state)return {state,revision};if(p.action==='create'&&owner.startsWith('t_')){const termDays=p.termDays??14;if(![14,28].includes(termDays))throw new KycError('请选择 14 天或 28 天贷款期限');const bill=calculateBill(next.loans[0].amount,{...await pricingFor(owner),termDays},crypto.randomUUID());bill.publicRef=publicIdentifier('B',customer?.channel||'AD',new Date(next.loans[0].createdAt));next.loans[0].billing=bill;next.loans[0].fee=bill.total-bill.principal;}if(customer)await ensureAssignment(owner,customer.id);
+  let outboxEvent;
+  if(customer&&['apply','sign'].includes(p.action)&&institutionMode()==='external'){
+   const assigned=await db().prepare('SELECT institution_id FROM team_assignments WHERE tenant_id=? AND customer_id=?').bind(owner,customer.id).first<{institution_id:string|null}>();
+   if(assigned?.institution_id)try{outboxEvent=await buildPartnerEvent({tenantId:owner,institutionId:assigned.institution_id,eventType:p.action==='apply'?'application.submitted':'agreement.signed',loan:next.loans.find(l=>l.id===p.loanId)!,customerId:customer.id,database:db()});}catch(error){if(error instanceof Error&&error.message==='PARTNER_NOT_CONFIGURED')throw new AuthError('申请暂时无法提交，请稍后再试',503,undefined,'PARTNER_NOT_CONFIGURED');throw error}
+  }
   if(approvedCase){
    const updated=next.loans.find(l=>l.id===p.loanId)!;
    if(p.action==='approve'){const contract=await validLoanContract(owner,updated,approvedCase);updated.status='signed';updated.signedAt=contract.signedAt;updated.signature='已保存的手写签名';updated.contract=JSON.stringify(contract);updated.note='审批通过，按已签合同等待放款'}
@@ -84,11 +92,12 @@ export async function mutate(owner:string,p:any,customer?:{id:string;phoneMasked
   }
   // customerAction records the canonical customer-prefixed idempotency key.
   if(rowsMode==='on'&&customer){
-   if(await writeCustomerShard(db(),owner,customer.id,next,revision,next.requests.at(-1)))return {state:next,revision:revision+1};
+   if(await writeCustomerShard(db(),owner,customer.id,next,revision,next.requests.at(-1),true,outboxEvent?[partnerOutboxInsert(db(),outboxEvent)]:[]))return {state:next,revision:revision+1};
    continue;
   }
-  const result=await db().prepare("UPDATE demo_workspaces SET payload=?,revision=revision+1 WHERE owner=? AND revision=? AND (? IS NULL OR EXISTS(SELECT 1 FROM kyc_cases WHERE id=? AND owner=? AND revision=? AND status='approved'))").bind(serializeWorkspacePayload(next),owner,revision,creationCase?.id||null,creationCase?.id||null,owner,creationCase?.revision??0).run();
-  if(result.meta.changes===1){
+  const stateWrite=db().prepare("UPDATE demo_workspaces SET payload=?,revision=revision+1 WHERE owner=? AND revision=? AND (? IS NULL OR EXISTS(SELECT 1 FROM kyc_cases WHERE id=? AND owner=? AND revision=? AND status='approved'))").bind(serializeWorkspacePayload(next),owner,revision,creationCase?.id||null,creationCase?.id||null,owner,creationCase?.revision??0);
+  const result=await db().batch([stateWrite,...(outboxEvent?[partnerOutboxInsert(db(),outboxEvent)]:[])]);
+  if(result[0]?.meta.changes===1){
    if(rowsMode==='shadow'&&customer)void writeCustomerShard(db(),owner,customer.id,next,revision,next.requests.at(-1),false).catch(error=>console.error('[customer-shards] shadow write failed',error));
    return {state:next,revision:revision+1};
   }
