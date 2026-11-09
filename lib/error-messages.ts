@@ -13,7 +13,7 @@ export const errorCodes = [
  'PAYLOAD_TOO_LARGE','PAYMENT_RECEIPT_AMOUNT_MISMATCH','PAYMENT_RECEIPT_UNVERIFIED','PLATFORM_BOOTSTRAP_EXPIRED','POSTLOAN_JOB_FAILED','RATE_LIMITED','REPAYMENT_AMOUNT_INVALID',
  'REPAYMENT_LEDGER_NOT_RECORDED','REPAYMENT_RECEIPT_NOT_RECORDED','REQUEST_FAILED','RISK_KYC_DOC_REVIEW','RISK_RULE_INVALID_ACTION','RISK_RULE_INVALID_CONDITION','RISK_RULE_INVALID_INPUT',
  'RISK_RULE_NOT_FOUND','RISK_RULE_NOT_MATCHED','RISK_RULE_SELF_APPROVAL','RISK_RULE_STATE_CONFLICT','RISK_RULE_VERSION_CONFLICT','RISK_RULES_FORBIDDEN','SERVICE_UNAVAILABLE',
- 'STAFF_DUAL_CONTROL_REQUIRED','STATE_MUTATION_FAILED','TELEGRAM_INITDATA_INVALID','TELEGRAM_INITDATA_REPLAY','TELEGRAM_SUBSCRIPTION_REPLAY','TICKET_READ_ONLY',
+ 'STAFF_DUAL_CONTROL_REQUIRED','STATE_MUTATION_FAILED','TELEGRAM_INITDATA_EXPIRED','TELEGRAM_INITDATA_INVALID','TELEGRAM_INITDATA_REPLAY','TELEGRAM_SUBSCRIPTION_REPLAY','TICKET_READ_ONLY',
  'VALIDATION_FAILED','VERIFICATION_UNAVAILABLE','WORKSPACE_PAYLOAD_LIMIT','ZERO_RESULTS',
 ] as const;
 
@@ -27,7 +27,7 @@ const copy: Record<Locale, Record<string,string>> = {
   INVALID_VERIFICATION_CODE:'The verification code is invalid or expired.', INVALID_FILE:'This file is invalid or cannot be accepted.', INVALID_KYC:'Check the required information and try again.',
   INVALID_ARGUMENT:'Check the information and try again.', SERVICE_UNAVAILABLE:'The service is temporarily unavailable.', INTERNAL_ERROR:'Something went wrong. Contact support with the request ID.',
   VALIDATION_FAILED:'Check the highlighted information and try again.', ACCOUNT_ALREADY_REGISTERED:'This phone number is already registered. Sign in with a verification code or password.',
-  CROSS_SITE_REQUEST:'This request could not be verified. Refresh and try again.', MISSING_ORIGIN:'This request could not be verified. Refresh and try again.',
+  CROSS_SITE_REQUEST:'This request could not be verified. Refresh and try again.', MISSING_ORIGIN:'This request could not be verified. Refresh and try again.', TELEGRAM_INITDATA_EXPIRED:'Your Telegram login has expired. Reopen the Mini App from the bot.', TELEGRAM_INITDATA_INVALID:'Telegram login data is invalid. Reopen the Mini App from the bot.',
   BROWSER_TOKEN_RATE_LIMITED:'Too many attempts. Please wait and try again.', GEOCODE_RATE_LIMITED:'Address lookup is temporarily limited. Try again later.', CHANNEL_COMPANY_MISMATCH:'This Mini App belongs to a different company. Reopen the correct company link.', CHANNEL_DISABLED:'This channel is currently disabled.', CHANNEL_MAINTENANCE:'This channel is temporarily under maintenance.', REGISTRATION_STEP_DISABLED:'This registration step is currently disabled.', VERIFICATION_EXPIRED:'This verification code has expired. Request a new code.', VERIFICATION_RATE_LIMITED:'Too many verification requests. Please wait before trying again.',
  },
  km: {
@@ -37,7 +37,7 @@ const copy: Record<Locale, Record<string,string>> = {
   INVALID_VERIFICATION_CODE:'លេខកូដផ្ទៀងផ្ទាត់មិនត្រឹមត្រូវ ឬផុតកំណត់។', INVALID_FILE:'ឯកសារនេះមិនត្រឹមត្រូវ ឬមិនអាចទទួលយកបានទេ។', INVALID_KYC:'សូមពិនិត្យព័ត៌មានដែលត្រូវបំពេញ ហើយព្យាយាមម្ដងទៀត។',
   INVALID_ARGUMENT:'សូមពិនិត្យព័ត៌មាន ហើយព្យាយាមម្ដងទៀត។', SERVICE_UNAVAILABLE:'សេវាកម្មមិនអាចប្រើបានបណ្តោះអាសន្ន។', INTERNAL_ERROR:'មានបញ្ហាមួយកើតឡើង។ សូមទាក់ទងជំនួយដោយផ្តល់លេខសំណើ។',
   VALIDATION_FAILED:'សូមពិនិត្យព័ត៌មាន ហើយព្យាយាមម្ដងទៀត។', ACCOUNT_ALREADY_REGISTERED:'លេខទូរស័ព្ទនេះបានចុះឈ្មោះរួចហើយ។ សូមចូលដោយលេខកូដផ្ទៀងផ្ទាត់ ឬពាក្យសម្ងាត់។',
-  CROSS_SITE_REQUEST:'មិនអាចផ្ទៀងផ្ទាត់សំណើនេះបានទេ។ សូមផ្ទុកឡើងវិញ ហើយព្យាយាមម្ដងទៀត។', MISSING_ORIGIN:'មិនអាចផ្ទៀងផ្ទាត់សំណើនេះបានទេ។ សូមផ្ទុកឡើងវិញ ហើយព្យាយាមម្ដងទៀត។',
+  CROSS_SITE_REQUEST:'មិនអាចផ្ទៀងផ្ទាត់សំណើនេះបានទេ។ សូមផ្ទុកឡើងវិញ ហើយព្យាយាមម្ដងទៀត។', MISSING_ORIGIN:'មិនអាចផ្ទៀងផ្ទាត់សំណើនេះបានទេ។ សូមផ្ទុកឡើងវិញ ហើយព្យាយាមម្ដងទៀត។', TELEGRAM_INITDATA_EXPIRED:'ការចូល Telegram បានផុតកំណត់។ សូមបើក Mini App ពី Bot ម្តងទៀត។', TELEGRAM_INITDATA_INVALID:'ទិន្នន័យចូល Telegram មិនត្រឹមត្រូវ។ សូមបើក Mini App ពី Bot ម្តងទៀត។',
   BROWSER_TOKEN_RATE_LIMITED:'មានការព្យាយាមច្រើនពេក។ សូមរង់ចាំ ហើយព្យាយាមម្ដងទៀត។', GEOCODE_RATE_LIMITED:'ការស្វែងរកអាសយដ្ឋានត្រូវបានកំណត់បណ្តោះអាសន្ន។ សូមព្យាយាមពេលក្រោយ។', CHANNEL_COMPANY_MISMATCH:'Mini App នេះជារបស់ក្រុមហ៊ុនផ្សេង។ សូមបើកតំណរបស់ក្រុមហ៊ុនត្រឹមត្រូវ។', CHANNEL_DISABLED:'បណ្តាញនេះត្រូវបានបិទជាបណ្តោះអាសន្ន។', CHANNEL_MAINTENANCE:'បណ្តាញនេះកំពុងថែទាំជាបណ្តោះអាសន្ន។', REGISTRATION_STEP_DISABLED:'ជំហានចុះឈ្មោះនេះត្រូវបានបិទជាបណ្តោះអាសន្ន។', VERIFICATION_EXPIRED:'លេខកូដផ្ទៀងផ្ទាត់នេះបានផុតកំណត់។ សូមស្នើលេខកូដថ្មី។', VERIFICATION_RATE_LIMITED:'ការស្នើលេខកូដមានច្រើនពេក។ សូមរង់ចាំមុនព្យាយាមម្ដងទៀត។',
  },
  zh: {
@@ -47,7 +47,7 @@ const copy: Record<Locale, Record<string,string>> = {
   INVALID_VERIFICATION_CODE:'验证码无效或已过期。', INVALID_FILE:'文件无效或无法通过检查。', INVALID_KYC:'请检查必填资料后重试。',
   INVALID_ARGUMENT:'请检查输入内容后重试。', SERVICE_UNAVAILABLE:'服务暂时不可用，请稍后重试。', INTERNAL_ERROR:'系统发生错误，请联系客服并提供请求编号。',
   VALIDATION_FAILED:'请检查填写内容后重试。', ACCOUNT_ALREADY_REGISTERED:'该手机号已注册，请使用验证码或密码登录。',
-  CROSS_SITE_REQUEST:'请求无法通过验证，请刷新后重试。', MISSING_ORIGIN:'请求无法通过验证，请刷新后重试。',
+  CROSS_SITE_REQUEST:'请求无法通过验证，请刷新后重试。', MISSING_ORIGIN:'请求无法通过验证，请刷新后重试。', TELEGRAM_INITDATA_EXPIRED:'Telegram 登录已过期，请重新从机器人打开 Mini App。', TELEGRAM_INITDATA_INVALID:'Telegram 登录凭证无效，请重新从机器人打开 Mini App。',
   BROWSER_TOKEN_RATE_LIMITED:'操作过于频繁，请稍后重试。', GEOCODE_RATE_LIMITED:'地址查询暂时受限，请稍后重试。', CHANNEL_COMPANY_MISMATCH:'此 Mini App 属于其他公司，请重新打开正确的公司链接。', CHANNEL_DISABLED:'当前渠道已停用。', CHANNEL_MAINTENANCE:'当前渠道正在维护，请稍后再试。', REGISTRATION_STEP_DISABLED:'当前注册步骤已停用。', VERIFICATION_EXPIRED:'验证码已过期，请重新获取。', VERIFICATION_RATE_LIMITED:'验证码请求过于频繁，请稍后再试。',
  },
 };

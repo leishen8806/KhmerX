@@ -23,7 +23,9 @@ function callbackSecret(institutionId:string){
 export async function POST(request:Request){
  const requestId=crypto.randomUUID();
  try{
-  const institutionId=request.headers.get('x-institution-id')?.trim()||'',signature=request.headers.get('x-signature')?.trim()||'',timestamp=request.headers.get('x-timestamp')?.trim()||'',nonce=request.headers.get('x-nonce')?.trim()||'',idempotency=request.headers.get('x-idempotency-key')?.trim()||'';
+   const partnerId=request.headers.get('x-partner-id')?.trim()||'',institutionHeader=request.headers.get('x-institution-id')?.trim()||'';
+   if(partnerId&&institutionHeader&&partnerId!==institutionHeader)return failure('回调机构头不一致','CALLBACK_HEADERS_INVALID',400,requestId);
+   const institutionId=institutionHeader||partnerId,signature=request.headers.get('x-signature')?.trim()||'',timestamp=request.headers.get('x-timestamp')?.trim()||'',nonce=request.headers.get('x-nonce')?.trim()||'',idempotency=request.headers.get('x-idempotency-key')?.trim()||'';
   if(!institutionId||!signature||!timestamp||!nonce||!/^[A-Za-z0-9][A-Za-z0-9._:-]{2,80}$/.test(institutionId))return failure('回调身份头不完整','CALLBACK_HEADERS_INVALID',400,requestId);
   if(!/^[A-Za-z0-9._:-]{8,120}$/.test(idempotency))return failure('幂等键无效','IDEMPOTENCY_KEY_INVALID',400,requestId);
   if(!request.headers.get('content-type')?.startsWith('application/json'))return failure('回调必须使用 JSON','INVALID_REQUEST',415,requestId);

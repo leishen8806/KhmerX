@@ -1,4 +1,4 @@
-import {validateInitData,canonicalInitData} from './telegram.ts';
+import {validateInitData,canonicalInitData,TelegramInitDataError} from './telegram.ts';
 import {codeForError} from './error-codes.ts';
 import {attachCustomerRef} from './public-id-store.ts';
 /** App-owned customer verification inside the existing private Sites workspace. */
@@ -131,7 +131,7 @@ export async function loginTelegram(r:AuthRuntime,owner:string,browserToken:stri
  if(r.config.mode!=='telegram')throw new AuthError('当前渠道未启用 Telegram 登录',409);
  if(!botToken)throw new AuthError('Telegram Bot 登录尚未配置，请联系管理员',503);
  let identity:{id:number;firstName:string};
- try{identity=await validateInitData(initData,botToken)}catch{throw new AuthError('Telegram 登录凭证无效，请重新打开 Mini App',401,undefined,'TELEGRAM_INITDATA_INVALID')}
+ try{identity=await validateInitData(initData,botToken)}catch(error){if(error instanceof TelegramInitDataError&&error.code==='TELEGRAM_INITDATA_EXPIRED')throw new AuthError('Telegram 登录已过期，请重新从机器人打开',401,undefined,'TELEGRAM_INITDATA_EXPIRED');throw new AuthError('Telegram 登录凭证无效，请重新打开 Mini App',401,undefined,'TELEGRAM_INITDATA_INVALID')}
  const customerId=await telegramCustomerKey(r,owner,identity.id),browserHash=await digest(browserToken),nowValue=now(r);
  await r.db.prepare('DELETE FROM telegram_initdata_nonces WHERE auth_date<?').bind(nowValue-600).run();
  const nonce=await digest(canonicalInitData(initData)),claimed=await r.db.prepare('INSERT OR IGNORE INTO telegram_initdata_nonces (initdata_hash,owner,channel_id,auth_date,consumed_at) VALUES (?,?,?,?,?)').bind(nonce,owner,channelId||null,nowValue,nowValue).run();
