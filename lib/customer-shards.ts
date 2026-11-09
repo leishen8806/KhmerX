@@ -32,10 +32,10 @@ function indexStatements(db:DB,owner:string,customerId:string,loans:Loan[],revis
  const now=new Date().toISOString();
  const statements=[db.prepare('DELETE FROM loan_index WHERE owner=? AND customer_id=? AND EXISTS (SELECT 1 FROM customer_workspaces WHERE owner=? AND customer_id=? AND revision=?)').bind(owner,customerId,...guard)];
  for(const loan of loans){
-  statements.push(db.prepare(`INSERT INTO loan_index(owner,loan_id,customer_id,status,created_at,updated_at)
-    SELECT ?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM customer_workspaces WHERE owner=? AND customer_id=? AND revision=? )
-    ON CONFLICT(owner,loan_id) DO UPDATE SET customer_id=excluded.customer_id,status=excluded.status,created_at=excluded.created_at,updated_at=excluded.updated_at`)
-   .bind(owner,loan.id,customerId,loan.status,loan.createdAt,now,...guard));
+  statements.push(db.prepare(`INSERT INTO loan_index(owner,loan_id,customer_id,status,created_at,updated_at,public_ref)
+    SELECT ?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM customer_workspaces WHERE owner=? AND customer_id=? AND revision=? )
+    ON CONFLICT(owner,loan_id) DO UPDATE SET customer_id=excluded.customer_id,status=excluded.status,created_at=excluded.created_at,updated_at=excluded.updated_at,public_ref=excluded.public_ref`)
+   .bind(owner,loan.id,customerId,loan.status,loan.createdAt,now,loan.publicRef||null,...guard));
  }
  return statements;
 }
@@ -95,7 +95,7 @@ export async function tenantFundingEntries(db:DB,owner:string,now=new Date().toI
  return rows.map(r=>({id:r.day,loanId:'',kind:'\u6d4b\u8bd5\u653e\u6b3e',cents:r.cents,debit:'',credit:'',at:r.day+'T12:00:00+07:00'}));
 }
 export function loanIndexUpdate(db:DB,owner:string,customerId:string,loan:Loan,revision:number,payload:string){
- return db.prepare('UPDATE loan_index SET status=?,updated_at=? WHERE owner=? AND loan_id=? AND customer_id=? AND EXISTS (SELECT 1 FROM customer_workspaces WHERE owner=? AND customer_id=? AND revision=? AND payload=?)').bind(loan.status,new Date().toISOString(),owner,loan.id,customerId,owner,customerId,revision,payload);
+ return db.prepare('UPDATE loan_index SET status=?,updated_at=?,public_ref=? WHERE owner=? AND loan_id=? AND customer_id=? AND EXISTS (SELECT 1 FROM customer_workspaces WHERE owner=? AND customer_id=? AND revision=? AND payload=?)').bind(loan.status,new Date().toISOString(),loan.publicRef||null,owner,loan.id,customerId,owner,customerId,revision,payload);
 }
 export function staffPayload(state:State,customerId?:string){return JSON.stringify(customerId?{...shardForCustomer(state,customerId),requests:state.requests,requestDigests:state.requestDigests||{}}:state)}
 export function staffStateWrite(db:DB,owner:string,revision:number,state:State,customerId:string|undefined,guard:string,values:unknown[]){
