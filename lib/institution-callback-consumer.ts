@@ -4,8 +4,7 @@ import {auditInsertSql} from '@/lib/team/audit-writer';
 import {customerRowsMode,staffPayload,loanIndexUpdate} from '@/lib/customer-shards';
 import type {State} from '@/lib/domain';
 import {serializeWorkspacePayload} from '@/lib/workspace-payload';
-import {applyInstitutionDecision,type InstitutionDecision} from '@/lib/institution-callback-decision';
-import {applyAction} from '@/lib/domain';
+import {applyInstitutionDecision,recordInstitutionRepayment,type InstitutionDecision} from '@/lib/institution-callback-decision';
 import {buildInstitutionActionPlan,assertPlanPrecondition} from '@/lib/institution-event-plans';
 import {institutionMode} from '@/lib/runtime-guards';
 
@@ -53,7 +52,7 @@ export async function consumeInstitutionCallbackEvent(input:{database:Database;t
   const applied=next.loans.find(item=>item.id===loanId)!;
   if(eventType==='loan.approved'&&institutionMode()==='external'){applied.status='approved';applied.note='机构双人复核已完成，等待客户签约';}
  }else if(eventType==='repayment.confirmed'){
-  try{next=applyAction(state,{action:'repay',loanId,role:'mini',requestId:`institution:${eventId}`,cents:plan.amountCents,note:'机构确认还款'},new Date().toISOString());}catch(error){return {status:'dead_letter',reason:error instanceof Error?error.message:'REPAYMENT_FAILED',loanId};}
+  try{next=recordInstitutionRepayment(state,loanId,institutionId,plan.amountCents!,externalReference,new Date().toISOString());}catch(error){return {status:'dead_letter',reason:error instanceof Error?error.message:'REPAYMENT_RECORD_FAILED',loanId};}
  }else if(eventType==='payment.failed'){
   next=structuredClone(state);
   const applied=next.loans.find(item=>item.id===loanId)!;
@@ -62,7 +61,7 @@ export async function consumeInstitutionCallbackEvent(input:{database:Database;t
   next.events.unshift({id:crypto.randomUUID(),loanId,action:'payment_failed',role:'lender',note:applied.note,at:new Date().toISOString(),source:'institution',eventType,externalReference:externalReference||undefined,institutionId});
   next.notifications.unshift({id:crypto.randomUUID(),loanId,botId:applied.botId,text:applied.note,at:new Date().toISOString(),status:'机构回调已记录'});
  }else return {status:'received',reason:'report_only'};
- const event=next.events.find(item=>item.loanId===loanId);
+ const event=eventType==='repayment.confirmed'?undefined:next.events.find(item=>item.loanId===loanId);
   if(event){event.source='institution';event.eventType=eventType;event.externalReference=externalReference||undefined;event.institutionId=institutionId;}
  const now=new Date().toISOString(),detail={eventId,loanId,eventType,institutionId,externalReference:externalReference||null,mode:institutionMode()};
  const write=rows
