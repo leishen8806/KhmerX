@@ -19,7 +19,7 @@ const {customerRowsMode,shardForCustomer,writeCustomerShard}=shardModule.namespa
 
 function dbHarness(){
  const sql=new DatabaseSync(':memory:');
- sql.exec('CREATE TABLE customer_workspaces(owner TEXT NOT NULL,customer_id TEXT NOT NULL,revision INTEGER NOT NULL,payload TEXT NOT NULL,updated_at TEXT NOT NULL,PRIMARY KEY(owner,customer_id));CREATE TABLE loan_index(owner TEXT NOT NULL,loan_id TEXT NOT NULL,customer_id TEXT NOT NULL,status TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,PRIMARY KEY(owner,loan_id));');
+ sql.exec('CREATE TABLE customer_workspaces(owner TEXT NOT NULL,customer_id TEXT NOT NULL,revision INTEGER NOT NULL,payload TEXT NOT NULL,updated_at TEXT NOT NULL,PRIMARY KEY(owner,customer_id));CREATE TABLE loan_index(owner TEXT NOT NULL,loan_id TEXT NOT NULL,customer_id TEXT NOT NULL,status TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,public_ref TEXT,PRIMARY KEY(owner,loan_id));');
  sql.exec('CREATE TABLE demo_workspaces(owner TEXT PRIMARY KEY,revision INTEGER,payload TEXT);CREATE TABLE telegram_bot_credentials(owner TEXT,bot_id TEXT,telegram_id TEXT,label TEXT,username TEXT);CREATE TABLE team_assignments(tenant_id TEXT,customer_id TEXT,department_id TEXT,institution_id TEXT,funding_institution_id TEXT,reviewer_id TEXT,PRIMARY KEY(tenant_id,customer_id));CREATE TABLE h5_accounts(owner TEXT,customer_id TEXT,created_at TEXT);CREATE INDEX loan_index_status ON loan_index(owner,status,updated_at);');
  let batchChain=Promise.resolve();
  return {
@@ -57,8 +57,8 @@ test('5000 customer pages are bounded, scoped, ordered and exclude frozen legacy
  const db=dbHarness(),{readStaffPage,staffLoanState}=shardModule.namespace;
  const blank={loans:[],events:[],entries:[],notifications:[],requests:[],requestDigests:{},bots:[]};
  db.sql.prepare('INSERT INTO demo_workspaces VALUES(?,?,?)').run('owner',9,JSON.stringify({...blank,loans:[{id:'stale-secret'}]}));
- const customer=db.sql.prepare('INSERT INTO customer_workspaces VALUES(?,?,?,?,?)'),index=db.sql.prepare('INSERT INTO loan_index VALUES(?,?,?,?,?,?)'),assignment=db.sql.prepare('INSERT INTO team_assignments VALUES(?,?,?,?,?,?)'),account=db.sql.prepare('INSERT INTO h5_accounts VALUES(?,?,?)');
- db.sql.exec('BEGIN');for(let i=0;i<5000;i++){const id=`customer-${i}`,at=new Date(i*1000).toISOString(),loan={id:`loan-${i}`,customerId:id,status:i%2?'active':'signed',createdAt:at};customer.run('owner',id,0,JSON.stringify({...blank,loans:[loan],events:Array.from({length:i===4999?250:1},(_,n)=>({loanId:loan.id,at:new Date(n*1000).toISOString()}))}),at);index.run('owner',loan.id,id,loan.status,at,at);assignment.run('owner',id,i%2?'D1':'D2','I1','I2','reviewer');account.run('owner',id,at)}db.sql.exec('COMMIT');
+ const customer=db.sql.prepare('INSERT INTO customer_workspaces VALUES(?,?,?,?,?)'),index=db.sql.prepare('INSERT INTO loan_index VALUES(?,?,?,?,?,?,?)'),assignment=db.sql.prepare('INSERT INTO team_assignments VALUES(?,?,?,?,?,?)'),account=db.sql.prepare('INSERT INTO h5_accounts VALUES(?,?,?)');
+ db.sql.exec('BEGIN');for(let i=0;i<5000;i++){const id=`customer-${i}`,at=new Date(i*1000).toISOString(),loan={id:`loan-${i}`,customerId:id,status:i%2?'active':'signed',createdAt:at,publicRef:`O-SYNTHETIC-${i}`};customer.run('owner',id,0,JSON.stringify({...blank,loans:[loan],events:Array.from({length:i===4999?250:1},(_,n)=>({loanId:loan.id,at:new Date(n*1000).toISOString()}))}),at);index.run('owner',loan.id,id,loan.status,at,at,loan.publicRef);assignment.run('owner',id,i%2?'D1':'D2','I1','I2','reviewer');account.run('owner',id,at)}db.sql.exec('COMMIT');
  const member={tenant_id:'owner',active:1,role:'admin',unit_id:null,id:'reviewer'},timings=[];let first;
  for(let i=0;i<20;i++){const start=performance.now();first=await readStaffPage(db,member);timings.push(performance.now()-start)}
  const p95=timings.sort((a,b)=>a-b)[18];console.log(`Q7 local SQLite: 5000 customers, first-page p95=${p95.toFixed(2)}ms`);assert(p95<500);

@@ -19,14 +19,25 @@ const text=(value:unknown,max=300)=>typeof value==='string'?value.trim().slice(0
 export async function consumeInstitutionCallbackEvent(input:{database:Database;tenantId:string;institutionId:string;eventId:string;eventType:string;payload:string}):Promise<InstitutionDecisionResult>{
  const {database,tenantId,institutionId,eventId,eventType,payload}=input;
  const body=parsePayload(payload),data=body.data&&typeof body.data==='object'&&!Array.isArray(body.data)?body.data as Record<string,unknown>:{};
- const loanId=text(body.loanId||body.applicationId||data.loanId||data.applicationId,120),reason=text(body.reason||data.reason,300),externalReference=text(body.externalReference||data.externalReference,120);
- if(!loanId)return {status:'dead_letter',reason:'LOAN_ID_MISSING'};
+ const requestedLoanId=text(body.loanId||data.loanId,120),applicationId=text(body.applicationId||data.applicationId,120),reason=text(body.reason||data.reason,300),externalReference=text(body.externalReference||data.externalReference,120);
+ if(!requestedLoanId&&!applicationId)return {status:'dead_letter',reason:'LOAN_ID_MISSING'};
  if(institutionMode()!=='external'&&eventType!=='loan.approved'&&eventType!=='loan.rejected')return {status:'received',reason:'report_only'};
  const rows=customerRowsMode()==='on';
- const source:Source|undefined=(rows?await database.prepare('SELECT customer_id,revision,payload FROM customer_workspaces c WHERE c.owner=? AND EXISTS (SELECT 1 FROM loan_index i WHERE i.owner=c.owner AND i.customer_id=c.customer_id AND i.loan_id=?)').bind(tenantId,loanId).first<Source>():await database.prepare('SELECT revision,payload FROM demo_workspaces WHERE owner=?').bind(tenantId).first<Source>())||undefined;
- if(!source)return {status:'dead_letter',reason:'LOAN_NOT_FOUND',loanId};
- const state=JSON.parse(source.payload) as State,loan=state.loans.find(item=>item.id===loanId);
- if(!loan)return {status:'dead_letter',reason:'LOAN_NOT_FOUND',loanId};
+ const source:Source|undefined=(rows
+  ?await database.prepare(`SELECT c.customer_id,c.revision,c.payload FROM customer_workspaces c WHERE c.owner=? AND EXISTS (SELECT 1 FROM loan_index i WHERE i.owner=c.owner AND i.customer_id=c.customer_id AND ${requestedLoanId?'i.loan_id=?':'i.public_ref=?'})`).bind(tenantId,requestedLoanId||applicationId).first<Source>()
+  :await database.prepare('SELECT revision,payload FROM demo_workspaces WHERE owner=?').bind(tenantId).first<Source>())||undefined;
+ if(!source)return {status:'dead_letter',reason:'LOAN_NOT_FOUND',loanId:requestedLoanId||applicationId};
+ const state=JSON.parse(source.payload) as State;
+ const loanById=requestedLoanId?state.loans.find(item=>item.id===requestedLoanId):undefined;
+ const loanByApplication=applicationId?state.loans.find(item=>item.publicRef===applicationId):undefined;
+ if(requestedLoanId&&applicationId&&((loanById&&loanByApplication&&loanById.id!==loanByApplication.id)||(loanById&&loanById.publicRef!==applicationId)||(loanByApplication&&!loanById)))return {status:'dead_letter',reason:'APPLICATION_ID_MISMATCH',loanId:requestedLoanId};
+ const loan=loanById||loanByApplication;
+ if(!loan)return {status:'dead_letter',reason:'LOAN_NOT_FOUND',loanId:requestedLoanId||applicationId};
+ const loanId=loan.id;
+ if(rows&&requestedLoanId&&applicationId){
+  const applicationRow=await database.prepare('SELECT loan_id FROM loan_index WHERE owner=? AND public_ref=?').bind(tenantId,applicationId).first<{loan_id:string}>();
+  if(!applicationRow||applicationRow.loan_id!==requestedLoanId)return {status:'dead_letter',reason:'APPLICATION_ID_MISMATCH',loanId};
+ }
  const assignment=loan.customerId?await database.prepare('SELECT institution_id FROM team_assignments WHERE tenant_id=? AND customer_id=?').bind(tenantId,loan.customerId).first<{institution_id:string|null}>():null;
  if(!assignment||assignment.institution_id!==institutionId)return {status:'dead_letter',reason:'INSTITUTION_MISMATCH',loanId};
  if((eventType==='funding.confirmed'||eventType==='repayment.confirmed')&&externalReference){
