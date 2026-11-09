@@ -30,6 +30,9 @@ export function checkConfig(c,{example=false}={}){
  check(b&&b.PAYEASE_ENV==='gray'&&b.KHMERX_TEST_MODE==='false'&&b.PAYEASE_IDENTITY_PROOF_REQUIRED==='true'&&b.PAYEASE_DEMO_OTP_ALLOWED==='true','runtime guards');
  const roles={publicClientHosts:['testpayease.khmerx.org','testadmin.khmerx.org','testapi.khmerx.org'],adminHosts:['testadmin.khmerx.org'],apiHosts:['testapi.khmerx.org']};
  for(const [key,hosts]of Object.entries(roles))check(Array.isArray(c[key])&&c[key].length===hosts.length&&hosts.every(h=>c[key].includes(h)),key);
+ const origins=String(b.PAYEASE_ALLOWED_ORIGINS||'').split(',').map(value=>value.trim()).filter(Boolean);
+ check(origins.length>0,'PAYEASE_ALLOWED_ORIGINS');
+ for(const origin of origins){let parsed;try{parsed=new URL(origin)}catch{throw Error('Invalid gray configuration: PAYEASE_ALLOWED_ORIGINS')}check(parsed.protocol==='https:'&&parsed.username===''&&parsed.password===''&&parsed.pathname==='/'&&parsed.search===''&&parsed.hash===''&&parsed.origin===origin,'PAYEASE_ALLOWED_ORIGINS');check(c.publicClientHosts.includes(parsed.hostname),'PAYEASE_ALLOWED_ORIGINS host')}
  check(c.host==='testpayease.khmerx.org','host');const rules=hostRules(c);check([...rules.adminHosts,...rules.apiHosts].every(h=>isPublicClientHost(h,rules)),'public auth routing');
  const value=(v,key,min=1)=>check(typeof v==='string'&&v.trim().length>=min&&(example||!v.includes('replace-with-')),key);
  value(c.accessUser,'accessUser');value(c.accessPassword,'accessPassword',12);value(c.sessionSecret,'sessionSecret',32);

@@ -51,19 +51,18 @@ export async function consumeInstitutionCallbackEvent(input:{database:Database;t
  if(plan.kind==='repayment'&&externalReference&&state.events.some(event=>event.loanId===loanId&&event.externalReference===externalReference))return {status:'dead_letter',reason:'EXTERNAL_REFERENCE_DUPLICATE',loanId};
  let contract:string|undefined;
  let next:State;
- if(eventType==='loan.approved'||eventType==='loan.rejected'){
-  if(loan.status!=='decision_pending'||loan.approvalActor)return {status:'dead_letter',reason:'STATUS_MISMATCH',loanId};
+ if(eventType==='loan.approved'||eventType==='loan.rejected'||eventType==='funding.confirmed'){
+  if(eventType==='funding.confirmed'){
+   if(loan.status!=='signed'||!loan.approvalCheckedBy||loan.fundingActor)return {status:'dead_letter',reason:'STATUS_MISMATCH',loanId};
+  }else if(loan.status!=='decision_pending'||loan.approvalActor)return {status:'dead_letter',reason:'STATUS_MISMATCH',loanId};
   if(eventType==='loan.approved'){
   const row=loan.customerId?await findCase(tenantId,loan.customerId):null;
   if(!row)return {status:'dead_letter',reason:'KYC_CASE_MISSING',loanId};
   try{const valid=await validLoanContract(tenantId,loan,row);contract=JSON.stringify({...valid,notice:'仅测试资金，不产生真实债务'});}catch{return {status:'dead_letter',reason:'CONTRACT_INVALID',loanId};}
   }
-  try{next=applyInstitutionDecision(state,loanId,eventType as InstitutionDecision,`institution:${institutionId}`,reason,contract)}catch(error){return {status:'dead_letter',reason:error instanceof Error?error.message:'DECISION_INVALID',loanId};}
+  try{next=applyInstitutionDecision(state,loanId,eventType as InstitutionDecision,`institution:${institutionId}`,reason,contract,new Date().toISOString(),externalReference)}catch(error){return {status:'dead_letter',reason:error instanceof Error?error.message:'DECISION_INVALID',loanId};}
   const applied=next.loans.find(item=>item.id===loanId)!;
   if(eventType==='loan.approved'&&institutionMode()==='external'){applied.status='approved';applied.note='机构双人复核已完成，等待客户签约';}
- }else if(eventType==='funding.confirmed'){
-  try{next=applyAction(state,{action:'disburse',loanId,role:'lender',requestId:`institution:${eventId}`,note:'机构确认放款'},new Date().toISOString());}catch(error){return {status:'dead_letter',reason:error instanceof Error?error.message:'FUNDING_FAILED',loanId};}
-  const applied=next.loans.find(item=>item.id===loanId)!;applied.fundingActor=`institution:${institutionId}`;
  }else if(eventType==='repayment.confirmed'){
   try{next=applyAction(state,{action:'repay',loanId,role:'mini',requestId:`institution:${eventId}`,cents:plan.amountCents,note:'机构确认还款'},new Date().toISOString());}catch(error){return {status:'dead_letter',reason:error instanceof Error?error.message:'REPAYMENT_FAILED',loanId};}
  }else if(eventType==='payment.failed'){

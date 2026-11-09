@@ -47,10 +47,12 @@ store a plaintext staff password in config/Git. The sample email is fictional.
 
 Authentication is channel-specific in gray: regular H5/App requests use the
 explicit demo phone OTP (`PAYEASE_H5_AUTH_MODE=demo` and
-`KHMERX_TEST_MODE=true`), while Telegram Mini App requests use Telegram
+`KHMERX_TEST_MODE=false`, `PAYEASE_DEMO_OTP_ALLOWED=true`, and
+`PAYEASE_IDENTITY_PROOF_REQUIRED=true`), while Telegram Mini App requests use Telegram
 initData (`PAYEASE_TELEGRAM_AUTH_MODE=telegram`). The shared
 `PAYEASE_AUTH_MODE=telegram` value remains the compatibility/default value and
-does not override the explicit H5 channel setting. The H5 page visibly labels
+does not override the explicit H5 channel setting. Test mode remains disabled
+because it also relaxes MFA and dual-control checks. The H5 page visibly labels
 the test environment and `123456`; the API never returns `demoCode` to the
 Telegram channel. This example is gray-only and must never be copied into a
 production binding; standalone production boot rejects `KHMERX_TEST_MODE=true`.
@@ -62,6 +64,12 @@ KYC_SCAN_URL targets the internal scanner. CUSTOMER_ROWS remains off; changing
 that flag, limit scales or running fixtures/load tests requires its separate gate.
 Admin/API hosts intentionally also appear in publicClientHosts, matching the
 formal gateway's Basic exemption; actual staff/customer authentication remains.
+
+`PAYEASE_ALLOWED_ORIGINS` is a comma-separated exact HTTPS origin allow-list.
+Each value must be an origin without a path, wildcard, or trailing slash, and
+must be one of the hosts in `publicClientHosts`. During smoke testing, send at
+least one write request from the real page origin and confirm the API accepts
+that origin; a passing configuration check alone is not proxy/browser proof.
 
 Run the read-only preflight before building/starting (Node 22 container, no network):
 

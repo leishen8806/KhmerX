@@ -92,3 +92,7 @@ Standalone gray 单公司部署在 `deploy/standalone/server.mjs:211-214` 只在
 `lib/team/policy.ts:actionRoles` 仍由服务端执行岗位/范围校验；`app/api/institution/callback/route.ts` 仅接受 `loan.approved`、`loan.rejected`、`funding.confirmed`、`repayment.confirmed`、`payment.failed` 等已登记事件，并使用 `INSTITUTION_CALLBACK_SECRET(S_JSON)`。回调进入 `received`/重试队列不等于直接伪造员工会话或绕过内部状态机。
 
 验收锁定项：每个角色在 `business` 与 `lender` 两个入口均有显式允许/拒绝断言；`lender`、`finance` 两个角色在两个入口都拒绝是设计结果，不是缺陷。机构链路的本地验证应使用测试回调密钥和回调事件，同时穿插后台 `checker`/`finance_checker` 的独立复核。
+
+## 2026-11-06 更正
+
+灰度模板的认证开关应为 `KHMERX_TEST_MODE=false`、`PAYEASE_DEMO_OTP_ALLOWED=true`、`PAYEASE_H5_AUTH_MODE=demo`、`PAYEASE_IDENTITY_PROOF_REQUIRED=true`；test mode 会同时放宽 MFA 与双人复核，不应在灰度配置中开启。灰度模板新增 `PAYEASE_ALLOWED_ORIGINS`，由 `check-config.mjs` 校验为三个 `publicClientHosts` 的精确 HTTPS origin 子集。GL-2 只修改本地模板、检查脚本、README 与测试；灰度机配置写入由 OPS 在获批窗口人工执行。
