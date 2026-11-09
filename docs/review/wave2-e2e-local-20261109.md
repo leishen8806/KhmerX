@@ -45,3 +45,20 @@ KhmerX-Licensed 分支 `fix/licensed/W2-6a-http-tests`，提交 `433685a`，PR [
 ## 未覆盖项
 
 没有共享数据库统计、跨进程 HTTP 状态链路、10 分钟停机补发、不重复入库的查询结果；这些均留待机构仓库提供持久化启动方式和现成 dispatch 触发入口后重新执行。
+
+## W2-6b 复跑补充（2026-11-09）
+
+| 项目 | 结果 | 证据 |
+|---|---|---|
+| Licensed 持久化启动 | 通过 | W2-6b PR 合并后，`npm start` 使用 `.wrangler/state`；`GET http://127.0.0.1:8787/healthz` 返回 200 |
+| Licensed 本地迁移 | 通过 | `npm run migrate:local` 输出 0001、0002、0003、0004 均已应用 |
+| 虚构员工造数 | 通过 | `seed-staff.mjs` 创建 lender、checker、admin；密钥仅在终端输出，未写入报告或 Git |
+| 重启后数据保留 | 通过 | 重启前后本地 SQLite 查询 `SELECT COUNT(*) FROM team_members` 均为 3 |
+| 客户 HTTP 注册与 KYC 提交 | 通过 | `scripts/dev-app-backend/kyc-smoke.mjs`：send code、verify code、四个文件上传、save draft、submit 全部通过 |
+| 员工 HTTP 登录 | 通过 | `POST /api/team/auth` 返回 `{"ok":true}`；密码和 MFA 仅用于本机验证 |
+| 员工会话访问审核接口 | 失败 | 同一 HTTP 代理链访问 `/api/kyc/review` 返回 `AUTH_REQUIRED`；未绕过 HTTP，不直接写库或调函数 |
+| 批准、拒绝、撤回跨进程路径 | 未执行 | 审核会话阻塞，无法取得合法审核员上下文 |
+| 两方向 10 分钟停机演练 | 未执行 | 前置审核路径未通过；未用单元测试冒充停机证据 |
+| 两库发件箱最终统计 | 未执行 | 尚无完成的跨进程业务记录，未估算 |
+
+补充测试 PR：KhmerX-Licensed #7 已合并；W2-6b PR 为 [#8](https://github.com/leishen8806/KhmerX-Licensed/pull/8)，合并提交 `cd129c2`。
