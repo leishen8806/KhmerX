@@ -61,7 +61,11 @@ export async function consumeInstitutionCallbackEvent(input:{database:Database;t
   }
   try{next=applyInstitutionDecision(state,loanId,eventType as InstitutionDecision,`institution:${institutionId}`,reason,contract,new Date().toISOString(),externalReference)}catch(error){return {status:'dead_letter',reason:error instanceof Error?error.message:'DECISION_INVALID',loanId};}
   const applied=next.loans.find(item=>item.id===loanId)!;
-  if(eventType==='loan.approved'&&institutionMode()==='external'){applied.status='approved';applied.note='机构双人复核已完成，等待客户签约';}
+  if(eventType==='loan.approved'&&institutionMode()==='external'){
+   applied.status='approved';
+   applied.approvalCheckedBy=`institution:${institutionId}`;
+   applied.note='机构双人复核已完成，等待客户签约';
+  }
  }else if(eventType==='repayment.confirmed'){
   try{next=recordInstitutionRepayment(state,loanId,institutionId,plan.amountCents!,externalReference,new Date().toISOString());}catch(error){return {status:'dead_letter',reason:error instanceof Error?error.message:'REPAYMENT_RECORD_FAILED',loanId};}
  }else if(eventType==='payment.failed'){
