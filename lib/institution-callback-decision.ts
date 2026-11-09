@@ -8,7 +8,7 @@ export function recordInstitutionRepayment(state:State,loanId:string,institution
  if(!loan)throw new Error('贷款申请不存在');
  if(loan.status!=='active')throw new Error('贷款状态不允许处理机构还款');
  if(!Number.isSafeInteger(amountCents)||amountCents<=0)throw new Error('还款确认金额无效');
- const reference=externalReference.trim().slice(0,120);if(!reference)throw new Error('机构还款外部编号为空');
+ const reference=externalReference.trim().slice(0,80);if(!reference)throw new Error('机构还款外部编号为空');
  if(next.events.some(event=>event.loanId===loanId&&event.externalReference===reference))throw new Error('EXTERNAL_REFERENCE_DUPLICATE');
  if(loan.pendingRepayment)throw new Error('REPAYMENT_REVIEW_PENDING');
  loan.pendingRepayment={amountCents,externalReference:reference,institutionId,receivedAt:now};

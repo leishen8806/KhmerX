@@ -40,12 +40,14 @@ test('institution funding confirmation requires the independent approval check',
 
 test('institution repayment confirmation records pending review without touching wallet or entries',()=>{
  const original=base();original.loans[0].status='active';original.loans[0].wallet=4465;
+ original.loans[0].demoDays=3;
  const next=source.recordInstitutionRepayment(original,'loan-1','repayment:unit-1',10000,'REPAY-001','2026-11-09T00:00:00.000Z');
  assert.equal(next.loans[0].pendingRepayment.amountCents,10000);
  assert.equal(next.loans[0].pendingRepayment.externalReference,'REPAY-001');
  assert.equal(next.loans[0].wallet,original.loans[0].wallet);
  assert.deepEqual(next.entries,original.entries);
  assert.equal(next.loans[0].paid,original.loans[0].paid);
+ assert.equal(next.loans[0].demoDays,3,'逾期测试情景仍以 active 状态表示');
  assert.equal(next.events[0].action,'repayment.confirmed');
  assert.equal(next.notifications[0].text,'机构已确认还款，等待财务复核');
  assert.throws(()=>source.recordInstitutionRepayment(next,'loan-1','repayment:unit-1',10000,'REPAY-001'),/EXTERNAL_REFERENCE_DUPLICATE/);
