@@ -133,12 +133,13 @@ async function sendCallback(args) {
   if (target.hostname !== '127.0.0.1') throw new Error('mock callback target must be 127.0.0.1');
   const eventType = args.event || 'loan.approved';
   const applicationId = args.application_id || 'app-001';
+  const loanId = args.loan_id;
   const eventId = args.event_id || `event-${randomBytes(8).toString('hex')}`;
   const body = JSON.stringify({
     eventId,
     eventType,
     applicationId,
-    loanId: applicationId,
+    ...(loanId ? { loanId } : {}),
     externalReference: args.external_reference || `synthetic-${eventType}`,
     amountCents: Number(args.amount_cents || 1000),
     paymentType: args.payment_type || 'repayment',
