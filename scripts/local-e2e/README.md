@@ -4,13 +4,16 @@
 
 ## 运行
 
+前置手动步骤（两套服务均为本机持久化库）：客户依次调用 `POST /api/h5/auth/send`、`POST /api/h5/auth/verify`、`POST /api/kyc/files`、`POST /api/kyc`（save/submit）、`POST /api/h5/state`（create/confirm_bill），员工调用 `GET /api/team` 和 `POST /api/team`（assign）。签名由脚本调用 `GET /api/loan/sign?loan=...`、`POST /api/loan/sign`；机构审批使用 `GET/POST /api/institution/applications`，发件箱分别使用 `POST /api/jobs/partner-outbox`。
+
 在两个服务和本地迁移完成后，设置以下变量：
 
 - `KHMERX_BASE_URL`、`LICENSED_BASE_URL`
 - `KHMERX_DB_PATH`、`LICENSED_DB_PATH`
 - `CUSTOMER_COOKIE`、`LOAN_ID`、`PUBLIC_REF`、`PARTNER_ID`
-- `LICENSED_COOKIE`、`LENDER_VERSION`、`CHECKER_VERSION`
+- `LENDER_COOKIE`、`CHECKER_COOKIE`、`LENDER_VERSION`、`CHECKER_VERSION`
 - `KHMERX_JOB_SECRET`、`LICENSED_JOB_KEY`
+- 可选拒绝路径：`REJECT_PUBLIC_REF`、`REJECT_LENDER_VERSION`
 
 然后执行：
 
@@ -19,4 +22,4 @@ $env:PAYEASE_ENV='local'
 node scripts/local-e2e/w2-6-e2e.mjs
 ```
 
-脚本按“读取签约条款 → 上传真实 1×1 PNG 签名 → apply → 触发 KhmerX 发件箱 → 读取 Licensed 申请 → 审批与复核 → 触发 Licensed 发件箱 → 查询两库状态统计”的顺序运行。输出只包含步骤状态、错误码和聚合统计，不输出 Cookie、密钥或响应正文。
+脚本按“签名 → apply → 断言 KhmerX 发件箱新增 → 触发 KhmerX 发件箱 → 断言 Licensed 收到申请 → LENDER 审批 → CHECKER 复核 → 触发 Licensed 发件箱 → 断言 KhmerX 贷款 approved 且回调 applied → 断言 agreement.signed → 可选拒绝路径 → 两库分开统计”的顺序运行。任一步断言失败都会非 0 退出，并打印步骤名、HTTP 状态码和错误码；输出不包含 Cookie、密钥或响应正文。
