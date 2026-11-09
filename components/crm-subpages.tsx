@@ -29,7 +29,14 @@ import {OperatorRow} from '@/components/operator-row';
 
 type Props={view:string;work:any;units:any[];members:any[];member:any;tenant:string;busy:boolean;post:(body:any,path?:string)=>Promise<boolean>};
 function Frame({view,children,title}:any){const page=crmSubpageByView[view];return <section className="panel crm-independent-page" aria-label={view}><div className="crm-independent-head"><div><p className="eyebrow">CRM · INDEPENDENT PAGE</p><h1>{title||page?.label||view}</h1><p className="fine">{page?.description||'授权范围内的独立业务页面。'}</p></div><span className="crm-page-badge">独立数据视图</span></div>{children}</section>}
-function Rows({rows,columns}:{rows:any[];columns:string[]}){return <div className="table-scroll"><table><thead><tr>{columns.map(c=><th key={c}>{c}</th>)}</tr></thead><tbody>{rows.length?rows.map((row:any,i:number)=><tr key={row.id||row.customerId||i}>{columns.map(c=><td key={c}>{String(row[c]??'—')}</td>)}</tr>):<tr><td colSpan={columns.length}>当前授权范围内暂无数据。</td></tr>}</tbody></table></div>}
+const auditColumnLabels:Record<string,string>={type:'类型 / Type / ប្រភេទ',action:'操作 / Action / សកម្មភាព',at:'时间 / At / ពេលវេលា'};
+function auditCell(row:any,column:string){
+ if(column==='type')return row.type||row.eventType||row.event_type||row.action||'业务事件';
+ if(column==='action')return row.action||row.eventType||row.event_type||'业务状态更新';
+ if(column==='at')return row.at||row.createdAt||row.created_at||'—';
+ return row[column]??'—';
+}
+function Rows({rows,columns}:{rows:any[];columns:string[]}){return <div className="table-scroll"><table><thead><tr>{columns.map(c=><th key={c}>{auditColumnLabels[c]||c}</th>)}</tr></thead><tbody>{rows.length?rows.map((row:any,i:number)=><tr key={row.id||row.customerId||i}>{columns.map(c=><td key={c}>{String(auditColumnLabels[c]?auditCell(row,c):row[c]??'—')}</td>)}</tr>):<tr><td colSpan={columns.length}>当前授权范围内暂无数据。</td></tr>}</tbody></table></div>}
 function csvCell(value:any){
  const text=String(value??'').replace(/\r?\n/g,' ');
  const safe=/^[=+\-@]/.test(text)?`'${text}`:text;
