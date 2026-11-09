@@ -33,6 +33,7 @@
     "PAYEASE_ENV": "gray",
     "KHMERX_TEST_MODE": "false",
     "PAYEASE_IDENTITY_PROOF_REQUIRED": "true",
+    "PAYEASE_ALLOWED_ORIGINS": "https://testpayease.khmerx.org,https://testadmin.khmerx.org,https://testapi.khmerx.org",
     "PAYEASE_AUTH_SECRET": "replace-with-a-random-32-byte-auth-secret",
     "PAYEASE_IDENTITY_PROOF_SECRET": "replace-with-a-random-32-byte-proof-secret",
     "KYC_SCAN_TOKEN": "replace-with-scanner-token",
