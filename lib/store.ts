@@ -77,15 +77,10 @@ export async function mutate(owner:string,p:any,customer?:{id:string;phoneMasked
 
   if(next===state)return {state,revision};if(p.action==='create'&&owner.startsWith('t_')){const termDays=p.termDays??14;if(![14,28].includes(termDays))throw new KycError('请选择 14 天或 28 天贷款期限');const bill=calculateBill(next.loans[0].amount,{...await pricingFor(owner),termDays},crypto.randomUUID());bill.publicRef=publicIdentifier('B',customer?.channel||'AD',new Date(next.loans[0].createdAt));next.loans[0].billing=bill;next.loans[0].fee=bill.total-bill.principal;}if(customer)await ensureAssignment(owner,customer.id);
   let outboxEvent;
-  if(customer&&institutionMode()==='external'&&['apply','sign','withdraw'].includes(p.action)){
+  if(customer&&institutionMode()==='external'&&['apply','sign'].includes(p.action)){
    const assigned=await db().prepare('SELECT institution_id FROM team_assignments WHERE tenant_id=? AND customer_id=?').bind(owner,customer.id).first<{institution_id:string|null}>();
-   if(['apply','sign'].includes(p.action)&&!assigned?.institution_id)throw new AuthError('申请暂时无法提交，请先分配合作机构',503,undefined,'PARTNER_NOT_ASSIGNED');
-   if(assigned?.institution_id){
-    try{
-     const eventType=p.action==='apply'?'application.submitted':p.action==='sign'?'agreement.signed':'application.withdrawn';
-     if(p.action!=='withdraw'||await db().prepare("SELECT 1 FROM partner_outbox WHERE tenant_id=? AND institution_id=? AND event_type='application.submitted' AND idempotency_key=?").bind(owner,assigned.institution_id,`application.submitted:${next.loans.find(l=>l.id===p.loanId)?.publicRef||''}`).first())outboxEvent=await buildPartnerEvent({tenantId:owner,institutionId:assigned.institution_id,eventType,loan:next.loans.find(l=>l.id===p.loanId)!,customerId:customer.id,database:db()});
-    }catch(error){if(error instanceof Error&&error.message==='PARTNER_NOT_CONFIGURED')throw new AuthError('申请暂时无法提交，请稍后再试',503,undefined,'PARTNER_NOT_CONFIGURED');throw error}
-   }
+   if(['apply','sign'].includes(p.action)&&!assigned?.institution_id)throw new AuthError('申请暂时无法提交，请稍后再试',503,undefined,'PARTNER_NOT_ASSIGNED');
+   if(assigned?.institution_id)try{outboxEvent=await buildPartnerEvent({tenantId:owner,institutionId:assigned.institution_id,eventType:p.action==='apply'?'application.submitted':'agreement.signed',loan:next.loans.find(l=>l.id===p.loanId)!,customerId:customer.id,database:db()});}catch(error){if(error instanceof Error&&error.message==='PARTNER_NOT_CONFIGURED')throw new AuthError('申请暂时无法提交，请稍后再试',503,undefined,'PARTNER_NOT_CONFIGURED');throw error}
   }
   if(approvedCase){
    const updated=next.loans.find(l=>l.id===p.loanId)!;
