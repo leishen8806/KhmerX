@@ -30,7 +30,7 @@ const hashPassword = password => {
 const configPath = join(data, 'config.json');
 const config = existsSync(configPath) ? JSON.parse(readFileSync(configPath, 'utf8')) : {};
 const configuredAdmin = config.companies?.find(company => company.id === companyId)?.accounts?.find(account => account.role === 'admin');
-const staff = ['admin', 'business', 'kyc', 'checker', 'finance', 'finance_checker', 'lender'].map(role => {
+const staff = ['admin', 'ops', 'kyc', 'checker', 'finance', 'finance_checker', 'lender'].map(role => {
   const email = role === 'admin' ? configuredAdmin?.email || 'gray-admin@example.test' : `local-${role}@example.test`;
   const credentials = hashPassword(`Acceptance-${randomBytes(18).toString('base64url')}`);
   return { role, email, ...credentials };
