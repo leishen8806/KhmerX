@@ -8,9 +8,10 @@ export function normalizeInstitutionEvent(payload:Record<string,unknown>,institu
  if(payload.institutionId!==undefined&&payload.institutionId!==institutionId)throw new Error('事件机构与签名机构不一致');
  const eventId=typeof payload.eventId==='string'?payload.eventId.trim():'';
  if(eventId&&!/^[A-Za-z0-9._:-]{3,120}$/.test(eventId))throw new Error('事件编号无效');
- const loanId=typeof payload.loanId==='string'?payload.loanId.trim():typeof payload.applicationId==='string'?payload.applicationId.trim():'';
- if(loanId&&!/^[A-Za-z0-9._:-]{3,120}$/.test(loanId))throw new Error('贷款编号无效');
+ const loanId=typeof payload.loanId==='string'?payload.loanId.trim():'';
+ const applicationId=typeof payload.applicationId==='string'?payload.applicationId.trim():'';
+ if((loanId&&!/^[A-Za-z0-9._:-]{3,120}$/.test(loanId))||(applicationId&&!/^[A-Za-z0-9._:-]{3,120}$/.test(applicationId)))throw new Error('贷款编号无效');
  const occurredAt=typeof payload.occurredAt==='string'?payload.occurredAt.trim():'';
  if(occurredAt&&(Number.isNaN(Date.parse(occurredAt))||occurredAt.length>60))throw new Error('事件时间无效');
- return {eventType,eventId:eventId||null,loanId:loanId||null,institutionId,occurredAt:occurredAt||null,data:payload.data&&typeof payload.data==='object'&&!Array.isArray(payload.data)?payload.data:{}};
+ return {eventType,eventId:eventId||null,loanId:loanId||null,applicationId:applicationId||null,institutionId,occurredAt:occurredAt||null,data:payload.data&&typeof payload.data==='object'&&!Array.isArray(payload.data)?payload.data:{}};
 }
