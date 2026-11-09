@@ -2,7 +2,7 @@
 // Run after start.mjs and seed.mjs. It uses HTTP/UI interfaces only: no D1 or
 // R2 writes are performed by this script.
 import { createHash, createHmac, randomUUID } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const root = process.env.LOCAL_ACCEPTANCE_ROOT || '/private/tmp/khmerx-local-acceptance';
@@ -20,6 +20,7 @@ const staffSeed = JSON.parse(await readFile(join(root, 'data', 'local-acceptance
 const staffByRole = new Map(staffSeed.staff.map(entry => [entry.role, entry]));
 const results = [];
 const screenshots = [];
+const screenshotPaths = new Set();
 
 function jar() { return { cookies: new Map() }; }
 function cookieHeader(j) { return [...j.cookies].map(([key, value]) => `${key}=${value}`).join('; '); }
@@ -77,6 +78,7 @@ async function login(role, portal) {
   return { ...result, jar: j, role, portal };
 }
 
+await rm(reportDir, { recursive: true, force: true });
 await mkdir(reportDir, { recursive: true });
 
 await check('role × portal login matrix (real password login)', async () => {
@@ -137,6 +139,9 @@ let playwright;
 try { playwright = await import(process.env.PLAYWRIGHT_MODULE || '/private/tmp/pw-run/node_modules/playwright/index.mjs'); } catch { playwright = null; }
 async function screenshotForSession(name, session, path) {
   if (!playwright) throw blocked('Playwright is unavailable; UI screenshot not run');
+  const file = join(reportDir, `${name}.png`);
+  if (screenshotPaths.has(file)) throw new Error(`duplicate screenshot path: ${file}`);
+  screenshotPaths.add(file);
   const browser = await playwright.chromium.launch({ headless: true });
   try {
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
@@ -144,7 +149,6 @@ async function screenshotForSession(name, session, path) {
     const page = await context.newPage();
     const response = await page.goto(base + path, { waitUntil: 'networkidle' });
     await page.waitForTimeout(400);
-    const file = join(reportDir, `${name}.png`);
     await page.screenshot({ path: file, fullPage: true });
     const sha256 = createHash('sha256').update(await readFile(file)).digest('hex');
     const evidence = { file, sha256, httpStatus: response?.status() ?? null, viewport: '1440x1000', path };
