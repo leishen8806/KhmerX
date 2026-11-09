@@ -11,7 +11,7 @@ const sha256=async(value:string)=>Array.from(new Uint8Array(await crypto.subtle.
 
 function configMap(name:string){try{const value=values()[name]?.trim();const parsed=value?JSON.parse(value):{};return parsed&&typeof parsed==='object'?parsed as Record<string,string>:{};}catch{return {};}}
 function outboundSecret(institutionId:string){const map=configMap('PARTNER_OUTBOUND_SECRETS_JSON');return typeof map[institutionId]==='string'?map[institutionId]:'';}
-function endpoint(institutionId:string){const raw=configMap('PARTNER_ENDPOINTS_JSON')[institutionId];if(typeof raw!=='string')return null;try{const url=new URL(raw);return url.protocol==='https:'?url:null;}catch{return null;}}
+function endpoint(institutionId:string){const raw=configMap('PARTNER_ENDPOINTS_JSON')[institutionId];if(typeof raw!=='string')return null;try{const url=new URL(raw),safe=!url.username&&!url.password,local=values().PAYEASE_ENV==='local',loopback=url.hostname==='127.0.0.1'||url.hostname==='localhost';if(!safe)return null;if(url.protocol==='https:')return url;if(local&&url.protocol==='http:'&&loopback)return url;return null;}catch{return null;}}
 
 export async function deriveCustomerRef(secret:string,tenantId:string,institutionId:string,customerId:string){
  const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign']);
