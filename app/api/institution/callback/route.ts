@@ -79,7 +79,7 @@ export async function POST(request:Request){
    ]);
   }
   if(retried.exhausted)return response({error:'回调版本冲突，请稍后重发',code:'REVISION_CONFLICT',ok:false,eventId:storedEventId,status:'received',consumerReason:'REVISION_CONFLICT'},503,requestId,{'Retry-After':String(30)});
-  const httpStatus=consumed.status==='received'?202:200;
+  const httpStatus=consumed.reason==='APPLICATION_CANCELLED'?200:consumed.status==='received'?202:200;
   return response({ok:true,duplicate:false,eventId:storedEventId,eventType,status:consumed.status,consumerReason:consumed.reason||null},httpStatus,requestId);
  }catch{return failure('持牌机构回调暂不可用','SERVICE_UNAVAILABLE',503,requestId)}
 }

@@ -53,12 +53,12 @@ export async function mutate(owner:string,p:any,customer?:{id:string;phoneMasked
  await db().prepare('INSERT OR IGNORE INTO demo_workspaces (owner,revision,payload) VALUES (?,0,?)').bind(owner,JSON.stringify(initialState())).run();
  for(let i=0;i<4;i++){
   const {state,revision}=await readState(owner,rowsMode==='on'?customer?.id:undefined);
-  const loan=state.loans.find(l=>l.id===p.loanId);if(customer&&p.action==='create'&&state.loans.some(l=>l.customerId===customer.id&&!['closed','rejected'].includes(l.status)))throw new KycError('请先完成当前申请，再发起新的申请',409);
+  const loan=state.loans.find(l=>l.id===p.loanId);if(customer&&p.action==='create'&&state.loans.some(l=>l.customerId===customer.id&&!['closed','rejected','cancelled'].includes(l.status)))throw new KycError('请先完成当前申请，再发起新的申请',409);
   // Customer ownership must be checked before consulting another customer's case.
   if(customer&&p.action!=='create'&&loan?.customerId!==customer.id)throw new KycError('申请不存在或不属于当前客户',404);
   let approvedCase;const creationCase=customer&&p.action==='create'?await findCase(owner,customer.id):null;if(customer&&p.action==='create'&&creationCase?.status!=='approved')throw new KycError('请先完成 KYC 资料审核，通过后才能申请贷款金额',409);
-  if(loan?.customerId){
-   if(!customer&&['confirm_bill','confirm_kyc','submit_kyc','resubmit','apply','sign','withdraw','repay'].includes(p.action))throw new KycError('请由客户在 H5 会话操作',403);
+   if(loan?.customerId){
+   if(!customer&&['confirm_bill','confirm_kyc','submit_kyc','resubmit','apply','sign','cancel_application','withdraw','repay'].includes(p.action))throw new KycError('请由客户在 H5 会话操作',403);
    if(['review','supplement'].includes(p.action))throw new KycError('请在 KYC 人工审核页面逐项核对资料',409);
    if(['approve','reject','disburse'].includes(p.action))await reviewer();
    if(['confirm_kyc','submit_kyc','resubmit','apply','approve','sign','disburse'].includes(p.action)){
@@ -77,10 +77,11 @@ export async function mutate(owner:string,p:any,customer?:{id:string;phoneMasked
 
   if(next===state)return {state,revision};if(p.action==='create'&&owner.startsWith('t_')){const termDays=p.termDays??14;if(![14,28].includes(termDays))throw new KycError('请选择 14 天或 28 天贷款期限');const bill=calculateBill(next.loans[0].amount,{...await pricingFor(owner),termDays},crypto.randomUUID());bill.publicRef=publicIdentifier('B',customer?.channel||'AD',new Date(next.loans[0].createdAt));next.loans[0].billing=bill;next.loans[0].fee=bill.total-bill.principal;}if(customer)await ensureAssignment(owner,customer.id);
   let outboxEvent;
-  if(customer&&institutionMode()==='external'&&['apply','sign'].includes(p.action)){
+  if(customer&&institutionMode()==='external'&&['apply','sign','cancel_application'].includes(p.action)){
    const assigned=await db().prepare('SELECT institution_id FROM team_assignments WHERE tenant_id=? AND customer_id=?').bind(owner,customer.id).first<{institution_id:string|null}>();
    if(['apply','sign'].includes(p.action)&&!assigned?.institution_id)throw new AuthError('申请暂时无法提交，请稍后再试',503,undefined,'PARTNER_NOT_ASSIGNED');
-   if(assigned?.institution_id)try{outboxEvent=await buildPartnerEvent({tenantId:owner,institutionId:assigned.institution_id,eventType:p.action==='apply'?'application.submitted':'agreement.signed',loan:next.loans.find(l=>l.id===p.loanId)!,customerId:customer.id,database:db()});}catch(error){if(error instanceof Error&&error.message==='PARTNER_NOT_CONFIGURED')throw new AuthError('申请暂时无法提交，请稍后再试',503,undefined,'PARTNER_NOT_CONFIGURED');throw error}
+   if(!assigned?.institution_id)throw new AuthError('申请暂时无法提交，请稍后再试',503,undefined,'PARTNER_NOT_ASSIGNED');
+   try{outboxEvent=await buildPartnerEvent({tenantId:owner,institutionId:assigned.institution_id,eventType:p.action==='apply'?'application.submitted':p.action==='sign'?'agreement.signed':'application.withdrawn',loan:next.loans.find(l=>l.id===p.loanId)!,customerId:customer.id,database:db()});}catch(error){if(error instanceof Error&&error.message==='PARTNER_NOT_CONFIGURED')throw new AuthError('申请暂时无法提交，请稍后再试',503,undefined,'PARTNER_NOT_CONFIGURED');throw error}
   }
   if(approvedCase){
    const updated=next.loans.find(l=>l.id===p.loanId)!;
