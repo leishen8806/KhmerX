@@ -19,7 +19,7 @@ const agreementVersion=(loan:Loan)=>{try{const c=JSON.parse(loan.contract||'{}')
 const money=(n:number)=>'$'+(n/100).toFixed(2);
 const accounts:Record<string,string>={loan_receivable:'贷款应收',funding_cash:'测试资金',fee_revenue:'费用收入',wallet_withdrawal:'钱包提现',wallet_available:'钱包可用余额'};
 const time=(v:string)=>new Date(v).toLocaleString('zh-CN',{timeZone:'Asia/Phnom_Penh',hour12:false});
-const labels:Record<string,string>={create:'贷款申请',confirm_bill:'确认费用',confirm_kyc:'人工审核结果确认',submit_kyc:'提交 KYC',review:'审核通过',supplement:'要求补件',resubmit:'补件提交',apply:'申请贷款',approve:'授信批准',reject:'拒绝申请',sign:'确认协议',disburse:'测试放款',withdraw:'测试提现',repay:'测试还款',overdue:'逾期情景',bot_save:'机器人配置',bot_add:'新增机器人',bot_switch:'切换业务机器人'};
+const labels:Record<string,string>={create:'贷款申请',confirm_bill:'确认费用',confirm_kyc:'人工审核结果确认',submit_kyc:'提交 KYC',review:'审核通过',supplement:'要求补件',resubmit:'补件提交',apply:'申请贷款',approve:'授信批准',reject:'拒绝申请',sign:'确认协议',cancel_application:'撤回申请',disburse:'测试放款',withdraw:'测试提现',repay:'测试还款',overdue:'逾期情景',bot_save:'机器人配置',bot_add:'新增机器人',bot_switch:'切换业务机器人'};
 function Pick({value,onChange,items}:{value:string;onChange:(x:string)=>void;items:{value:string;label:string}[]}){return <Select value={value} onValueChange={onChange}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{items.map(x=><SelectItem key={x.value} value={x.value}>{x.label}</SelectItem>)}</SelectContent></Select>}
 export default function Workspace({initialRole='mini',customerMode=false}:{initialRole?:Role;customerMode?:boolean}){
  const [role,setRole]=useState<Role>(initialRole),[state,setState]=useState<State>(initialState),[selected,setSelected]=useState(''),[busy,setBusy]=useState(false),[ready,setReady]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState(''),[newLoan,setNewLoan]=useState(false);
@@ -73,7 +73,7 @@ export default function Workspace({initialRole='mini',customerMode=false}:{initi
   if(action==='repay'&&loan){const cents=Number(extra.cents),left=loan.amount+loan.fee-loan.paid;if(repay&&!/^\d+(?:\.\d{1,2})?$/.test(repay))validation='请输入正数金额，最多保留两位小数';else if(!Number.isSafeInteger(cents)||cents<=0||cents>left)validation='还款金额须大于零且不超过剩余应还 '+money(left);}
   if(action==='create'&&previewError)validation=previewError;if(validation){setError(validation);return}
 
-  if(loan&&['confirm_bill','apply','approve','reject','disburse','withdraw','repay'].includes(action)){setBillAccepted(false);setConfirmation({text,action,extra,loan});return}
+  if(loan&&['confirm_bill','apply','approve','reject','cancel_application','disburse','withdraw','repay'].includes(action)){setBillAccepted(false);setConfirmation({text,action,extra,loan});return}
   void act(action,extra);
  };
  const actionButton=(text:string,action:string,extra:Record<string,unknown>={},primary=false)=><Button disabled={busy||!ready||refreshing} className={primary?'primary':''} onClick={()=>requestAction(text,action,extra)}>{busy?'保存中…':text}{!busy&&<ArrowRight size={16}/>}</Button>;
