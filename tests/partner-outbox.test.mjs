@@ -39,7 +39,7 @@ test('missing external configuration uses the safe client-facing error',async()=
 test('dispatcher claims at most twenty pending rows and uses bounded retries',()=>{
  assert.match(source,/LIMIT 20/);
  assert.match(source,/status='sending'/);
- assert.match(source,/Math\.min\(3600,30\*2\*\*/);
+ assert.match(source,/Math\.min\(300,30\*2\*\*/);
  assert.match(source,/24\*60\*60\*1000/);
 });
 
@@ -75,6 +75,7 @@ test('dispatcher behavior covers delivery, retry, timeout, expiry, lease reclaim
   const base={id:'1',institution_id:'inst',status:'pending',attempts:0,next_attempt_at:0,created_at:now,lease_until:null,payload:'{}',idempotency_key:'k'};
   let f=makeDb({...base});env.DB=f.db;let result=await outbox.namespace.dispatchPartnerOutbox(now,async()=>{f.bump();return {status:202}});assert.equal(result.sent,1);assert.equal(f.rows[0].status,'delivered');assert.equal(f.fetches,1);
   f=makeDb({...base});env.DB=f.db;await outbox.namespace.dispatchPartnerOutbox(now,async()=>({status:500}));assert.equal(f.rows[0].status,'pending');const retryAt=f.rows[0].next_attempt_at;await outbox.namespace.dispatchPartnerOutbox(new Date(retryAt).toISOString(),async()=>({status:200}));assert.equal(f.rows[0].attempts,2);assert.equal(f.rows[0].status,'delivered');
+  f=makeDb({...base,attempts:5});env.DB=f.db;await outbox.namespace.dispatchPartnerOutbox(now,async()=>({status:500}));assert.equal(f.rows[0].attempts,6);assert.equal(f.rows[0].next_attempt_at,Date.parse(now)+300000);
   f=makeDb({...base});env.DB=f.db;await outbox.namespace.dispatchPartnerOutbox(now,async()=>{throw new Error('timeout')});assert.equal(f.rows[0].status,'pending');assert.ok(f.rows[0].next_attempt_at>Date.parse(now));
   f=makeDb({...base,created_at:'2026-11-05T00:00:00.000Z'});env.DB=f.db;await outbox.namespace.dispatchPartnerOutbox(now,async()=>({status:500}));assert.equal(f.rows[0].status,'dead');
   f=makeDb({...base,status:'sending',attempts:1,lease_until:Date.parse(now)-1});env.DB=f.db;await outbox.namespace.dispatchPartnerOutbox(now,async()=>({status:200}));assert.equal(f.rows[0].status,'delivered');
