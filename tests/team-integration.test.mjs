@@ -325,6 +325,33 @@ test('enabled registration requirements block customer and KYC access until fulf
  await config(true,true);await assert.rejects(access.customer(verifiedRequest),/设置密码/);await auth.setPassword(runtime,A,verified.token,{password:'Synthetic-required-password-123'});assert.equal((await access.customer(verifiedRequest)).session.hasPassword,true);
 });
 
+test('Telegram session fallback serves H5 state, stays tenant-bound, and keeps registration gates',async()=>{
+ selected=A;user=owner;const auth=await mod('@/lib/h5-auth-core'),access=await mod('@/lib/h5-auth'),stateRoute=await mod('@/app/api/h5/state/route');
+ const previousMode=env.PAYEASE_TELEGRAM_AUTH_MODE,botToken='synthetic-telegram-session-bot-token';
+ const fields={auth_date:String(Math.floor(Date.now()/1000)),user:JSON.stringify({id:987654,first_name:'Synthetic Session'})};
+ const encoded=new URLSearchParams(fields),data=[...encoded.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([key,value])=>`${key}=${value}`).join('\n');
+ const secret=createHmac('sha256','WebAppData').update(botToken).digest();encoded.set('hash',createHmac('sha256',secret).update(data).digest('hex'));
+ const browser='d'.repeat(64),telegramRuntime=()=>access.runtime('telegram'),makeRequest=(company)=>new Request('http://localhost/api/h5/state',{headers:{cookie:`payease_company=${company}; payease_h5_session=${session.token}`}});
+ env.PAYEASE_TELEGRAM_AUTH_MODE='telegram';
+ const config=async(passwordSetup)=>flow.staffAction({action:'bot_save',botId:'bot-1',label:'Main',username:'',enabled:true,phoneVerification:true,passwordSetup,requestId:crypto.randomUUID()});
+ let session;
+ try{
+  await config(false);
+  session=await auth.loginTelegram(telegramRuntime(),A,browser,encoded.toString(),botToken,'bot-1');
+  selected=A;
+  // Before PR #250 this route returned 401: the H5 runtime rejected the
+  // Telegram-mode session and there was no Telegram-runtime fallback.
+  const response=await stateRoute.GET(makeRequest(A));assert.equal(response.status,200);
+  const body=await response.json();assert(body.state&&Array.isArray(body.state.loans));
+  await config(true);await assert.rejects(access.customer(makeRequest(A)),/设置密码/);
+  await config(false);assert.equal((await access.customer(makeRequest(A))).session.mode,'telegram');
+  selected=B;const foreign=await stateRoute.GET(makeRequest(B));assert.equal(foreign.status,401);
+  const foreignBody=await foreign.json();assert.match(foreignBody.error,/登录已失效|重新验证手机号/);
+ }finally{
+  selected=A;user=owner;await config(true);if(previousMode===undefined)delete env.PAYEASE_TELEGRAM_AUTH_MODE;else env.PAYEASE_TELEGRAM_AUTH_MODE=previousMode;
+ }
+});
+
 test('signature requires confirmed fees; unsigned applications cannot reach loan approval',async()=>{
  selected=A;user=owner;await approvedCustomer('signing-order-test');const c={id:'signing-order-test',phoneMasked:'test'},created=await store.mutate(A,{action:'create',name:'Order test',amount:5000,consent:true,requestId:crypto.randomUUID()},c),loan=created.state.loans[0],row=await kyc.initialize(A,c.id,false),data=await kyc.payload(row),p=structuredClone(data.profile);p.consent=true;p.files.signature={id:'not-uploaded'};await assert.rejects(kyc.signedContract(row,p,data),/确认.*费用/);
  await store.mutate(A,{action:'confirm_bill',loanId:loan.id,billConfirmed:true,quoteId:loan.billing.quoteId,requestId:crypto.randomUUID()},c);await assert.rejects(store.mutate(A,{action:'apply',loanId:loan.id,billConfirmed:true,quoteId:loan.billing.quoteId,requestId:crypto.randomUUID()},c),/手写签约/);assert.equal((await store.readState(A)).state.loans.find(l=>l.id===loan.id).status,'kyc_approved');
