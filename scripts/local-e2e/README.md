@@ -22,4 +22,6 @@ $env:PAYEASE_ENV='local'
 node scripts/local-e2e/w2-6-e2e.mjs
 ```
 
+阶段撤回路径：先运行 `node scripts/local-e2e/w2-6-e2e.mjs prepare`，完成准备后运行 `cancel`；该阶段会提交 `cancel_application`，触发发件箱，核对机构侧 `withdrawn`，并验证再次审批返回 409。`prepare`、`apply`、`tick`、`finish` 仍可按停机演练顺序使用。
+
 脚本每次运行生成两个新的虚构客户，依次跑批准和拒绝路径。任一步断言失败都会非 0 退出，并打印步骤名、HTTP 状态码和错误码；输出不包含 Cookie、密码、TOTP 密钥或响应正文。

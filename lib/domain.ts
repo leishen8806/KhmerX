@@ -3,7 +3,7 @@ import {syncSettlements} from './postloan/core.ts';
 import type {Bill} from './pricing';
 import {publicIdentifier,type PublicChannel} from './public-id.ts';
 export type Role='mini'|'ops'|'lender';
-export type Status='registered'|'kyc_pending'|'needs_info'|'kyc_approved'|'decision_pending'|'approved'|'rejected'|'signed'|'active'|'closed';
+export type Status='registered'|'kyc_pending'|'needs_info'|'kyc_approved'|'decision_pending'|'approved'|'rejected'|'signed'|'active'|'closed'|'cancelled';
 export type Bot={tokenConfigured?:boolean;telegramId?:string;phoneVerification?:boolean;passwordSetup?:boolean;id:string;label:string;username:string;enabled:boolean;envKey:string};
 export type Entry={id:string;loanId:string;kind:string;cents:number;debit:string;credit:string;at:string};
 export type Event={id:string;loanId:string;action:string;role:Role;note:string;at:string;source?:string;eventType?:string;externalReference?:string;institutionId?:string};
@@ -18,9 +18,9 @@ export function pruneRequestDigests(state:Pick<State,'requests'|'requestDigests'
  for(const key of removed)delete state.requestDigests?.[key];
 }
 export function businessBot(s:State){return s.activeBotId?s.bots.find(b=>b.id===s.activeBotId&&b.enabled):s.bots.find(b=>b.enabled)}
-export const statusNames:Record<Status,string>={registered:'已注册 · 待 KYC',kyc_pending:'待资料审核',needs_info:'待补件',kyc_approved:'资料通过',decision_pending:'待机构审批',approved:'待签约',rejected:'申请未通过',signed:'待放款',active:'还款中',closed:'已结清'};
+export const statusNames:Record<Status,string>={registered:'已注册 · 待 KYC',kyc_pending:'待资料审核',needs_info:'待补件',kyc_approved:'资料通过',decision_pending:'待机构审批',approved:'待签约',rejected:'申请未通过',signed:'待放款',active:'还款中',closed:'已结清',cancelled:'已撤回'};
 export const initialState=():State=>({loans:[],bots:[{id:'bot-1',label:'PayEase 主机器人',username:'',enabled:true,envKey:'TELEGRAM_BOT_TOKEN_1'},{id:'bot-2',label:'PayEase 第二机器人',username:'',enabled:true,envKey:'TELEGRAM_BOT_TOKEN_2'}],events:[],entries:[],notifications:[],requests:[],requestDigests:{}});
-export const roles:Record<string,Role>={create:'mini',confirm_bill:'mini',confirm_kyc:'mini',submit_kyc:'mini',resubmit:'mini',apply:'mini',sign:'mini',withdraw:'mini',repay:'mini',review:'ops',supplement:'ops',approve:'lender',reject:'lender',disburse:'lender',overdue:'ops',bot_save:'ops',bot_add:'ops',bot_switch:'ops'};
+export const roles:Record<string,Role>={create:'mini',confirm_bill:'mini',confirm_kyc:'mini',submit_kyc:'mini',resubmit:'mini',apply:'mini',sign:'mini',cancel_application:'mini',withdraw:'mini',repay:'mini',review:'ops',supplement:'ops',approve:'lender',reject:'lender',disburse:'lender',overdue:'ops',bot_save:'ops',bot_add:'ops',bot_switch:'ops'};
 export function applyAction(input:State,p:any,now=new Date().toISOString()):State{
  if(!p||typeof p!=='object'||!roles[p.action]||roles[p.action]!==p.role)throw Error('此操作不属于当前演示角色');
  if(typeof p.requestId!=='string'||p.requestId.length<8||p.requestId.length>100)throw Error('请求编号无效');
@@ -69,7 +69,8 @@ export function applyAction(input:State,p:any,now=new Date().toISOString()):Stat
    case 'approve':needs(['decision_pending']);l.status='approved';l.note='机构已批准，等待用户确认费用与签约';break;
    case 'reject':needs(['decision_pending']);if(!note)throw Error('请填写拒绝原因');l.status='rejected';l.note=note;break;
    case 'sign':needs(['approved']);if(p.consent!==true||text(p.signature,50).length<2)throw Error('请确认协议并输入测试签名');
-    l.status='signed';l.signedAt=now;l.signature=text(p.signature,50);l.contract=JSON.stringify({version:'sandbox-v1',currency:'USD',principal:l.amount,fee:l.fee,net:l.amount,total:l.amount+l.fee,termDays:14,signature:l.signature,acceptedAt:now,notice:'仅测试资金，不产生真实借贷合同'});l.note='测试协议已确认，等待机构放款';break;
+    l.status='signed';l.signedAt=now;l.signature=text(p.signature,50);l.contract=JSON.stringify({version:'sandbox-v1',currency:'USD',principal:l.amount,fee:l.fee,net:l.amount,total:l.amount+ l.fee,termDays:14,signature:l.signature,acceptedAt:now,notice:'仅测试资金，不产生真实借贷合同'});l.note='测试协议已确认，等待机构放款';break;
+   case 'cancel_application':needs(['decision_pending','approved']);if(p.consent!==true)throw Error('请确认撤回申请');l.status='cancelled';l.note='申请已撤回，请重新申请借款';break;
    case 'disburse':needs(['signed']);l.status='active';l.wallet=l.billing?.net??l.amount;l.dueAt=new Date(Date.parse(now)+(l.billing?.termDays??14)*86400000).toISOString();l.note='测试资金已放款至钱包';journal('测试放款',l.billing?.net??l.amount,'loan_receivable','funding_cash');if(l.billing?.upfront)journal('放款预扣费用',l.billing.upfront,'loan_receivable','fee_revenue');if(l.fee)journal('到期费用',l.fee,'loan_receivable','fee_revenue');break;
    case 'withdraw':needs(['active','closed']);if(l.wallet<=0)throw Error('钱包没有可提现的测试余额');l.note='测试提现 '+(l.wallet/100).toFixed(2)+' USD 已完成（无真实转账）';journal('测试提现',l.wallet,'wallet_withdrawal','wallet_available');l.wallet=0;break;
    case 'repay':needs(['active']);{

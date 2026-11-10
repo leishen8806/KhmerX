@@ -40,6 +40,7 @@ export async function consumeInstitutionCallbackEvent(input:{database:Database;t
  }
  const assignment=loan.customerId?await database.prepare('SELECT institution_id FROM team_assignments WHERE tenant_id=? AND customer_id=?').bind(tenantId,loan.customerId).first<{institution_id:string|null}>():null;
  if(!assignment||assignment.institution_id!==institutionId)return {status:'dead_letter',reason:'INSTITUTION_MISMATCH',loanId};
+ if((eventType==='loan.approved'||eventType==='loan.rejected')&&loan.status==='cancelled')return {status:'received',reason:'APPLICATION_CANCELLED',loanId};
  if((eventType==='funding.confirmed'||eventType==='repayment.confirmed')&&externalReference){
   const prior=await database.prepare("SELECT id FROM institution_callback_events WHERE institution_id=? AND event_type=? AND status='applied' AND json_extract(payload,'$.externalReference')=? LIMIT 1").bind(institutionId,eventType,externalReference).first<{id:string}>();
   if(prior)return {status:'dead_letter',reason:'EXTERNAL_REFERENCE_DUPLICATE',loanId};
