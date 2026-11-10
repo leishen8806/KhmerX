@@ -13,7 +13,7 @@ export const messages:Record<Locale,Record<string,string>>={
     kycUploadLimit:'单份材料不能超过 10 MB',kycUploadDetail:'单份不超过 10 MB。图片支持 JPG/PNG，证明材料可使用 PDF。PDF 以下载方式查看。',
     home:'首页',records:'借款记录',me:'我的',apply:'申请借款',bill:'费用确认',sign:'确认签约',status:'借款进度',repay:'还款',withdraw:'提现',cancelApplication:'撤回申请',confirmCancelApplication:'确认撤回申请',cancelled:'已撤回',reapply:'重新申请',kyc:'实名资料',
     back:'返回',language:'切换语言',notifications:'站内信息',loading:'正在加载',syncing:'同步你的账户与借款信息…',reload:'重新加载',
-    hello:'你好，{name}',simpleFinance:'Simple finance for everyday life.',highest:'最高可申请金额',chooseTerm:'可选 14 天或 28 天 · 签约前展示完整费用',completeKyc:'完成实名资料',applyLoan:'申请借款',viewProgress:'查看借款进度',
+    hello:'你好，{name}',simpleFinance:'让日常生活更简单的金融服务。',highest:'最高可申请金额',chooseTerm:'可选 14 天或 28 天 · 签约前展示完整费用',completeKyc:'完成实名资料',applyLoan:'申请借款',viewProgress:'查看借款进度',
     threeSteps:'申请只需三步',identityReview:'实名资料审核',chooseAmount:'选择金额，确认账单并签约',approvalDisbursement:'等待审批与放款',
     noLoans:'还没有借款记录',completeBeforeApply:'完成实名资料后，即可申请借款。',startApply:'开始申请',inProgress:'你有一笔进行中的申请',finishCurrent:'请先完成当前借款，再发起新申请。',continue:'继续当前申请',
     accountSecurity:'账户安全',logout:'退出登录',testAccount:'测试账户',viewProfile:'查看资料',approved:'已审核通过',repaymentReminder:'Telegram 还款提醒',currentLoan:'当前借款',
