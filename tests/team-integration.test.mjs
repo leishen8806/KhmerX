@@ -52,6 +52,7 @@ async function member(tenant,role,email,unit){selected=tenant;user=owner;await t
 selected=A;user=owner;await team.manage({action:'add_unit',kind:'institution',name:'机构 A'});await team.manage({action:'add_unit',kind:'department',name:'运营二部'});
 const units=sql.prepare('SELECT * FROM team_units WHERE tenant_id=?').all(A),dept=sql.prepare('SELECT default_department FROM team_companies WHERE id=?').get(A).default_department,dept2=units.find(u=>u.kind==='department'&&u.id!==dept).id,inst=units.find(u=>u.kind==='institution').id;
 const reviewer1=await member(A,'kyc','reviewer1@example.test',dept),reviewer2=await member(A,'kyc','reviewer2@example.test',dept),deptManager=await member(A,'dept_admin','manager@example.test',dept),otherReviewer=await member(A,'kyc','other@example.test',dept2),lender=await member(A,'lender','lender@example.test',inst),checker=await member(A,'checker','checker@example.test',inst),finance=await member(A,'finance','finance@example.test',inst),financeChecker=await member(A,'finance_checker','cashcheck@example.test',inst);
+test('new companies initialize a bot workspace and missing bot actions return a typed 4xx',async()=>{const row=sql.prepare('SELECT revision,payload FROM demo_workspaces WHERE owner=?').get(B);assert.equal(row.revision,0);assert.deepEqual(JSON.parse(row.payload).bots.map(b=>b.id),['bot-1','bot-2']);selected=B;user=owner;await assert.rejects(flow.staffAction({action:'bot_save',botId:'missing-bot',label:'Missing',enabled:true,requestId:'synthetic-missing-bot'}),error=>error?.status===404&&error?.code==='BOT_NOT_FOUND');selected=A;});
 selected=A;user=owner;await team.manage({action:'kyc_field_permission',memberId:sql.prepare('SELECT id FROM team_members WHERE email=?').get(reviewer1.email).id,fieldGroup:'identity',enabled:true,reason:'Synthetic QA: authorized identity correction'});
 await team.ensureAssignment(A,'customer-1');await team.ensureAssignment(A,'customer-2');
 test('automatic assignment balances active reviewers and assigns institution',async()=>{const a=await team.assignment(A,'customer-1'),b=await team.assignment(A,'customer-2');assert(a.reviewer_id);assert.notEqual(a.reviewer_id,b.reviewer_id);assert.equal(a.institution_id,inst)});
@@ -333,7 +334,10 @@ test('company bot Token: verified metadata, encrypted isolation, rotation and pe
  assert(!JSON.stringify(sql.prepare('SELECT * FROM team_audit').all()).includes(token));
  user=reviewer1;await assert.rejects(bots.configureBot({botId:'bot-1',token}),/管理员/);
  selected=B;user=owner;await assert.rejects(bots.configureBot({botId:'bot-1',token}),/其他业务渠道/);
- selected=A;await bots.configureBot({botId:'bot-1',token:rotated});assert.equal(await bots.channelToken(A,'bot-1'),rotated);
+ context.fetch=async()=>Response.json({ok:true,result:{id:987654323,is_bot:true,first_name:'Second company bot',username:'second_company_bot'}});
+ const secondCompanyToken='987654323:'+ 'd'.repeat(35),secondCompany=await bots.configureBot({botId:'bot-1',token:secondCompanyToken});
+ assert.equal(secondCompany.username,'second_company_bot');assert.equal(await bots.channelToken(B,'bot-1'),secondCompanyToken);assert.equal(await bots.channelToken(A,'bot-1'),token);
+ selected=A;context.fetch=async()=>Response.json({ok:true,result:{id:987654321,is_bot:true,first_name:'Synthetic bot',username:'synthetic_bot'}});await bots.configureBot({botId:'bot-1',token:rotated});assert.equal(await bots.channelToken(A,'bot-1'),rotated);
  context.fetch=async()=>Response.json({ok:true,result:{id:987654322,is_bot:true,first_name:'Another',username:'another_bot'}});
  await assert.rejects(bots.configureBot({botId:'bot-1',token:'987654322:'+ 'c'.repeat(35)}),/新增渠道/);assert.equal(await bots.channelToken(A,'bot-1'),rotated);
  context.fetch=async()=>{throw Error('https://api.telegram.org/bot'+token)};
@@ -681,7 +685,7 @@ test('Q7 actual state route pages 5000 customers and CSV export retains every pa
  user=owner;extraCookies='';const P=(await team.manage({action:'create_company',name:'Synthetic pagination',slug:'synthetic-q7-pagination'})).companyId;selected=P;
  const department=sql.prepare('SELECT default_department FROM team_companies WHERE id=?').get(P).default_department;
  const blank={loans:[],bots:[],events:[],entries:[],notifications:[],requests:[],requestDigests:{}};
- sql.prepare('INSERT INTO demo_workspaces(owner,revision,payload) VALUES(?,0,?)').run(P,JSON.stringify(blank));
+ sql.prepare('UPDATE demo_workspaces SET revision=0,payload=? WHERE owner=?').run(JSON.stringify(blank),P);
  const account=sql.prepare('INSERT INTO h5_accounts(customer_id,owner,phone_mask,mode,created_at) VALUES(?,?,?,?,?)'),assignment=sql.prepare('INSERT INTO team_assignments(tenant_id,customer_id,department_id,version) VALUES(?,?,?,0)'),shard=sql.prepare('INSERT INTO customer_workspaces VALUES(?,?,0,?,?)'),index=sql.prepare('INSERT INTO loan_index VALUES(?,?,?,?,?,?,?)');
  sql.exec('BEGIN');for(let i=0;i<5000;i++){const id=`q7-perf-${i}`,at=new Date(i*1000).toISOString(),loan={id:`q7-loan-${i}`,customerId:id,createdAt:at,name:'SYNTHETIC',status:'signed',amount:5000,fee:0,paid:0,wallet:0,botId:'bot-1',note:'',demoDays:0,kyc:{income:0,contacts:[],document:''}};account.run(id,P,'SYNTHETIC','demo',i);assignment.run(P,id,department);shard.run(P,id,JSON.stringify({...blank,loans:[loan]}),at);index.run(P,loan.id,id,loan.status,at,at)}account.run('q7-no-loan',P,'SYNTHETIC','demo',99999);assignment.run(P,'q7-no-loan',department);sql.exec('COMMIT');
  await kyc.initialize(P,'q7-no-loan',false);const route=await mod('@/app/api/state/route');
