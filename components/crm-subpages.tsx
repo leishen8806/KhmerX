@@ -29,9 +29,10 @@ import {OperatorRow} from '@/components/operator-row';
 import {useAdminLocale} from '@/lib/admin-i18n';
 import {teamAdminText} from '@/components/team-ui-copy';
 import {legacyText,type Locale} from '@/lib/i18n';
+import {crmDescription,crmFrameText,crmText} from '@/lib/team/crm-i18n';
 
 type Props={view:string;work:any;units:any[];members:any[];member:any;tenant:string;busy:boolean;post:(body:any,path?:string)=>Promise<boolean>};
-function Frame({view,children,title}:any){const page=crmSubpageByView[view];return <section className="panel crm-independent-page" aria-label={view}><div className="crm-independent-head"><div><p className="eyebrow">CRM · INDEPENDENT PAGE</p><h1>{title||page?.label||view}</h1><p className="fine">{page?.description||'授权范围内的独立业务页面。'}</p></div><span className="crm-page-badge">独立数据视图</span></div>{children}</section>}
+function Frame({view,children,title}:any){const page=crmSubpageByView[view],{locale}=useAdminLocale();const sourceTitle=title||page?.label||view;return <section className="panel crm-independent-page" aria-label={view}><div className="crm-independent-head"><div><p className="eyebrow">{crmFrameText('eyebrow',locale)}</p><h1>{crmText(sourceTitle,locale)}</h1><p className="fine">{crmDescription(view,locale)}</p></div><span className="crm-page-badge">{crmFrameText('badge',locale)}</span></div>{children}</section>}
 const auditColumnLabels:Record<string,string>={type:'类型 / Type / ប្រភេទ',action:'操作 / Action / សកម្មភាព',at:'时间 / At / ពេលវេលា'};
 function auditCell(row:any,column:string){
  if(column==='type')return row.type||row.eventType||row.event_type||row.action||'业务事件';

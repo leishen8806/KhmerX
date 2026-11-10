@@ -6,7 +6,8 @@ const client=readFileSync('app/team/client.tsx','utf8');
 const subpages=readFileSync('lib/team/crm-subpages.ts','utf8');
 
 test('team shell titles use the current section and its menu configuration',()=>{
-  assert.match(client,/const sectionTitle=subview\|\|crmQueueDefaultViews\?\.\[queueView\]\|\|'今日概览'/);
+  assert.match(client,/const sectionTitleSource=subview\|\|crmQueueDefaultViews\?\.\[queueView\]\|\|'今日概览'/);
+  assert.match(client,/const sectionTitle=crmText\(sectionTitleSource,locale\)/);
   assert.match(client,/subviewMeta\?\.queue==='reports'/);
   assert.match(client,/document\.title=`\$\{sectionTitle\} · KhmerX 后台`/);
   assert.doesNotMatch(client,/customers:\s*["']客户中心["']/,'section parent labels must not be duplicated in the client');
