@@ -2,6 +2,7 @@ import {crmSubpageByView} from '@/lib/team/crm-subpages';
 import type {Locale} from '@/lib/i18n';
 
 type CrmCopyEntry={key:string;source:string;en:string;km:string};
+type CrmDescriptionEntry={source:string;en:string;km:string};
 
 // `source` is deliberately the existing Chinese route/view identifier.  It is
 // a display key only; changing it would break bookmarked CRM URLs and queue
@@ -21,14 +22,82 @@ const entries:CrmCopyEntry[]=[
 ].map(([key,source,en,km])=>({key,source,en,km}));
 
 const bySource=Object.fromEntries(entries.map(entry=>[entry.source,entry]));
+
+// These are page-specific descriptions, not a shared template.  Keep the
+// Chinese route/view identifier as the lookup key so URLs and queue routing
+// remain unchanged while each locale explains the actual page purpose.
+const descriptionEntries:CrmDescriptionEntry[]=[
+ {source:'今日概览',en:'Summarises key work, risk, funding and audit items for today.',km:'សង្ខេបកិច្ចការសំខាន់ៗ ហានិភ័យ មូលនិធិ និងសវនកម្មសម្រាប់ថ្ងៃនេះ។'},
+ {source:'我的待办',en:'Shows tasks assigned to your role and their due times.',km:'បង្ហាញកិច្ចការដែលបានចាត់ឱ្យតួនាទីរបស់អ្នក និងពេលកំណត់។'},
+ {source:'团队队列',en:'Shows team assignments, progress and queue workload.',km:'បង្ហាញការបែងចែកករណី វឌ្ឍនភាព និងបន្ទុកជួររបស់ក្រុម។'},
+ {source:'SLA 与提醒',en:'Tracks SLA countdowns, due-soon tasks and reminder status.',km:'តាមដានពេលវេលា SLA កិច្ចការជិតដល់កំណត់ និងស្ថានភាពការរំលឹក។'},
+ {source:'风险摘要',en:'Shows company risk levels, unusual events and items needing action.',km:'បង្ហាញកម្រិតហានិភ័យរបស់ក្រុមហ៊ុន ព្រឹត្តិការណ៍មិនប្រក្រតី និងការងារដែលត្រូវដោះស្រាយ។'},
+ {source:'客户列表',en:'Searches customers and shows their profile, KYC, loans and business timeline.',km:'ស្វែងរកអតិថិជន និងបង្ហាញប្រវត្តិរូប KYC កម្ចី និងបន្ទាត់ពេលវេលាអាជីវកម្ម។'},
+ {source:'KYC 审核队列',en:'Handles review, document requests, corrections and resubmissions in one queue.',km:'គ្រប់គ្រងការពិនិត្យ ការស្នើឯកសារបន្ថែម ការកែតម្រូវ និងការដាក់ស្នើឡើងវិញក្នុងជួរតែមួយ។'},
+ {source:'客户标签与分组',en:'Maintains customer groups and operational tags with a complete audit trail.',km:'គ្រប់គ្រងក្រុមអតិថិជន និងស្លាកប្រតិបត្តិការ ដោយរក្សាកំណត់ត្រាសវនកម្មពេញលេញ។'},
+ {source:'贷款申请',en:'Shows applications, fee confirmation, signing and approval status.',km:'បង្ហាញពាក្យស្នើសុំ ការបញ្ជាក់ថ្លៃសេវា ការចុះហត្ថលេខា និងស្ថានភាពអនុម័ត។'},
+ {source:'审批协同',en:'Coordinates initial review, independent checks and approval updates.',km:'សម្របសម្រួលការពិនិត្យដំបូង ការត្រួតពិនិត្យឯករាជ្យ និងការធ្វើបច្ចុប្បន្នភាពលទ្ធផលអនុម័ត។'},
+ {source:'合同与签约',en:'Shows fee snapshots, signature evidence and contract status.',km:'បង្ហាញរូបថតសង្ខេបថ្លៃសេវា ភស្តុតាងហត្ថលេខា និងស្ថានភាពកិច្ចសន្យា។'},
+ {source:'放款管理',en:'Runs post-approval disbursement checks and shows funding records.',km:'អនុវត្តការត្រួតពិនិត្យបញ្ចេញប្រាក់ក្រោយអនុម័ត និងបង្ហាញកំណត់ត្រាមូលនិធិ។'},
+ {source:'账单与还款',en:'Shows bills, repayment allocation and settlement results.',km:'បង្ហាញវិក្កយបត្រ ការបែងចែកការសងប្រាក់ និងលទ្ធផលបិទបំណុល។'},
+ {source:'提现与钱包',en:'Shows wallet balances, withdrawal requests and processing status.',km:'បង្ហាញសមតុល្យកាបូប សំណើដកប្រាក់ និងស្ថានភាពដំណើរការ។'},
+ {source:'业务时间线',en:'Shows the complete timeline from application through settlement.',km:'បង្ហាញបន្ទាត់ពេលវេលាពេញលេញពីការដាក់ពាក្យរហូតដល់បិទបំណុល។'},
+ {source:'客服工单',en:'Creates, assigns, handles and closes customer support tickets.',km:'បង្កើត បែងចែក ដោះស្រាយ និងបិទសំបុត្រគាំទ្រអតិថិជន។'},
+ {source:'补件任务',en:'Tracks document requests, collection and review updates.',km:'តាមដានការជូនដំណឹងស្នើឯកសារ ការប្រមូលឯកសារ និងការធ្វើបច្ចុប្បន្នភាពពិនិត្យ។'},
+ {source:'贷后任务',en:'Handles due-date reminders, promises to pay and task closure.',km:'គ្រប់គ្រងការរំលឹកថ្ងៃដល់កំណត់ ការសន្យាសងប្រាក់ និងការបិទកិច្ចការ។'},
+ {source:'逾期与催收',en:'Handles collection work and settlement by delinquency stage.',km:'គ្រប់គ្រងការងារប្រមូលប្រាក់ និងការបិទបំណុលតាមដំណាក់កាលហួសកំណត់។'},
+ {source:'投诉与争议',en:'Records complaints, investigations, decisions and closure reasons.',km:'កត់ត្រាបណ្ដឹង ការស៊ើបអង្កេត សេចក្ដីសម្រេច និងមូលហេតុបិទករណី។'},
+ {source:'通知发送记录',en:'Shows templates, delivery results, retries and dead letters.',km:'បង្ហាញគំរូ លទ្ធផលផ្ញើ ការព្យាយាមឡើងវិញ និងសារដែលបរាជ័យចុងក្រោយ។'},
+ {source:'风控事件',en:'Shows risk events, handling status and responsible owners.',km:'បង្ហាញព្រឹត្តិការណ៍ហានិភ័យ ស្ថានភាពដោះស្រាយ និងអ្នកទទួលខុសត្រូវ។'},
+ {source:'资金监管',en:'Monitors daily and monthly limits, 20% warnings and funding snapshots.',km:'ត្រួតពិនិត្យកម្រិតប្រចាំថ្ងៃ និងប្រចាំខែ ការព្រមាន ២០% និងស្ថានភាពមូលនិធិ។'},
+ {source:'资金限额',en:'Configures daily and monthly limits and the 20% funding warning.',km:'កំណត់កម្រិតបញ្ចេញប្រាក់ប្រចាំថ្ងៃ ប្រចាំខែ និងសមាមាត្រព្រមានមូលនិធិ ២០%។'},
+ {source:'冻结与解除',en:'Approves funding freezes and releases, recording the reason for each action.',km:'អនុម័តការបង្កក និងដោះការបង្កកមូលនិធិ ព្រមទាំងកត់ត្រាមូលហេតុនៃសកម្មភាពនីមួយៗ។'},
+ {source:'资金流水',en:'Shows disbursement, repayment, withdrawal and reconciliation entries.',km:'បង្ហាញចលនាបញ្ចេញប្រាក់ សងប្រាក់ ដកប្រាក់ និងការផ្ទៀងផ្ទាត់គណនី។'},
+ {source:'对账异常',en:'Handles funding differences, review and closure.',km:'ដោះស្រាយភាពខុសគ្នានៃមូលនិធិ ការពិនិត្យ និងការបិទករណី។'},
+ {source:'贷款产品',en:'Maintains loan parameters, versions and effective scope.',km:'គ្រប់គ្រងប៉ារ៉ាម៉ែត្រ កំណែ និងវិសាលភាពមានប្រសិទ្ធភាពរបស់ផលិតផលកម្ចី។'},
+ {source:'费率与费用',en:'Maintains rate versions and previews new bills.',km:'គ្រប់គ្រងកំណែអត្រា និងមើលជាមុននូវវិក្កយបត្រថ្មី។'},
+ {source:'风控规则与版本',en:'Shows rule versions, enabled status and match records.',km:'បង្ហាញកំណែច្បាប់ ស្ថានភាពបើកប្រើ និងកំណត់ត្រាច្បាប់ដែលត្រូវបានផ្គូផ្គង។'},
+ {source:'Telegram 业务渠道',en:'Manages bot routing, channel status and delivery results.',km:'គ្រប់គ្រងការបញ្ជូន Bot ស្ថានភាពឆានែល និងលទ្ធផលផ្ញើ។'},
+ {source:'通知模板',en:'Maintains Chinese, English and Khmer templates and release versions.',km:'គ្រប់គ្រងគំរូភាសាចិន អង់គ្លេស និងខ្មែរ ព្រមទាំងកំណែដែលបានបោះផ្សាយ។'},
+ {source:'公司新闻',en:'Publishes, unpublishes and audits company news.',km:'បោះផ្សាយ ដកចេញ និងធ្វើសវនកម្មព័ត៌មានក្រុមហ៊ុន។'},
+ {source:'行业资讯',en:'Publishes industry updates and sorts them by publication time.',km:'បោះផ្សាយព័ត៌មានឧស្សាហកម្ម និងតម្រៀបតាមពេលវេលាបោះផ្សាយ។'},
+ {source:'帮助中心',en:'Maintains help content and release versions.',km:'គ្រប់គ្រងមាតិកាជំនួយ និងកំណែដែលបានបោះផ្សាយ។'},
+ {source:'客户漏斗',en:'Measures conversion from registration through KYC, approval and disbursement.',km:'វាស់វែងការបម្លែងពីការចុះឈ្មោះ តាម KYC អនុម័ត រហូតដល់បញ្ចេញប្រាក់។'},
+ {source:'KYC 与审批',en:'Reports KYC states, approval results and handling time.',km:'រាយការណ៍ស្ថានភាព KYC លទ្ធផលអនុម័ត និងរយៈពេលដោះស្រាយ។'},
+ {source:'放款与还款',en:'Summarises disbursed, repaid and settled amounts.',km:'សង្ខេបចំនួនបានបញ្ចេញប្រាក់ បានសង និងបានបិទបំណុល។'},
+ {source:'逾期与催收报表',en:'Reports delinquency bands, collection tasks and outcomes.',km:'រាយការណ៍កម្រិតហួសកំណត់ កិច្ចការប្រមូលប្រាក់ និងលទ្ធផល។'},
+ {source:'资金监管报表',en:'Summarises limits, warnings, ledger entries and reconciliation results.',km:'សង្ខេបកម្រិតមូលនិធិ ការព្រមាន ចលនាមូលនិធិ និងលទ្ធផលផ្ទៀងផ្ទាត់។'},
+ {source:'客服与投诉',en:'Reports support tickets, complaints and dispute handling.',km:'រាយការណ៍សំបុត្រគាំទ្រ បណ្ដឹង និងការដោះស្រាយវិវាទ។'},
+ {source:'自定义报表',en:'Selects a scope and fields, then exports an auditable report.',km:'ជ្រើសវិសាលភាព និងវាលទិន្នន័យ រួចនាំចេញរបាយការណ៍ដែលអាចធ្វើសវនកម្មបាន។'},
+ {source:'公司与部门',en:'Maintains company, department and partner institution settings.',km:'គ្រប់គ្រងការកំណត់ក្រុមហ៊ុន នាយកដ្ឋាន និងស្ថាប័នដៃគូ។'},
+ {source:'员工与角色',en:'Manages staff accounts, roles, activation and password resets.',km:'គ្រប់គ្រងគណនីបុគ្គលិក តួនាទី ការបើកប្រើ និងការកំណត់ពាក្យសម្ងាត់ឡើងវិញ។'},
+ {source:'数据范围',en:'Shows company, department and institution data boundaries.',km:'បង្ហាញព្រំដែនទិន្នន័យរបស់ក្រុមហ៊ុន នាយកដ្ឋាន និងស្ថាប័ន។'},
+ {source:'字段权限',en:'Configures KYC field access and records every change.',km:'កំណត់សិទ្ធិចូលប្រើវាល KYC និងកត់ត្រារាល់ការផ្លាស់ប្ដូរ។'},
+ {source:'持牌机构',en:'Maintains institution scope, review roles and callback status.',km:'គ្រប់គ្រងវិសាលភាពស្ថាប័ន តួនាទីពិនិត្យ និងស្ថានភាព Callback។'},
+ {source:'API 应用',en:'Manages API applications, key rotation and activation.',km:'គ្រប់គ្រងកម្មវិធី API ការប្ដូរសោ និងការបើកប្រើ។'},
+{source:'语言与时区',en:'Configures back-office and client language and time zone.',km:'កំណត់ភាសា និងតំបន់ពេលវេលាសម្រាប់ប្រព័ន្ធគ្រប់គ្រង និងអតិថិជន។'},
+ {source:'文件与扫描配置',en:'Shows file limits, scanning and quarantine status.',km:'បង្ហាញកម្រិតឯកសារ ស្ថានភាពស្កេន និងការដាក់ឯកសារនៅតំបន់ឃុំឃាំង។'},
+ {source:'系统健康',en:'Shows service, job and database health.',km:'បង្ហាញសុខភាពសេវា កិច្ចការ និងមូលដ្ឋានទិន្នន័យ។'},
+ {source:'操作审计',en:'Searches audit records by actor, object, time and outcome.',km:'ស្វែងរកកំណត់ត្រាសវនកម្មតាមអ្នកប្រតិបត្តិ វត្ថុ ពេលវេលា និងលទ្ធផល។'},
+ {source:'登录与 IP',en:'Shows login, logout, failure and IP records.',km:'បង្ហាញកំណត់ត្រាចូល ចាកចេញ ការបរាជ័យ និង IP។'},
+ {source:'数据修改',en:'Shows before-and-after values, reasons and reviews for sensitive changes.',km:'បង្ហាញតម្លៃមុន និងក្រោយ មូលហេតុ និងការពិនិត្យសម្រាប់ការកែប្រែទិន្នន័យសំខាន់។'},
+ {source:'资金操作',en:'Shows funding actions, approvals and ledger links.',km:'បង្ហាញសកម្មភាពមូលនិធិ ការអនុម័ត និងតំណភ្ជាប់ទៅចលនាមូលនិធិ។'},
+ {source:'权限变更',en:'Shows changes to roles, field access and sessions.',km:'បង្ហាញការផ្លាស់ប្ដូរតួនាទី សិទ្ធិវាល និងសម័យប្រើប្រាស់។'},
+ {source:'安全告警',en:'Acknowledges, handles and closes security alerts.',km:'ទទួលស្គាល់ ដោះស្រាយ និងបិទការជូនដំណឹងសុវត្ថិភាព។'},
+ {source:'应急事件',en:'Shows break-glass authorisations, scope and expiry.',km:'បង្ហាញការអនុញ្ញាតបន្ទាន់ វិសាលភាព និងពេលផុតកំណត់។'},
+ {source:'审计导出',en:'Exports a redacted audit report by scope with an audit trail.',km:'នាំចេញរបាយការណ៍សវនកម្មដែលបានលាក់ព័ត៌មានតាមវិសាលភាព និងរក្សាកំណត់ត្រា។'}
+];
+const descriptionBySource=Object.fromEntries(descriptionEntries.map(entry=>[entry.source,entry]));
 export const crmCopyKeys=entries.map(entry=>entry.key);
 export const crmText=(source:string,locale:Locale):string=>{const entry=bySource[source];if(!entry||locale==='zh')return source;return locale==='km'?entry.km:entry.en};
 
 const fallbackDescription=(source:string,locale:Locale)=>{
  const entry=bySource[source];
  if(locale==='zh')return crmSubpageByView[source]?.description||'授权范围内的独立业务页面。';
+ const description=descriptionBySource[source];
+ if(description)return locale==='km'?description.km:description.en;
  if(!entry)return locale==='km'?'ទំព័រអាជីវកម្មដែលមានសិទ្ធិចូលប្រើ។':'Authorized business page.';
- return locale==='km'?`ពិនិត្យ និងគ្រប់គ្រង ${entry.km}។`:`Review and manage ${entry.en}.`;
+ return locale==='km'?`ទំព័រអាជីវកម្ម ${entry.km} ក្នុងវិសាលភាពដែលអ្នកមានសិទ្ធិ។`:`Business page for ${entry.en} within your authorised scope.`;
 };
 export const crmDescription=(source:string,locale:Locale)=>fallbackDescription(source,locale);
 export const crmFrameText=(source:'eyebrow'|'badge'|'generic',locale:Locale)=>{
