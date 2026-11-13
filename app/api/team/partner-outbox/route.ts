@@ -20,8 +20,11 @@ export async function POST(request:Request){
   const id=text(p.id,120),reason=text(p.reason,300),requestId=text(p.requestId,120);
   if(!reason)throw new AuthError('请填写重新发送原因',400,undefined,'REASON_REQUIRED');
   if(!/^[A-Za-z0-9_-]{8,120}$/.test(requestId))throw new AuthError('请求编号无效',400);
-  const prior=await db().prepare("SELECT detail FROM team_audit WHERE tenant_id=? AND action='partner_outbox_requeue'").bind(s.tenant.id).all<{detail:string}>();
-  if(prior.results.some(row=>{try{return JSON.parse(row.detail).requestId===requestId}catch{return false}}))return json({ok:true,idempotent:true,requestId});
+  const prior=await db().prepare("SELECT detail FROM team_audit WHERE tenant_id=? AND action='partner_outbox_requeue' AND json_extract(detail,'$.requestId')=? LIMIT 1").bind(s.tenant.id,requestId).first<{detail:string}>();
+  if(prior){
+   if(JSON.parse(prior.detail).recordId!==id)throw new AuthError('请求编号已用于另一条发件箱记录',409,undefined,'REQUEST_ID_REUSED');
+   return json({ok:true,idempotent:true,requestId});
+  }
   const now=new Date().toISOString();
   const result=await db().batch([
    db().prepare("UPDATE partner_outbox SET status='pending',attempts=0,next_attempt_at=?,lease_until=NULL,requeued_at=?,requeue_count=requeue_count+1 WHERE id=? AND tenant_id=? AND status='dead'").bind(Date.parse(now),now,id,s.tenant.id),
