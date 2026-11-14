@@ -64,6 +64,6 @@ http
     });
     upstream.end(body);
   })
-  .listen(PROXY_PORT, '0.0.0.0', () => {
+  .listen(PROXY_PORT, process.env.DEV_PROXY_HOST || '0.0.0.0', () => {
     console.log(`APP dev backend on :${PROXY_PORT} -> Miniflare ${MF_ORIGIN} (workspace ${PUBLIC_COMPANY_ID})`);
   });

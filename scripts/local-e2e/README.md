@@ -4,6 +4,8 @@
 
 ## 运行
 
+启动 KhmerX 开发代理前，在同一 PowerShell 会话执行 `$env:DEV_PROXY_HOST = '127.0.0.1'`，让代理只监听本机。
+
 脚本现在自行完成客户验证码登录、KYC 上传/提交、员工复核、create、confirm_bill、分配、签名和 apply。Licensed 审批员、复核员的邮箱、密码、TOTP 密钥只从运行时环境变量读取。
 
 在两个服务和本地迁移完成后，设置以下变量：
