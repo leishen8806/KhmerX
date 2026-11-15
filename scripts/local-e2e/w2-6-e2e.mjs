@@ -1,6 +1,6 @@
 import {DatabaseSync} from 'node:sqlite';
 import {readFileSync,writeFileSync} from 'node:fs';
-import {createHmac} from 'node:crypto';
+import {createHmac,randomUUID} from 'node:crypto';
 if(process.env.PAYEASE_ENV!=='local')throw new Error('PAYEASE_ENV must be local');
 for(const key of ['KHMERX_BASE_URL','LICENSED_BASE_URL','KHMERX_DB_PATH','LICENSED_DB_PATH','PARTNER_ID','KHMERX_JOB_SECRET','LICENSED_JOB_KEY','LICENSED_LENDER_EMAIL','LICENSED_LENDER_PASSWORD','LICENSED_LENDER_MFA','LICENSED_CHECKER_EMAIL','LICENSED_CHECKER_PASSWORD','LICENSED_CHECKER_MFA'])if(!process.env[key])throw new Error(`missing ${key}`);
 const kh=process.env.KHMERX_BASE_URL.replace(/\/$/,''),li=process.env.LICENSED_BASE_URL.replace(/\/$/,''),partner=process.env.PARTNER_ID;
@@ -10,7 +10,7 @@ async function req(base,path,{method='GET',body,session,headers={}}={}){const h=
 async function bin(base,path,session,headers={}){const h=new Headers({origin:base,...session.headers(),...headers,'content-type':'image/png','content-length':String(png.length)});const r=await fetch(base+path,{method:'POST',headers:h,body:png});session.save(r.headers);let j=null;try{j=await r.json()}catch{}return{status:r.status,json:j}}
 function fail(name,r,ok){const code=r?.json?.code??r?.json?.errorCode??null;console.log(JSON.stringify({step:name,status:r?.status??0,code}));if(!ok(r))throw new Error(`step failed: ${name}`)}
 function totp(secret){const a='ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';let bits='';for(const c of secret)if(a.includes(c))bits+=(a.indexOf(c)).toString(2).padStart(5,'0');const raw=Buffer.alloc(Math.floor(bits.length/8));for(let i=0;i<raw.length;i++)raw[i]=parseInt(bits.slice(i*8,i*8+8),2);const ctr=Math.floor(Date.now()/30000),b=Buffer.alloc(8);b.writeUInt32BE(Math.floor(ctr/0x100000000),0);b.writeUInt32BE(ctr>>>0,4);const mac=createHmac('sha1',raw).update(b).digest(),o=mac[19]&15,n=(((mac[o]&127)<<24)|(mac[o+1]<<16)|(mac[o+2]<<8)|mac[o+3])>>>0;return String(n%1000000).padStart(6,'0')}
-async function licensedLogin(email,password,secret){const s=jar();let r=await req(li,'/api/team/auth',{method:'POST',session:s,body:{email,password}});if(r.status!==200||!r.json?.mfaRequired)throw new Error('licensed password login failed');r=await req(li,'/api/team/auth',{method:'POST',session:s,body:{email,password,challenge:r.json.challenge,code:totp(secret)}});fail(`licensed-login:${email}`,r,r=>r.status===200&&r.json?.ok===true);return s}
+async function licensedLogin(email,password,secret){const s=jar();let r=await req(li,'/api/team/auth',{method:'POST',session:s,body:{email,password}});if(r.status===200&&r.json?.ok===true)return s;if(r.status!==200||!r.json?.mfaRequired)throw new Error('licensed password login failed');if(!secret)throw new Error('missing Licensed MFA secret');r=await req(li,'/api/team/auth',{method:'POST',session:s,body:{email,password,challenge:r.json.challenge,code:totp(secret)}});fail('licensed-login',r,r=>r.status===200&&r.json?.ok===true);return s}
 function dbOne(path,sql,args=[]){const d=new DatabaseSync(path,{readOnly:true});try{return d.prepare(sql).get(...args)}finally{d.close()}}function dbMany(path,sql,args=[]){const d=new DatabaseSync(path,{readOnly:true});try{return d.prepare(sql).all(...args)}finally{d.close()}}
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 function stats(){console.log(JSON.stringify({database:'khmerx',partnerOutboxByStatus:dbMany(process.env.KHMERX_DB_PATH,'SELECT status,COUNT(*) count FROM partner_outbox GROUP BY status'),partnerOutboxByEvent:dbMany(process.env.KHMERX_DB_PATH,'SELECT event_type,status,COUNT(*) count FROM partner_outbox GROUP BY event_type,status'),callbackEventsByStatus:dbMany(process.env.KHMERX_DB_PATH,'SELECT status,COUNT(*) count FROM institution_callback_events GROUP BY status'),callbackEventsByEvent:dbMany(process.env.KHMERX_DB_PATH,'SELECT event_type,status,COUNT(*) count FROM institution_callback_events GROUP BY event_type,status')}));console.log(JSON.stringify({database:'licensed',partnerOutboxByStatus:dbMany(process.env.LICENSED_DB_PATH,'SELECT status,COUNT(*) count FROM partner_outbox GROUP BY status'),partnerOutboxByEvent:dbMany(process.env.LICENSED_DB_PATH,'SELECT event_type,status,COUNT(*) count FROM partner_outbox GROUP BY event_type,status'),applicationsByStatus:dbMany(process.env.LICENSED_DB_PATH,'SELECT status,COUNT(*) count FROM applications GROUP BY status'),inboundEventsCount:dbOne(process.env.LICENSED_DB_PATH,'SELECT COUNT(*) count FROM inbound_events'),applicationEventsByEvent:dbMany(process.env.LICENSED_DB_PATH,'SELECT event_type,COUNT(*) count FROM application_events GROUP BY event_type')}))}
@@ -24,6 +24,129 @@ async function customerFlow(kind,{skipApply=false}={}){const s=jar(),phone='+120
  const state=await req(kh,'/api/state',{session:staff}),target=state.json.customers.find(x=>x.loans?.some(l=>l.id===loan.id));r=await req(kh,'/api/team',{method:'POST',session:staff,body:{action:'assign',customerId:target.customerId,departmentId:target.assignment.departmentId,institutionId:target.assignment.institutionId,version:target.assignment.version,reason:'Synthetic W2-6 assignment'}});fail(`${kind}:assign`,r,r=>r.status===200);
   const terms=await req(kh,`/api/loan/sign?loan=${loan.id}`,{session:s});r=await bin(kh,'/api/loan/sign',s,{'x-loan-id':loan.id,'x-loan-consent':'true','x-loan-terms':terms.json.termsVersion});fail(`${kind}:sign`,r,r=>r.status===200);if(skipApply)return{loan,publicRef:loan.publicRef||loan.billing?.publicRef,session:s,quoteId:loan.billing.quoteId};r=await req(kh,'/api/h5/state',{method:'POST',session:s,body:{action:'apply',loanId:loan.id,billConfirmed:true,quoteId:loan.billing.quoteId,requestId:`w26-${kind}-apply-${Date.now()}`}});fail(`${kind}:apply`,r,r=>r.status===200);const applied=r.json.state?.loans?.find(x=>x.id===loan.id)||loan;return{loan:applied,publicRef:applied.publicRef||applied.billing?.publicRef,session:s,quoteId:loan.billing.quoteId}}
 const stage=process.argv[2]||'',stageFile=process.env.W2_STAGE_FILE||`${process.env.TEMP||process.env.TMPDIR||'.'}/khmerx-w2-6-stage.json`;
+const licensedDb=process.env.LICENSED_DB_PATH;
+const khmerxDb=process.env.KHMERX_DB_PATH;
+const applications=(publicRef)=>dbOne(licensedDb,
+  'SELECT status,version,payload,repaid_amount_cents FROM applications WHERE partner_id=? AND id=?',[partner,publicRef]);
+
+async function signLoan(id,publicRef,session){
+  const signed=await req(kh,'/api/h5/state',{method:'POST',session,body:{
+    action:'sign',loanId:id,consent:true,signature:'SYNTHETIC-TEST-SIGNATURE',requestId:randomUUID(),
+  }});
+  fail('customer-sign',signed,r=>r.status===200);
+  fail('khmerx-outbox-signed',await req(kh,'/api/jobs/partner-outbox',{method:'POST',
+    headers:{authorization:`Bearer ${process.env.KHMERX_JOB_SECRET}`}}),r=>r.status===200);
+  const event=dbOne(licensedDb,
+    "SELECT COUNT(*) count FROM application_events WHERE partner_id=? AND application_id=? AND event_type='agreement.signed'",
+    [partner,publicRef]);
+  if(event.count!==1||applications(publicRef)?.status!=='signed')throw new Error('agreement.signed assertion failed');
+  console.log(JSON.stringify({step:'licensed-agreement-signed',applicationStatus:'signed'}));
+}
+
+function requiredEnv(key){
+  const value=process.env[key];
+  if(!value)throw new Error(`missing ${key}`);
+  return value;
+}
+
+function licensedRole(role){
+  const prefix=`LICENSED_${role}`;
+  return licensedLogin(requiredEnv(`${prefix}_EMAIL`),requiredEnv(`${prefix}_PASSWORD`),process.env[`${prefix}_MFA`]||'');
+}
+
+function usedCents(){
+  return dbOne(licensedDb,'SELECT used_cents FROM funding_limits WHERE id=1')?.used_cents??0;
+}
+
+async function fundingAction(session,body){
+  const result=await req(li,'/api/institution/funding',{method:'POST',session,body});
+  fail(body.action,result,r=>r.status===200&&r.json?.ok===true);
+  return result.json;
+}
+
+function customerLoan(id){
+  const row=dbOne(khmerxDb,`SELECT value FROM (
+    SELECT value FROM customer_workspaces,json_each(payload,'$.loans')
+    UNION ALL SELECT value FROM demo_workspaces,json_each(payload,'$.loans')
+  ) WHERE json_extract(value,'$.id')=? LIMIT 1`,[id]);
+  if(!row)throw new Error('KhmerX loan missing');
+  return JSON.parse(row.value);
+}
+
+async function payment(kind,loan,amountCents,status,finance,checker){
+  const before=usedCents();
+  const externalReference=randomUUID();
+  const fields={partnerId:partner,applicationId:loan.publicRef,amountCents,externalReference};
+  const requested=await fundingAction(finance,{...fields,action:`${kind}_request`,
+    version:applications(loan.publicRef).version,requestId:randomUUID()});
+  await fundingAction(checker,{...fields,action:`${kind}_review`,
+    version:requested.version,requestId:randomUUID(),approve:true});
+  fail('licensed-outbox',await req(li,'/api/jobs/partner-outbox',{method:'POST',
+    headers:{'x-job-key':process.env.LICENSED_JOB_KEY}}),r=>r.status===200);
+  const eventType=kind==='fund'?'funding.confirmed':'repayment.confirmed';
+  const stored=customerLoan(loan.id);
+  const received=kind==='fund'?stored.externalReference:stored.pendingRepayment?.externalReference;
+  if(received!==externalReference||applications(loan.publicRef)?.status!==status){
+    throw new Error(`${eventType} assertion failed`);
+  }
+  console.log(JSON.stringify({step:eventType,applicationStatus:status,loanStatus:stored.status,
+    used_cents:{before,after:usedCents()}}));
+}
+
+async function khmerxReview(loan,action,cookie){
+  const result=await req(kh,'/api/team',{method:'POST',headers:{cookie},body:{
+    action,loanId:loan.id,decision:'confirm',requestId:randomUUID(),
+  }});
+  fail(action,result,r=>r.status===200);
+}
+
+if(['sign','fund','repay'].includes(stage)){
+  for(const base of [kh,li]){
+    if(!['127.0.0.1','[::1]','localhost'].includes(new URL(base).hostname))throw new Error('loopback URL required');
+  }
+  const loans=JSON.parse(readFileSync(stageFile,'utf8')).loans;
+  const loan=loans.find(entry=>entry.id===(process.argv[3]??loans[0]?.id));
+  if(!loan?.publicRef)throw new Error('stage loan missing');
+  const application=applications(loan.publicRef);
+  if(!application)throw new Error('institution application missing');
+  if(stage==='sign'){
+    if(application.status!=='approved')throw new Error('sign requires an approved application');
+    const session=jar();
+    session.load(loan.cookies);
+    await signLoan(loan.id,loan.publicRef,session);
+  }else{
+    const {net,total}=JSON.parse(application.payload).billing;
+    if(!Number.isSafeInteger(net)||net<1||!Number.isSafeInteger(total)||total<Math.max(net,2)){
+      throw new Error('invalid application billing amounts');
+    }
+    const cookie=requiredEnv('KHMERX_FINANCE_CHECKER_COOKIE');
+    const finance=await licensedRole('FINANCE');
+    const checker=await licensedRole('FINANCE_CHECKER');
+    if(stage==='fund'){
+      if(application.status!=='signed')throw new Error('fund requires a signed application');
+      const admin=await licensedRole('ADMIN');
+      await fundingAction(admin,{action:'set_limit',limitCents:usedCents()+net});
+      await payment('fund',loan,net,'funded',finance,checker);
+      await khmerxReview(loan,'disburse',cookie);
+      if(customerLoan(loan.id).status!=='active')throw new Error('KhmerX funding review assertion failed');
+    }else{
+      if(application.status!=='funded'||application.repaid_amount_cents!==0||customerLoan(loan.id).status!=='active'){
+        throw new Error('repay requires a newly funded active loan');
+      }
+      const current=customerLoan(loan.id);
+      if(current.paid!==0||current.amount+current.fee!==total)throw new Error('KhmerX balance differs from Licensed billing.total');
+      const partial=Math.floor(total/2);
+      await payment('repay',loan,partial,'repaying',finance,checker);
+      await khmerxReview(loan,'repayment_review',cookie);
+      if(customerLoan(loan.id).status!=='active')throw new Error('partial repayment assertion failed');
+      await payment('repay',loan,total-partial,'closed',finance,checker);
+      await khmerxReview(loan,'repayment_review',cookie);
+      if(customerLoan(loan.id).status!=='closed')throw new Error('KhmerX settlement assertion failed');
+    }
+  }
+  process.exit(0);
+}
+
 if(stage==='prepare'){const a=await customerFlow('outagea',{skipApply:true}),b=await customerFlow('outageb',{skipApply:true});writeFileSync(stageFile,JSON.stringify({loans:[{id:a.loan.id,quoteId:a.quoteId,publicRef:a.publicRef,cookies:a.session.dump()},{id:b.loan.id,quoteId:b.quoteId,publicRef:b.publicRef,cookies:b.session.dump()}]}));console.log(JSON.stringify({step:'prepare',status:200,loans:[a.loan.id,b.loan.id]}));process.exit(0)}
 if(stage==='apply'){const saved=JSON.parse(readFileSync(stageFile,'utf8'));for(const [i,x] of saved.loans.entries()){const s=jar();s.load(x.cookies);const r=await req(kh,'/api/h5/state',{method:'POST',session:s,body:{action:'apply',loanId:x.id,billConfirmed:true,quoteId:x.quoteId,requestId:`w26-outage-apply-${i}-${Date.now()}`}});fail(`apply-${i}`,r,r=>r.status===200)}process.exit(0)}
 if(stage==='tick'){const r=await req(kh,'/api/jobs/partner-outbox',{method:'POST',headers:{authorization:`Bearer ${process.env.KHMERX_JOB_SECRET}`}});const rows=dbMany(process.env.KHMERX_DB_PATH,"SELECT id,event_type,attempts,status,last_error,next_attempt_at FROM partner_outbox WHERE event_type='application.submitted' ORDER BY created_at");console.log(JSON.stringify({step:'tick',time:new Date().toISOString(),triggerStatus:r.status,rows}));process.exit(0)}
@@ -31,5 +154,5 @@ if(stage==='finish'){const saved=JSON.parse(readFileSync(stageFile,'utf8'));cons
   if(stage==='tick'){const r=await req(kh,'/api/jobs/partner-outbox',{method:'POST',headers:{authorization:`Bearer ${process.env.KHMERX_JOB_SECRET}`}});const rows=dbMany(process.env.KHMERX_DB_PATH,"SELECT id,event_type,attempts,status,last_error,next_attempt_at FROM partner_outbox WHERE event_type='application.submitted' ORDER BY created_at");console.log(JSON.stringify({step:'tick',time:new Date().toISOString(),triggerStatus:r.status,rows}));process.exit(0)}
   if(stage==='finish'){const saved=JSON.parse(readFileSync(stageFile,'utf8'));const ids=saved.loans.map(x=>x.publicRef);const placeholders=ids.map(()=>'?').join(',');const deadline=Date.now()+15*60*1000;let delivered=false;while(Date.now()<=deadline){const tick=await req(kh,'/api/jobs/partner-outbox',{method:'POST',headers:{authorization:`Bearer ${process.env.KHMERX_JOB_SECRET}`}});const rows=dbMany(process.env.KHMERX_DB_PATH,`SELECT id,event_type,attempts,status,last_error,next_attempt_at FROM partner_outbox WHERE event_type='application.submitted' AND json_extract(payload,'$.applicationId') IN (${placeholders}) ORDER BY created_at`,ids);console.log(JSON.stringify({step:'finish-tick',time:new Date().toISOString(),triggerStatus:tick.status,rows}));delivered=rows.length===ids.length&&rows.every(x=>x.status==='delivered');if(delivered)break;if(Date.now()+30000>deadline)break;await sleep(30000)}if(!delivered)throw new Error('partner outbox not delivered within 15 minutes after restart');const l=await licensedLogin(process.env.LICENSED_LENDER_EMAIL,process.env.LICENSED_LENDER_PASSWORD,process.env.LICENSED_LENDER_MFA),c=await licensedLogin(process.env.LICENSED_CHECKER_EMAIL,process.env.LICENSED_CHECKER_PASSWORD,process.env.LICENSED_CHECKER_MFA);let apps=await req(li,`/api/institution/applications?partnerId=${encodeURIComponent(partner)}`,{session:l});for(const x of saved.loans){if(!apps.json.applications.some(a=>a.id===x.publicRef))throw new Error(`missing application ${x.publicRef}`)}const app=apps.json.applications.find(a=>a.id===saved.loans[0].publicRef);let r=await req(li,'/api/institution/applications',{method:'POST',session:l,body:{action:'approve',partnerId:partner,applicationId:app.id,version:app.version,requestId:`w26-finish-approve-${Date.now()}`}});fail('finish-approve',r,r=>r.status===200);r=await req(li,'/api/institution/applications',{method:'POST',session:c,body:{action:'review_approve',partnerId:partner,applicationId:app.id,version:r.json.version,requestId:`w26-finish-review-${Date.now()}`}});fail('finish-review',r,r=>r.status===200);fail('finish-licensed-outbox',await req(li,'/api/jobs/partner-outbox',{method:'POST',headers:{'x-job-key':process.env.LICENSED_JOB_KEY}}),r=>r.status===200);const khState=dbOne(process.env.KHMERX_DB_PATH,"SELECT json_extract(value,'$.status') status FROM demo_workspaces,json_each(payload,'$.loans') WHERE json_extract(value,'$.publicRef')=?",[saved.loans[0].publicRef]);console.log(JSON.stringify({step:'finish-approved',status:khState?.status}));stats();process.exit(0)}
   if(stage==='cancel'){const saved=JSON.parse(readFileSync(stageFile,'utf8')),x=saved.loans[0],s=jar();s.load(x.cookies);let r=await req(kh,'/api/h5/state',{method:'POST',session:s,body:{action:'cancel_application',loanId:x.id,consent:true,requestId:`w27-cancel-${Date.now()}`}});fail('cancel-application',r,r=>r.status===200);fail('cancel-khmerx-outbox',await req(kh,'/api/jobs/partner-outbox',{method:'POST',headers:{authorization:`Bearer ${process.env.KHMERX_JOB_SECRET}`}}),r=>r.status===200);const received=dbOne(process.env.LICENSED_DB_PATH,'SELECT status FROM applications WHERE partner_id=? AND id=?',[partner,x.publicRef]);if(received?.status!=='withdrawn')throw new Error('licensed withdrawn status assertion failed');const lender=await licensedLogin(process.env.LICENSED_LENDER_EMAIL,process.env.LICENSED_LENDER_PASSWORD,process.env.LICENSED_LENDER_MFA);r=await req(li,'/api/institution/applications',{method:'POST',session:lender,body:{action:'approve',partnerId:partner,applicationId:x.publicRef,version:0,requestId:`w27-cancel-approve-${Date.now()}`}});fail('cancelled-approval-rejected',r,r=>r.status===409);console.log(JSON.stringify({step:'cancel-finished',licensedStatus:received?.status}));process.exit(0)}
-const approved=await customerFlow('approved');fail('khmerx-outbox-approved',await req(kh,'/api/jobs/partner-outbox',{method:'POST',headers:{authorization:`Bearer ${process.env.KHMERX_JOB_SECRET}`}}),r=>r.status===200);const lender=await licensedLogin(process.env.LICENSED_LENDER_EMAIL,process.env.LICENSED_LENDER_PASSWORD,process.env.LICENSED_LENDER_MFA),checker=await licensedLogin(process.env.LICENSED_CHECKER_EMAIL,process.env.LICENSED_CHECKER_PASSWORD,process.env.LICENSED_CHECKER_MFA);let apps=await req(li,`/api/institution/applications?partnerId=${encodeURIComponent(partner)}`,{session:lender});fail('licensed-list-approved',apps,r=>r.status===200&&r.json.applications.some(x=>x.id===approved.publicRef));const app=apps.json.applications.find(x=>x.id===approved.publicRef);let r=await req(li,'/api/institution/applications',{method:'POST',session:lender,body:{action:'approve',partnerId:partner,applicationId:app.id,version:app.version,requestId:`w26-approve-${Date.now()}`}});fail('institution-approve',r,r=>r.status===200);r=await req(li,'/api/institution/applications',{method:'POST',session:checker,body:{action:'review_approve',partnerId:partner,applicationId:app.id,version:r.json.version,requestId:`w26-review-${Date.now()}`}});fail('institution-review',r,r=>r.status===200);fail('licensed-outbox-approved',await req(li,'/api/jobs/partner-outbox',{method:'POST',headers:{'x-job-key':process.env.LICENSED_JOB_KEY}}),r=>r.status===200);const approvedState=dbOne(process.env.KHMERX_DB_PATH,"SELECT json_extract(value,'$.status') status FROM demo_workspaces,json_each(payload,'$.loans') WHERE json_extract(value,'$.publicRef')=?",[approved.publicRef]);if(approvedState?.status!=='approved')throw new Error('approved status assertion failed');r=await req(kh,'/api/h5/state',{method:'POST',session:approved.session,body:{action:'sign',loanId:approved.loan.id,consent:true,signature:'SYNTHETIC-TEST-SIGNATURE',requestId:`w26-approved-sign-${Date.now()}`}});fail('approved:customer-sign',r,r=>r.status===200);fail('khmerx-outbox-signed',await req(kh,'/api/jobs/partner-outbox',{method:'POST',headers:{authorization:`Bearer ${process.env.KHMERX_JOB_SECRET}`}}),r=>r.status===200);const signedOutbox=dbOne(process.env.KHMERX_DB_PATH,"SELECT status FROM partner_outbox WHERE event_type='agreement.signed' ORDER BY created_at DESC LIMIT 1");if(signedOutbox?.status!=='delivered')throw new Error('agreement.signed outbox assertion failed');const signedEvent=dbOne(process.env.LICENSED_DB_PATH,"SELECT COUNT(*) count FROM application_events WHERE partner_id=? AND application_id=? AND event_type='agreement.signed'",[partner,approved.publicRef]);if(Number(signedEvent?.count)!==1)throw new Error('agreement.signed inbound assertion failed');const signedApp=dbOne(process.env.LICENSED_DB_PATH,'SELECT status FROM applications WHERE partner_id=? AND id=?',[partner,approved.publicRef]);console.log(JSON.stringify({step:'licensed-agreement-signed',status:signedApp?.status,code:null,applicationStatus:signedApp?.status,inboundEventRows:Number(signedEvent.count)}));
+const approved=await customerFlow('approved');fail('khmerx-outbox-approved',await req(kh,'/api/jobs/partner-outbox',{method:'POST',headers:{authorization:`Bearer ${process.env.KHMERX_JOB_SECRET}`}}),r=>r.status===200);const lender=await licensedLogin(process.env.LICENSED_LENDER_EMAIL,process.env.LICENSED_LENDER_PASSWORD,process.env.LICENSED_LENDER_MFA),checker=await licensedLogin(process.env.LICENSED_CHECKER_EMAIL,process.env.LICENSED_CHECKER_PASSWORD,process.env.LICENSED_CHECKER_MFA);let apps=await req(li,`/api/institution/applications?partnerId=${encodeURIComponent(partner)}`,{session:lender});fail('licensed-list-approved',apps,r=>r.status===200&&r.json.applications.some(x=>x.id===approved.publicRef));const app=apps.json.applications.find(x=>x.id===approved.publicRef);let r=await req(li,'/api/institution/applications',{method:'POST',session:lender,body:{action:'approve',partnerId:partner,applicationId:app.id,version:app.version,requestId:`w26-approve-${Date.now()}`}});fail('institution-approve',r,r=>r.status===200);r=await req(li,'/api/institution/applications',{method:'POST',session:checker,body:{action:'review_approve',partnerId:partner,applicationId:app.id,version:r.json.version,requestId:`w26-review-${Date.now()}`}});fail('institution-review',r,r=>r.status===200);fail('licensed-outbox-approved',await req(li,'/api/jobs/partner-outbox',{method:'POST',headers:{'x-job-key':process.env.LICENSED_JOB_KEY}}),r=>r.status===200);const approvedState=dbOne(process.env.KHMERX_DB_PATH,"SELECT json_extract(value,'$.status') status FROM demo_workspaces,json_each(payload,'$.loans') WHERE json_extract(value,'$.publicRef')=?",[approved.publicRef]);if(approvedState?.status!=='approved')throw new Error('approved status assertion failed');await signLoan(approved.loan.id,approved.publicRef,approved.session);
 const rejected=await customerFlow('rejected');fail('khmerx-outbox-rejected',await req(kh,'/api/jobs/partner-outbox',{method:'POST',headers:{authorization:`Bearer ${process.env.KHMERX_JOB_SECRET}`}}),r=>r.status===200);apps=await req(li,`/api/institution/applications?partnerId=${encodeURIComponent(partner)}`,{session:lender});const rejectApp=apps.json.applications.find(x=>x.id===rejected.publicRef);r=await req(li,'/api/institution/applications',{method:'POST',session:lender,body:{action:'reject',partnerId:partner,applicationId:rejectApp.id,version:rejectApp.version,reason:'Synthetic rejection',requestId:`w26-reject-${Date.now()}`}});fail('institution-reject',r,r=>r.status===200);fail('licensed-outbox-rejected',await req(li,'/api/jobs/partner-outbox',{method:'POST',headers:{'x-job-key':process.env.LICENSED_JOB_KEY}}),r=>r.status===200);const rejectedState=dbOne(process.env.KHMERX_DB_PATH,"SELECT json_extract(value,'$.status') status FROM demo_workspaces,json_each(payload,'$.loans') WHERE json_extract(value,'$.publicRef')=?",[rejected.publicRef]);if(rejectedState?.status!=='rejected')throw new Error('rejected status assertion failed');stats();
