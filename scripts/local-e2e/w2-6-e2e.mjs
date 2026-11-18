@@ -3,6 +3,7 @@ import {readFileSync,writeFileSync} from 'node:fs';
 import {createHmac,randomUUID} from 'node:crypto';
 if(process.env.PAYEASE_ENV!=='local')throw new Error('PAYEASE_ENV must be local');
 for(const key of ['KHMERX_BASE_URL','LICENSED_BASE_URL','KHMERX_DB_PATH','LICENSED_DB_PATH','PARTNER_ID','KHMERX_JOB_SECRET','LICENSED_JOB_KEY','LICENSED_LENDER_EMAIL','LICENSED_LENDER_PASSWORD','LICENSED_LENDER_MFA','LICENSED_CHECKER_EMAIL','LICENSED_CHECKER_PASSWORD','LICENSED_CHECKER_MFA'])if(!process.env[key])throw new Error(`missing ${key}`);
+const hardExit=process.exit.bind(process);process.exit=code=>{process.exitCode=code;setImmediate(()=>setImmediate(()=>hardExit(code)))};
 const kh=process.env.KHMERX_BASE_URL.replace(/\/$/,''),li=process.env.LICENSED_BASE_URL.replace(/\/$/,''),partner=process.env.PARTNER_ID;
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jLPsAAAAASUVORK5CYII=','base64');
 function jar(){const c=new Map();return {headers(){return c.size?{cookie:[...c].map(([k,v])=>`${k}=${v}`).join('; ')}:{}},save(h){for(const v of h.getSetCookie?.()||[]){const q=v.split(';',1)[0],i=q.indexOf('=');if(i>0)c.set(q.slice(0,i),q.slice(i+1))}},dump(){return [...c]},load(entries){for(const [k,v] of entries||[])c.set(k,v)}}}
